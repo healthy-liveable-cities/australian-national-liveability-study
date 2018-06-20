@@ -26,7 +26,6 @@ if not os.path.exists(os.path.join(temp,db)):
     
 arcpy.env.scratchWorkspace = os.path.join(temp,db)  
 arcpy.env.overwriteOutput = True 
-arcpy.env.overwriteOutput = True 
 
 # Define spatial reference
 SpatialRef = arcpy.SpatialReference(SpatialRef)
@@ -44,7 +43,7 @@ command = 'ogr2ogr -overwrite -progress -f "PostgreSQL" ' \
         + 'user={user} password = {pwd}" '.format(user = db_user,pwd = db_pwd) \
         + '{gdb} "{feature}" '.format(gdb = gdb_path,feature = 'meshblocks') \
         + '-lco geometry_name="geom"'
-sp.call(command, shell=True, cwd='C:/OSGeo4W64/bin/')
+sp.call(command, shell=True)
 
 # field_names = [f.name for f in arcpy.ListFields(featureclass)]
 with arcpy.da.SearchCursor('layer', meshblock_id) as cursor:
@@ -94,5 +93,4 @@ arcpy.env.workspace = db_sde_path
 arcpy.CopyFeatures_management('public.mb_dwellings', os.path.join(gdb_path,'mb_dwellings'))
 
 # output to completion log					
-script_running_log(script, task, start)
-
+script_running_log(script, task, start, locale)

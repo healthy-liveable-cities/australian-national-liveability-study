@@ -3,14 +3,14 @@
 # Author:  Carl Higgs
 # Date:    09/03/2017
 
-def script_running_log(script = '', task = '', start = ''):
+def script_running_log(script = '', task = '', start = '', prefix = ''):
   import time 
   import os
   import sys
   
   date_time = time.strftime("%Y%m%d-%H%M%S")
   duration = (time.time() - start)/60
-  output = os.path.join(sys.path[0],'script_running_log.csv')
+  output = os.path.join(sys.path[0],'script_running_log_{}.csv'.format(prefix))
   
   if not os.path.isfile(output):
       try:

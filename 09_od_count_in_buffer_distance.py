@@ -321,5 +321,5 @@ if __name__ == '__main__':
   print("Done.")  
   
   # output to completion log    
-  script_running_log(script, task, start)
-  conn.close()
+script_running_log(script, task, start, locale)
+conn.close()

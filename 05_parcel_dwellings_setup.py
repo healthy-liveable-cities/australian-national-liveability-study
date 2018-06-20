@@ -132,7 +132,7 @@ command = 'ogr2ogr -overwrite -progress -f "PostgreSQL" ' \
         + '-a_srs "EPSG:{from_srs} " '.format(from_srs = points_srid) \
         + '-t_srs "EPSG:{to_srs} " '.format(to_srs = srid) \
         + '-lco geometry_name="geom" '
-sp.call(command, shell=True, cwd='C:/OSGeo4W64/bin/')
+sp.call(command, shell=True)
 
 # pgsql to gdb
 # this is a clumsy workaround: I struggled to get the source GNAF data in the correct format at pre-processing stage
@@ -143,5 +143,4 @@ arcpy.env.workspace = db_sde_path
 arcpy.CopyFeatures_management('public.parcel_dwellings', os.path.join(gdb_path,'parcel_dwellings'))
 
 # output to completion log					
-script_running_log(script, task, start)
-
+script_running_log(script, task, start, locale)

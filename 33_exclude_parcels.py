@@ -79,7 +79,7 @@ curs.execute(query)
 conn.commit()
 
 # output to completion log    
-script_running_log(script, task, start)
+script_running_log(script, task, start, locale)
 
 # clean up
 conn.close()

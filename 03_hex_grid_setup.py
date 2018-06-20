@@ -54,7 +54,7 @@ command = 'ogr2ogr -overwrite -progress -f "PostgreSQL" ' \
         + 'user={user} password = {pwd}" '.format(user = db_user,pwd = db_pwd) \
         + '{gdb} "{feature}" '.format(gdb = gdb_path,feature = hex_grid) \
         + '-lco geometry_name="geom"'
-sp.call(command, shell=True, cwd='C:/OSGeo4W64/bin/')
+sp.call(command, shell=True)
 
 # copy hex buffer to postgis
 command = 'ogr2ogr -overwrite -progress -f "PostgreSQL" ' \
@@ -62,9 +62,8 @@ command = 'ogr2ogr -overwrite -progress -f "PostgreSQL" ' \
         + 'user={user} password = {pwd}" '.format(user = db_user,pwd = db_pwd) \
         + '{gdb} "{feature}" '.format(gdb = gdb_path,feature = hex_grid_buffer) \
         + '-lco geometry_name="geom"'
-sp.call(command, shell=True, cwd='C:/OSGeo4W64/bin/')
+sp.call(command, shell=True)
 
 
 # # output to completion log					
-script_running_log(script, task, start)
-
+script_running_log(script, task, start, locale)

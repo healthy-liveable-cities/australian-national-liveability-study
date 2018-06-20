@@ -321,5 +321,5 @@ if __name__ == '__main__':
   pool.map(ODMatrixWorkerFunction, hexCursor, chunksize=1)
   
   # output to completion log    
-  script_running_log(script, task, start)
+  script_running_log(script, task, start, locale)
   conn.close()

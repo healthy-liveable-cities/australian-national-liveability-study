@@ -156,4 +156,4 @@ spatial_reference = arcpy.SpatialReference(parser.get('data', 'SpatialRef'))
   # conn.close()      
   
   # # output to completion log    
-  # script_running_log(script, task, start)
+  # script_running_log(script, task, start, locale)

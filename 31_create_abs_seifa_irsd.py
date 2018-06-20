@@ -47,8 +47,4 @@ curs.copy_expert(sql="COPY abs_2011_irsd FROM STDIN WITH CSV HEADER DELIMITER AS
 conn.close()
 
 # output to completion log    
-script_running_log(script, task, start)
-
-
-
-  
+script_running_log(script, task, start, locale)

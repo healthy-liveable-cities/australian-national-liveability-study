@@ -141,5 +141,5 @@ renameSkinny(is_geo = True,in_obj = POSentry,out_obj = 'featureTrimmed',keep_fie
 arcpy.CopyFeatures_management('featureTrimmed', output)
  
 # output to completion log    
-script_running_log(script, task, start)
+script_running_log(script, task, start, locale)
 conn.close()

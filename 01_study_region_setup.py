@@ -60,7 +60,12 @@ command = 'ogr2ogr -overwrite -progress -f "PostgreSQL" ' \
         + 'user={user} password = {pwd}" '.format(user = db_user,pwd = db_pwd) \
         + '{gdb} "{feature}" '.format(gdb = gdb_path,feature = study_region) \
         + '-lco geometry_name="geom"'
-sp.call(command, shell=True, cwd='C:/OSGeo4W64/bin/')
+## Note  --- on Carl's computer, he had to specify a specific dir to get 
+## correct instance of ogr2ogr; this wasn't req'd on Bec's computer I think
+## and that specific dir doesn't exist for her, so I have commented out this line
+## and replaced with a simpler line which hopefully will work for others
+# sp.call(command, shell=True, cwd='C:/OSGeo4W64/bin/')
+sp.call(command, shell=True)
 
 print("Copy buffered study region to postgis...")
 command = 'ogr2ogr -overwrite -progress -f "PostgreSQL" ' \
@@ -68,9 +73,8 @@ command = 'ogr2ogr -overwrite -progress -f "PostgreSQL" ' \
         + 'user={user} password = {pwd}" '.format(user = db_user,pwd = db_pwd) \
         + '{gdb} "{feature}" '.format(gdb = gdb_path,feature = buffered_study_region) \
         + '-lco geometry_name="geom"'
-sp.call(command, shell=True, cwd='C:/OSGeo4W64/bin/')
+sp.call(command, shell=True)
 
 
 # output to completion log					
-script_running_log(script, task, start)
-
+script_running_log(script, task, start, locale)
