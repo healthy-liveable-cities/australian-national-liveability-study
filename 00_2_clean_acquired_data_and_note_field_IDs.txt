@@ -1,0 +1,9 @@
+# Checklist
+
+- Keep a provenance.txt file noting all data sources in the same folder where they are stored
+
+- If there are multiple resources in a folder, this file will contain information on all resources
+
+- Retain original data sources, or make a note of where these are located and can be accessed offline in the provenance file
+
+- If data sources are modified, make clear but detailed notes of any processing and who did this so this can be replicated if required
