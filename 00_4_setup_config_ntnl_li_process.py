@@ -208,7 +208,7 @@ intersections = os.path.join(network_source, intersections)
 
 # network dataset, without specifying the location (e.g. if gdb is work environment)
 in_network_dataset = os.path.join('{}'.format(network_source_feature_dataset),
-                                '{}_ND'.format(network_source_feature))
+                                '{}_ND'.format(network_source_feature_dataset))
 # network dataset, with full path
 in_network_dataset_path = os.path.join(gdb_path,in_network_dataset)
 
