@@ -26,6 +26,9 @@ import sys
 import pandas
 
 
+# The main directory for data
+folderPath = 'D:/ntnl_li_2018_template/data/'
+
 # Specify study region details  ************** This is the important bit! *******
 # Uncomment for study region as required
 
@@ -120,9 +123,6 @@ in_coor_system = '''GEOGCS['GCS_GDA_1994',DATUM['D_GDA_1994',SPHEROID['GRS_1980'
 
 ## This is used for spatial reference for 'destinations' feature dataset (in script 07_recompile_destinations.py --- similar to out_coor_system, it contains additions bounding box parameters apparently, and a flag 'IsHighPrecision'.  
 feature_ds_out_spatial_ref = '''"PROJCS['GDA2020_GA_LCC',GEOGCS['GDA2020',DATUM['GDA2020',SPHEROID['GRS_1980',6378137.0,298.257222101]],PRIMEM['Greenwich',0.0],UNIT['Degree',0.0174532925199433]],PROJECTION['Lambert_Conformal_Conic'],PARAMETER['False_Easting',0.0],PARAMETER['False_Northing',0.0],PARAMETER['Central_Meridian',134.0],PARAMETER['Standard_Parallel_1',-18.0],PARAMETER['Standard_Parallel_2',-36.0],PARAMETER['Latitude_Of_Origin',0.0],UNIT['Meter',1.0]];-39261800 -15381600 10000;-100000 10000;-100000 10000;0.001;0.001;0.001;IsHighPrecision"'''
-
-# The main directory for data
-folderPath = 'D:/ntnl_li_2018_template/data/'
 
 # SQL Settings
 db_host   = 'localhost'
