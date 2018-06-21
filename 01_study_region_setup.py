@@ -5,6 +5,7 @@
 
 import arcpy
 import time
+import psycopg2
 import subprocess as sp     # for executing external commands (e.g. pgsql2shp)
 from script_running_log import script_running_log
 
@@ -74,7 +75,6 @@ command = 'ogr2ogr -overwrite -progress -f "PostgreSQL" ' \
         + '{gdb} "{feature}" '.format(gdb = gdb_path,feature = buffered_study_region) \
         + '-lco geometry_name="geom"'
 sp.call(command, shell=True)
-
 
 # connect to the PostgreSQL server and ensure privileges are granted for all public tables
 conn = psycopg2.connect(dbname=db, user=db_user, password=db_pwd)

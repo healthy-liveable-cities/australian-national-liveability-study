@@ -6,6 +6,7 @@
 import psycopg2 
 import arcpy
 import time
+import psycopg2
 import subprocess as sp     # for executing external commands (e.g. pgsql2shp)
 from sqlalchemy import create_engine
 from script_running_log import script_running_log
