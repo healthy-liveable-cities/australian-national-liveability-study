@@ -141,7 +141,15 @@ abs_suburb = os.path.join(folderPath,'ABS/derived/ASGS_2016_Volume_3_GDA2020/mai
 
 # parcels
 # Note that the process assumes we have already transformed points to GDA2020 GA LLC
-points          = os.path.join(folderPath,'address_points/PSMA_2018/Open GNAF/gnaf_2018_vic_GDA2020_GA_LLC.shp')
+# D:/ntnl_li_2018/ntnl_li_2018_template/data/address_points/GDA2020_GA_LLC.gdb/gnaf_2018_vic
+# D:/ntnl_li_2018/ntnl_li_2018_template/data/address_points/GDA2020_GA_LLC.gdb/gnaf_2018_wa
+# D:/ntnl_li_2018/ntnl_li_2018_template/data/address_points/GDA2020_GA_LLC.gdb/gnaf_2018_act
+# D:/ntnl_li_2018/ntnl_li_2018_template/data/address_points/GDA2020_GA_LLC.gdb/gnaf_2018_nsw
+# D:/ntnl_li_2018/ntnl_li_2018_template/data/address_points/GDA2020_GA_LLC.gdb/gnaf_2018_nt
+# D:/ntnl_li_2018/ntnl_li_2018_template/data/address_points/GDA2020_GA_LLC.gdb/gnaf_2018_qld
+# D:/ntnl_li_2018/ntnl_li_2018_template/data/address_points/GDA2020_GA_LLC.gdb/gnaf_2018_sa
+# D:/ntnl_li_2018/ntnl_li_2018_template/data/address_points/GDA2020_GA_LLC.gdb/gnaf_2018_tas
+
 points_id        = 'gnaf_pid'
 points_srid    = 7844
 
