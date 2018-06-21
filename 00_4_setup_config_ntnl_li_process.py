@@ -26,12 +26,51 @@ import sys
 import pandas
 
 
-# Specify study region details
-locale       = 'Melb'
+# Specify study region details  ************** This is the important bit! *******
+# Uncomment for study region as required
+
+# locale       = 'Adelaide'
+# locale       = 'Bris'
+# locale       = 'Canberra'
+# locale       = 'Darwin'
+# locale       = 'Hobart'
+# locale       = 'Melb'
+# locale       = 'Perth'
+# locale       = 'Syd'
+
+# region_where_clause = ''' "STATE_NAME" = 'South Australia' AND "GCCSA_NAME"  = 'Greater Adelaide' '''
+# region_where_clause = ''' "STATE_NAME" = 'Queensland' AND "GCCSA_NAME"  = 'Greater Brisbane' '''
+# region_where_clause = ''' "STATE_NAME" = 'Australian Capital Territory' AND "GCCSA_NAME"  = 'Greater Canberra' '''
+# region_where_clause = ''' "STATE_NAME" = 'Northern Territory' AND "GCCSA_NAME"  = 'Greater Darwin' '''
+# region_where_clause = ''' "STATE_NAME" = 'Tasmania' AND "GCCSA_NAME"  = 'Greater Hobart' '''
+# region_where_clause = ''' "STATE_NAME" = 'Victoria' AND "GCCSA_NAME"  = 'Greater Melbourne' '''
+# region_where_clause = ''' "STATE_NAME" = 'Western Australia' AND "GCCSA_NAME"  = 'Greater Perth' '''
+# region_where_clause = ''' "STATE_NAME" = 'New South Wales' AND "GCCSA_NAME"  = 'Greater Sydney' '''
+
+# network_prefix  = 'Adelaide' # the prefix to road network data
+# network_prefix  = 'Brisbane' # the prefix to road network data
+# network_prefix  = 'Canberra' # the prefix to road network data
+# network_prefix  = 'Darwin'   # the prefix to road network data
+# network_prefix  = 'Hobart'   # the prefix to road network data
+# network_prefix  = 'Melb'     # the prefix to road network data
+# network_prefix  = 'Perth'    # the prefix to road network data
+# network_prefix  = 'Sydney'   # the prefix to road network data
+
+# points = os.path.join(folderPath,'address_points/GDA2020_GA_LLC.gdb/gnaf_2018_vic')
+# points = os.path.join(folderPath,'address_points/GDA2020_GA_LLC.gdb/gnaf_2018_wa')
+# points = os.path.join(folderPath,'address_points/GDA2020_GA_LLC.gdb/gnaf_2018_act')
+# points = os.path.join(folderPath,'address_points/GDA2020_GA_LLC.gdb/gnaf_2018_nsw')
+# points = os.path.join(folderPath,'address_points/GDA2020_GA_LLC.gdb/gnaf_2018_nt')
+# points = os.path.join(folderPath,'address_points/GDA2020_GA_LLC.gdb/gnaf_2018_qld')
+# points = os.path.join(folderPath,'address_points/GDA2020_GA_LLC.gdb/gnaf_2018_sa')
+# points = os.path.join(folderPath,'address_points/GDA2020_GA_LLC.gdb/gnaf_2018_tas')
+
+# **************** Extra bits (hopefully don't need to change) *******************************
+
+# More study region details
 year         = '2016'  # The year that the calculator indicator set approx. targets
 region       = 'GCCSA'
 region_shape = 'ABS/derived/ASGS_2016_Volume_1_GDA2020/main_GCCSA_2016_AUST_FULL.shp'
-region_where_clause = ''' "STATE_NAME" = 'Victoria' AND "GCCSA_NAME"  = 'Greater Melbourne' '''
 
 # derived study region name (no need to change!)
 study_region = '{0}_{1}'.format(region,year).lower()
@@ -142,15 +181,6 @@ abs_suburb = os.path.join(folderPath,'ABS/derived/ASGS_2016_Volume_3_GDA2020/mai
 # parcels
 # Note that the process assumes we have already transformed points to GDA2020 GA LLC
 
-# points = os.path.join(folderPath,'address_points/GDA2020_GA_LLC.gdb/gnaf_2018_vic')
-# points = os.path.join(folderPath,'address_points/GDA2020_GA_LLC.gdb/gnaf_2018_wa')
-# points = os.path.join(folderPath,'address_points/GDA2020_GA_LLC.gdb/gnaf_2018_act')
-# points = os.path.join(folderPath,'address_points/GDA2020_GA_LLC.gdb/gnaf_2018_nsw')
-# points = os.path.join(folderPath,'address_points/GDA2020_GA_LLC.gdb/gnaf_2018_nt')
-# points = os.path.join(folderPath,'address_points/GDA2020_GA_LLC.gdb/gnaf_2018_qld')
-# points = os.path.join(folderPath,'address_points/GDA2020_GA_LLC.gdb/gnaf_2018_sa')
-# points = os.path.join(folderPath,'address_points/GDA2020_GA_LLC.gdb/gnaf_2018_tas')
-
 points_id        = 'gnaf_pid'
 points_srid    = 7844
 
@@ -163,7 +193,6 @@ parcel_dwellings = 'parcel_dwellings'
 # roads
 # Define network data name structures
 road_data                      = 'roads'   # the folder where road data is kept
-network_prefix                 = 'Brisbane'    # the prefix to road network data
 network_source_gdb_suffix      = '_CleanPedestrianRoads.gdb' # the suffix to the network data source
 network_source_feature_dataset = 'OSMPedClean2018' # The generalised network data name
 intersections                  = 'Intersections'   # 3+ way intersections located in source network gdb
