@@ -76,5 +76,12 @@ command = 'ogr2ogr -overwrite -progress -f "PostgreSQL" ' \
 sp.call(command, shell=True)
 
 
+# connect to the PostgreSQL server and ensure privileges are granted for all public tables
+conn = psycopg2.connect(dbname=db, user=db_user, password=db_pwd)
+curs = conn.cursor()
+curs.execute(grant_query)
+conn.commit()
+conn.close()
+
 # output to completion log					
 script_running_log(script, task, start, locale)

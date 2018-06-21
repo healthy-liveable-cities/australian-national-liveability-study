@@ -19,7 +19,7 @@ script = os.path.basename(sys.argv[0])
 task = 'Project meshblock shapefile to correct spatial reference; join w/ dwelling data; and crop to Metro Urban area'
 
 # ArcGIS environment settings
-arcpy.env.workspace = folderPath  
+arcpy.env.workspace = gdb_path  
 # create project specific folder in temp dir for scratch.gdb, if not exists
 if not os.path.exists(os.path.join(temp,db)):
     os.makedirs(os.path.join(temp,db))
@@ -44,6 +44,13 @@ command = 'ogr2ogr -overwrite -progress -f "PostgreSQL" ' \
         + '{gdb} "{feature}" '.format(gdb = gdb_path,feature = 'meshblocks') \
         + '-lco geometry_name="geom"'
 sp.call(command, shell=True)
+
+# connect to the PostgreSQL server and ensure privileges are granted for all public tables
+conn = psycopg2.connect(dbname=db, user=db_user, password=db_pwd)
+curs = conn.cursor()
+curs.execute(grant_query)
+conn.commit()
+conn.close()
 
 # field_names = [f.name for f in arcpy.ListFields(featureclass)]
 with arcpy.da.SearchCursor('layer', meshblock_id) as cursor:

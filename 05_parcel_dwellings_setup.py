@@ -17,7 +17,7 @@ script = os.path.basename(sys.argv[0])
 task = 'Clip address to study region, dissolve by location counting collapse degree'
 
 # ArcGIS environment settings
-arcpy.env.workspace = folderPath  
+arcpy.env.workspace = gdb_path  
 # create project specific folder in temp dir for scratch.gdb, if not exists
 if not os.path.exists(os.path.join(temp,db)):
     os.makedirs(os.path.join(temp,db))
@@ -133,6 +133,13 @@ command = 'ogr2ogr -overwrite -progress -f "PostgreSQL" ' \
         + '-t_srs "EPSG:{to_srs} " '.format(to_srs = srid) \
         + '-lco geometry_name="geom" '
 sp.call(command, shell=True)
+
+# connect to the PostgreSQL server and ensure privileges are granted for all public tables
+conn = psycopg2.connect(dbname=db, user=db_user, password=db_pwd)
+curs = conn.cursor()
+curs.execute(grant_query)
+conn.commit()
+conn.close()
 
 # pgsql to gdb
 # this is a clumsy workaround: I struggled to get the source GNAF data in the correct format at pre-processing stage

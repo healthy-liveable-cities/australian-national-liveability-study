@@ -106,6 +106,9 @@ os.environ['PGUSER']     = db_user
 os.environ['PGPASSWORD'] = db_pwd
 os.environ['PGDATABASE'] = db
 
+grant_query = '''GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {};
+                 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO {};'''.format(arc_sde_user)
+
 # ABS data
 # ABS data sourced online is located in the ABS_downloads folder
 # cleaned data referenced below (including output from scripts) is located in ABS_derived
