@@ -89,6 +89,8 @@ arcpy.Project_management(in_dataset = network,
 arcpy.BuildNetwork_na(in_network_dataset=in_network_dataset_path)
 arcpy.CheckInExtension('Network')  
 
+arcpy.env.workspace = gdb_path 
+
 clipFeature(intersections,buffered_study_region,' ','intersections')
  
 #  Copy the intersections from gdb to postgis, correcting the projection in process
