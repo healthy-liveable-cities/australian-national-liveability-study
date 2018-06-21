@@ -149,12 +149,12 @@ parcel_dwellings = 'parcel_dwellings'
 # roads
 # Define network data name structures
 road_data                      = 'roads'   # the folder where road data is kept
-network_prefix                 = 'Melb'    # the prefix to road network data
+network_prefix                 = 'Brisbane'    # the prefix to road network data
 network_source_gdb_suffix      = '_CleanPedestrianRoads.gdb' # the suffix to the network data source
 network_source_feature_dataset = 'OSMPedClean2018' # The generalised network data name
 intersections                  = 'Intersections'   # 3+ way intersections located in source network gdb
 network_edges                  = '{}CleanPedRoads_2018'.format(network_prefix)
-network_junctions              = '{}{}_ND_Junctions'.format(network_prefix,network_source_feature_dataset)
+network_junctions              = '{}_ND_Junctions'.format(network_source_feature_dataset)
 
 # Derived network data variables - no need to change, assuming the above works
 network_source_gdb             = '{}{}'.format(network_prefix,network_source_gdb_suffix)
