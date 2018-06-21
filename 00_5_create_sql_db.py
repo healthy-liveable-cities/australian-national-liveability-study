@@ -136,7 +136,7 @@ conn.close()
 
 print('Creating ArcGIS spatial database connection file ... '),
 arcpy.CreateDatabaseConnection_management(out_folder_path = folderPath,
-                                          out_name = sde_connection, 
+                                          out_name = db_sde, 
                                           database_platform = "POSTGRESQL", 
                                           instance = db_host, 
                                           account_authentication = "DATABASE_AUTH", 
