@@ -100,59 +100,52 @@ createUser_ArcSDE = '''
 createPostGIS = '''CREATE EXTENSION postgis;SELECT postgis_full_version();'''
   
 ## OUTPUT PROCESS
-try:
-  print("Connecting to default database to action queries.")
-  conn = psycopg2.connect(dbname=admin_db, user=admin_user_name, password=admin_pwd)
-  conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
-  cur = conn.cursor()
-  
-  print('Creating database {}... '.format(db)),
-  cur.execute(createDB) 
-  print('Done.')
-  
-  print('Adding comment "{}"... '.format(dbComment)),
-  cur.execute(commentDB)
-  print('Done.')
+
+print("Connecting to default database to action queries.")
+conn = psycopg2.connect(dbname=admin_db, user=admin_user_name, password=admin_pwd)
+conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+cur = conn.cursor()
+
+print('Creating database {}... '.format(db)),
+cur.execute(createDB) 
+print('Done.')
+
+print('Adding comment "{}"... '.format(dbComment)),
+cur.execute(commentDB)
+print('Done.')
 
 
-  print('Creating user {}  if not exists... '.format(db_user)),
-  cur.execute(createUser)
-  print('Done.')
+print('Creating user {}  if not exists... '.format(db_user)),
+cur.execute(createUser)
+print('Done.')
 
-  print('Creating ArcSDE user {} if not exists... '.format(arc_sde_user)),
-  cur.execute(createUser_ArcSDE)
-  print('Done.')  
-  conn.close()  
- 
-  print("Connecting to {}.".format(db))
-  conn = psycopg2.connect(dbname=db, user=admin_user_name, password=admin_pwd)
-  conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
-  cur = conn.cursor()
-  
-  print('Creating PostGIS extension ... '),
-  cur.execute(createPostGIS)
-  print('Done.')
-  conn.close()  
+print('Creating ArcSDE user {} if not exists... '.format(arc_sde_user)),
+cur.execute(createUser_ArcSDE)
+print('Done.')  
+conn.close()  
 
-  
-  arcpy.CreateDatabaseConnection_management(out_folder_path = folderPath,
-                                            out_name = sde_connection, 
-                                            database_platform = "POSTGRESQL", 
-                                            instance = db_host, 
-                                            account_authentication = "DATABASE_AUTH", 
-                                            username = arc_sde_user, 
-                                            password = db_pwd, 
-                                            save_user_pass = "SAVE_USERNAME", 
-                                            database = db)
-  
-  conn.close()
-  
-except (Exception, psycopg2.DatabaseError) as error:
-  print(error) 
-finally:
-  print("Process successfully completed.")
-  if conn is not None:
-     conn.close()
+print("Connecting to {}.".format(db))
+conn = psycopg2.connect(dbname=db, user=admin_user_name, password=admin_pwd)
+conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+cur = conn.cursor()
+
+print('Creating PostGIS extension ... '),
+cur.execute(createPostGIS)
+print('Done.')
+conn.close()  
+
+print('Creating ArcGIS spatial database connection file ... '),
+arcpy.CreateDatabaseConnection_management(out_folder_path = folderPath,
+                                          out_name = sde_connection, 
+                                          database_platform = "POSTGRESQL", 
+                                          instance = db_host, 
+                                          account_authentication = "DATABASE_AUTH", 
+                                          username = arc_sde_user, 
+                                          password = db_pwd, 
+                                          save_user_pass = "SAVE_USERNAME", 
+                                          database = db)
+print('Done.')
+conn.close()
 
 # output to completion log					
 script_running_log(script, task, start, locale)
