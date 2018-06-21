@@ -56,14 +56,14 @@ import pandas
 # network_prefix  = 'Perth'    # the prefix to road network data
 # network_prefix  = 'Sydney'   # the prefix to road network data
 
+# points = os.path.join(folderPath,'address_points/GDA2020_GA_LLC.gdb/gnaf_2018_sa')
+# points = os.path.join(folderPath,'address_points/GDA2020_GA_LLC.gdb/gnaf_2018_qld')
+# points = os.path.join(folderPath,'address_points/GDA2020_GA_LLC.gdb/gnaf_2018_act')
+# points = os.path.join(folderPath,'address_points/GDA2020_GA_LLC.gdb/gnaf_2018_nt')
+# points = os.path.join(folderPath,'address_points/GDA2020_GA_LLC.gdb/gnaf_2018_tas')
 # points = os.path.join(folderPath,'address_points/GDA2020_GA_LLC.gdb/gnaf_2018_vic')
 # points = os.path.join(folderPath,'address_points/GDA2020_GA_LLC.gdb/gnaf_2018_wa')
-# points = os.path.join(folderPath,'address_points/GDA2020_GA_LLC.gdb/gnaf_2018_act')
 # points = os.path.join(folderPath,'address_points/GDA2020_GA_LLC.gdb/gnaf_2018_nsw')
-# points = os.path.join(folderPath,'address_points/GDA2020_GA_LLC.gdb/gnaf_2018_nt')
-# points = os.path.join(folderPath,'address_points/GDA2020_GA_LLC.gdb/gnaf_2018_qld')
-# points = os.path.join(folderPath,'address_points/GDA2020_GA_LLC.gdb/gnaf_2018_sa')
-# points = os.path.join(folderPath,'address_points/GDA2020_GA_LLC.gdb/gnaf_2018_tas')
 
 # **************** Extra bits (hopefully don't need to change) *******************************
 
