@@ -94,6 +94,9 @@ create_table = '''DROP TABLE IF EXISTS mb_dwellings;
 # drop table if it already exists
 curs.execute(create_table)
 conn.commit()
+# explicitly grant permissions
+curs.execute(grant_query)
+conn.commit()
 conn.close()
 
 # Copy joined, cropped Urban Metro meshblock + dwellings feature from postgis to project geodatabase
