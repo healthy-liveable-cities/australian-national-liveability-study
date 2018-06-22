@@ -36,13 +36,6 @@ script = os.path.basename(sys.argv[0])
 
 # ArcGIS environment settings
 arcpy.env.workspace = gdb_path  
-# create project specific folder in temp dir for scratch.gdb, if not exists
-if not os.path.exists(os.path.join(temp,db)):
-    os.makedirs(os.path.join(temp,db))
-    
-arcpy.env.scratchWorkspace = os.path.join(temp,db)  
-arcpy.env.qualifiedFieldNames = False  
-arcpy.env.overwriteOutput = True 
 
 # Specify points
 points   = parcel_dwellings
@@ -64,8 +57,8 @@ group_by = 200
 log_table = 'log_hex_sausage_buffer'
 
 # temp --- using SSD copies to save write/read time, and avoid multiprocessing conflicts
-# if not os.path.exists(temp):
-    # os.makedirs(temp)
+if not os.path.exists(temp):
+    os.makedirs(temp)
 
 # Create temporary PID specific scratch geodatabase if not already existing
 pid = multiprocessing.current_process().name
@@ -76,14 +69,19 @@ if pid !='MainProcess':
     multiprocessing.current_process().name = 'PoolWorker-{}'.format(np.random.randint(1,6))
     pid = multiprocessing.current_process().name
     
-  # temp_gdb = os.path.join(temp,"scratch_{}_{}.gdb".format(study_region,pid))
+  
+  temp_gdb = os.path.join(temp,"scratch_{}_{}".format(study_region,pid))
+  # create project specific folder in temp dir for scratch.gdb, if not exists
+  if not os.path.exists(temp_gdb):
+      os.makedirs(temp_gdb)
+      
+  arcpy.env.scratchWorkspace = temp_gdb 
+  arcpy.env.qualifiedFieldNames = False  
+  arcpy.env.overwriteOutput = True 
+
   
   # if arcpy.Exists(temp_gdb) is False:  
     # copytree(destGdb, temp_gdb,ignore=ignore_patterns('*.lock'))
-  
-  arcpy.env.workspace = gdb_path
-  arcpy.env.qualifiedFieldNames = False  
-  arcpy.env.overwriteOutput = True   
 
   # preparatory set up
   # Process: Make Service Area Layer
@@ -113,7 +111,8 @@ conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor() 
   
 createTable_log     = '''
-        CREATE TABLE IF NOT EXISTS {}
+        DROP TABLE IF EXISTS {0};
+        CREATE TABLE IF NOT EXISTS {0}
           (hex integer PRIMARY KEY, 
           parcel_count integer NOT NULL, 
           status varchar, 
@@ -132,8 +131,9 @@ queryUpdate      = '''
   '''.format('hex','parcel_count','status','moment','mins')  
 
 createTable_sausageBuffer = '''
-  CREATE TABLE IF NOT EXISTS {}
-    ({} varchar PRIMARY KEY, 
+  DROP TABLE IF EXISTS {0};
+  CREATE TABLE IF NOT EXISTS {0}
+    ({1} varchar PRIMARY KEY, 
      hex integer,
      geom geometry);  
   '''.format(sausage_buffer_table,points_id.lower())
@@ -185,7 +185,7 @@ def CreateSausageBufferFunction(hex):
   hexStartTime = time.time()
   
   # fcBufferLines  = "Lines_Buffer_{}".format(hex)
-  fcLines  = "Lines_{}".format(pid)
+  fcLines  = os.path.join(arcpy.env.scratchGDB,"Lines")
   
   if hex < hexStart:
     # print('hex {} is prior to requested start point, hex {} and is assumed processed; Skipping.'.format(hex,str(hexStart)))
@@ -260,7 +260,7 @@ def CreateSausageBufferFunction(hex):
       place = "after AddLocations"      
       
       # Process: Solve
-      arcpy.Solve_na("SA_{}".format(pid))
+      arcpy.Solve_na(in_network_analysis_layer = "SA_{}".format(pid), ignore_invalids = "SKIP",terminate_on_solve_error = "CONTINUE")
       place = "after Solve_na"      
       
       # Dissolve linesLayerName
