@@ -43,7 +43,7 @@ folderPath = 'D:/ntnl_li_2018_template/data/'
 
 # region_where_clause = ''' "STATE_NAME" = 'South Australia' AND "GCCSA_NAME"  = 'Greater Adelaide' '''
 # region_where_clause = ''' "STATE_NAME" = 'Queensland' AND "GCCSA_NAME"  = 'Greater Brisbane' '''
-# region_where_clause = ''' "STATE_NAME" = 'Australian Capital Territory' AND "GCCSA_NAME"  = 'Greater Canberra' '''
+# region_where_clause = ''' "STATE_NAME" = 'Australian Capital Territory' AND "GCCSA_NAME"  = 'Australian Capital Territory' '''
 # region_where_clause = ''' "STATE_NAME" = 'Northern Territory' AND "GCCSA_NAME"  = 'Greater Darwin' '''
 # region_where_clause = ''' "STATE_NAME" = 'Tasmania' AND "GCCSA_NAME"  = 'Greater Hobart' '''
 # region_where_clause = ''' "STATE_NAME" = 'Victoria' AND "GCCSA_NAME"  = 'Greater Melbourne' '''
@@ -75,9 +75,12 @@ year         = '2016'  # The year that the calculator indicator set approx. targ
 region       = 'GCCSA'
 region_shape = 'ABS/derived/ASGS_2016_Volume_1_GDA2020/main_GCCSA_2016_AUST_FULL.shp'
 
+# test run specific variable
+test_run = "psma"
+
 # derived study region name (no need to change!)
 study_region = '{0}_{1}'.format(region,year).lower()
-db = 'li_{0}_{1}'.format(locale,year).lower()
+db = 'li_{0}_{1}_{2}'.format(locale,year,test_run).lower()
 
 # ; Project spatial reference (for ArcGIS)
 SpatialRef = 'GDA2020 GA LCC'
@@ -119,7 +122,7 @@ out_coor_system = '''PROJCS['GDA2020_GA_LCC',GEOGCS['GDA2020',DATUM['GDA2020',SP
 
 transform_method = 'GDA_1994_To_GDA2020_NTv2_CD'
 
-in_coor_system = '''GEOGCS['GCS_GDA_1994',DATUM['D_GDA_1994',SPHEROID['GRS_1980',6378137.0,298.257222101]],PRIMEM['Greenwich',0.0],UNIT['Degree',0.0174532925199433]]'''
+in_coor_system = '''PROJCS['GDA_1994_VICGRID94',GEOGCS['GCS_GDA_1994',DATUM['D_GDA_1994',SPHEROID['GRS_1980',6378137.0,298.257222101]],PRIMEM['Greenwich',0.0],UNIT['Degree',0.0174532925199433]],PROJECTION['Lambert_Conformal_Conic'],PARAMETER['False_Easting',2500000.0],PARAMETER['False_Northing',2500000.0],PARAMETER['Central_Meridian',145.0],PARAMETER['Standard_Parallel_1',-36.0],PARAMETER['Standard_Parallel_2',-38.0],PARAMETER['Latitude_Of_Origin',-37.0],UNIT['Meter',1.0]]'''
 
 ## This is used for spatial reference for 'destinations' feature dataset (in script 07_recompile_destinations.py --- similar to out_coor_system, it contains additions bounding box parameters apparently, and a flag 'IsHighPrecision'.  
 feature_ds_out_spatial_ref = '''"PROJCS['GDA2020_GA_LCC',GEOGCS['GDA2020',DATUM['GDA2020',SPHEROID['GRS_1980',6378137.0,298.257222101]],PRIMEM['Greenwich',0.0],UNIT['Degree',0.0174532925199433]],PROJECTION['Lambert_Conformal_Conic'],PARAMETER['False_Easting',0.0],PARAMETER['False_Northing',0.0],PARAMETER['Central_Meridian',134.0],PARAMETER['Standard_Parallel_1',-18.0],PARAMETER['Standard_Parallel_2',-36.0],PARAMETER['Latitude_Of_Origin',0.0],UNIT['Meter',1.0]];-39261800 -15381600 10000;-100000 10000;-100000 10000;0.001;0.001;0.001;IsHighPrecision"'''
