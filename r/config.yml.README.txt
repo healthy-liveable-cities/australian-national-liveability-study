@@ -1,0 +1,29 @@
+# Config yml file for National Liveability Indicators
+# analysis using R
+# Carl Higgs June 2018
+#
+# This .yml file is used to hold PostgreSQL database connection information
+# used when processing results using parLapply to an SQL database
+#
+# Replace the dbname, host, port, user and password fields according to your
+# Postgresql set up.
+#
+# This process assumes you have PostgreSQL installed: https://www.postgresql.org/
+# The report was conducted using PostgreSQL 9.6 and R 3.5
+
+default:
+  sql:
+    connection:
+      adelaide: "li_adelaide_2016"
+      brisbane: "li_bris_2016"
+      canberra: "li_canberra_2016"
+      darwin: "li_darwin_2016"
+      hobart: "li_hobart_2016"
+      melbourne: "li_melb_2016"
+      melbourne_psma: "li_melb_2016_psma"
+      perth: "li_perth_2016"
+      sydney: "li_sydney_2016"
+      host: "localhost"
+      port: 5432
+      user = python
+      password = ***REMOVED***

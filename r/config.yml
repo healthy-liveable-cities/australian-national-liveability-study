@@ -1,0 +1,16 @@
+default:
+  sql:
+    connection:
+      adelaide: "li_adelaide_2016"
+      brisbane: "li_bris_2016"
+      canberra: "li_canberra_2016"
+      darwin: "li_darwin_2016"
+      hobart: "li_hobart_2016"
+      melbourne: "li_melb_2016"
+      melbourne_psma: "li_melb_2016_psma"
+      perth: "li_perth_2016"
+      sydney: "li_sydney_2016"
+      host: "localhost"
+      port: 5432
+      user = python
+      password = ***REMOVED***
