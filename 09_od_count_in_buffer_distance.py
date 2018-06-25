@@ -313,13 +313,7 @@ if __name__ == '__main__':
   iteration_list = np.asarray([x[0] for x in hex_list])
   # # Iterate process over hexes across nWorkers
   pool.map(ODMatrixWorkerFunction, iteration_list, chunksize=1)
-
-  # Create sausage buffer spatial index
-  print("Creating sausage buffer spatial index... "),
-  curs.execute("CREATE INDEX IF NOT EXISTS {0}_gix ON {0} USING GIST (geom);".format(od_counts))
-  conn.commit()
-  print("Done.")  
   
   # output to completion log    
-script_running_log(script, task, start, locale)
-conn.close()
+  script_running_log(script, task, start, locale)
+  conn.close()
