@@ -70,7 +70,7 @@ if pid !='MainProcess':
     pid = multiprocessing.current_process().name
     
   
-  temp_gdb = os.path.join(temp,"scratch_{}_{}".format(study_region,pid))
+  temp_gdb = os.path.join(temp,"scratch_{}_{}".format(db,pid))
   # create project specific folder in temp dir for scratch.gdb, if not exists
   if not os.path.exists(temp_gdb):
       os.makedirs(temp_gdb)
