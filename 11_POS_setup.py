@@ -56,9 +56,10 @@ arcpy.CreatePointsLines_CreatePointsLines(Input_Polyline_Feature_Class="pos_line
                                           Distance___Percentage_Value="{}".format(pos_vertices), 
                                           Add_End_Points_="BOTH", 
                                           Output_Point_Feature_Class= "pos_50m_vertices")
- 
+print(" Done.") 
+
 # gdb to pgsql
-#  Copy the parcel_dwellings from gdb to postgis, correcting the projection in process
+print("Copy the pos points with area attribute data to PostgreSQL database..."),
 command = 'ogr2ogr -overwrite -progress -f "PostgreSQL" ' \
         + 'PG:"host={host} port=5432 dbname={db} '.format(host = db_host,db = db) \
         + 'user={user} password = {pwd} " '.format(user = db_user,pwd = db_pwd) \
@@ -72,7 +73,7 @@ curs = conn.cursor()
 curs.execute(grant_query)
 conn.commit()
 conn.close()
- 
+print(" Done.") 
  
 # output to completion log    
 script_running_log(script, task, start, locale)
