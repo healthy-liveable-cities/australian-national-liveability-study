@@ -48,7 +48,7 @@ print(" Done.")
 print("Creating points at {}m intervals...".format(pos_vertices)),
 arcpy.PolygonToLine_management("pos_shape", os.path.join(arcpy.env.scratchGDB,"pos_line"), "IGNORE_NEIGHBORS")
 
-arcpy.CreatePointsLines_CreatePointsLines(Input_Polyline_Feature_Class="pos_line", 
+arcpy.CreatePointsLines_CreatePointsLines(Input_Polyline_Feature_Class=os.path.join(arcpy.env.scratchGDB,"pos_line"), 
                                           Type="INTERVAL BY DISTANCE", 
                                           Starting_Location="BEGINNING", 
                                           Use_Field_to_Set_Value_="NO", 
