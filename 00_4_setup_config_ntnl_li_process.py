@@ -115,6 +115,7 @@ temp = 'C:/temp'
 #   -- by Tim Whiteaker
 #   -- acquired from http://www.arcgis.com/home/item.html?id=03388990d3274160afe240ac54763e57
 create_hexagon_tbx = '../process/arcgis_packages/Create_Hexagon_Tessellation_41BC0CF7-3B1F-4598-8DE6-D5EE78060052/v101/Create_Hexagon_Tessellation.tbx'
+CreatePointsLines_tbx = '../process/arcgis_packages/CreatePointsLines.tbx'
 
 # TRANSFORMATIONS
 #  These three variables are used for specifying a transformation from GCS GDA 1994 to GDA2020 GA LLC when using arcpy.Project_management.  Specifically, its used in the custom clipFeature function in script 02_road_network_setup.py

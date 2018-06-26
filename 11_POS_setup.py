@@ -24,6 +24,8 @@ task = 'Clip address to study region, dissolve by location counting collapse deg
 
 # ArcGIS environment settings
 arcpy.env.workspace = gdb_path  
+arcpy.ImportToolbox(os.path.join(folderPath,CreatePointsLines_tbx))
+
 # create project specific folder in temp dir for scratch.gdb, if not exists
 if not os.path.exists(os.path.join(temp,db)):
     os.makedirs(os.path.join(temp,db))
@@ -31,14 +33,19 @@ if not os.path.exists(os.path.join(temp,db)):
 arcpy.env.scratchWorkspace = os.path.join(temp,db)  
 arcpy.env.overwriteOutput = True 
 
+print("Copying POS features within study region to database..."),
 arcpy.MakeFeatureLayer_management(pos_source, 'feature') 
 arcpy.SelectLayerByLocation_management('feature', 'intersect',"gccsa_2016")
 arcpy.CopyFeatures_management('feature', "pos_shape")
+print(" Done.")
 
+print("Calculating geodesic area in hectares..."),
 arcpy.AddField_management("pos_shape", "area_ha", "DOUBLE")
 
 arcpy.CalculateField_management("pos_shape", "area_ha", "!shape.geodesicArea@hectares!", "PYTHON")
+print(" Done.")
 
+print("Creating points at {}m intervals...".format(pos_vertices)),
 arcpy.PolygonToLine_management("pos_shape", os.path.join(arcpy.env.scratchGDB,"pos_line"), "IGNORE_NEIGHBORS")
 
 arcpy.CreatePointsLines_CreatePointsLines(Input_Polyline_Feature_Class="pos_line", 
@@ -46,7 +53,7 @@ arcpy.CreatePointsLines_CreatePointsLines(Input_Polyline_Feature_Class="pos_line
                                           Starting_Location="BEGINNING", 
                                           Use_Field_to_Set_Value_="NO", 
                                           Field_with_Value="", 
-                                          Distance___Percentage_Value="50", 
+                                          Distance___Percentage_Value="{}".format(pos_vertices), 
                                           Add_End_Points_="BOTH", 
                                           Output_Point_Feature_Class= "pos_50m_vertices")
  
