@@ -234,7 +234,7 @@ limit = 3000
 # POS feature sourced from Julianna Rozek
 #  -- already projected in GDA2020 GA LCC
 #  -- various sources (OSM, Government, ??)
-pos_source   = os.path.join(folderPath,'destinations','pos','bris','osm_bris_pos_1206.shp')
+pos_source   = os.path.join(folderPath,'destinations','pos_2018.gdb','{}_pos_2018'.format(locale.lower()))
 pos_vertices = 50  # used to create series of hypothetical entry points around park
 
 # Destinations - locate destinations.gdb within dest_dir (ie. 'D:\ntnl_li_2018\data\destinations\' or whereever your ntnl_li_2018 folder is located)
