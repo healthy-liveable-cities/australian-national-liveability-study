@@ -8,5 +8,5 @@ FOR %%A  IN (li_adelaide_2016,li_bris_2016,li_canberra_2016,li_darwin_2016,li_ho
   git commit -a -m "merged branch %%A with master"
   git push
 )
-
+git fetch && git checkout master
 @pause

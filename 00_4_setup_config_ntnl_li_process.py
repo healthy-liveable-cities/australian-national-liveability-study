@@ -230,9 +230,11 @@ line_buffer = 50
 limit = 3000
 
 # POS
-# POS feature sourced from R:\5050\CHE\CIV\Data\VEAC
-pos_entry_src     = os.path.join(folderPath,'pos/pos.shp')
-vertices_distance = 50  # used to create series of hypothetical entry points around park
+# POS feature sourced from Julianna Rozek
+#  -- already projected in GDA2020 GA LCC
+#  -- various sources (OSM, Government, ??)
+pos_source   = os.path.join(folderPath,'destinations','pos','bris','osm_bris_pos_1206.shp')
+pos_vertices = 50  # used to create series of hypothetical entry points around park
 
 # Destinations - locate destinations.gdb within dest_dir (ie. 'D:\ntnl_li_2018\data\destinations\' or whereever your ntnl_li_2018 folder is located)
 # Destinations data directory
