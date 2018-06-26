@@ -65,5 +65,6 @@ hist(unlist(compare[, "diff_psma_minus_osm"]))
 # summary statistics
 compare[,summary(diff_psma_minus_osm),by=dest]
 
-# output to csv
-write.csv(compare,"compare_osm_psma.csv",row.names=F,quote=F)
+# output to csv[
+write.csv(compare[dest=="Supermarket",],"../../data/compare_supermarket_osm_psma.csv",row.names=F,quote=F)
+write.csv(compare[dest=="Bus stop",],"../../data/compare_busstop_osm_psma.csv",row.names=F,quote=F)

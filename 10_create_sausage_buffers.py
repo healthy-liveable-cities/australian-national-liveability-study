@@ -111,15 +111,15 @@ conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor() 
   
 createTable_log     = '''
-        DROP TABLE IF EXISTS {0};
-        CREATE TABLE IF NOT EXISTS {0}
-          (hex integer PRIMARY KEY, 
-          parcel_count integer NOT NULL, 
-          status varchar, 
-          moment varchar, 
-          mins double precision
-          );
-          '''.format(log_table)        
+  --DROP TABLE IF EXISTS {0};
+  CREATE TABLE IF NOT EXISTS {0}
+    (hex integer PRIMARY KEY, 
+    parcel_count integer NOT NULL, 
+    status varchar, 
+    moment varchar, 
+    mins double precision
+    );
+    '''.format(log_table)        
           
 queryInsert      = '''
   INSERT INTO {} VALUES
@@ -131,7 +131,7 @@ queryUpdate      = '''
   '''.format('hex','parcel_count','status','moment','mins')  
 
 createTable_sausageBuffer = '''
-  DROP TABLE IF EXISTS {0};
+  --DROP TABLE IF EXISTS {0};
   CREATE TABLE IF NOT EXISTS {0}
     ({1} varchar PRIMARY KEY, 
      hex integer,
