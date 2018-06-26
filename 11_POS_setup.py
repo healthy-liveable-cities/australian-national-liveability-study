@@ -33,7 +33,7 @@ if not os.path.exists(os.path.join(temp,db)):
 arcpy.env.scratchWorkspace = os.path.join(temp,db)  
 arcpy.env.overwriteOutput = True 
 
-temp_pos_line = os.path.join(arcpy.env.scratchGDB,"pos_line_{}".format(db))
+temp_pos_line = os.path.join(arcpy.env.scratchGDB,"pos_line")
 
 print("Copying POS features within study region to database..."),
 arcpy.MakeFeatureLayer_management(pos_source, 'feature') 
@@ -48,9 +48,9 @@ arcpy.CalculateField_management("pos_shape", "area_ha", "!shape.geodesicArea@hec
 print(" Done.")
 
 print("Creating points at {}m intervals...".format(pos_vertices)),
-arcpy.PolygonToLine_management("pos_shape", os.path.join(arcpy.env.scratchGDB,"pos_line"), "IGNORE_NEIGHBORS")
+arcpy.PolygonToLine_management("pos_shape", temp_pos_line, "IGNORE_NEIGHBORS")
 
-arcpy.CreatePointsLines_CreatePointsLines(Input_Polyline_Feature_Class=temp_pos_line, 
+arcpy.CreatePointsLines_CreatePointsLines(Input_Polyline_Feature_Class = temp_pos_line, 
                                           Type="INTERVAL BY DISTANCE", 
                                           Starting_Location="BEGINNING", 
                                           Use_Field_to_Set_Value_="NO", 
