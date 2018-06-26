@@ -12,5 +12,5 @@ default:
       sydney: "li_sydney_2016"
       host: "localhost"
       port: 5432
-      user = python
-      password = ***REMOVED***
+      user: python
+      password: ***REMOVED***

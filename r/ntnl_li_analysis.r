@@ -3,7 +3,7 @@
 # Carl Higgs 2017
 
 # may have to set working directory
-setwd("D:\ntnl_li_2018_template\data")
+setwd("D:/ntnl_li_2018_template/process/r")
 
 # import required libraries (installing them, if necessary)
 # install.packages("data.table")
@@ -29,7 +29,7 @@ pg.RPostgres <- dbConnect(RPostgres::Postgres(),
                           password = config::get("sql")$connection$password)
 # Fetch PSMA results
 res <- dbSendQuery(pg.RPostgres, "SELECT * FROM od_distances")
-od_psma <- dbFetch(res)
+od_psma <- data.table(dbFetch(res))
 
 # clean up and close connection
 dbClearResult(res)
@@ -44,9 +44,26 @@ pg.RPostgres <- dbConnect(RPostgres::Postgres(),
                           password = config::get("sql")$connection$password)
 # Fetch OSM results
 res <- dbSendQuery(pg.RPostgres, "SELECT * FROM od_distances")
-od_psma <- dbFetch(res)
+od_osm <- data.table(dbFetch(res))
 
 # clean up and close connection
 dbClearResult(res)
 dbDisconnect(pg.RPostgres)
 
+# Merge the two result sets
+compare <- merge(od_osm, od_psma, by = c("gnaf_pid","dest"),suffixes = c("_osm","_psma"))
+
+# label the destination factors
+compare[, dest:= factor(dest, labels = c("Supermarket","Bus stop"))]
+
+# calculate the difference (psma - osm distance in metres)
+compare[,("diff_psma_minus_osm"):= distance_psma - distance_osm, by=1:nrow(compare) ]
+
+# histogram
+hist(unlist(compare[, "diff_psma_minus_osm"]))
+
+# summary statistics
+compare[,summary(diff_psma_minus_osm),by=dest]
+
+# output to csv
+write.csv(compare,"compare_osm_psma.csv",row.names=F,quote=F)
