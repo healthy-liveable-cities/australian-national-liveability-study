@@ -33,6 +33,8 @@ if not os.path.exists(os.path.join(temp,db)):
 arcpy.env.scratchWorkspace = os.path.join(temp,db)  
 arcpy.env.overwriteOutput = True 
 
+temp_pos_line = os.path.join(arcpy.env.scratchGDB,"pos_line_{}".format(db))
+
 print("Copying POS features within study region to database..."),
 arcpy.MakeFeatureLayer_management(pos_source, 'feature') 
 arcpy.SelectLayerByLocation_management('feature', 'intersect',"gccsa_2016")
@@ -48,7 +50,7 @@ print(" Done.")
 print("Creating points at {}m intervals...".format(pos_vertices)),
 arcpy.PolygonToLine_management("pos_shape", os.path.join(arcpy.env.scratchGDB,"pos_line"), "IGNORE_NEIGHBORS")
 
-arcpy.CreatePointsLines_CreatePointsLines(Input_Polyline_Feature_Class=os.path.join(arcpy.env.scratchGDB,"pos_line"), 
+arcpy.CreatePointsLines_CreatePointsLines(Input_Polyline_Feature_Class=temp_pos_line, 
                                           Type="INTERVAL BY DISTANCE", 
                                           Starting_Location="BEGINNING", 
                                           Use_Field_to_Set_Value_="NO", 
@@ -56,6 +58,7 @@ arcpy.CreatePointsLines_CreatePointsLines(Input_Polyline_Feature_Class=os.path.j
                                           Distance___Percentage_Value="{}".format(pos_vertices), 
                                           Add_End_Points_="BOTH", 
                                           Output_Point_Feature_Class= "pos_50m_vertices")
+arcpy.Delete_management(temp_pos_line)
 print(" Done.") 
 
 # gdb to pgsql
