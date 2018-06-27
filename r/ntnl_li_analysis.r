@@ -51,7 +51,7 @@ dbClearResult(res)
 dbDisconnect(pg.RPostgres)
 
 # Merge the two result sets
-compare <- merge(od_osm, od_psma, by = c("gnaf_pid","dest"),suffixes = c("_osm","_psma"))
+compare <- merge(od_psma,od_osm, by = c("gnaf_pid","dest"),suffixes = c("_psma","_osm"), all = TRUE)
 
 # label the destination factors
 compare[, dest:= factor(dest, labels = c("Supermarket","Bus stop"))]
@@ -63,7 +63,36 @@ compare[,("diff_psma_minus_osm"):= distance_psma - distance_osm, by=1:nrow(compa
 hist(unlist(compare[, "diff_psma_minus_osm"]))
 
 # summary statistics
-compare[,summary(diff_psma_minus_osm),by=dest]
+compare[,list(min  = min(diff_psma_minus_osm, na.rm = TRUE),
+              p2_5  = quantile(diff_psma_minus_osm,0.025, na.rm = TRUE),
+              p25  = quantile(diff_psma_minus_osm,0.25, na.rm = TRUE),
+              p25  = quantile(diff_psma_minus_osm,0.25, na.rm = TRUE),
+              p50  = quantile(diff_psma_minus_osm,0.5, na.rm = TRUE),
+              p75  = quantile(diff_psma_minus_osm,0.75, na.rm = TRUE),
+              p97_5 = quantile(diff_psma_minus_osm,0.975, na.rm = TRUE),
+              max  = max(diff_psma_minus_osm, na.rm = TRUE),
+              mean = mean(diff_psma_minus_osm, na.rm = TRUE),
+              sd   = sd(diff_psma_minus_osm, na.rm = TRUE)),by=dest]
+
+# plot
+p <- ggplot(as.data.frame(compare), aes_string('distance_psma', 'distance_osm')) +
+       aes_string(colour = 'dest') +
+       geom_point() + theme_bw(15) +
+       theme(legend.position = c(1.04, 1.1),legend.text.align	 = 0)  +
+       scale_color_manual(labels = c(bquote(paste("Supermarket (r = ",.(r.a),")")), 
+                                     bquote(paste("Bus stops   (r = ",.(r.b),")"))),
+                          values = c("Supermarket" = "#ef8a62","Bus stop" = "#67a9cf"),
+                          limits = c(0,50000))
+p <- ggMarginal(p,
+                     type = 'histogram',
+                     margins = 'both',
+                     size = 5,
+                     groupColour = TRUE,
+                     groupFill = TRUE,
+                     alpha = 0.4
+                )
+
+print(p)
 
 # output to csv[
 write.csv(compare[dest=="Supermarket",],"../../data/compare_supermarket_osm_psma.csv",row.names=F,quote=F)
