@@ -17,7 +17,8 @@ require(data.table) # Results are stored using data.table
 #   - installed the 'RPostgres' package, which is used to interface R and PostgreSQL
 # install.packages('RPostgres')
 require(DBI)      # used to connext to Postgresql using RPostgres
-
+require(ggplot2)
+require(ggExtra)
 
 ### Get database od matrix results
 # Open Postgres connection
@@ -51,6 +52,8 @@ dbClearResult(res)
 dbDisconnect(pg.RPostgres)
 
 # Merge the two result sets
+# Merge the two result sets
+# compare <- merge(od_psma,od_osm, by = c("gnaf_pid","dest"),suffixes = c("_psma","_osm"))
 compare <- merge(od_psma,od_osm, by = c("gnaf_pid","dest"),suffixes = c("_psma","_osm"), all = TRUE)
 
 # label the destination factors
@@ -61,6 +64,9 @@ compare[,("diff_psma_minus_osm"):= distance_psma - distance_osm, by=1:nrow(compa
 
 # histogram
 hist(unlist(compare[, "diff_psma_minus_osm"]))
+
+r.a = round(cor(compare[dest=="Supermarket",c("distance_psma","distance_osm")])[1,2],3)
+r.b = round(cor(compare[dest=="Bus stop",c("distance_psma","distance_osm")])[1,2],3)
 
 # summary statistics
 compare[,list(min  = min(diff_psma_minus_osm, na.rm = TRUE),
@@ -81,10 +87,9 @@ p <- ggplot(as.data.frame(compare), aes_string('distance_psma', 'distance_osm'))
        theme(legend.position = c(1.04, 1.1),legend.text.align	 = 0)  +
        scale_color_manual(labels = c(bquote(paste("Supermarket (r = ",.(r.a),")")), 
                                      bquote(paste("Bus stops   (r = ",.(r.b),")"))),
-                          values = c("Supermarket" = "#ef8a62","Bus stop" = "#67a9cf"),
-                          limits = c(0,50000))
+                          values = c("Supermarket" = "#ef8a62","Bus stop" = "#67a9cf")) 
 p <- ggMarginal(p,
-                     type = 'histogram',
+                     type = 'density',
                      margins = 'both',
                      size = 5,
                      groupColour = TRUE,
@@ -97,3 +102,4 @@ print(p)
 # output to csv[
 write.csv(compare[dest=="Supermarket",],"../../data/compare_supermarket_osm_psma.csv",row.names=F,quote=F)
 write.csv(compare[dest=="Bus stop",],"../../data/compare_busstop_osm_psma.csv",row.names=F,quote=F)
+as.data.frame(compare)
