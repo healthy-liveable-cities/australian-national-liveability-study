@@ -75,12 +75,9 @@ year         = '2016'  # The year that the calculator indicator set approx. targ
 region       = 'GCCSA'
 region_shape = 'ABS/derived/ASGS_2016_Volume_1_GDA2020/main_GCCSA_2016_AUST_FULL.shp'
 
-# test run specific variable
-test_run = "psma"
-
 # derived study region name (no need to change!)
 study_region = '{0}_{1}'.format(region,year).lower()
-db = 'li_{0}_{1}_{2}'.format(locale,year,test_run).lower()
+db = 'li_{0}_{1}'.format(locale,year).lower()
 
 # ; Project spatial reference (for ArcGIS)
 SpatialRef = 'GDA2020 GA LCC'
