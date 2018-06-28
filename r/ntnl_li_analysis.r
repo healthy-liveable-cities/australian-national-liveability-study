@@ -102,4 +102,9 @@ print(p)
 # output to csv[
 write.csv(compare[dest=="Supermarket",],"../../data/compare_supermarket_osm_psma.csv",row.names=F,quote=F)
 write.csv(compare[dest=="Bus stop",],"../../data/compare_busstop_osm_psma.csv",row.names=F,quote=F)
-as.data.frame(compare)
+
+null_psma <- table(is.na(compare$distance_psma))
+null_osm  <- table(is.na(compare$distance_osm))
+null_psma[2]/sum(null_psma)*100
+null_osm[2]/sum(null_osm)*100
+
