@@ -69,16 +69,16 @@ r.a = round(cor(compare[dest=="Supermarket",c("distance_psma","distance_osm")])[
 r.b = round(cor(compare[dest=="Bus stop",c("distance_psma","distance_osm")])[1,2],3)
 
 # summary statistics
-compare[,list(min  = min(diff_psma_minus_osm, na.rm = TRUE),
+compare[,list(min   = min(diff_psma_minus_osm,            na.rm = TRUE),
               p2_5  = quantile(diff_psma_minus_osm,0.025, na.rm = TRUE),
-              p25  = quantile(diff_psma_minus_osm,0.25, na.rm = TRUE),
-              p25  = quantile(diff_psma_minus_osm,0.25, na.rm = TRUE),
-              p50  = quantile(diff_psma_minus_osm,0.5, na.rm = TRUE),
-              p75  = quantile(diff_psma_minus_osm,0.75, na.rm = TRUE),
+              p25   = quantile(diff_psma_minus_osm,0.25,  na.rm = TRUE),
+              p50   = quantile(diff_psma_minus_osm,0.5,   na.rm = TRUE),
+              p75   = quantile(diff_psma_minus_osm,0.75,  na.rm = TRUE),
               p97_5 = quantile(diff_psma_minus_osm,0.975, na.rm = TRUE),
-              max  = max(diff_psma_minus_osm, na.rm = TRUE),
-              mean = mean(diff_psma_minus_osm, na.rm = TRUE),
-              sd   = sd(diff_psma_minus_osm, na.rm = TRUE)),by=dest]
+              max   = max(diff_psma_minus_osm,            na.rm = TRUE),
+              mean  = mean(diff_psma_minus_osm,           na.rm = TRUE),
+              sd    = sd(diff_psma_minus_osm,             na.rm = TRUE)),
+        by=dest]
 
 # plot
 p <- ggplot(as.data.frame(compare), aes_string('distance_psma', 'distance_osm')) +
@@ -99,6 +99,25 @@ p <- ggMarginal(p,
 
 print(p)
 
+# plot
+p2 <- ggplot(as.data.frame(compare), aes_string('diff_psma_minus_osm', 'distance_osm')) +
+  aes_string(colour = 'dest') +
+  geom_point() + theme_bw(15) +
+  theme(legend.position = c(1.04, 1.1),legend.text.align	 = 0)  +
+  scale_color_manual(values = c("Supermarket" = "#ef8a62","Bus stop" = "#67a9cf")) 
+p2 <- ggMarginal(p2,
+                type = 'density',
+                margins = 'both',
+                size = 5,
+                groupColour = TRUE,
+                groupFill = TRUE,
+                alpha = 0.4
+)
+
+print(p2)
+
+
+
 # output to csv[
 write.csv(compare[dest=="Supermarket",],"../../data/compare_supermarket_osm_psma.csv",row.names=F,quote=F)
 write.csv(compare[dest=="Bus stop",],"../../data/compare_busstop_osm_psma.csv",row.names=F,quote=F)
@@ -117,4 +136,19 @@ isnullx(compare$distance_psma)
 isnullx(compare$distance_osm)
 isnullx(compare$diff_psma_minus_osm)
 
-
+# ### Non -working bin code
+# setDT(compare)[,sum(!diff_psma_minus_osm) , .(gr=cut(diff_psma_minus_osm,breaks=c(-16,-1,-.5,-.2,-.1,.1,.2,.5,1,9)))]
+# compare[,table(cut(diff_psma_minus_osm,breaks=c(-16,-1,-.5,-.2,-.1,.1,.2,.5,1,9))),by=dest]
+# 
+# 
+# compare[,list(m16_to_1   = mean(diff_psma_minus_osm>=1)), by=dest]
+#         
+#               m1_to_mp5  = quantile(diff_psma_minus_osm,0.025, na.rm = TRUE),
+#               mp5_to_mp2 = quantile(diff_psma_minus_osm,0.25,  na.rm = TRUE),
+#               mp2_to_mp1 = quantile(diff_psma_minus_osm,0.5,   na.rm = TRUE),
+#               mp1_to_p1  = quantile(diff_psma_minus_osm,0.75,  na.rm = TRUE),
+#               p1_to_p2   = quantile(diff_psma_minus_osm,0.975, na.rm = TRUE),
+#               p2_to_p5   = max(diff_psma_minus_osm,            na.rm = TRUE),
+#               p5_to_1    = mean(diff_psma_minus_osm,           na.rm = TRUE),
+#               1_to_9     = sd(diff_psma_minus_osm,             na.rm = TRUE)),
+#         by=dest]
