@@ -103,8 +103,22 @@ print(p)
 write.csv(compare[dest=="Supermarket",],"../../data/compare_supermarket_osm_psma.csv",row.names=F,quote=F)
 write.csv(compare[dest=="Bus stop",],"../../data/compare_busstop_osm_psma.csv",row.names=F,quote=F)
 
-null_psma <- table(is.na(compare$distance_psma))
-null_osm  <- table(is.na(compare$distance_osm))
-null_psma[2]/sum(null_psma)*100
-null_osm[2]/sum(null_osm)*100
+null_psma  <- as.vector(table(is.na(compare$distance_psma)))
+null_osm   <- as.vector(table(is.na(compare$distance_osm)))
+null_diff  <- as.vector(table(is.na(compare$diff_psma_minus_osm)))
+
+isnullx <- function(x) {
+  nulltable <- as.vector(table(is.na(x)))
+  summary <- cbind(Null = nulltable[2], 
+                   Result = nulltable[1], 
+                   Total = sum(nulltable), 
+                   Percent_null = nulltable[2]/sum(nulltable)*100)
+  # print(summary)
+  return(summary)
+}
+
+isnullx(compare$distance_psma)
+isnullx(compare$distance_osm)
+isnullx(compare$diff_psma_minus_osm)
+
 
