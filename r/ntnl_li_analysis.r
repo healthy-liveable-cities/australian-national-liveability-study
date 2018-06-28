@@ -103,10 +103,6 @@ print(p)
 write.csv(compare[dest=="Supermarket",],"../../data/compare_supermarket_osm_psma.csv",row.names=F,quote=F)
 write.csv(compare[dest=="Bus stop",],"../../data/compare_busstop_osm_psma.csv",row.names=F,quote=F)
 
-null_psma  <- as.vector(table(is.na(compare$distance_psma)))
-null_osm   <- as.vector(table(is.na(compare$distance_osm)))
-null_diff  <- as.vector(table(is.na(compare$diff_psma_minus_osm)))
-
 isnullx <- function(x) {
   nulltable <- as.vector(table(is.na(x)))
   summary <- cbind(Null = nulltable[2], 
