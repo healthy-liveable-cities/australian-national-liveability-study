@@ -38,7 +38,7 @@ dbDisconnect(pg.RPostgres)
 
 # Open Postgres connection
 pg.RPostgres <- dbConnect(RPostgres::Postgres(), 
-                          dbname   = config::get("sql")$connection$melbourne,
+                          dbname   = config::get("sql")$connection$melbourne_osmnx_v1,
                           host     = config::get("sql")$connection$host,
                           port     = config::get("sql")$connection$port,
                           user     = config::get("sql")$connection$user,
@@ -51,32 +51,47 @@ od_osmnx_v1 <- data.table(dbFetch(res))
 dbClearResult(res)
 dbDisconnect(pg.RPostgres)
 
+# Open Postgres connection
+pg.RPostgres <- dbConnect(RPostgres::Postgres(), 
+                          dbname   = config::get("sql")$connection$melbourne_osmnx_v2,
+                          host     = config::get("sql")$connection$host,
+                          port     = config::get("sql")$connection$port,
+                          user     = config::get("sql")$connection$user,
+                          password = config::get("sql")$connection$password)
+# Fetch OSM results
+res <- dbSendQuery(pg.RPostgres, "SELECT * FROM od_distances")
+od_osmnx_v2 <- data.table(dbFetch(res))
+
+# clean up and close connection
+dbClearResult(res)
+dbDisconnect(pg.RPostgres)
 
 od_osm <- fread("D:/ntnl_li_2018_template/data/Melb_OD_RR_20180728.csv",sep=",")
 
 # Merge the two result sets
-# Merge the two result sets
-# compare <- merge(od_psma,od_osmnx_v1, by = c("gnaf_pid","dest"),suffixes = c("_psma","_osmnx_v1"))
 compare <- merge(od_psma,od_osmnx_v1, by = c("gnaf_pid","dest"),suffixes = c("_psma","_osmnx_v1"), all = TRUE)
 compare <- merge(compare,od_osm, by = c("gnaf_pid","dest"),suffixes = c("","_osm"), all = TRUE)
-
-colnames(compare) <- c(colnames(compare)[1:6],"oid_osm","distance_osm")
+compare <- merge(compare,od_osmnx_v2, by = c("gnaf_pid","dest"),suffixes = c("_psma","_osmnx_v2"), all = TRUE)
+colnames(compare) <- c(colnames(compare)[1:6],"oid_osm","distance_osm","oid_osm_v2","distance_osmnx_v2")
+compare
 
 # label the destination factors
 compare[, dest:= factor(dest, labels = c("Supermarket","Bus stop"))]
-
 # calculate the difference (psma - osm distance in metres)
 compare[,("diff_psma_minus_osmnx_v1"):= distance_psma - distance_osmnx_v1, by=1:nrow(compare) ]
-compare[,("diff_psma_minus_osm"):= distance_psma - distance_osm, by=1:nrow(compare) ]
+compare[,("diff_psma_minus_osm"):=      distance_psma - distance_osm,      by=1:nrow(compare) ]
+compare[,("diff_psma_minus_osmnx_v2"):= distance_psma - distance_osmnx_v2, by=1:nrow(compare) ]
 
 # histogram
 hist(unlist(compare[, "diff_psma_minus_osmnx_v1"]))
 hist(unlist(compare[, "diff_psma_minus_osm"]))
+hist(unlist(compare[, "diff_psma_minus_osmnx_v2"]))
 
 r.a = round(cor(compare[dest=="Supermarket",c("distance_psma","distance_osmnx_v1")])[1,2],3)
 r.b = round(cor(compare[dest=="Bus stop",c("distance_psma","distance_osmnx_v1")])[1,2],3)
 
 # summary statistics
+# OSMnx v1
 compare[,list(min   = min(diff_psma_minus_osmnx_v1,            na.rm = TRUE),
               p2_5  = quantile(diff_psma_minus_osmnx_v1,0.025, na.rm = TRUE),
               p25   = quantile(diff_psma_minus_osmnx_v1,0.25,  na.rm = TRUE),
@@ -88,7 +103,7 @@ compare[,list(min   = min(diff_psma_minus_osmnx_v1,            na.rm = TRUE),
               sd    = sd(diff_psma_minus_osmnx_v1,             na.rm = TRUE)),
         by=dest]
 
-# summary statistics
+# In house OSM
 compare[,list(min   = min(diff_psma_minus_osm,            na.rm = TRUE),
               p2_5  = quantile(diff_psma_minus_osm,0.025, na.rm = TRUE),
               p25   = quantile(diff_psma_minus_osm,0.25,  na.rm = TRUE),
@@ -98,6 +113,18 @@ compare[,list(min   = min(diff_psma_minus_osm,            na.rm = TRUE),
               max   = max(diff_psma_minus_osm,            na.rm = TRUE),
               mean  = mean(diff_psma_minus_osm,           na.rm = TRUE),
               sd    = sd(diff_psma_minus_osm,             na.rm = TRUE)),
+        by=dest]
+
+# OSMnx v2
+compare[,list(min   = min(diff_psma_minus_osmnx_v2,            na.rm = TRUE),
+              p2_5  = quantile(diff_psma_minus_osmnx_v2,0.025, na.rm = TRUE),
+              p25   = quantile(diff_psma_minus_osmnx_v2,0.25,  na.rm = TRUE),
+              p50   = quantile(diff_psma_minus_osmnx_v2,0.5,   na.rm = TRUE),
+              p75   = quantile(diff_psma_minus_osmnx_v2,0.75,  na.rm = TRUE),
+              p97_5 = quantile(diff_psma_minus_osmnx_v2,0.975, na.rm = TRUE),
+              max   = max(diff_psma_minus_osmnx_v2,            na.rm = TRUE),
+              mean  = mean(diff_psma_minus_osmnx_v2,           na.rm = TRUE),
+              sd    = sd(diff_psma_minus_osmnx_v2,             na.rm = TRUE)),
         by=dest]
 
 # plot
@@ -168,19 +195,51 @@ isnullx(compare[dest=="Bus stop",diff_psma_minus_osmnx_v1])
 compare[abs(diff_psma_minus_osmnx_v1) > 10000,]
 compare[abs(diff_psma_minus_osm) > 10000,]
 
-# ### Non -working bin code
-# setDT(compare)[,sum(!diff_psma_minus_osmnx_v1) , .(gr=cut(diff_psma_minus_osmnx_v1,breaks=c(-16,-1,-.5,-.2,-.1,.1,.2,.5,1,9)))]
-# compare[,table(cut(diff_psma_minus_osmnx_v1,breaks=c(-16,-1,-.5,-.2,-.1,.1,.2,.5,1,9))),by=dest]
+
+table(compare[dest=="Supermarket",diff_psma_minus_osmnx_v1  < -300,])
+# FALSE    TRUE 
+# 1724337   61257 
+
+table(compare[dest=="Supermarket",diff_psma_minus_osm  < -300,])
+# FALSE    TRUE 
+# 1665520  117297 
+
+table(compare[dest=="Supermarket",diff_psma_minus_osmnx_v2 < -300,])
+# FALSE    TRUE 
+# 1729660   55934 
+
+table(compare[dest=="Supermarket",diff_psma_minus_osmnx_v1  < -500,])
+# FALSE    TRUE 
+# 1757561   28033 
+
+table(compare[dest=="Supermarket",diff_psma_minus_osm  < -500,])
+# FALSE    TRUE 
+# 1698702   84115 
+
+table(compare[dest=="Supermarket",diff_psma_minus_osmnx_v2 < -500,])
+# FALSE    TRUE 
+# 1760459   25135 
+
+table(compare[dest=="Supermarket",diff_psma_minus_osmnx_v1  < -1000,])
+# FALSE    TRUE 
+# 1778100    7494 
 # 
-# 
-# compare[,list(m16_to_1   = mean(diff_psma_minus_osmnx_v1>=1)), by=dest]
-#         
-#               m1_to_mp5  = quantile(diff_psma_minus_osmnx_v1,0.025, na.rm = TRUE),
-#               mp5_to_mp2 = quantile(diff_psma_minus_osmnx_v1,0.25,  na.rm = TRUE),
-#               mp2_to_mp1 = quantile(diff_psma_minus_osmnx_v1,0.5,   na.rm = TRUE),
-#               mp1_to_p1  = quantile(diff_psma_minus_osmnx_v1,0.75,  na.rm = TRUE),
-#               p1_to_p2   = quantile(diff_psma_minus_osmnx_v1,0.975, na.rm = TRUE),
-#               p2_to_p5   = max(diff_psma_minus_osmnx_v1,            na.rm = TRUE),
-#               p5_to_1    = mean(diff_psma_minus_osmnx_v1,           na.rm = TRUE),
-#               1_to_9     = sd(diff_psma_minus_osmnx_v1,             na.rm = TRUE)),
-#         by=dest]
+table(compare[dest=="Supermarket",diff_psma_minus_osm  < -1000,])
+# FALSE    TRUE 
+# 1730139   52678 
+
+table(compare[dest=="Supermarket",diff_psma_minus_osmnx_v2 < -1000,])
+# FALSE    TRUE 
+# 1778472    7122 
+
+table(compare[dest=="Supermarket",diff_psma_minus_osmnx_v1  < -10000,])
+# FALSE    TRUE 
+# 1785585       9 
+
+table(compare[dest=="Supermarket",diff_psma_minus_osm  < -10000,])
+# FALSE 
+# 1782817 
+
+table(compare[dest=="Supermarket",diff_psma_minus_osmnx_v2 < -10000,])
+# FALSE    TRUE 
+# 1785585       9 
