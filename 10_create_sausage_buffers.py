@@ -13,7 +13,12 @@
 #                 - select by location/distance from existing line is used for catchment
 # Input: requires network dataset, parcel points etc -- specified in config.ini
 # 
-# Carl Higgs and Koen Simons, 2016-2017
+# Note that you can modify the 'nWorkers' variable (line 48 at time of writing)
+# to change the number of processors used.  On our computers, 7 should be safe.
+# Or, you could use 4 and run two instances of the process (so if one finishes, 
+# the other continues to process --- handy over the weekend.
+#
+# Carl Higgs and Koen Simons, 2016-2018
 
 import arcpy, arcinfo
 import glob
@@ -41,6 +46,10 @@ arcpy.env.workspace = gdb_path
 points   = parcel_dwellings
 denominator = int(arcpy.GetCount_management(points).getOutput(0))
 
+# Specify number of processors to use
+# e.g. our computers have 8 cores, so to focus on getting one script done 7 cores should be safe
+nWorkers = 7
+
 # Output databases
 sausage_buffer_table = "sausagebuffer_{}".format(distance)
 nh_sausagebuffer_summary = "nh{}m".format(distance)
@@ -60,56 +69,6 @@ log_table = 'log_hex_sausage_buffer'
 if not os.path.exists(temp):
     os.makedirs(temp)
 
-# Create temporary PID specific scratch geodatabase if not already existing
-pid = multiprocessing.current_process().name
-
-if pid !='MainProcess':
-  # any new processes commencing must be reassigned to work from one of 5 scratch gdb
-  if int(pid[-1]) > 5:
-    multiprocessing.current_process().name = 'PoolWorker-{}'.format(np.random.randint(1,6))
-    pid = multiprocessing.current_process().name
-    
-  
-  temp_gdb = os.path.join(temp,"scratch_{}_{}".format(db,pid))
-  # create project specific folder in temp dir for scratch.gdb, if not exists
-  if not os.path.exists(temp_gdb):
-      os.makedirs(temp_gdb)
-      
-  arcpy.env.scratchWorkspace = temp_gdb 
-  arcpy.env.qualifiedFieldNames = False  
-  arcpy.env.overwriteOutput = True 
-
-  
-  # if arcpy.Exists(temp_gdb) is False:  
-    # copytree(destGdb, temp_gdb,ignore=ignore_patterns('*.lock'))
-
-  # preparatory set up
-  # Process: Make Service Area Layer
-  outSAResultObject = arcpy.MakeServiceAreaLayer_na(in_network_dataset = in_network_dataset, 
-                                out_network_analysis_layer = "SA_{}".format(pid), 
-                                impedance_attribute = "Length",  
-                                travel_from_to = "TRAVEL_FROM", 
-                                default_break_values = "{}".format(distance), 
-                                line_type="TRUE_LINES",
-                                overlap="OVERLAP", 
-                                polygon_type="NO_POLYS", 
-                                lines_source_fields="NO_LINES_SOURCE_FIELDS", 
-                                hierarchy="NO_HIERARCHY")
-                                
-  outNALayer = outSAResultObject.getOutput(0)
-  
-  #Get the names of all the sublayers within the service area layer.
-  subLayerNames = arcpy.na.GetNAClassNames(outNALayer)
-  #Store the layer names that we will use later
-  facilitiesLayerName = subLayerNames["Facilities"]
-  linesLayerName = subLayerNames["SALines"]
-  linesSubLayer = arcpy.mapping.ListLayers(outNALayer,linesLayerName)[0]
-  facilitiesSubLayer = arcpy.mapping.ListLayers(outNALayer,facilitiesLayerName)[0] 
-
-# initiate postgresql connection
-conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
-curs = conn.cursor() 
-  
 createTable_log     = '''
   --DROP TABLE IF EXISTS {0};
   CREATE TABLE IF NOT EXISTS {0}
@@ -138,6 +97,13 @@ createTable_sausageBuffer = '''
      geom geometry);  
   '''.format(sausage_buffer_table,points_id.lower())
 
+createTable_processor_log = '''
+  DROP TABLE IF EXISTS processor_log;
+  CREATE TABLE IF NOT EXISTS processor_log
+    (pid SERIAL PRIMARY KEY,
+     name varchar);  
+  '''
+  
 queryInsertSausage = '''
   INSERT INTO {} VALUES
   '''.format(sausage_buffer_table)  
@@ -174,8 +140,71 @@ def writeLog(hex = 0,parcel_count = 0,status = 'NULL',mins = 0, create = log_tab
 def unique_values(table, field):
   data = arcpy.da.TableToNumPyArray(table, [field])
   return np.unique(data[field])
+  
+# WORKER PROCESSORS pre-setup
+if __name__ != '__main__': 
+  # initiate postgresql connection
+  conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
+  curs = conn.cursor()  
+  
+  # fetch list of assigned processors in range 1 to n, if any
+  # Create temporary PID specific scratch geodatabase if not already existing
+  curs.execute("SELECT pid FROM processor_log WHERE name = '{}';".format(multiprocessing.current_process().name))
+  pid = [f[0] for f in list(curs)]
+  if len(pid) > 0:
+    pid = pid[0]
+  if len(pid)==0:    
+    curs.execute("INSERT INTO processor_log (name) VALUES ('{}');".format(multiprocessing.current_process().name))
+    conn.commit()
+    curs.execute("SELECT pid FROM processor_log WHERE name = '{}';".format(multiprocessing.current_process().name))
+    pid = [f[0] for f in list(curs)][0] 
+  
+  # any new processes commencing must be reassigned to work from one of n scratch gdb
+  if int(pid) > nWorkers:
+    curs.execute("DELETE FROM processor_log WHERE pid = {};")
+    conn.commit()
+    curs.execute("SELECT pid FROM processor_log;".format(int(pid)))
+    processor_list = [f[0] for f in list(curs)]
+    processor_number = next(iter(set(range(min(processor_list)+1, max(processor_list))) - set(processor_list)))
+    pid = processor_number
+    curs.execute("INSERT INTO processor_log VALUES ({pid}, '{}');".format(pid, multiprocessing.current_process().name))
+    conn.commit()
+    
+  temp_gdb = os.path.join(temp,"scratch_{}_{}".format(db,pid))
+  # create project specific folder in temp dir for scratch.gdb, if not exists
+  if not os.path.exists(temp_gdb):
+      os.makedirs(temp_gdb)
+      
+  arcpy.env.scratchWorkspace = temp_gdb 
+  arcpy.env.qualifiedFieldNames = False  
+  arcpy.env.overwriteOutput = True 
 
-# Worker/Child PROCESS
+  # preparatory set up
+  # Process: Make Service Area Layer
+  outSAResultObject = arcpy.MakeServiceAreaLayer_na(in_network_dataset = in_network_dataset, 
+                                out_network_analysis_layer = os.path.join(arcpy.env.scratchGDB,"ServiceArea"), 
+                                impedance_attribute = "Length",  
+                                travel_from_to = "TRAVEL_FROM", 
+                                default_break_values = "{}".format(distance), 
+                                line_type="TRUE_LINES",
+                                overlap="OVERLAP", 
+                                polygon_type="NO_POLYS", 
+                                lines_source_fields="NO_LINES_SOURCE_FIELDS", 
+                                hierarchy="NO_HIERARCHY")
+                                
+  outNALayer = outSAResultObject.getOutput(0)
+  
+  #Get the names of all the sublayers within the service area layer.
+  subLayerNames = arcpy.na.GetNAClassNames(outNALayer)
+  #Store the layer names that we will use later
+  facilitiesLayerName = subLayerNames["Facilities"]
+  linesLayerName = subLayerNames["SALines"]
+  linesSubLayer = arcpy.mapping.ListLayers(outNALayer,linesLayerName)[0]
+  facilitiesSubLayer = arcpy.mapping.ListLayers(outNALayer,facilitiesLayerName)[0] 
+
+  
+  
+# Worker/Child PROCESS main function
 def CreateSausageBufferFunction(hex): 
   # initiate postgresql connection
   conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
@@ -247,7 +276,7 @@ def CreateSausageBufferFunction(hex):
       # print("now processing points {} to {} inclusive of {} unprocessed points within hex {} on processor {}".format(current_floor, current_max, valid_pointCount, hex, pid))
       
       # Process: Add Locations
-      arcpy.AddLocations_na(in_network_analysis_layer = "SA_{}".format(pid), 
+      arcpy.AddLocations_na(in_network_analysis_layer = os.path.join(arcpy.env.scratchGDB,"ServiceArea"), 
                   sub_layer                      = facilitiesLayerName, 
                   in_table                       = chunk_group, 
                   field_mappings                 = "Name {} #".format(points_id), 
@@ -260,7 +289,7 @@ def CreateSausageBufferFunction(hex):
       place = "after AddLocations"      
       
       # Process: Solve
-      arcpy.Solve_na(in_network_analysis_layer = "SA_{}".format(pid), ignore_invalids = "SKIP",terminate_on_solve_error = "CONTINUE")
+      arcpy.Solve_na(in_network_analysis_layer = os.path.join(arcpy.env.scratchGDB,"ServiceArea"), ignore_invalids = "SKIP",terminate_on_solve_error = "CONTINUE")
       place = "after Solve_na"      
       
       # Dissolve linesLayerName
@@ -319,22 +348,29 @@ def CreateSausageBufferFunction(hex):
   conn.close()
   return(0)   
   
-       
-nWorkers = 4
-hex_list = unique_values(points, 'HEX_ID')
-     
 # MAIN PROCESS
 if __name__ == '__main__': 
   # Task name is now defined
   task = 'creates {}{} sausage buffers for locations in {} based on road network {}'.format(distance,units,points,in_network_dataset)
   print("Commencing task: {} at {}".format(task,time.strftime("%Y%m%d-%H%M%S")))
+
+  # initiate postgresql connection
+  conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
+  curs = conn.cursor() 
   
   # initiate log file
   writeLog(create='create')
   
+  # create convenience log of assigned processors in postgresql
+  curs.execute(createTable_processor_log)
+  conn.commit()
+  
   # create output spatial feature in Postgresql
   curs.execute(createTable_sausageBuffer)
   conn.commit()
+  
+  # Make a list of unique hex ID numbers to iterate over and evalute progress against
+  hex_list = unique_values(points, 'HEX_ID')
   
   # fetch list of successfully processed buffers, if any
   curs.execute("SELECT hex FROM {} WHERE status = 'COMPLETED'".format(log_table))
@@ -365,6 +401,10 @@ if __name__ == '__main__':
   curs.execute(createTable_nh1600m)
   conn.commit()  
   print("Done.")
+  
+  
+  curs.execute(createTable_nh1600m)
+  conn.commit()    
   
   # output to completion log    
   script_running_log(script, task, start, locale)
