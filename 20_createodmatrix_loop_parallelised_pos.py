@@ -14,68 +14,42 @@ import numpy as np
 from progressor import progressor
 
 from script_running_log import script_running_log
-from ConfigParser import SafeConfigParser
 
-
-parser = SafeConfigParser()
-parser.read(os.path.join(sys.path[0],'config.ini'))
+# Import custom variables for National Liveability indicator process
+from config_ntnl_li_process import *
 
 # simple timer for log file
 start = time.time()
 script = os.path.basename(sys.argv[0])
+task = 'OD matrix - distance from parcel to closest POS of any size'
 
 # INPUT PARAMETERS
-folderPath = parser.get('data', 'folderPath')
-urbanGDB = os.path.join(folderPath,parser.get('data', 'workspace'))  
 
-arcpy.env.workspace = urbanGDB  
-arcpy.env.scratchWorkspace = folderPath   
+# ArcGIS environment settings
+arcpy.env.workspace = gdb_path  
+# create project specific folder in temp dir for scratch.gdb, if not exists
+if not os.path.exists(os.path.join(temp,db)):
+    os.makedirs(os.path.join(temp,db))
+    
+arcpy.env.scratchWorkspace = os.path.join(temp,db)  
 arcpy.env.qualifiedFieldNames = False  
 arcpy.env.overwriteOutput = True 
 
-# Specify geodatabase with feature classes of "origins"
-A_points = os.path.join(urbanGDB,parser.get('parcels', 'parcel_dwellings'))
-A_pointsID = parser.get('parcels', 'parcel_id')
 
+# Specify geodatabase with feature classes of "origins"
+origin_points   = parcel_dwellings
+origin_pointsID = points_id
 
 ## specify "destinations"
-B_points =  parser.get('pos', 'pos_entry')
-B_pointsID = parser.get('pos', 'pos_entry_id')
-
-
-# make POS feature layer
-arcpy.MakeFeatureLayer_management (B_points, "B_pointsLayer")  
-
-## Network settings
-in_network_dataset = parser.get('roads', 'pedestrian_road_network')
-
-# specify street shape feature within network to find locations
-locateShape = parser.get('roads', 'pedestrian_road_edges')
-
-# specify junctions file which will be excluded from search
-noLocateJunctions = parser.get('roads', 'pedestrian_road_junctions')
-
-# specify search tolerance in units of input file (Features outside tolerance are not located)
-searchTolerance =  parser.get('network', 'tolerance')
-
-cutoff =  parser.get('network', 'limit')
-
-
-## Hex details (polygon feature to iterate over)
-polygons = parser.get('workspace', 'hex_grid')
-polyBuffer =  parser.get('workspace', 'hex_grid_buffer')
+pos_points   =  'pos_50m_vertices'
+pos_pointsID =  'pos_entryid'
 
 hexStart = 0
-
 
 # destination code, for use in log file 
 dest_code = "pos_all"
 
 # SQL Settings
-sqlDBName   = parser.get('postgresql', 'database')
-sqlUserName = parser.get('postgresql', 'user')
-sqlPWD      = parser.get('postgresql', 'password')
-
 sqlTableName  = "dist_cl_od_parcel_pos_all"
 log_table    = "log_dist_cl_od_parcel_dest"
 queryPartA = "INSERT INTO {} VALUES ".format(sqlTableName)
@@ -84,7 +58,7 @@ sqlChunkify = 500
 
         
 # initiate postgresql connection
-conn = psycopg2.connect(database=sqlDBName, user=sqlUserName, password=sqlPWD)
+conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()
 
 # get pid name
@@ -116,18 +90,19 @@ if pid !='MainProcess':
   curs.execute("SELECT dest_name,dest_count FROM dest_type")
   count_list = list(curs)
   
-  arcpy.MakeFeatureLayer_management(B_points, "B_pointsLayer")    
-  arcpy.MakeFeatureLayer_management(polyBuffer, "buffer_layer")                
+  arcpy.MakeFeatureLayer_management(pos_points, "pos_pointsLayer")    
+  arcpy.MakeFeatureLayer_management(hex_grid_buffer, "buffer_layer")                
   
   
 # Define query to create table
 createTable     = '''
+  DROP TABLE IF EXISTS {0};
   CREATE TABLE IF NOT EXISTS {0}
   ({1} varchar PRIMARY KEY,
    VEAC_ID varchar NOT NULL,
    distance integer NOT NULL
    );
-   '''.format(sqlTableName, A_pointsID.lower())
+   '''.format(sqlTableName, origin_pointsID.lower())
    
 queryPartA      = '''
   INSERT INTO {} VALUES
@@ -137,15 +112,16 @@ queryPartA      = '''
 #  It is only created if it does not already exist.
 #  However, it probably does.  
 createTable_log     = '''
-        CREATE TABLE IF NOT EXISTS {}
-          (hex integer NOT NULL, 
-          parcel_count integer NOT NULL, 
-          dest varchar, 
-          status varchar, 
-          mins double precision,
-          PRIMARY KEY(hex,dest)
-          );
-          '''.format(log_table)     
+  DROP TABLE IF EXISTS {0};
+  CREATE TABLE IF NOT EXISTS {}
+    (hex integer NOT NULL, 
+    parcel_count integer NOT NULL, 
+    dest varchar, 
+    status varchar, 
+    mins double precision,
+    PRIMARY KEY(hex,dest)
+    );
+    '''.format(log_table)     
   
 queryInsert      = '''
   INSERT INTO {} VALUES
@@ -156,7 +132,7 @@ queryUpdate      = '''
   DO UPDATE SET {1}=EXCLUDED.{1},{2}=EXCLUDED.{2},{3}=EXCLUDED.{3}
   '''.format('hex','parcel_count','status','mins','dest')  
 
-parcel_count = int(arcpy.GetCount_management(A_points).getOutput(0))  
+parcel_count = int(arcpy.GetCount_management(origin_points).getOutput(0))  
       
 ## Functions defined for this script
 # Define log file write method
@@ -185,7 +161,7 @@ def unique_values(table, field):
 def ODMatrixWorkerFunction(hex): 
   # Connect to SQL database 
   try:
-    conn = psycopg2.connect(database=sqlDBName, user=sqlUserName, password=sqlPWD)
+    conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
     curs = conn.cursor()
   except:
     print("SQL connection error")
@@ -201,22 +177,22 @@ def ODMatrixWorkerFunction(hex):
     return(1)
     
   try:
-    arcpy.MakeFeatureLayer_management (A_points, "A_pointsLayer")
-  
-    A_selection = arcpy.SelectLayerByAttribute_management("A_pointsLayer", where_clause = '"HEX_ID" = {}'.format(hex))   
+    arcpy.MakeFeatureLayer_management (origin_points, "origin_pointsLayer")
+    place = 'before A_selection'
+    A_selection = arcpy.SelectLayerByAttribute_management("origin_pointsLayer", where_clause = '"HEX_ID" = {}'.format(hex))   
     A_pointCount = int(arcpy.GetCount_management(A_selection).getOutput(0))
-    
-	  # Skip empty hexes
+    place = 'before skip empty A hexes'
+	# Skip empty A hexes
     if A_pointCount == 0:
 	  writeLog(hex,0,dest_code,"no A points",(time.time()-hexStartTime)/60)
 	  return(2)
 	
-
+    place = 'before buffer selection'
     buffer = arcpy.SelectLayerByAttribute_management("buffer_layer", where_clause = '"ORIG_FID" = {}'.format(hex))
-    B_selection = arcpy.SelectLayerByLocation_management('B_pointsLayer', 'intersect', buffer)
+    B_selection = arcpy.SelectLayerByLocation_management('pos_pointsLayer', 'intersect', buffer)
     B_pointCount = int(arcpy.GetCount_management(B_selection).getOutput(0))
-    
-	  # Skip empty hexes
+    place = 'before skip empty B hexes'
+	# Skip empty B hexes
     if B_pointCount == 0:
 	  writeLog(hex,A_pointCount,dest_code,"no B points",(time.time()-hexStartTime)/60)
 	  return(3)
@@ -226,36 +202,40 @@ def ODMatrixWorkerFunction(hex):
     arcpy.AddLocations_na(in_network_analysis_layer = outNALayer, 
         sub_layer                      = originsLayerName, 
         in_table                       = A_selection, 
-        field_mappings                 = "Name {} #".format(A_pointsID), 
-        search_tolerance               = "{} Meters".format(searchTolerance), 
-        search_criteria                = "{} SHAPE;{} NONE".format(locateShape,noLocateJunctions), 
+        field_mappings                 = "Name {} #".format(origin_pointsID), 
+        search_tolerance               = "{} Meters".format(tolerance), 
+        search_criteria                = "{} SHAPE;{} NONE".format(network_edges,network_junctions), 
         append                         = "CLEAR", 
         snap_to_position_along_network = "NO_SNAP", 
         exclude_restricted_elements    = "INCLUDE",
-        search_query                   = "{} #;{} #".format(locateShape,noLocateJunctions))
+        search_query                   = "{} #;{} #".format(network_edges,network_junctions))
+    place = 'After add A locations'
 
     arcpy.AddLocations_na(in_network_analysis_layer = outNALayer, 
       sub_layer                      = destinationsLayerName, 
       in_table                       = B_selection, 
-      field_mappings                 = "Name {} #".format(B_pointsID), 
-      search_tolerance               = "{} Meters".format(searchTolerance), 
-      search_criteria                = "{} SHAPE;{} NONE".format(locateShape,noLocateJunctions), 
+      field_mappings                 = "Name {} #".format(pos_pointsID), 
+      search_tolerance               = "{} Meters".format(tolerance), 
+      search_criteria                = "{} SHAPE;{} NONE".format(network_edges,network_junctions), 
       append                         = "CLEAR", 
       snap_to_position_along_network = "NO_SNAP", 
       exclude_restricted_elements    = "INCLUDE",
-      search_query                   = "{} #;{} #".format(locateShape,noLocateJunctions))    
+      search_query                   = "{} #;{} #".format(network_edges,network_junctions))    
+    place = 'After add B locations'
     # Process: Solve
     result = arcpy.Solve_na(outNALayer, terminate_on_solve_error = "CONTINUE")
     if result[1] == u'false':
       writeLog(hex,A_pointCount,dest_code,"no solution",(time.time()-hexStartTime)/60)
       return(4)
-
+    
+    place = 'After solve'
     # Extract lines layer, export to SQL database
     outputLines = arcpy.da.SearchCursor(ODLinesSubLayer, fields)
     curs = conn.cursor()
     count = 0
     chunkedLines = list()
     
+    place = 'before outputLine loop'
     for outputLine in outputLines :
       count += 1
       place = "before id"
@@ -281,9 +261,8 @@ def ODMatrixWorkerFunction(hex):
     
   except:
     print('''Error: {}
-             String: {}
-             Line example: {}
-      '''.format( sys.exc_info(),chunkedLines,outputLine))   
+             Place: {}
+      '''.format( sys.exc_info(),place))   
     writeLog(hex, multiprocessing.current_process().pid, "ERROR", (time.time()-hexStartTime)/60)
     return(multiprocessing.current_process().pid)
   finally:
@@ -291,13 +270,15 @@ def ODMatrixWorkerFunction(hex):
     conn.close()
 
 
-nWorkers = 4  
-hex_list = unique_values(A_points, 'HEX_ID')
+
+# get list of hexes over which to iterate
+curs.execute("SELECT hex FROM hex_parcels;")
+hex_list = list(curs)    
 
 # MAIN PROCESS
 if __name__ == '__main__':
   try:
-    conn = psycopg2.connect(database=sqlDBName, user=sqlUserName, password=sqlPWD)
+    conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
     curs = conn.cursor()
     
     # create OD matrix table (Closest POS)
@@ -313,16 +294,17 @@ if __name__ == '__main__':
   writeLog(create='create')  
   
   # Setup a pool of workers/child processes and split log output
+  nWorkers = 4  
   pool = multiprocessing.Pool(nWorkers)
     
   # Task name is now defined
   task = 'Create OD cost matrix for parcel points to closest POS (any size)'  # Do stuff
-  print("Commencing task ({}): {} at {}".format(sqlDBName,task,time.strftime("%Y%m%d-%H%M%S")))
+  print("Commencing task ({}): {} at {}".format(db,task,time.strftime("%Y%m%d-%H%M%S")))
 
   # Divide work by hexes
   # Note: if a restricted list of hexes are wished to be processed, just supply a subset of hex_list including only the relevant hex id numbers.
-  hexCursor = hex_list
-  pool.map(ODMatrixWorkerFunction, hexCursor, chunksize=1)
+  iteration_list = np.asarray([x[0] for x in hex_list])
+  pool.map(ODMatrixWorkerFunction, hex_list, chunksize=1)
   
   # output to completion log    
   script_running_log(script, task, start, locale)
