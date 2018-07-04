@@ -89,16 +89,16 @@ if pid !='MainProcess':
   count_list = list(curs)
   
   # make POS feature layer where size is greater than 1.5 Ha, ie. 15000m2
-  arcpy.MakeFeatureLayer_management (B_points, "B_pointsLayer", " HA >= 1.5")     
+  arcpy.MakeFeatureLayer_management (pos_points, "pos_pointsLayer", " pos_line_area_ha >= 1.5")     
   arcpy.MakeFeatureLayer_management(hex_grid_buffer, "buffer_layer")                
   
   
 # Define query to create table
 createTable     = '''
-  DROP TABLE IF EXISTS {0};
+  # DROP TABLE IF EXISTS {0};
   CREATE TABLE IF NOT EXISTS {0}
   ({1} varchar PRIMARY KEY,
-   VEAC_ID varchar NOT NULL,
+   pos_id varchar NOT NULL,
    distance integer NOT NULL
    );
    '''.format(sqlTableName, origin_pointsID.lower())
@@ -111,7 +111,6 @@ queryPartA      = '''
 #  It is only created if it does not already exist.
 #  However, it probably does.  
 createTable_log     = '''
-  DROP TABLE IF EXISTS {0};
   CREATE TABLE IF NOT EXISTS {0}
     (hex integer NOT NULL, 
     parcel_count integer NOT NULL, 
@@ -239,7 +238,7 @@ def ODMatrixWorkerFunction(hex):
       count += 1
       place = "before id"
       ID_A = outputLine[0].split('-')[0].encode('utf-8').strip(' ')
-      ID_B = outputLine[0].split('-')[1].split(',')[0].strip(' ').encode('utf-8')
+      ID_B = outputLine[0].split('-')[1].encode('utf-8').strip(' ')
       place = "after ID"
       chunkedLines.append("('{}','{}',{})".format(ID_A,ID_B,int(round(outputLine[1]))))
       if(count % sqlChunkify == 0):
