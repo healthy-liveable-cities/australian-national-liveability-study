@@ -113,7 +113,7 @@ queryPartA      = '''
 #  However, it probably does.  
 createTable_log     = '''
   DROP TABLE IF EXISTS {0};
-  CREATE TABLE IF NOT EXISTS {}
+  CREATE TABLE IF NOT EXISTS {0}
     (hex integer NOT NULL, 
     parcel_count integer NOT NULL, 
     dest varchar, 
@@ -179,7 +179,7 @@ def ODMatrixWorkerFunction(hex):
   try:
     arcpy.MakeFeatureLayer_management (origin_points, "origin_pointsLayer")
     place = 'before A_selection'
-    A_selection = arcpy.SelectLayerByAttribute_management("origin_pointsLayer", where_clause = '"HEX_ID" = {}'.format(hex))   
+    A_selection = arcpy.SelectLayerByAttribute_management("origin_pointsLayer", where_clause = 'HEX_ID = {}'.format(hex))   
     A_pointCount = int(arcpy.GetCount_management(A_selection).getOutput(0))
     place = 'before skip empty A hexes'
 	# Skip empty A hexes
@@ -188,7 +188,7 @@ def ODMatrixWorkerFunction(hex):
 	  return(2)
 	
     place = 'before buffer selection'
-    buffer = arcpy.SelectLayerByAttribute_management("buffer_layer", where_clause = '"ORIG_FID" = {}'.format(hex))
+    buffer = arcpy.SelectLayerByAttribute_management("buffer_layer", where_clause = 'ORIG_FID = {}'.format(hex))
     B_selection = arcpy.SelectLayerByLocation_management('pos_pointsLayer', 'intersect', buffer)
     B_pointCount = int(arcpy.GetCount_management(B_selection).getOutput(0))
     place = 'before skip empty B hexes'
@@ -304,7 +304,7 @@ if __name__ == '__main__':
   # Divide work by hexes
   # Note: if a restricted list of hexes are wished to be processed, just supply a subset of hex_list including only the relevant hex id numbers.
   iteration_list = np.asarray([x[0] for x in hex_list])
-  pool.map(ODMatrixWorkerFunction, hex_list, chunksize=1)
+  pool.map(ODMatrixWorkerFunction, iteration_list, chunksize=1)
   
   # output to completion log    
   script_running_log(script, task, start, locale)
