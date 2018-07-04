@@ -89,7 +89,7 @@ if pid !='MainProcess':
   count_list = list(curs)
   
   # make POS feature layer where size is greater than 1.5 Ha, ie. 15000m2
-  arcpy.MakeFeatureLayer_management (pos_points, "pos_pointsLayer", " pos_line_area_ha >= 1.5")     
+  arcpy.MakeFeatureLayer_management (pos_points, "pos_pointsLayer", "area_ha >= 1.5")     
   arcpy.MakeFeatureLayer_management(hex_grid_buffer, "buffer_layer")                
   
   

@@ -99,7 +99,7 @@ arcpy.CalculateField_management(in_table=temp_pos_points,
 print(" Done.")                                
 
 print("Save to geodatabase with only important fields retained (OID, shape, orig_fid and pos_entry_id)..."),
-field_info_str = 'OBJECTID OBJECTID VISIBLE;Shape Shape VISIBLE;mem_point_LineOID mem_point_LineOID HIDDEN;mem_point_Value mem_point_Value HIDDEN;pos_line_OBJECTID pos_line_OBJECTID HIDDEN;pos_line_Id pos_line_Id HIDDEN;pos_line_area_ha pos_line_area_ha VISIBLE;pos_line_ORIG_FID pos_id VISIBLE;pos_entryid pos_entryid VISIBLE;'             
+field_info_str = 'OBJECTID OBJECTID VISIBLE;Shape Shape VISIBLE;mem_point_LineOID mem_point_LineOID HIDDEN;mem_point_Value mem_point_Value HIDDEN;pos_line_OBJECTID pos_line_OBJECTID HIDDEN;pos_line_Id pos_line_Id HIDDEN;pos_line_area_ha area_ha VISIBLE;pos_line_ORIG_FID pos_id VISIBLE;pos_entryid pos_entryid VISIBLE;'             
 arcpy.MakeFeatureLayer_management(temp_pos_points, 'skinny_pos', '', field_info=field_info_str)            
 arcpy.CopyFeatures_management('skinny_pos', 'pos_50m_vertices') 
 print(" Done.")
