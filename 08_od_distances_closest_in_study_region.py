@@ -77,11 +77,15 @@ pid = multiprocessing.current_process().name
 
 # Define query to create table
 createTable     = '''
+  DROP TABLE IF EXISTS {0};
   CREATE TABLE IF NOT EXISTS {0}
   ({1} varchar NOT NULL ,
    dest smallint NOT NULL ,
    oid bigint NOT NULL ,
    distance integer NOT NULL, 
+   threshold  int,
+   ind_hard   int,
+   ind_soft   double precision,
    PRIMARY KEY({1},dest)
    );
    '''.format(od_distances, origin_pointsID)
@@ -91,15 +95,16 @@ queryPartA      = '''
   '''.format(od_distances)
 
 createTable_log     = '''
-        CREATE TABLE IF NOT EXISTS {}
-          (hex integer NOT NULL, 
-          parcel_count integer NOT NULL, 
-          dest varchar, 
-          status varchar, 
-          mins double precision,
-          PRIMARY KEY(hex,dest)
-          );
-          '''.format(log_table)    
+  DROP TABLE IF EXISTS {0};
+  CREATE TABLE IF NOT EXISTS {0}
+    (hex integer NOT NULL, 
+    parcel_count integer NOT NULL, 
+    dest varchar, 
+    status varchar, 
+    mins double precision,
+    PRIMARY KEY(hex,dest)
+    );
+    '''.format(log_table)    
 
 queryInsert      = '''
   INSERT INTO {} VALUES
@@ -234,9 +239,21 @@ def ODMatrixWorkerFunction(hex):
           chunkedLines = list()
           for outputLine in outputLines :
             count += 1
-            ID = outputLine[0].split('-')
-            ID1 = ID[1].split(',')
-            chunkedLines.append("('{}',{},{},{})".format(ID[0].strip(' '),ID1[0],ID1[1],int(round(outputLine[1]))))
+            ID_A      = outputLine[0].split('-')[0].strip(' ')
+            dest_id   = outputLine[0].split('-')[1].split(',')
+            dest_code = dest_id[0].strip(' ')
+            dest_id   = dest_id[1].strip(' ')
+            distance  = int(round(outputLine[1]))
+            threshold = dest_cutoffs[destNum]
+            ind_hard  = int(distance < threshold)
+            ind_soft = 1 - 1.0 / (1+np.exp(-soft_threshold_slope*(distance-threshold)/threshold))
+            chunkedLines.append("('{point_id}',{dest_code},{dest_id},{distance},{threshold},{ind_hard},{ind_soft})".format(point_id  = ID_A,
+                                                                                                                           dest_code = dest_code,
+                                                                                                                           dest_id   = dest_id,
+                                                                                                                           distance  = distance,
+                                                                                                                           threshold = threshold,
+                                                                                                                           ind_hard  = ind_hard,
+                                                                                                                           ind_soft  = ind_soft))
             if(count % sqlChunkify == 0):
               curs.execute(queryPartA + ','.join(rowOfChunk for rowOfChunk in chunkedLines))
               conn.commit()
@@ -291,7 +308,7 @@ if __name__ == '__main__':
   
   print("Setup a pool of workers/child processes and split log output..."),
   # Parallel processing setting
-  nWorkers = 4    
+  nWorkers = 7    
   pool = multiprocessing.Pool(processes=nWorkers)
   print(" Done.")
 
