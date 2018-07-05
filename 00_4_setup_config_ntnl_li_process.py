@@ -248,6 +248,9 @@ line_buffer = 50
 # this distance is a limit beyond which not to search for destinations 
 limit = 3000
 
+# Threshold paramaters
+soft_threshold_slope = 5
+
 # POS
 # POS feature sourced from Julianna Rozek
 #  -- already projected in GDA2020 GA LCC

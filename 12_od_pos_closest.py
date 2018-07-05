@@ -35,7 +35,6 @@ arcpy.env.scratchWorkspace = os.path.join(temp,db)
 arcpy.env.qualifiedFieldNames = False  
 arcpy.env.overwriteOutput = True 
 
-
 # Specify geodatabase with feature classes of "origins"
 origin_points   = parcel_dwellings
 origin_pointsID = points_id
@@ -50,12 +49,11 @@ hexStart = 0
 dest_code = "pos_all"
 
 # SQL Settings
-sqlTableName  = "dist_cl_od_parcel_pos_all"
+sqlTableName  = "dist_cl_od_parcel_pos"
 log_table    = "log_dist_cl_od_parcel_dest"
 queryPartA = "INSERT INTO {} VALUES ".format(sqlTableName)
 
 sqlChunkify = 500
-
         
 # initiate postgresql connection
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
@@ -90,7 +88,6 @@ if pid !='MainProcess':
   curs.execute("SELECT dest_name,dest_count FROM dest_type")
   count_list = list(curs)
   
-  arcpy.MakeFeatureLayer_management(pos_points, "pos_pointsLayer")    
   arcpy.MakeFeatureLayer_management(hex_grid_buffer, "buffer_layer")                
   
   
@@ -98,12 +95,17 @@ if pid !='MainProcess':
 createTable     = '''
   # DROP TABLE IF EXISTS {0};
   CREATE TABLE IF NOT EXISTS {0}
-  ({1} varchar PRIMARY KEY,
-   pos_id varchar NOT NULL,
-   distance integer NOT NULL
+   gnaf_id    varchar         ,
+   pos_id     varchar         ,
+   query      varchar         ,
+   distance   double precision,
+   threshold  int             ,
+   ind_hard   int             ,
+   ind_soft   double precision
    );
    '''.format(sqlTableName, origin_pointsID.lower())
-   
+## LATER index on gnaf_id, query
+
 queryPartA      = '''
   INSERT INTO {} VALUES
   '''.format(sqlTableName)
@@ -188,76 +190,88 @@ def ODMatrixWorkerFunction(hex):
 	
     place = 'before buffer selection'
     buffer = arcpy.SelectLayerByAttribute_management("buffer_layer", where_clause = 'ORIG_FID = {}'.format(hex))
-    B_selection = arcpy.SelectLayerByLocation_management('pos_pointsLayer', 'intersect', buffer)
-    B_pointCount = int(arcpy.GetCount_management(B_selection).getOutput(0))
-    place = 'before skip empty B hexes'
-	# Skip empty B hexes
-    if B_pointCount == 0:
-	  writeLog(hex,A_pointCount,dest_code,"no B points",(time.time()-hexStartTime)/60)
-	  return(3)
-      
-	# If we're still in the loop at this point, it means we have the right hex and buffer combo and both contain at least one valid element
-	# Process OD Matrix Setup
-    arcpy.AddLocations_na(in_network_analysis_layer = outNALayer, 
-        sub_layer                      = originsLayerName, 
-        in_table                       = A_selection, 
-        field_mappings                 = "Name {} #".format(origin_pointsID), 
-        search_tolerance               = "{} Meters".format(tolerance), 
-        search_criteria                = "{} SHAPE;{} NONE".format(network_edges,network_junctions), 
-        append                         = "CLEAR", 
-        snap_to_position_along_network = "NO_SNAP", 
-        exclude_restricted_elements    = "INCLUDE",
-        search_query                   = "{} #;{} #".format(network_edges,network_junctions))
-    place = 'After add A locations'
-
-    arcpy.AddLocations_na(in_network_analysis_layer = outNALayer, 
-      sub_layer                      = destinationsLayerName, 
-      in_table                       = B_selection, 
-      field_mappings                 = "Name {} #".format(pos_pointsID), 
-      search_tolerance               = "{} Meters".format(tolerance), 
-      search_criteria                = "{} SHAPE;{} NONE".format(network_edges,network_junctions), 
-      append                         = "CLEAR", 
-      snap_to_position_along_network = "NO_SNAP", 
-      exclude_restricted_elements    = "INCLUDE",
-      search_query                   = "{} #;{} #".format(network_edges,network_junctions))    
-    place = 'After add B locations'
-    # Process: Solve
-    result = arcpy.Solve_na(outNALayer, terminate_on_solve_error = "CONTINUE")
-    if result[1] == u'false':
-      writeLog(hex,A_pointCount,dest_code,"no solution",(time.time()-hexStartTime)/60)
-      return(4)
     
-    place = 'After solve'
-    # Extract lines layer, export to SQL database
-    outputLines = arcpy.da.SearchCursor(ODLinesSubLayer, fields)
-    curs = conn.cursor()
-    count = 0
-    chunkedLines = list()
-    
-    place = 'before outputLine loop'
-    for outputLine in outputLines :
-      count += 1
-      place = "before id"
-      ID_A = outputLine[0].split('-')[0].encode('utf-8').strip(' ')
-      ID_B = outputLine[0].split('-')[1].encode('utf-8').strip(' ')
-      place = "after ID"
-      chunkedLines.append("('{}','{}',{})".format(ID_A,ID_B,int(round(outputLine[1]))))
-      if(count % sqlChunkify == 0):
-        curs.execute(queryPartA + ','.join(rowOfChunk for rowOfChunk in chunkedLines)+' ON CONFLICT DO NOTHING')
-        conn.commit()
-        chunkedLines = list()
-        
-    if(count % sqlChunkify != 0):
-      curs.execute(queryPartA + ','.join(rowOfChunk for rowOfChunk in chunkedLines)+' ON CONFLICT DO NOTHING')
-      conn.commit()
+    for query in pos_locale:
+      curs.execute("SELECT {} FROM {} WHERE query = '{}'".format(origin_pointsID,sqlTableName,hex,query))
+      processed_points = [x[0] for x in list(curs)]
+      if processed_points < A_pointCount:
+        A_refined = arcpy.SelectLayerByAttribute_management(A_selection, selection_type = 'REMOVE_FROM_SELECTION', where_clause = '{0} IN {1}'.format(origin_pointsID,processed_points)
+        arcpy.MakeFeatureLayer_management(pos_points, "pos_pointsLayer", query)    
+        B_selection = arcpy.SelectLayerByLocation_management('pos_pointsLayer', 'intersect', buffer)
+        B_pointCount = int(arcpy.GetCount_management(B_selection).getOutput(0))
+        place = 'before skip empty B hexes'
+	    # Skip empty B hexes
+        if B_pointCount != 0:          
+	      # If we're still in the loop at this point, it means we have the right hex and buffer combo and both contain at least one valid element
+	      # Process OD Matrix Setup
+          arcpy.AddLocations_na(in_network_analysis_layer = outNALayer, 
+              sub_layer                      = originsLayerName, 
+              in_table                       = A_refined, 
+              field_mappings                 = "Name {} #".format(origin_pointsID), 
+              search_tolerance               = "{} Meters".format(tolerance), 
+              search_criteria                = "{} SHAPE;{} NONE".format(network_edges,network_junctions), 
+              append                         = "CLEAR", 
+              snap_to_position_along_network = "NO_SNAP", 
+              exclude_restricted_elements    = "INCLUDE",
+              search_query                   = "{} #;{} #".format(network_edges,network_junctions))
+          place = 'After add A locations'
+          
+          arcpy.AddLocations_na(in_network_analysis_layer = outNALayer, 
+            sub_layer                      = destinationsLayerName, 
+            in_table                       = B_selection, 
+            field_mappings                 = "Name {} #".format(pos_pointsID), 
+            search_tolerance               = "{} Meters".format(tolerance), 
+            search_criteria                = "{} SHAPE;{} NONE".format(network_edges,network_junctions), 
+            append                         = "CLEAR", 
+            snap_to_position_along_network = "NO_SNAP", 
+            exclude_restricted_elements    = "INCLUDE",
+            search_query                   = "{} #;{} #".format(network_edges,network_junctions))    
+          place = 'After add B locations'
+          # Process: Solve
+          result = arcpy.Solve_na(outNALayer, terminate_on_solve_error = "CONTINUE")
+          if result[1] == u'false':
+            writeLog(hex,A_pointCount,dest_code,"no solution",(time.time()-hexStartTime)/60)
+          if result[1] == u'true':
+            place = 'After solve'
+            # Extract lines layer, export to SQL database
+            outputLines = arcpy.da.SearchCursor(ODLinesSubLayer, fields)
+            curs = conn.cursor()
+            count = 0
+            chunkedLines = list()
+            
+            place = 'before outputLine loop'
+            for outputLine in outputLines :
+              count += 1
+              ID_A      = outputLine[0].split('-')[0].encode('utf-8').strip(' ')
+              ID_B      = outputLine[0].split('-')[1].encode('utf-8').strip(' ')
+              query     = query[0], 
+              distance  = int(round(outputLine[1]))
+              threshold = query[1]
+              ind_hard  = int(distance < threshold),
+              ind_soft = 1 - 1.0 / (1+math.exp(-soft_threshold_slope*(distance-threshold)/threshold))
+              place = "before chunk append"
+              chunkedLines.append("('{ID_A}','{ID_B}','{query}',{distance},{threshold},{ind_hard},{ind_soft})".format(ID_A      = ID_A,
+                                                                                                                      ID_B      = ID_B,
+                                                                                                                      query     = query,
+                                                                                                                      distance  = distance,
+                                                                                                                      threshold = threshold,
+                                                                                                                      ind_hard  = ind_hard,
+                                                                                                                      ind_soft  = ind_soft
+                                                                                                                      ))
+              if(count % sqlChunkify == 0):
+                curs.execute(queryPartA + ','.join(rowOfChunk for rowOfChunk in chunkedLines)+' ON CONFLICT DO NOTHING')
+                conn.commit()
+                chunkedLines = list()
+                
+            if(count % sqlChunkify != 0):
+              curs.execute(queryPartA + ','.join(rowOfChunk for rowOfChunk in chunkedLines)+' ON CONFLICT DO NOTHING')
+              conn.commit()
+            
     writeLog(hex,A_pointCount,B_pointCount,"Solved",(time.time()-hexStartTime)/60)
-    
     curs.execute("SELECT COUNT(*) FROM {}".format(sqlTableName))
     numerator = list(curs)
     numerator = int(numerator[0][0])
     progressor(numerator,parcel_count,start,"{}/{}; last hex processed: {}, at {}".format(numerator,parcel_count,hex,time.strftime("%Y%m%d-%H%M%S"))) 
-    return 0
-    
   except:
     print('''Error: {}
              Place: {}
