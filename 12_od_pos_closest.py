@@ -45,9 +45,6 @@ pos_pointsID =  'pos_entryid'
 
 hexStart = 0
 
-# destination code, for use in log file 
-dest_code = "pos_all"
-
 # SQL Settings
 sqlTableName  = "dist_cl_od_parcel_pos"
 log_table    = "log_dist_cl_od_parcel_dest"
@@ -93,9 +90,9 @@ if pid !='MainProcess':
   
 # Define query to create table
 createTable     = '''
-  # DROP TABLE IF EXISTS {0};
+  -- DROP TABLE IF EXISTS {0};
   CREATE TABLE IF NOT EXISTS {0}
-   gnaf_id    varchar         ,
+  (gnaf_pid    varchar         ,
    pos_id     varchar         ,
    query      varchar         ,
    distance   double precision,
@@ -114,8 +111,9 @@ queryPartA      = '''
 #  It is only created if it does not already exist.
 #  However, it probably does.  
 createTable_log     = '''
+  -- DROP TABLE IF EXISTS {0};
   CREATE TABLE IF NOT EXISTS {0}
-    (hex integer NOT NULL, 
+   (hex integer NOT NULL, 
     parcel_count integer NOT NULL, 
     dest varchar, 
     status varchar, 
@@ -134,7 +132,8 @@ queryUpdate      = '''
   '''.format('hex','parcel_count','status','mins','dest')  
 
 parcel_count = int(arcpy.GetCount_management(origin_points).getOutput(0))  
-      
+denominator = parcel_count * len(pos_locale)
+ 
 ## Functions defined for this script
 # Define log file write method
 def writeLog(hex = 0, AhexN = 'NULL', Bcode = 'NULL', status = 'NULL', mins= 0, create = log_table):
@@ -172,7 +171,7 @@ def ODMatrixWorkerFunction(hex):
   arcpy.CheckOutExtension('Network')
  
   # Worker Task is hex-specific by definition/parallel
-  # 	Skip if hex was finished in previous run
+  #     Skip if hex was finished in previous run
   hexStartTime = time.time()
   if hex < hexStart:
     return(1)
@@ -180,33 +179,44 @@ def ODMatrixWorkerFunction(hex):
   try:
     arcpy.MakeFeatureLayer_management (origin_points, "origin_pointsLayer")
     place = 'before A_selection'
-    A_selection = arcpy.SelectLayerByAttribute_management("origin_pointsLayer", where_clause = 'HEX_ID = {}'.format(hex))   
+    A_selection = arcpy.SelectLayerByAttribute_management("origin_pointsLayer", where_clause = 'hex_id = {}'.format(hex))   
     A_pointCount = int(arcpy.GetCount_management(A_selection).getOutput(0))
     place = 'before skip empty A hexes'
-	# Skip empty A hexes
+    # Skip empty A hexes
     if A_pointCount == 0:
-	  writeLog(hex,0,dest_code,"no A points",(time.time()-hexStartTime)/60)
-	  return(2)
-	
+      writeLog(hex,0,"pos","no A points",(time.time()-hexStartTime)/60)
+      return(2)
+    
     place = 'before buffer selection'
     buffer = arcpy.SelectLayerByAttribute_management("buffer_layer", where_clause = 'ORIG_FID = {}'.format(hex))
     
+    # loop over POS scenarios for this study region
     for query in pos_locale:
-      curs.execute("SELECT {} FROM {} WHERE query = '{}'".format(origin_pointsID,sqlTableName,hex,query))
+      # ensure only non-processed parcels are processed (ie. in case script has been previously run)
+      curs.execute("SELECT {} FROM {} WHERE query = '{}'".format(origin_pointsID,sqlTableName,hex,query[0]))
       processed_points = [x[0] for x in list(curs)]
-      if processed_points < A_pointCount:
-        A_refined = arcpy.SelectLayerByAttribute_management(A_selection, selection_type = 'REMOVE_FROM_SELECTION', where_clause = '{0} IN {1}'.format(origin_pointsID,processed_points)
-        arcpy.MakeFeatureLayer_management(pos_points, "pos_pointsLayer", query)    
+      # Only procede with the POS scenario if it has not been previously processed
+      if len(processed_points) < A_pointCount:
+        # if len(processed_points)!=0:
+          # A_selection = arcpy.SelectLayerByAttribute_management(A_selection, selection_type = 'REMOVE_FROM_SELECTION', where_clause = '{0} IN ({1})'.format(origin_pointsID,','.join(processed_points)))
+        arcpy.MakeFeatureLayer_management(pos_points, "pos_pointsLayer", query[0])    
+        
+        # Select and count parks meeting scenario query
         B_selection = arcpy.SelectLayerByLocation_management('pos_pointsLayer', 'intersect', buffer)
         B_pointCount = int(arcpy.GetCount_management(B_selection).getOutput(0))
+        
+        # define query and distance as destination code, for use in log file 
+        dest_code = "{} @ {}m".format(query[0],query[1])
+        
         place = 'before skip empty B hexes'
-	    # Skip empty B hexes
+        # Skip empty B hexes
         if B_pointCount != 0:          
-	      # If we're still in the loop at this point, it means we have the right hex and buffer combo and both contain at least one valid element
-	      # Process OD Matrix Setup
+          # If we're still in the loop at this point, it means we have the right hex and buffer combo and both contain at least one valid element
+          # Process OD Matrix Setup
+          # add unprocessed address points
           arcpy.AddLocations_na(in_network_analysis_layer = outNALayer, 
               sub_layer                      = originsLayerName, 
-              in_table                       = A_refined, 
+              in_table                       = A_selection, 
               field_mappings                 = "Name {} #".format(origin_pointsID), 
               search_tolerance               = "{} Meters".format(tolerance), 
               search_criteria                = "{} SHAPE;{} NONE".format(network_edges,network_junctions), 
@@ -215,7 +225,7 @@ def ODMatrixWorkerFunction(hex):
               exclude_restricted_elements    = "INCLUDE",
               search_query                   = "{} #;{} #".format(network_edges,network_junctions))
           place = 'After add A locations'
-          
+          # add in parks
           arcpy.AddLocations_na(in_network_analysis_layer = outNALayer, 
             sub_layer                      = destinationsLayerName, 
             in_table                       = B_selection, 
@@ -238,21 +248,19 @@ def ODMatrixWorkerFunction(hex):
             curs = conn.cursor()
             count = 0
             chunkedLines = list()
-            
             place = 'before outputLine loop'
             for outputLine in outputLines :
               count += 1
               ID_A      = outputLine[0].split('-')[0].encode('utf-8').strip(' ')
               ID_B      = outputLine[0].split('-')[1].encode('utf-8').strip(' ')
-              query     = query[0], 
               distance  = int(round(outputLine[1]))
               threshold = query[1]
-              ind_hard  = int(distance < threshold),
-              ind_soft = 1 - 1.0 / (1+math.exp(-soft_threshold_slope*(distance-threshold)/threshold))
+              ind_hard  = int(distance < threshold)
+              ind_soft = 1 - 1.0 / (1+np.exp(-soft_threshold_slope*(distance-threshold)/threshold))
               place = "before chunk append"
               chunkedLines.append("('{ID_A}','{ID_B}','{query}',{distance},{threshold},{ind_hard},{ind_soft})".format(ID_A      = ID_A,
                                                                                                                       ID_B      = ID_B,
-                                                                                                                      query     = query,
+                                                                                                                      query     = query[0],
                                                                                                                       distance  = distance,
                                                                                                                       threshold = threshold,
                                                                                                                       ind_hard  = ind_hard,
@@ -262,22 +270,21 @@ def ODMatrixWorkerFunction(hex):
                 curs.execute(queryPartA + ','.join(rowOfChunk for rowOfChunk in chunkedLines)+' ON CONFLICT DO NOTHING')
                 conn.commit()
                 chunkedLines = list()
-                
             if(count % sqlChunkify != 0):
               curs.execute(queryPartA + ','.join(rowOfChunk for rowOfChunk in chunkedLines)+' ON CONFLICT DO NOTHING')
               conn.commit()
             
-    writeLog(hex,A_pointCount,B_pointCount,"Solved",(time.time()-hexStartTime)/60)
+            writeLog(hex,A_pointCount,dest_code,"Solved",(time.time()-hexStartTime)/60)
     curs.execute("SELECT COUNT(*) FROM {}".format(sqlTableName))
     numerator = list(curs)
     numerator = int(numerator[0][0])
-    progressor(numerator,parcel_count,start,"{}/{}; last hex processed: {}, at {}".format(numerator,parcel_count,hex,time.strftime("%Y%m%d-%H%M%S"))) 
+    progressor(numerator,denominator,start,"{}/{}; last hex processed: {}, at {}".format(numerator,denominator,hex,time.strftime("%Y%m%d-%H%M%S"))) 
   except:
     print('''Error: {}
              Place: {}
       '''.format( sys.exc_info(),place))   
-    writeLog(hex, multiprocessing.current_process().pid, "ERROR", (time.time()-hexStartTime)/60)
-    return(multiprocessing.current_process().pid)
+    # writeLog(hex,'NULL', "ERROR: {}".format(place), (time.time()-hexStartTime)/60)
+
   finally:
     arcpy.CheckInExtension('Network')
     conn.close()
@@ -318,6 +325,8 @@ if __name__ == '__main__':
   # Note: if a restricted list of hexes are wished to be processed, just supply a subset of hex_list including only the relevant hex id numbers.
   iteration_list = np.asarray([x[0] for x in hex_list])
   pool.map(ODMatrixWorkerFunction, iteration_list, chunksize=1)
+  	
+  curs.execute("ALTER  TABLE {table} ADD PRIMARY KEY ({point_id},query,threshold);".format(table = sqlTableName, point_id = points_id))
   
   # output to completion log    
   script_running_log(script, task, start, locale)
