@@ -40,23 +40,48 @@ folderPath = 'D:/ntnl_li_2018_template/data/'
 # locale       = 'Perth'
 # locale       = 'Syd'
 
-# region_where_clause = ''' "STATE_NAME" = 'South Australia' AND "GCCSA_NAME"  = 'Greater Adelaide' '''
-# region_where_clause = ''' "STATE_NAME" = 'Queensland' AND "GCCSA_NAME"  = 'Greater Brisbane' '''
-# region_where_clause = ''' "STATE_NAME" = 'Australian Capital Territory' AND "GCCSA_NAME"  = 'Australian Capital Territory' '''
-# region_where_clause = ''' "STATE_NAME" = 'Northern Territory' AND "GCCSA_NAME"  = 'Greater Darwin' '''
-# region_where_clause = ''' "STATE_NAME" = 'Tasmania' AND "GCCSA_NAME"  = 'Greater Hobart' '''
-# region_where_clause = ''' "STATE_NAME" = 'Victoria' AND "GCCSA_NAME"  = 'Greater Melbourne' '''
-# region_where_clause = ''' "STATE_NAME" = 'Western Australia' AND "GCCSA_NAME"  = 'Greater Perth' '''
-# region_where_clause = ''' "STATE_NAME" = 'New South Wales' AND "GCCSA_NAME"  = 'Greater Sydney' '''
+# SQL Query to select study region
+region_where_clause_list = {'Adelaide': ''' "STATE_NAME" = 'South Australia' AND "GCCSA_NAME"  = 'Greater Adelaide' ''',
+                            'Bris': ''' "STATE_NAME" = 'Queensland' AND "GCCSA_NAME"  = 'Greater Brisbane' ''',
+                            'Canberra': ''' "STATE_NAME" = 'Australian Capital Territory' AND "GCCSA_NAME"  = 'Australian Capital Territory' ''',
+                            'Darwin': ''' "STATE_NAME" = 'Northern Territory' AND "GCCSA_NAME"  = 'Greater Darwin' ''',
+                            'Hobart': ''' "STATE_NAME" = 'Tasmania' AND "GCCSA_NAME"  = 'Greater Hobart' ''',
+                            'Melb': ''' "STATE_NAME" = 'Victoria' AND "GCCSA_NAME"  = 'Greater Melbourne' ''',
+                            'Perth': ''' "STATE_NAME" = 'Western Australia' AND "GCCSA_NAME"  = 'Greater Perth' ''',
+                            'Syd': ''' "STATE_NAME" = 'New South Wales' AND "GCCSA_NAME"  = 'Greater Sydney' '''}
+region_where_clause = region_where_clause_list[locale]
 
-# points = os.path.join(folderPath,'address_points/GDA2020_GA_LCC.gdb/gnaf_2018_sa')
-# points = os.path.join(folderPath,'address_points/GDA2020_GA_LCC.gdb/gnaf_2018_qld')
-# points = os.path.join(folderPath,'address_points/GDA2020_GA_LCC.gdb/gnaf_2018_act')
-# points = os.path.join(folderPath,'address_points/GDA2020_GA_LCC.gdb/gnaf_2018_nt')
-# points = os.path.join(folderPath,'address_points/GDA2020_GA_LCC.gdb/gnaf_2018_tas')
-# points = os.path.join(folderPath,'address_points/GDA2020_GA_LCC.gdb/gnaf_2018_vic')
-# points = os.path.join(folderPath,'address_points/GDA2020_GA_LCC.gdb/gnaf_2018_wa')
-# points = os.path.join(folderPath,'address_points/GDA2020_GA_LCC.gdb/gnaf_2018_nsw')
+# Point data locations (ie. GNAF address point features, in GDA2020 GA LCC)
+points_list = {'Adelaide': os.path.join(folderPath,'address_points/GDA2020_GA_LCC.gdb/gnaf_2018_sa') ,
+               'Bris'    : os.path.join(folderPath,'address_points/GDA2020_GA_LCC.gdb/gnaf_2018_qld'),
+               'Canberra': os.path.join(folderPath,'address_points/GDA2020_GA_LCC.gdb/gnaf_2018_act'),
+               'Darwin'  : os.path.join(folderPath,'address_points/GDA2020_GA_LCC.gdb/gnaf_2018_nt') ,
+               'Hobart'  : os.path.join(folderPath,'address_points/GDA2020_GA_LCC.gdb/gnaf_2018_tas'),
+               'Melb'    : os.path.join(folderPath,'address_points/GDA2020_GA_LCC.gdb/gnaf_2018_vic'),
+               'Perth'   : os.path.join(folderPath,'address_points/GDA2020_GA_LCC.gdb/gnaf_2018_wa') ,
+               'Syd'     : os.path.join(folderPath,'address_points/GDA2020_GA_LCC.gdb/gnaf_2018_nsw')}
+
+points = points_list[locale]
+
+# POS queries - combined national and state-based scenarios, as lists of query-distance 2-tuples by locale
+pos_queries = {'Bris':  [['',400],
+                         ['area_ha > 1.5',400],
+                         ['area_ha > 0.5',400],
+                         ['area_ha > 5',2500]],
+               'Melb':  [['',400],
+                         ['area_ha > 1.5',400]],
+               'Perth': [['',400],
+                         ['area_ha > 1.5',400],
+                         ['area_ha > 0.4 AND area_ha <= 1 ',400],
+                         ['area_ha > 1 AND area_ha <= 5',800],
+                         ['area_ha > 5 AND area_ha <= 20',2000],
+                         ['',300]],
+               'Syd':   [['',400],
+                         ['area_ha > 1.5',400],
+                         ['area_ha > 0.5',400],
+                         ['area_ha > 2',2000]]}
+
+pos_locale = pos_queries[locale]
 
 # **************** Extra bits (hopefully don't need to change much) *******************************
 
