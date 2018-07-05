@@ -90,7 +90,7 @@ arcpy.CreatePointsLines_CreatePointsLines(Input_Polyline_Feature_Class = temp_po
 arcpy.Delete_management(temp_pos_line)
 print(" Done.") 
 
-print("Creating compound POS entry point ID"...),
+print("Creating compound POS entry point ID..."),
 arcpy.AddField_management(temp_pos_points, "pos_entryid", "TEXT")
 arcpy.CalculateField_management(in_table=temp_pos_points, 
                                 field="pos_entryid", 
