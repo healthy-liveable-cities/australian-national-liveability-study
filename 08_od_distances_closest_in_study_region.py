@@ -61,8 +61,8 @@ featureClasses = arcpy.ListFeatureClasses()
 hexStart = 0
 
 # SQL Settings
-## Note - this used to be 'dist_cl_od_parcel_dest' --- simplified to 'od_distances'
-od_distances  = "od_destinations"
+## Note - this used to be 'dist_cl_od_parcel_dest' --- simplified to 'od_closest'
+od_distances  = "od_closest"
 log_table    = "log_od_distances"
 queryPartA = "INSERT INTO {} VALUES ".format(od_distances)
 
