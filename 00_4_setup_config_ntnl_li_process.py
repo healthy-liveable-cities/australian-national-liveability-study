@@ -80,8 +80,8 @@ pos_queries = {'Bris':  [['',400],
                          ['area_ha > 1.5',400],
                          ['area_ha > 0.5',400],
                          ['area_ha > 2',2000]]}
-
-pos_locale = pos_queries[locale]
+if locale in pos_queries:
+  pos_locale = pos_queries[locale]
 
 # **************** Extra bits (hopefully don't need to change much) *******************************
 
