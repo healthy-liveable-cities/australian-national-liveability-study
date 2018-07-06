@@ -185,7 +185,7 @@ def ODMatrixWorkerFunction(hex):
     
     for destination_points in remaining_dest_list:
       destStartTime = time.time()
-      destNum = destination_list.index(destination_points)
+      destNum = np.where(destination_list==destination_points)[0][0]
       # only procede if > 0 destinations of this type are present in study region
       if count_list[destNum][1] == 0:
         writeLog(hex,origin_point_count,destNum,"no dest in study region",(time.time()-destStartTime)/60)
@@ -270,10 +270,7 @@ def ODMatrixWorkerFunction(hex):
     return 0
   
   except:
-    print('''HEY, IT'S AN ERROR: {}
-             Place: {}'''.format(sys.exc_info()[1]),place)
-    writeLog(hex, multiprocessing.current_process().pid, "Error", (time.time()-hexStartTime)/60)
-    return(multiprocessing.current_process().pid)
+    print(sys.exc_info())
     
   finally:
     arcpy.CheckInExtension('Network')

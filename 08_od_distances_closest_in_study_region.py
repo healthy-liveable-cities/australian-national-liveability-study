@@ -211,7 +211,7 @@ def ODMatrixWorkerFunction(hex):
     
     for destination_points in remaining_dest_list:
       destStartTime = time.time()
-      destNum = destination_list.index(destination_points)
+      destNum = np.where(destination_list==destination_points)[0][0]
       # only procede if > 0 destinations of this type are present in study region
       if count_list[destNum][1] == 0:
         writeLog(hex,origin_point_count,destNum,"no dest in study region",(time.time()-destStartTime)/60)
@@ -255,7 +255,7 @@ def ODMatrixWorkerFunction(hex):
             dest_code = dest_id[0].strip(' ')
             dest_id   = dest_id[1].strip(' ')
             distance  = int(round(outputLine[1]))
-            threshold = dest_cutoffs[destNum]
+            threshold = float(dest_cutoffs[destNum])
             ind_hard  = int(distance < threshold)
             ind_soft = 1 - 1.0 / (1+np.exp(-soft_threshold_slope*(distance-threshold)/threshold))
             chunkedLines.append("('{point_id}',{dest_code},{dest_id},{distance},{threshold},{ind_hard},{ind_soft})".format(point_id  = ID_A,
@@ -276,8 +276,8 @@ def ODMatrixWorkerFunction(hex):
     # return worker function as completed once all destinations processed
     return 0
   except:
-    writeLog(hex, multiprocessing.current_process().pid, "Error: ",sys.exc_info()[1], (time.time()-hexStartTime)/60)
-    return(multiprocessing.current_process().pid)
+    print(sys.exc_info())
+
   finally:
     arcpy.CheckInExtension('Network')
     # Report on progress
