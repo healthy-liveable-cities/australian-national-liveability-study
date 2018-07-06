@@ -9,7 +9,7 @@
 #               - this is to facilitate output to csv file following OD matrix calculation
 #
 # Author:  Carl Higgs
-# Date:    13/03/2017
+# Date:    05/07/2018
 
 import arcpy
 import time
@@ -46,8 +46,8 @@ queryPartA = "INSERT INTO dest_type VALUES "
 sqlChunkify = 50
 createTable = '''
   CREATE TABLE dest_type
-  (dest integer PRIMARY KEY,
-   dest_name varchar NOT NULL,
+  (dest integer NOT NULL,
+   dest_name varchar PRIMARY KEY,
    dest_domain varchar NOT NULL,
    dest_count integer,
    dest_cutoff integer);
@@ -90,17 +90,15 @@ for ds in datasets:
       else:
         # Select and copy destinations intersecting Melbourne hexes
         arcpy.MakeFeatureLayer_management(fc,'destination')                                            
-
       # clip to hex grid buffer
       selection = arcpy.SelectLayerByLocation_management('destination', 'intersect',os.path.join(gdb_path,hex_grid_buffer))
       count = int(arcpy.GetCount_management(selection).getOutput(0))
       dest_count[destNum] = count
-
       # Insert new rows in combined destination feature
       with arcpy.da.SearchCursor(selection,['SHAPE@','OID@']) as sCur:
         with arcpy.da.InsertCursor( os.path.join(gdb_path,outCombinedFeature),['SHAPE@','OBJECTID','dest_oid','dest_name']) as iCur:
           for row in sCur:
-            dest_oid  = '{:02},{}'.format(dest_codes[dest_Num],row[1])
+            dest_oid  = '{:02},{}'.format(dest_codes[destNum],row[1])
             dest_name = fc.encode('utf8')
             iCur.insertRow(row+(dest_oid, dest_name))
 
@@ -121,7 +119,7 @@ conn.commit()
 # insert values into table
 # note that dest_count is feature count from above, not the dest_counts var from config
 for i in range(0,len(destination_list)):
-  curs.execute(queryPartA + "({},'{}','{}',{},{})".format(i,
+  curs.execute(queryPartA + "({},'{}','{}',{},{})".format(dest_codes[i],
                                                      destination_list[i],
                                                      dest_domains[i],
                                                      dest_count[i],  
