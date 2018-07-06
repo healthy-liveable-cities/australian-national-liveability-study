@@ -89,6 +89,7 @@ pid = multiprocessing.current_process().name
 
 # Define query to create table
 createTable     = '''
+  DROP TABLE IF EXISTS {0};
   CREATE TABLE IF NOT EXISTS {0}
   ({1} varchar NOT NULL ,
    dest smallint NOT NULL ,
@@ -104,14 +105,15 @@ queryPartA      = '''
   '''.format(od_distances)
 
 createTable_log     = '''
-        CREATE TABLE IF NOT EXISTS {}
-          (hex integer NOT NULL, 
-          parcel_count integer NOT NULL, 
-          dest varchar, 
-          status varchar, 
-          mins double precision,
-          PRIMARY KEY(hex,dest)
-          );
+    DROP TABLE IF EXISTS {0};
+    CREATE TABLE IF NOT EXISTS {0}
+      (hex integer NOT NULL, 
+      parcel_count integer NOT NULL, 
+      dest varchar, 
+      status varchar, 
+      mins double precision,
+      PRIMARY KEY(hex,dest)
+      );
           '''.format(log_table)    
 
 queryInsert      = '''
@@ -135,7 +137,7 @@ def writeLog(hex = 0, AhexN = 'NULL', Bcode = 'NULL', status = 'NULL', mins= 0, 
       # print to screen regardless
       # print('Hex:{:5d} A:{:8s} Dest:{:8s} {:15s} {:15s}'.format(hex, str(AhexN), str(Bcode), status, moment))     
       # write to sql table
-      curs.execute("{0} ({1},{2},{3},'{4}',{5}) {6}".format(queryInsert,hex, AhexN, Bcode,status, mins, queryUpdate))
+      curs.execute("{0} ({1},{2},'{3}','{4}',{5}) {6}".format(queryInsert,hex, AhexN, Bcode,status, mins, queryUpdate))
       conn.commit()  
   except:
     print("ERROR: {}".format(sys.exc_info()))
@@ -175,14 +177,11 @@ def ODMatrixWorkerFunction(hex):
         
     # store list of destinations with counts (so as to overlook destinations for which zero data exists!)
     curs.execute("SELECT dest_name,dest_count FROM dest_type")
-    count_list = list(curs)   
+    count_list = list(curs)         
     
     # fetch list of successfully processed destinations for this hex, if any
     curs.execute("SELECT dest FROM {} WHERE hex = {}".format(log_table,hex))
-    completed_dest_in_hex = list(curs)
-    
-    # completed destination IDs need to be selected as first element in tuple, and converted to integer
-    completed_dest = [destination_list[int(x[0])] for x in completed_dest_in_hex if destination_list[int(x[0])] not in completed_dest_in_hex]
+    completed_dest = [x[0] for x in list(curs)]
     remaining_dest_list = [x for x in destination_list if x not in completed_dest]
     
     for destination_points in remaining_dest_list:
@@ -190,83 +189,88 @@ def ODMatrixWorkerFunction(hex):
       destNum = np.where(destination_list==destination_points)[0][0]
       # only procede if > 0 destinations of this type are present in study region
       if count_list[destNum][1] == 0:
-        writeLog(hex,origin_point_count,destNum,"no dest in study region",(time.time()-destStartTime)/60)
+        writeLog(hex,origin_point_count,destination_list[destNum],"no dest in study region",(time.time()-destStartTime)/60)
         
-      if count_list[destNum][1] > 0:
-        # select destination points 
-        destination_selection = arcpy.SelectLayerByAttribute_management("destination_points_layer", where_clause = "dest_name = '{}'".format(destination_points))
-        # OD Matrix Setup
-        
-        # Make OD cost matrix layer
-        result_object = arcpy.MakeODCostMatrixLayer_na(in_network_dataset = in_network_dataset, 
-                                                       out_network_analysis_layer = "ODmatrix", 
-                                                       impedance_attribute = "Length",  
-                                                       default_cutoff = float(dest_counts[destNum]),
-                                                       UTurn_policy = "ALLOW_UTURNS", 
-                                                       hierarchy = "NO_HIERARCHY", 
-                                                       output_path_shape = "NO_LINES")
-        outNALayer = result_object.getOutput(0)
-        
-        #Get the names of all the sublayers within the service area layer.
-        subLayerNames = arcpy.na.GetNAClassNames(outNALayer)
-        #Store the layer names that we will use later
-        originsLayerName = subLayerNames["Origins"]
-        destinationsLayerName = subLayerNames["Destinations"]
-        linesLayerName = subLayerNames["ODLines"]
-        
-        # you may have to do this later in the script - but try now....
-        ODLinesSubLayer = arcpy.mapping.ListLayers(outNALayer, linesLayerName)[0]
-        fields = ['Name', 'Total_Length']
-        
-        arcpy.AddLocations_na(in_network_analysis_layer = outNALayer, 
-            sub_layer                      = originsLayerName, 
-            in_table                       = origin_selection, 
-            field_mappings                 = "Name {} #".format(origin_pointsID), 
-            search_tolerance               = "{} Meters".format(tolerance), 
-            search_criteria                = "{} SHAPE;{} NONE".format(network_edges,network_junctions), 
-            append                         = "CLEAR", 
-            snap_to_position_along_network = "NO_SNAP", 
-            exclude_restricted_elements    = "INCLUDE",
-            search_query                   = "{} #;{} #".format(network_edges,network_junctions))
-        
-        arcpy.AddLocations_na(in_network_analysis_layer = outNALayer, 
-            sub_layer                      = destinationsLayerName, 
-            in_table                       = destination_selection, 
-            field_mappings                 = "Name {} #".format(destination_pointsID), 
-            search_tolerance               = "{} Meters".format(tolerance), 
-            search_criteria                = "{} SHAPE;{} NONE".format(network_edges,network_junctions), 
-            append                         = "CLEAR", 
-            snap_to_position_along_network = "NO_SNAP", 
-            exclude_restricted_elements    = "INCLUDE",
-            search_query                   = "{} #;{} #".format(network_edges,network_junctions))
-        
-        # Process: Solve
-        result = arcpy.Solve_na(outNALayer, terminate_on_solve_error = "CONTINUE")
-        if result[1] == u'false':
-          writeLog(hex,origin_point_count,destNum,"no solution",(time.time()-destStartTime)/60)
-        else:
-          # Extract lines layer, export to SQL database
-          df = arcpy.da.TableToNumPyArray(ODLinesSubLayer, 'Name')    
-          stripped_df = [f[0].encode('utf-8').split(' - ')[0] for f in df]
-          id_counts = np.unique(stripped_df, return_counts=True)
-          length  = len(id_counts[0])-1
-          count = 0
-          chunkedLines = list()
-          place = "before loop"
-          for x in range(0,length) :
-            count += 1
-            ID = id_counts[0][x]
-            tally = id_counts[1][x]
-            chunkedLines.append("('{}',{},'{}',{},{})".format(ID,int(dest_codes[destNum]),destination_points,int(dest_cutoffs[destNum]),tally))
-            if(count % sqlChunkify == 0):
-              place = "before postgresql out"
+      if count_list[destNum][1] > 0:    
+        if dest_counts[destNum]!='NULL':
+          dest_count_threshold = int(float(dest_counts[destNum]))        
+          # select destination points 
+          destination_selection = arcpy.SelectLayerByAttribute_management("destination_points_layer", where_clause = "dest_name = '{}'".format(destination_points))
+          # OD Matrix Setup
+          
+          # Make OD cost matrix layer
+          result_object = arcpy.MakeODCostMatrixLayer_na(in_network_dataset = in_network_dataset, 
+                                                         out_network_analysis_layer = "ODmatrix", 
+                                                         impedance_attribute = "Length",  
+                                                         default_cutoff = dest_count_threshold,
+                                                         UTurn_policy = "ALLOW_UTURNS", 
+                                                         hierarchy = "NO_HIERARCHY", 
+                                                         output_path_shape = "NO_LINES")
+          outNALayer = result_object.getOutput(0)
+          
+          #Get the names of all the sublayers within the service area layer.
+          subLayerNames = arcpy.na.GetNAClassNames(outNALayer)
+          #Store the layer names that we will use later
+          originsLayerName = subLayerNames["Origins"]
+          destinationsLayerName = subLayerNames["Destinations"]
+          linesLayerName = subLayerNames["ODLines"]
+          
+          # you may have to do this later in the script - but try now....
+          ODLinesSubLayer = arcpy.mapping.ListLayers(outNALayer, linesLayerName)[0]
+          fields = ['Name', 'Total_Length']
+          
+          arcpy.AddLocations_na(in_network_analysis_layer = outNALayer, 
+              sub_layer                      = originsLayerName, 
+              in_table                       = origin_selection, 
+              field_mappings                 = "Name {} #".format(origin_pointsID), 
+              search_tolerance               = "{} Meters".format(tolerance), 
+              search_criteria                = "{} SHAPE;{} NONE".format(network_edges,network_junctions), 
+              append                         = "CLEAR", 
+              snap_to_position_along_network = "NO_SNAP", 
+              exclude_restricted_elements    = "INCLUDE",
+              search_query                   = "{} #;{} #".format(network_edges,network_junctions))
+          
+          arcpy.AddLocations_na(in_network_analysis_layer = outNALayer, 
+              sub_layer                      = destinationsLayerName, 
+              in_table                       = destination_selection, 
+              field_mappings                 = "Name {} #".format(destination_pointsID), 
+              search_tolerance               = "{} Meters".format(tolerance), 
+              search_criteria                = "{} SHAPE;{} NONE".format(network_edges,network_junctions), 
+              append                         = "CLEAR", 
+              snap_to_position_along_network = "NO_SNAP", 
+              exclude_restricted_elements    = "INCLUDE",
+              search_query                   = "{} #;{} #".format(network_edges,network_junctions))
+          
+          # Process: Solve
+          result = arcpy.Solve_na(outNALayer, terminate_on_solve_error = "CONTINUE")
+          if result[1] == u'false':
+            writeLog(hex,origin_point_count,destination_list[destNum],"no solution",(time.time()-destStartTime)/60)
+          else:
+            # get dest_code for feature from dest_type table
+            curs.execute("SELECT dest FROM dest_type WHERE dest_name = '{}'".format(destination_points))
+            dest_code = list(curs)[0][0]
+            # Extract lines layer, export to SQL database
+            df = arcpy.da.TableToNumPyArray(ODLinesSubLayer, 'Name')    
+            stripped_df = [f[0].encode('utf-8').split(' - ')[0] for f in df]
+            id_counts = np.unique(stripped_df, return_counts=True)
+            length  = len(id_counts[0])-1
+            count = 0
+            chunkedLines = list()
+            place = "before loop"
+            for x in range(0,length) :
+              count += 1
+              ID = id_counts[0][x]
+              tally = id_counts[1][x]
+              chunkedLines.append("('{}',{},'{}',{},{})".format(ID,dest_code,destination_points,dest_count_threshold,tally))
+              if(count % sqlChunkify == 0):
+                place = "before postgresql out"
+                curs.execute(queryPartA + ','.join(rowOfChunk for rowOfChunk in chunkedLines))
+                conn.commit()
+                chunkedLines = list() 
+            if(count % sqlChunkify != 0):
               curs.execute(queryPartA + ','.join(rowOfChunk for rowOfChunk in chunkedLines))
               conn.commit()
-              chunkedLines = list() 
-          if(count % sqlChunkify != 0):
-            curs.execute(queryPartA + ','.join(rowOfChunk for rowOfChunk in chunkedLines))
-            conn.commit()
-          writeLog(hex,origin_point_count,destNum,"Solved",(time.time()-destStartTime)/60)
+            writeLog(hex,origin_point_count,destination_list[destNum],"Solved",(time.time()-destStartTime)/60)
     # return worker function as completed once all destinations processed
     return 0
   
