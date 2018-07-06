@@ -46,8 +46,8 @@ pos_pointsID =  'pos_entryid'
 hexStart = 0
 
 # SQL Settings
-sqlTableName  = "dist_cl_od_parcel_pos"
-log_table    = "log_dist_cl_od_parcel_dest"
+sqlTableName  = "od_pos"
+log_table    = "log_od_distances"
 queryPartA = "INSERT INTO {} VALUES ".format(sqlTableName)
 
 sqlChunkify = 500
