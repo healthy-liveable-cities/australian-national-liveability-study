@@ -60,6 +60,7 @@ print("Commencing task: {} at {}".format(task,time.strftime("%Y%m%d-%H%M%S")))
 
 # Compile a list of datasets to be checked over for valid features within the destination GDB
 datasets = arcpy.ListDatasets(feature_type='feature')
+
 # Initialise empty destination count array (we fill this in below)
 dest_count = numpy.empty(len(destination_list), dtype=int)
 # we'll add a name field to the combined field list we create containing class of destination
@@ -99,8 +100,8 @@ for ds in datasets:
       with arcpy.da.SearchCursor(selection,['SHAPE@','OID@']) as sCur:
         with arcpy.da.InsertCursor( os.path.join(gdb_path,outCombinedFeature),['SHAPE@','OBJECTID','dest_oid','dest_name']) as iCur:
           for row in sCur:
-            dest_oid  = '{:02},{}'.format(destNum,row[1])
-            dest_name = fc
+            dest_oid  = '{:02},{}'.format(dest_codes[dest_Num],row[1])
+            dest_name = fc.encode('utf8')
             iCur.insertRow(row+(dest_oid, dest_name))
 
       # arcpy.Append_management('featureTrimmed', os.path.join(gdb_path,outCombinedFeature))

@@ -79,6 +79,7 @@ hex_list = list(curs)
 # define reduced set of destinations and cutoffs (ie. only those with cutoffs defined)
 destination_list = np.array(destination_list)[np.array([x!='NULL' for x in dest_counts])]
 dest_counts = np.array(dest_counts)[np.array([x!='NULL' for x in dest_counts])]
+dest_codes = np.array(dest_codes)[np.array([x!='NULL' for x in dest_counts])]
 
 # tally expected hex-destination result set  
 completion_goal = len(hex_list)*len(destination_list)
@@ -91,6 +92,7 @@ createTable     = '''
   CREATE TABLE IF NOT EXISTS {0}
   ({1} varchar NOT NULL ,
    dest smallint NOT NULL ,
+   dest_name varchar NOT NULL ,
    cutoff integer NOT NULL, 
    count integer NOT NULL, 
    PRIMARY KEY({1},dest)
@@ -255,8 +257,7 @@ def ODMatrixWorkerFunction(hex):
             count += 1
             ID = id_counts[0][x]
             tally = id_counts[1][x]
-            string = "('{}',{},{},{})".format(ID,destNum,int(dest_cutoffs[destNum]),tally)
-            chunkedLines.append("('{}',{},{},{})".format(ID,destNum,int(dest_cutoffs[destNum]),tally))
+            chunkedLines.append("('{}',{},'{}',{},{})".format(ID,int(dest_codes[destNum]),destination_points,int(dest_cutoffs[destNum]),tally))
             if(count % sqlChunkify == 0):
               place = "before postgresql out"
               curs.execute(queryPartA + ','.join(rowOfChunk for rowOfChunk in chunkedLines))

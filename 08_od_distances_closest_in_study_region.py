@@ -79,6 +79,7 @@ hex_list = list(curs)
 # define reduced set of destinations and cutoffs (ie. only those with cutoffs defined)
 destination_list = np.array(destination_list)[np.array([x!='NULL' for x in dest_cutoffs])]
 dest_cutoffs = np.array(dest_cutoffs)[np.array([x!='NULL' for x in dest_cutoffs])]
+dest_codes = np.array(dest_codes)[np.array([x!='NULL' for x in dest_cutoffs])]
 
 # tally expected hex-destination result set  
 completion_goal = len(hex_list)*len(destination_list)
@@ -92,6 +93,7 @@ createTable     = '''
   CREATE TABLE IF NOT EXISTS {0}
   ({1} varchar NOT NULL ,
    dest smallint NOT NULL ,
+   dest_name varchar NOT NULL ,
    oid bigint NOT NULL ,
    distance integer NOT NULL, 
    threshold  int,
@@ -258,8 +260,9 @@ def ODMatrixWorkerFunction(hex):
             threshold = float(dest_cutoffs[destNum])
             ind_hard  = int(distance < threshold)
             ind_soft = 1 - 1.0 / (1+np.exp(-soft_threshold_slope*(distance-threshold)/threshold))
-            chunkedLines.append("('{point_id}',{dest_code},{dest_id},{distance},{threshold},{ind_hard},{ind_soft})".format(point_id  = ID_A,
+            chunkedLines.append("('{point_id}',{dest_code},{dest_name},{dest_id},{distance},{threshold},{ind_hard},{ind_soft})".format(point_id  = ID_A,
                                                                                                                            dest_code = dest_code,
+                                                                                                                           dest_name = destination_points,
                                                                                                                            dest_id   = dest_id,
                                                                                                                            distance  = distance,
                                                                                                                            threshold = threshold,
