@@ -199,7 +199,7 @@ def ODMatrixWorkerFunction(hex):
         result_object = arcpy.MakeODCostMatrixLayer_na(in_network_dataset = in_network_dataset, 
                                                        out_network_analysis_layer = "ODmatrix", 
                                                        impedance_attribute = "Length",  
-                                                       default_cutoff = dest_cutoffs[destNum],
+                                                       default_cutoff = float(dest_counts[destNum]),
                                                        UTurn_policy = "ALLOW_UTURNS", 
                                                        hierarchy = "NO_HIERARCHY", 
                                                        output_path_shape = "NO_LINES")
