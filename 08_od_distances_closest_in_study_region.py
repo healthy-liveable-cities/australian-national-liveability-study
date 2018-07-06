@@ -88,7 +88,7 @@ pid = multiprocessing.current_process().name
 
 # Define query to create table
 createTable     = '''
-  DROP TABLE IF EXISTS {0};
+  --DROP TABLE IF EXISTS {0};
   CREATE TABLE IF NOT EXISTS {0}
   ({1} varchar NOT NULL ,
    dest smallint NOT NULL ,
@@ -107,7 +107,7 @@ queryPartA      = '''
   '''.format(od_distances)
 
 createTable_log     = '''
-  DROP TABLE IF EXISTS {0};
+  --DROP TABLE IF EXISTS {0};
   CREATE TABLE IF NOT EXISTS {0}
     (hex integer NOT NULL, 
     parcel_count integer NOT NULL, 

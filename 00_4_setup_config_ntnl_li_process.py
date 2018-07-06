@@ -297,9 +297,9 @@ data = data.replace(pandas.np.nan, 'NULL', regex=True)
 
 ## Retrieve defined variables from destinations csv
 destination_list = data.destination.tolist() # the destinations 
-dest_codes = data.code.tolist()   # domain is an optional grouping category for destinations / indicators
-dest_domains = data.domain.tolist()   # domain is an optional grouping category for destinations / indicators
-dest_cutoffs = data.cutoff.tolist()   # cut off distance within which to evaluate presence
+dest_codes = data.code.tolist()      # code for destination type (regardless of name, which may be study region specific)
+dest_domains = data.domain.tolist()  # domain is an optional grouping category for destinations / indicators
+dest_cutoffs = data.cutoff.tolist()  # cut off distance within which to evaluate presence
 dest_counts = data.counts.tolist()   # cut off distance within which to evaluate counts
 
 # specify that the above modules and all variables below are imported on 'from config.py import *'
