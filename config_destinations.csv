@@ -1,30 +1,12 @@
 destination,domain,cutoff,counts
-CommunityCentre,"Community, Culture and Leisure",1000,1000
-MuseumArtGallery,"Community, Culture and Leisure",3200,3200
-CinemaTheatre,"Community, Culture and Leisure",3200,3200
-Libraries_2014,"Community, Culture and Leisure",1000,1000
-ChildcareOutOfSchool,Early years,1600,1600
-Childcare,Early years,800,800
-StateSecondarySchools,Education,1600,1600
-StatePrimarySchools,Education,1600,1600
-TAFEcampuses,Education,3200,3200
-AgedCare_2012,Health,1000,1000
-CommunityHealthCentres,Health,1000,1000
-Dentists,Health,1000,1000
-GP_Clinics,Health,1000,1000
-MaternalChildHealth,Health,1000,1000
-SwimmingPools,Sport and recreation,1200,1200
-Sport,Sport and recreation,1200,1200
-Supermarkets,Food and convenience,1600,1600
-ConvenienceStores,Food and convenience,1600,1600
-PetrolStations,Food and convenience,1600,1600
-Newsagents,Food and convenience,1600,1600
-FishMeatPoultryShops,Food and convenience,1600,1600
-FruitVegeShops,Food and convenience,1600,1600
-Pharmacy,Health,1600,1600
-PostOffice,Misc,1600,1600
-BanksFinance,Misc,1600,1600
-BusStop2012,Public transport,400,400
-TramStops2012,Public transport,600,600
-TrainStations2012,Public transport,800,800
-CBD,Misc,NULL,NULL
+alcohol_offlicence_qld_2017,Alcohol,,800
+alcohol_offlicence_vic_2017,Alcohol,,800
+alcohol_offlicence_wa_2017,Alcohol,,800
+alcohol_onlicence_nsw_2017,Alcohol,,400
+alcohol_onlicence_qld_2017,Alcohol,,400
+alcohol_onlicence_vic_2017,Alcohol,,400
+conveniencestores_2014,Convenience,1600,1600
+newsagents_2014,Convenience,1600,1600
+petrolstations_2014,Convenience,1600,1600
+fastfood_2017,Food,,1600
+supermarkets_2017,Food,1000,1600
