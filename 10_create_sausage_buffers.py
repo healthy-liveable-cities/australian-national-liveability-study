@@ -402,9 +402,11 @@ if __name__ == '__main__':
   conn.commit()  
   print("Done.")
   
-  
-  curs.execute(createTable_nh1600m)
+  # Create summary table of parcel id and area
+  print("Creating summary table of points with no sausage (are they mostly non-urban?)... "),  
+  curs.execute("CREATE TABLE no_sausage AS SELECT * FROM parcel_dwellings WHERE {0} NOT IN (SELECT {0} FROM {1});".format(points_id,sausage_buffer_table))
   conn.commit()    
+  print("Done.")
   
   # output to completion log    
   script_running_log(script, task, start, locale)
