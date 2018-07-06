@@ -72,6 +72,17 @@ sqlChunkify = 500
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()  
 
+# get list of hexes over which to iterate
+curs.execute("SELECT hex FROM hex_parcels;")
+hex_list = list(curs)    
+
+# define reduced set of destinations and cutoffs (ie. only those with cutoffs defined)
+destination_list = np.array(destination_list)[np.array([x!='NULL' for x in dest_counts])]
+dest_counts = np.array(dest_counts)[np.array([x!='NULL' for x in dest_counts])]
+
+# tally expected hex-destination result set  
+completion_goal = len(hex_list)*len(destination_list)
+
 # get pid name
 pid = multiprocessing.current_process().name
 
@@ -273,12 +284,6 @@ def ODMatrixWorkerFunction(hex):
     # Close SQL connection
     conn.close()
 
-# get list of hexes over which to iterate
-curs.execute("SELECT hex FROM hex_parcels;")
-hex_list = list(curs)    
-
-# tally expected hex-destination result set  
-completion_goal = len(hex_list)*len(destination_list)
     
 # MAIN PROCESS
 if __name__ == '__main__':
