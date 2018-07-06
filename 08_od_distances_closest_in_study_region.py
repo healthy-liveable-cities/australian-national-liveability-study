@@ -79,7 +79,6 @@ hex_list = list(curs)
 # define reduced set of destinations and cutoffs (ie. only those with cutoffs defined)
 destination_list = np.array(destination_list)[np.array([x!='NULL' for x in dest_cutoffs])]
 dest_cutoffs = np.array(dest_cutoffs)[np.array([x!='NULL' for x in dest_cutoffs])]
-dest_codes = np.array(dest_codes)[np.array([x!='NULL' for x in dest_cutoffs])]
 
 # tally expected hex-destination result set  
 completion_goal = len(hex_list)*len(destination_list)
@@ -89,7 +88,7 @@ pid = multiprocessing.current_process().name
 
 # Define query to create table
 createTable     = '''
-  --DROP TABLE IF EXISTS {0};
+  DROP TABLE IF EXISTS {0};
   CREATE TABLE IF NOT EXISTS {0}
   ({1} varchar NOT NULL ,
    dest smallint NOT NULL ,
@@ -108,7 +107,7 @@ queryPartA      = '''
   '''.format(od_distances)
 
 createTable_log     = '''
-  --DROP TABLE IF EXISTS {0};
+  DROP TABLE IF EXISTS {0};
   CREATE TABLE IF NOT EXISTS {0}
     (hex integer NOT NULL, 
     parcel_count integer NOT NULL, 
@@ -140,7 +139,7 @@ def writeLog(hex = 0, AhexN = 'NULL', Bcode = 'NULL', status = 'NULL', mins= 0, 
       # print to screen regardless
       # print('Hex:{:5d} A:{:8s} Dest:{:8s} {:15s} {:15s}'.format(hex, str(AhexN), str(Bcode), status, moment))     
       # write to sql table
-      curs.execute("{0} ({1},{2},{3},'{4}',{5}) {6}".format(queryInsert,hex, AhexN, Bcode,status, mins, queryUpdate))
+      curs.execute("{0} ({1},{2},'{3}','{4}',{5}) {6}".format(queryInsert,hex, AhexN, Bcode,status, mins, queryUpdate))
       conn.commit()  
   except:
     print("ERROR: {}".format(sys.exc_info()))
@@ -184,10 +183,7 @@ def ODMatrixWorkerFunction(hex):
     
     # fetch list of successfully processed destinations for this hex, if any
     curs.execute("SELECT dest FROM {} WHERE hex = {}".format(log_table,hex))
-    completed_dest_in_hex = list(curs)
-    
-    # completed destination IDs need to be selected as first element in tuple, and converted to integer
-    completed_dest = [destination_list[int(x[0])] for x in completed_dest_in_hex if destination_list[int(x[0])] not in completed_dest_in_hex]
+    completed_dest = [x[0] for x in list(curs)]
     remaining_dest_list = [x for x in destination_list if x not in completed_dest]
     
     # Make OD cost matrix layer
@@ -216,7 +212,7 @@ def ODMatrixWorkerFunction(hex):
       destNum = np.where(destination_list==destination_points)[0][0]
       # only procede if > 0 destinations of this type are present in study region
       if count_list[destNum][1] == 0:
-        writeLog(hex,origin_point_count,destNum,"no dest in study region",(time.time()-destStartTime)/60)
+        writeLog(hex,origin_point_count,destination_list[destNum],"no dest in study region",(time.time()-destStartTime)/60)
       if count_list[destNum][1] > 0:
         # select destination points 
         destination_selection = arcpy.SelectLayerByAttribute_management("destination_points_layer", where_clause = "dest_name = '{}'".format(destination_points))
@@ -244,7 +240,7 @@ def ODMatrixWorkerFunction(hex):
         # Process: Solve
         result = arcpy.Solve_na(outNALayer, terminate_on_solve_error = "CONTINUE")
         if result[1] == u'false':
-          writeLog(hex,origin_point_count,destNum,"no solution",(time.time()-destStartTime)/60)
+          writeLog(hex,origin_point_count,destination_list[destNum],"no solution",(time.time()-destStartTime)/60)
         else:
           # Extract lines layer, export to SQL database
           outputLines = arcpy.da.SearchCursor(ODLinesSubLayer, fields)
@@ -260,7 +256,7 @@ def ODMatrixWorkerFunction(hex):
             threshold = float(dest_cutoffs[destNum])
             ind_hard  = int(distance < threshold)
             ind_soft = 1 - 1.0 / (1+np.exp(-soft_threshold_slope*(distance-threshold)/threshold))
-            chunkedLines.append("('{point_id}',{dest_code},{dest_name},{dest_id},{distance},{threshold},{ind_hard},{ind_soft})".format(point_id  = ID_A,
+            chunkedLines.append("('{point_id}',{dest_code},'{dest_name}',{dest_id},{distance},{threshold},{ind_hard},{ind_soft})".format(point_id  = ID_A,
                                                                                                                            dest_code = dest_code,
                                                                                                                            dest_name = destination_points,
                                                                                                                            dest_id   = dest_id,
@@ -275,7 +271,7 @@ def ODMatrixWorkerFunction(hex):
           if(count % sqlChunkify != 0):
             curs.execute(queryPartA + ','.join(rowOfChunk for rowOfChunk in chunkedLines))
             conn.commit()
-          writeLog(hex,origin_point_count,destNum,"Solved",(time.time()-destStartTime)/60)
+          writeLog(hex,origin_point_count,destination_list[destNum],"Solved",(time.time()-destStartTime)/60)
     # return worker function as completed once all destinations processed
     return 0
   except:
