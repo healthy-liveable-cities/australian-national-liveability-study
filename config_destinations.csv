@@ -5,8 +5,8 @@ alcohol_offlicence_wa_2017,Alcohol,,800
 alcohol_onlicence_nsw_2017,Alcohol,,400
 alcohol_onlicence_qld_2017,Alcohol,,400
 alcohol_onlicence_vic_2017,Alcohol,,400
-conveniencestores_2014,Convenience,1600,1600
-newsagents_2014,Convenience,1600,1600
-petrolstations_2014,Convenience,1600,1600
+conveniencestores_2014,Convenience,1600,
+newsagents_2014,Convenience,1600,
+petrolstations_2014,Convenience,1600,
 fastfood_2017,Food,,1600
 supermarkets_2017,Food,1000,1600
