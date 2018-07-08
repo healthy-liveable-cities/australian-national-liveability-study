@@ -50,7 +50,8 @@ createTable = '''
    dest_name varchar PRIMARY KEY,
    dest_domain varchar NOT NULL,
    dest_count integer,
-   dest_cutoff integer);
+   dest_cutoff integer,
+   dest_count_cutoff integer);
    '''
 
 # OUTPUT PROCESS
@@ -119,11 +120,12 @@ conn.commit()
 # insert values into table
 # note that dest_count is feature count from above, not the dest_counts var from config
 for i in range(0,len(destination_list)):
-  curs.execute(queryPartA + "({},'{}','{}',{},{})".format(dest_codes[i],
+  curs.execute(queryPartA + "({},'{}','{}',{},{},{})".format(dest_codes[i],
                                                      destination_list[i],
                                                      dest_domains[i],
                                                      dest_count[i],  
-                                                     dest_cutoffs[i]) +' ON CONFLICT DO NOTHING')
+                                                     dest_cutoffs[i],
+                                                     dest_counts[i]) +' ON CONFLICT DO NOTHING')
   conn.commit()
 
 print("Created 'dest_type' destination summary table for database {}.".format(db))
