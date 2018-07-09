@@ -81,10 +81,6 @@ if pid !='MainProcess':
   ODLinesSubLayer = arcpy.mapping.ListLayers(outNALayer, linesLayerName)[0]
   fields = ['Name', 'Total_Length']
   
-  # store list of destinations with counts (so as to overlook destinations for which zero data exists!)
-  curs.execute("SELECT dest_name,dest_count FROM dest_type")
-  count_list = list(curs)
-  
   arcpy.MakeFeatureLayer_management(hex_grid_buffer, "buffer_layer")                
   
   
@@ -129,10 +125,23 @@ queryInsert      = '''
 queryUpdate      = '''
   ON CONFLICT ({0},{4}) 
   DO UPDATE SET {1}=EXCLUDED.{1},{2}=EXCLUDED.{2},{3}=EXCLUDED.{3}
-  '''.format('hex','parcel_count','status','mins','dest')  
+  '''.format('hex','parcel_count','status','mins','dest_name')  
 
 parcel_count = int(arcpy.GetCount_management(origin_points).getOutput(0))  
 denominator = parcel_count * len(pos_locale)
+ 
+primary_key = '''
+  ALTER TABLE {table} ADD COLUMN seq serial NOT NULL UNIQUE;
+  DELETE FROM {table} del
+    WHERE EXISTS(
+        SELECT*FROM {table} x
+        WHERE x.{point_id}=del.{point_id}
+        AND   x.query=del.query
+        AND   x.threshold=del.threshold
+        AND x.seq < del.seq
+        ); 
+ ALTER  TABLE {table} ADD PRIMARY KEY ({point_id},query,threshold);
+ '''.format(table = sqlTableName, point_id = points_id)
  
 ## Functions defined for this script
 # Define log file write method
@@ -207,6 +216,7 @@ def ODMatrixWorkerFunction(hex):
         
         # define query and distance as destination code, for use in log file 
         dest_code = "{} @ {}m".format(query[0],query[1])
+        dest_name = "POS: {}".format(dest_code)
         
         place = 'before skip empty B hexes'
         # Skip empty B hexes
@@ -325,7 +335,9 @@ if __name__ == '__main__':
   iteration_list = np.asarray([x[0] for x in hex_list])
   pool.map(ODMatrixWorkerFunction, iteration_list, chunksize=1)
   	
-  curs.execute("ALTER  TABLE {table} ADD PRIMARY KEY ({point_id},query,threshold);".format(table = sqlTableName, point_id = points_id))
+    
+  curs.execute(primary_key)
+  conn.commit()
   
   # output to completion log    
   script_running_log(script, task, start, locale)
