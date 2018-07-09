@@ -113,12 +113,12 @@ queryPartA      = '''
 createTable_log     = '''
   -- DROP TABLE IF EXISTS {0};
   CREATE TABLE IF NOT EXISTS {0}
-   (hex integer NOT NULL, 
+    (hex integer NOT NULL, 
     parcel_count integer NOT NULL, 
-    dest varchar, 
+    dest_name varchar, 
     status varchar, 
     mins double precision,
-    PRIMARY KEY(hex,dest)
+    PRIMARY KEY(hex,dest_name)
     );
     '''.format(log_table)     
   
@@ -240,7 +240,7 @@ def ODMatrixWorkerFunction(hex):
           # Process: Solve
           result = arcpy.Solve_na(outNALayer, terminate_on_solve_error = "CONTINUE")
           if result[1] == u'false':
-            writeLog(hex,A_pointCount,dest_code,"no solution",(time.time()-hexStartTime)/60)
+            writeLog(hex,A_pointCount,dest_name,"no solution",(time.time()-hexStartTime)/60)
           if result[1] == u'true':
             place = 'After solve'
             # Extract lines layer, export to SQL database
@@ -274,7 +274,7 @@ def ODMatrixWorkerFunction(hex):
               curs.execute(queryPartA + ','.join(rowOfChunk for rowOfChunk in chunkedLines)+' ON CONFLICT DO NOTHING')
               conn.commit()
             
-            writeLog(hex,A_pointCount,dest_code,"Solved",(time.time()-hexStartTime)/60)
+            writeLog(hex,A_pointCount,dest_name,"Solved",(time.time()-hexStartTime)/60)
     curs.execute("SELECT COUNT(*) FROM {}".format(sqlTableName))
     numerator = list(curs)
     numerator = int(numerator[0][0])
@@ -283,7 +283,6 @@ def ODMatrixWorkerFunction(hex):
     print('''Error: {}
              Place: {}
       '''.format( sys.exc_info(),place))   
-    # writeLog(hex,'NULL', "ERROR: {}".format(place), (time.time()-hexStartTime)/60)
 
   finally:
     arcpy.CheckInExtension('Network')
