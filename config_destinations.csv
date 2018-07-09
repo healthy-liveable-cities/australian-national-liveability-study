@@ -1,10 +1,12 @@
 code,destination,domain,cutoff,counts
+0,alcohol_offlicence_nsw_2017,Alcohol,,800
 0,alcohol_offlicence_qld_2017,Alcohol,,800
 0,alcohol_offlicence_vic_2017,Alcohol,,800
 0,alcohol_offlicence_wa_2017,Alcohol,,800
 1,alcohol_onlicence_nsw_2017,Alcohol,,400
 1,alcohol_onlicence_qld_2017,Alcohol,,400
 1,alcohol_onlicence_vic_2017,Alcohol,,400
+1,alcohol_onlicence_wa_2017,Alcohol,,400
 2,conveniencestores_2014,Convenience,1600,
 3,newsagents_2014,Convenience,1600,
 4,petrolstations_2014,Convenience,1600,
