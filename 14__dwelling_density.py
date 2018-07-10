@@ -29,71 +29,71 @@ start = time.time()
 script = os.path.basename(sys.argv[0])
 task = 'calculate dwelling density (dwellings per hectare)'
 
-dd_table = 'dwelling_density'
 meshblock_table = "abs_linkage"
 buffer_table = "sausagebuffer_{}".format(distance)
-
-#  Size of tuple chunk sent to postgresql 
-sqlChunkify = 500
-
+nh_sausagebuffer_summary = "nh{}m".format(distance)
+dd_table = 'dd_{}'.format(nh_sausagebuffer_summary)
 
 createTable_dd = '''
+  DROP TABLE IF EXISTS {0};
   CREATE TABLE IF NOT EXISTS {0}
   ({1} varchar PRIMARY KEY,
    dwellings integer NOT NULL,
    area_ha double precision NOT NULL,
-   dd_nh1600m double precision NOT NULL 
+   mb_area_ha double precision NOT NULL,
+   dd_nh1600m double precision NOT NULL ,
+   mb_dd_nh1600m double precision NOT NULL
   ); 
   '''.format(dd_table,points_id.lower())
   
-  
 query_A = '''
-INSERT INTO {0} ({1},dwellings,area_ha,dd_nh1600m)
-(SELECT {2}.{1},  
-          coalesce(sum({3}.dwellings),0) AS dwellings,
-          (ST_Area({2}.geom)/10000)::double precision AS area_ha,
-           coalesce(sum({3}.dwellings),0)/(ST_Area({2}.geom)/10000)::double precision as dd_nh1600m
-FROM {2}  
-LEFT JOIN {3}
-ON ST_intersects({2}.geom, {3}.geom)
-WHERE {1} IN
-'''.format(dd_table,points_id.lower(),buffer_table,meshblock_table)
+INSERT INTO {0} ({1},dwellings,area_ha,mb_area_ha,dd_nh1600m,mb_dd_nh1600m)
+(SELECT s.{1},  
+        sum(dwelling) AS dwellings,
+        nh.area_ha,
+        sum(t.area_ha) AS mb_area_ha,
+        sum(t.dwelling)/nh.area_ha::double precision as dd_nh1600m,
+        sum(t.dwelling)/sum(t.area_ha)::double precision AS mb_dd_nh1600m
+  FROM {2} s
+  LEFT JOIN {4} nh ON s.gnaf_pid = nh.gnaf_pid
+  LEFT JOIN {3} t ON ST_intersects(s.geom, t.geom)
+  WHERE s.{1} IN
+'''.format(dd_table,points_id.lower(),buffer_table,meshblock_table,nh_sausagebuffer_summary)
   
 query_C = '''
-  GROUP BY {}) ON CONFLICT DO NOTHING;
+  GROUP BY s.{0},nh.area_ha) ON CONFLICT DO NOTHING;
   '''.format(points_id.lower())
 
-
-def unique_values(table, field):
-  data = arcpy.da.TableToNumPyArray(table, [field])
-  return np.unique(data[field])
+#  Size of tuple chunk sent to postgresql 
+sqlChunkify = 500
     
-  
-try:  
-  # Connect to postgreSQL server
-  conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
-  curs = conn.cursor()
-  print("Connection to SQL success {}".format(time.strftime("%Y%m%d-%H%M%S")) )
-  # drop table if it already exists
-  
-  
-  # Create spatial indices if not already existing
-  print("Creating sausage buffer spatial index if not exists... "),
-  curs.execute("CREATE INDEX IF NOT EXISTS {0}_gix ON {0} USING GIST (geom);".format(buffer_table))
-  conn.commit()
-  print("Creating abs linkage (meshblock_table) spatial index if not exists... "),
-  curs.execute("CREATE INDEX IF NOT EXISTS {0}_gix ON {0} USING GIST (geom);".format(meshblock_table))
-  conn.commit()
-  print("Done.")
-  
-  # create dwelling density table
-  print("create table {}... ".format(dd_table)),
-  subTaskStart = time.time()
-  curs.execute(createTable_dd)
-  conn.commit()
-  print("{:4.2f} mins.".format((time.time() - start)/60))	
-   
-   
+# Connect to postgreSQL server
+conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
+curs = conn.cursor()
+print("Connection to SQL success {}".format(time.strftime("%Y%m%d-%H%M%S")) )
+# drop table if it already exists
+
+
+# Create spatial indices if not already existing
+print("Creating sausage buffer spatial index if not exists... ")
+curs.execute("CREATE INDEX IF NOT EXISTS {0}_gix ON {0} USING GIST (geom);".format(buffer_table))
+conn.commit()
+print("Creating abs linkage (meshblock_table) spatial index if not exists... ")
+curs.execute("CREATE INDEX IF NOT EXISTS {0}_gix ON {0} USING GIST (geom);".format(meshblock_table))
+conn.commit()
+print("Creating neighbourhood sausage buffer summary table ({}) primary key... ".format(nh_sausagebuffer_summary))
+curs.execute("ALTER TABLE {0} ADD PRIMARY KEY ({1});".format(nh_sausagebuffer_summary,points_id.lower()))
+conn.commit()
+print("Done.")
+
+# create dwelling density table
+print("create table {}... ".format(dd_table)),
+subTaskStart = time.time()
+curs.execute(createTable_dd)
+conn.commit()
+print("{:4.2f} mins.".format((time.time() - start)/60))	
+ 
+try:   
   print("fetch list of processed parcels, if any..."), 
   # (for string match to work, had to select first item of returned tuple)
   curs.execute("SELECT {} FROM {}".format(points_id.lower(),buffer_table))
@@ -127,10 +127,12 @@ try:
   progressor(count,denom,start,"{}/{} points processed".format(count,denom))
   
 except:
-       print('''HEY, IT'S AN ERROR: {}'''.format(sys.exc_info()))
-       
-# output to completion log    
-script_running_log(script, task, start, locale)
+       print("HEY, IT'S AN ERROR:")
+       print(sys.exc_info())
 
-# clean up
-conn.close()
+finally:       
+  # output to completion log    
+  script_running_log(script, task, start, locale)
+
+  # clean up
+  conn.close()
