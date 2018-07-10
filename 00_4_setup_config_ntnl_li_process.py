@@ -181,6 +181,7 @@ meshblocks   = os.path.join(folderPath,'ABS/derived/ASGS_2016_Volume_1_GDA2020/m
 
 # meshblock ID MB_CODE_20 (varname is truncated by arcgis to 8 chars) datatype is varchar(11) 
 meshblock_id    = 'MB_CODE_20'
+final_meshblock_id = 'mb_code_2016'
 
 # Dwelling count source csv (ABS download)
 # CLEAN APPLIED: removed comments from end of file

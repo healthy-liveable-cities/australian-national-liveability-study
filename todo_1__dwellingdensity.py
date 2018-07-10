@@ -15,40 +15,26 @@
 #
 # Author:  Carl Higgs 20/03/2017
 
-import os
-import sys
 import time
 import psycopg2
 from progressor import progressor
 
 from script_running_log import script_running_log
-from ConfigParser import SafeConfigParser
 
-
-parser = SafeConfigParser()
-parser.read(os.path.join(sys.path[0],'config.ini'))
+# Import custom variables for National Liveability indicator process
+from config_ntnl_li_process import *
 
 # simple timer for log file
 start = time.time()
 script = os.path.basename(sys.argv[0])
 task = 'calculate dwelling density (dwellings per hectare)'
 
-# SQL Settings - storing passwords in plain text is obviously not ideal
-sqlDBName   = parser.get('postgresql', 'database')
-sqlUserName = parser.get('postgresql', 'user')
-sqlPWD      = parser.get('postgresql', 'password')
 dd_table = 'dwelling_density'
+meshblock_table = "abs_linkage"
+buffer_table = "sausagebuffer_{}".format(distance)
+
 #  Size of tuple chunk sent to postgresql 
 sqlChunkify = 500
-
-
-# specify the unique location identifier 
-pointsID = parser.get('parcels', 'parcel_id')
-
-# intersections tables
-meshblock_table = "abs_linkage"
-distance = int(parser.get('network', 'distance'))
-buffer_table = "sausagebuffer_{}".format(distance)
 
 
 createTable_dd = '''
@@ -58,7 +44,7 @@ createTable_dd = '''
    area_ha double precision NOT NULL,
    dd_nh1600m double precision NOT NULL 
   ); 
-  '''.format(dd_table,pointsID.lower())
+  '''.format(dd_table,points_id.lower())
   
   
 query_A = '''
@@ -71,11 +57,11 @@ FROM {2}
 LEFT JOIN {3}
 ON ST_intersects({2}.geom, {3}.geom)
 WHERE {1} IN
-'''.format(dd_table,pointsID.lower(),buffer_table,meshblock_table)
+'''.format(dd_table,points_id.lower(),buffer_table,meshblock_table)
   
 query_C = '''
   GROUP BY {}) ON CONFLICT DO NOTHING;
-  '''.format(pointsID.lower())
+  '''.format(points_id.lower())
 
 
 def unique_values(table, field):
@@ -85,7 +71,7 @@ def unique_values(table, field):
   
 try:  
   # Connect to postgreSQL server
-  conn = psycopg2.connect(database=sqlDBName, user=sqlUserName, password=sqlPWD)
+  conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
   curs = conn.cursor()
   print("Connection to SQL success {}".format(time.strftime("%Y%m%d-%H%M%S")) )
   # drop table if it already exists
@@ -110,11 +96,11 @@ try:
    
   print("fetch list of processed parcels, if any..."), 
   # (for string match to work, had to select first item of returned tuple)
-  curs.execute("SELECT {} FROM {}".format(pointsID.lower(),buffer_table))
+  curs.execute("SELECT {} FROM {}".format(points_id.lower(),buffer_table))
   raw_point_id_list = list(curs)
   raw_point_id_list = [x[0] for x in raw_point_id_list]
   
-  curs.execute("SELECT {} FROM {}".format(pointsID.lower(),dd_table))
+  curs.execute("SELECT {} FROM {}".format(points_id.lower(),dd_table))
   completed_points = list(curs)
   completed_points = [x[0] for x in completed_points]
   
