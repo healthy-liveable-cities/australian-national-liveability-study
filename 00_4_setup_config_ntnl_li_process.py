@@ -230,7 +230,6 @@ intersections = os.path.join(folderPath,'roads/GDA2020_GA_LCC_3plus_way_intersec
 
 # Derived network data variables - no need to change, assuming the above works
 network_source_feature = '{}'.format(network_source_feature_dataset)
-# network = os.path.join(network_source,network_source_feature)
 
 # network dataset, without specifying the location (e.g. if gdb is work environment)
 in_network_dataset = os.path.join('{}'.format(network_source_feature_dataset),
