@@ -35,14 +35,14 @@ nh_sausagebuffer_summary = "nh{}m".format(distance)
 dd_table = 'dd_{}'.format(nh_sausagebuffer_summary)
 
 createTable_dd = '''
-  DROP TABLE IF EXISTS {0};
+  --DROP TABLE IF EXISTS {0};
   CREATE TABLE IF NOT EXISTS {0}
   ({1} varchar PRIMARY KEY,
-   dwellings integer NOT NULL,
-   area_ha double precision NOT NULL,
-   mb_area_ha double precision NOT NULL,
-   dd_nh1600m double precision NOT NULL ,
-   mb_dd_nh1600m double precision NOT NULL
+   dwellings integer,
+   area_ha double precision,
+   mb_area_ha double precision,
+   dd_nh1600m double precision,
+   mb_dd_nh1600m double precision
   ); 
   '''.format(dd_table,points_id.lower())
   
@@ -81,10 +81,6 @@ conn.commit()
 print("Creating abs linkage (meshblock_table) spatial index if not exists... ")
 curs.execute("CREATE INDEX IF NOT EXISTS {0}_gix ON {0} USING GIST (geom);".format(meshblock_table))
 conn.commit()
-print("Creating neighbourhood sausage buffer summary table ({}) primary key... ".format(nh_sausagebuffer_summary))
-curs.execute("ALTER TABLE {0} ADD PRIMARY KEY ({1});".format(nh_sausagebuffer_summary,points_id.lower()))
-conn.commit()
-print("Done.")
 
 # create dwelling density table
 print("create table {}... ".format(dd_table)),

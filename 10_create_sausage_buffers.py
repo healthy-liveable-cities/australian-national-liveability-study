@@ -112,6 +112,7 @@ createTable_nh1600m = '''
   CREATE TABLE IF NOT EXISTS {0} AS
     SELECT {1}, area_sqm, area_sqm/1000000 AS area_sqkm, area_sqm/10000 AS area_ha FROM 
       (SELECT {1}, ST_AREA(geom) AS area_sqm FROM {2}) AS t;
+  ALTER TABLE {0} ADD PRIMARY KEY ({1});
   '''.format(nh_sausagebuffer_summary,points_id.lower(),sausage_buffer_table)
   
 # Define log file write method
