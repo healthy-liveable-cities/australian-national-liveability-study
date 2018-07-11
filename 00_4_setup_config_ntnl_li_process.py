@@ -226,7 +226,7 @@ network_transform_method = ''' GDA_1994_To_WGS_1984 + GDA_1994_To_GDA2020_NTv2_C
 network_in_coor_system = ''' GEOGCS['GCS_WGS_1984',DATUM['D_WGS_1984',SPHEROID['WGS_1984',6378137.0,298.257223563]],PRIMEM['Greenwich',0.0],UNIT['Degree',0.0174532925199433]]'''
 
 # Intersections with 3plus ways
-intersections = os.path.join(folderPath,'roads/GDA2020_GA_LCC_3plus_way_intersections.gdb/intersections_2018_{}_gccsa10km'.format(locale.lower())
+intersections = os.path.join(folderPath,'roads/GDA2020_GA_LCC_3plus_way_intersections.gdb/intersections_2018_{}_gccsa10km'.format(locale.lower()))
 
 # Derived network data variables - no need to change, assuming the above works
 network_source_feature = '{}'.format(network_source_feature_dataset)
