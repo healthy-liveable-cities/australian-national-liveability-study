@@ -15,6 +15,9 @@ from progressor import progressor
 
 from script_running_log import script_running_log
 
+# Import custom variables for National Liveability indicator process
+from config_ntnl_li_process import *
+
 # simple timer for log file
 start = time.time()
 script = os.path.basename(sys.argv[0])
@@ -66,8 +69,8 @@ conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()
 
 # Check if intersections table exists, and if not import intersections
-cur.execute("select exists(select * from information_schema.tables where table_name=%s)", ('intersections_3plus',))
-if cur.fetchone()[0] is True:
+curs.execute("select exists(select * from information_schema.tables where table_name=%s)", ('intersections_3plus',))
+if curs.fetchone()[0] is False:
   print("Copying intersections from gdb to postgis... ")
   command = ' ogr2ogr -overwrite -progress -f "PostgreSQL" ' \
          + ' PG:"host={host} port=5432 dbname={db}'.format(host = db_host,db = db) \
@@ -81,32 +84,26 @@ if cur.fetchone()[0] is True:
   print("Done.")
 
 # Now calculate street connectivity (three way intersections w/ in nh1600m/area in  km2)
-cur.execute("select exists(select * from information_schema.tables where table_name=%s)", (street_connectivity_table,))
-if cur.fetchone()[0] is True:
-  print("create table {}... ".format(street_connectivity_table)),
+curs.execute("select exists(select * from information_schema.tables where table_name=%s)", (street_connectivity_table,))
+if curs.fetchone()[0] is False:
+  print("Create table {}... ".format(street_connectivity_table)),
   subTaskStart = time.time()
   curs.execute(createTable_sc)
   conn.commit()
-  print(" Done."))	
+  print(" Done.")
   
-print("fetch list of processed parcels, if any..."), 
-# (for string match to work, had to select first item of returned tuple)
-curs.execute("SELECT {} FROM {}".format(points_id.lower(),sausage_buffer_table))
-raw_point_id_list = list(curs)
-raw_point_id_list = [x[0] for x in raw_point_id_list]
+print("Fetch list of processed parcels, if any... "), 
+# Checks id numbers from sausage buffers against
+curs.execute("SELECT {id} FROM {nh_geom} WHERE {id} NOT IN (SELECT {id} FROM {sc_table});".format(id = points_id.lower(),
+   nh_geom  = sausage_buffer_table,
+   sc_table = street_connectivity_table))
+point_id_list = [x[0] for x in  list(curs)]
+print("Done.")
 
-curs.execute("SELECT {} FROM {}".format(points_id.lower(),street_connectivity_table))
-completed_points = list(curs)
-completed_points = [x[0] for x in completed_points]
-
-point_id_list = [x for x in raw_point_id_list if x not in completed_points]  
-print(" Done.")
-
+print("Processing points...")
 denom = len(point_id_list)
 count = 0
 chunkedPoints = list()
-
-print("Processing points...")
 for point in point_id_list:
   count += 1
   chunkedPoints.append(point) 
