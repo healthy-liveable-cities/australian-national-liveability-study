@@ -225,12 +225,11 @@ network_template = os.path.join(folderPath,road_data,'osmnx_nd_template.xml')
 network_transform_method = ''' GDA_1994_To_WGS_1984 + GDA_1994_To_GDA2020_NTv2_CD''' 
 network_in_coor_system = ''' GEOGCS['GCS_WGS_1984',DATUM['D_WGS_1984',SPHEROID['WGS_1984',6378137.0,298.257223563]],PRIMEM['Greenwich',0.0],UNIT['Degree',0.0174532925199433]]'''
 
-intersections = 'Intersections'   # 3+ way intersections located in source network gdb
+intersections = os.path.join(folderPath,'roads/GDA2020_GA_LCC_3plus_way_intersections.gdb/intersections_2018_{}_gccsa10km'.format(locale.lower())
 
 # Derived network data variables - no need to change, assuming the above works
 network_source_feature = '{}'.format(network_source_feature_dataset)
 # network = os.path.join(network_source,network_source_feature)
-intersections = os.path.join('road_data','intersections', intersections)
 
 # network dataset, without specifying the location (e.g. if gdb is work environment)
 in_network_dataset = os.path.join('{}'.format(network_source_feature_dataset),

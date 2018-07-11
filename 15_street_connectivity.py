@@ -22,30 +22,6 @@ task = "Calculate StreetConnectivity (3 plus leg intersections per  km2)"
 
 # INPUT PARAMETERS
 
-## specify locations
-points =  'parcel_dwellings'
-# denominator = int(arcpy.GetCount_management(points).getOutput(0))
-
-#  Copy the intersections from gdb to postgis, correcting the projection in process
-command = ' ogr2ogr -overwrite -progress -f "PostgreSQL" ' \
-       + ' PG:"host={host} port=5432 dbname={db}'.format(host = db_host,db = db) \
-       + ' user={user} password = {pwd}" '.format(user = db_user,pwd = db_pwd) \
-       + ' {gdb} "{feature}" '.format(gdb = os.path.dirname(intersections),feature = os.path.basename(intersections)) \
-       + ' -lco geometry_name="geom"' \
-       + ' -nln "intersections_3plus" '
-sp.call(command, shell=True)
-
-# connect to the PostgreSQL server and ensure privileges are granted for all public tables
-conn = psycopg2.connect(dbname=db, user=db_user, password=db_pwd)
-curs = conn.cursor()
-curs.execute(grant_query)
-conn.commit()
-conn.close()
-
-
-fields = [points_id]
-
-
 # output tables
 intersections_table = "intersections_3plus"
 sausage_buffer_table = "sausagebuffer_{}".format(distance)
@@ -89,12 +65,29 @@ sc_query_C = '''
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()
 
+# Check if intersections table exists, and if not import intersections
+cur.execute("select exists(select * from information_schema.tables where table_name=%s)", ('intersections_3plus',))
+if cur.fetchone()[0] is True:
+  print("Copying intersections from gdb to postgis... ")
+  command = ' ogr2ogr -overwrite -progress -f "PostgreSQL" ' \
+         + ' PG:"host={host} port=5432 dbname={db}'.format(host = db_host,db = db) \
+         + ' user={user} password = {pwd}" '.format(user = db_user,pwd = db_pwd) \
+         + ' {gdb} "{feature}" '.format(gdb = os.path.dirname(intersections),feature = os.path.basename(intersections)) \
+         + ' -lco geometry_name="geom"' \
+         + ' -nln "intersections_3plus" '
+  sp.call(command, shell=True)
+  curs.execute(grant_query)
+  conn.commit()
+  print("Done.")
+
 # Now calculate street connectivity (three way intersections w/ in nh1600m/area in  km2)
-print("create table {}... ".format(street_connectivity_table)),
-subTaskStart = time.time()
-curs.execute(createTable_sc)
-conn.commit()
-print(" Done."))	
+cur.execute("select exists(select * from information_schema.tables where table_name=%s)", (street_connectivity_table,))
+if cur.fetchone()[0] is True:
+  print("create table {}... ".format(street_connectivity_table)),
+  subTaskStart = time.time()
+  curs.execute(createTable_sc)
+  conn.commit()
+  print(" Done."))	
   
 print("fetch list of processed parcels, if any..."), 
 # (for string match to work, had to select first item of returned tuple)
