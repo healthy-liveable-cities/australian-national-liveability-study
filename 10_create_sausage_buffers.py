@@ -405,7 +405,7 @@ if __name__ == '__main__':
   
   # Create summary table of parcel id and area
   print("Creating summary table of points with no sausage (are they mostly non-urban?)... "),  
-  curs.execute("CREATE TABLE no_sausage AS SELECT * FROM parcel_dwellings WHERE {0} NOT IN (SELECT {0} FROM {1});".format(points_id,sausage_buffer_table))
+  curs.execute("DROP TABLE IF EXISTS no_sausage; CREATE TABLE no_sausage AS SELECT * FROM parcel_dwellings WHERE {0} NOT IN (SELECT {0} FROM {1});".format(points_id,sausage_buffer_table))
   conn.commit()    
   print("Done.")
   
