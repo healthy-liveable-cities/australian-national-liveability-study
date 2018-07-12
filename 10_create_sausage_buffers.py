@@ -241,16 +241,20 @@ def CreateSausageBufferFunction(hex):
     current_floor = 0    
   
   # list of OIDs to iterate over (in LI_Vic context, GNAF ids had to be encoded as utf-8)
-  raw_point_id_list = unique_values("selection_{}".format(pid), points_id)
-  raw_point_id_list = [x.encode('utf-8') for x in raw_point_id_list]
+  # raw_point_id_list = unique_values("selection_{}".format(pid), points_id)
+  # raw_point_id_list = [x.encode('utf-8') for x in raw_point_id_list]
   
-  # fetch list of successfully processed buffers, if any 
-  # (for string match to work, had to select first item of returned tuple)
-  curs.execute("SELECT {} FROM {} WHERE hex = {}".format(points_id.lower(),sausage_buffer_table,hex))
-  completed_points = list(curs)
-  completed_points = [x[0] for x in completed_points]
+  # # fetch list of successfully processed buffers, if any 
+  # # (for string match to work, had to select first item of returned tuple)
+  # curs.execute("SELECT {} FROM {} WHERE hex = {}".format(points_id.lower(),sausage_buffer_table,hex))
+  # completed_points = list(curs)
+  # completed_points = [x[0] for x in completed_points]
   
-  point_id_list = [x for x in raw_point_id_list if x not in completed_points]
+  # point_id_list = [x for x in raw_point_id_list if x not in completed_points]
+  
+  # list of OIDs to iterate over
+  curs.execute("SELECT {id} FROM parcel_dwellings WHERE hex_id = {hex} AND {id} NOT IN (SELECT {id} FROM {sc_table} WHERE hex = {hex});".format(id = points_id.lower(), hex  = hex, sc_table = sausage_buffer_table))
+  point_id_list = [x[0] for x in  list(curs)]
   valid_pointCount = len(point_id_list)
 
   if valid_pointCount == 0:
