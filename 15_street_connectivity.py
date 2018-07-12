@@ -100,24 +100,28 @@ curs.execute("SELECT {id} FROM {nh_geom} WHERE {id} NOT IN (SELECT {id} FROM {sc
 point_id_list = [x[0] for x in  list(curs)]
 print("Done.")
 
-print("Processing points...")
 denom = len(point_id_list)
-count = 0
-chunkedPoints = list()
-for point in point_id_list:
-  count += 1
-  chunkedPoints.append(point) 
-  if (count % sqlChunkify == 0) :
-      curs.execute('{} ({}) {}'.format(sc_query_A,','.join("'"+x+"'" for x in chunkedPoints),sc_query_C))
-      conn.commit()
-      chunkedPoints = list()
-      progressor(count,denom,start,"{}/{} points processed".format(count,denom))
-if(count % sqlChunkify != 0):
-   curs.execute('{} ({}) {}'.format(sc_query_A,','.join("'"+x+"'" for x in chunkedPoints),sc_query_C))
-   conn.commit()
+if denom != 0:
+  print("Processing points...")
+  count = 0
+  chunkedPoints = list()
+  for point in point_id_list:
+    count += 1
+    chunkedPoints.append(point) 
+    if (count % sqlChunkify == 0) :
+        curs.execute('{} ({}) {}'.format(sc_query_A,','.join("'"+x+"'" for x in chunkedPoints),sc_query_C))
+        conn.commit()
+        chunkedPoints = list()
+        progressor(count,denom,start,"{}/{} points processed".format(count,denom))
+  if(count % sqlChunkify != 0):
+     curs.execute('{} ({}) {}'.format(sc_query_A,','.join("'"+x+"'" for x in chunkedPoints),sc_query_C))
+     conn.commit()
+  
+  progressor(count,denom,start,"{}/{} points processed".format(count,denom))
 
-progressor(count,denom,start,"{}/{} points processed".format(count,denom))
-
+if denom == 0:
+  print("All points have been processed (ie. all point ids from the sausage buffer table are now records in the street connectivity table.")
+  
 # output to completion log    
 script_running_log(script, task, start)
 
