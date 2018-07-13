@@ -10,8 +10,8 @@ code,destination,domain,cutoff,counts
 2,conveniencestores_2014,Convenience,1600,
 3,newsagents_2014,Convenience,1600,
 4,petrolstations_2014,Convenience,1600,
-5,fastfood_2017,Food,,1600
-6,supermarkets_2017,Food,1600,1600
+5,fastfood_2017,Food,,3200
+6,supermarkets_2017,Food,1600,3200
 7,GTFS_Qld_stop_30_mins_2017,Transport,400,
 8,GTFS_Qld_stops_2017,Transport,1600,
 7,GTFS_SA_stop_30_mins_2017,Transport,400,
