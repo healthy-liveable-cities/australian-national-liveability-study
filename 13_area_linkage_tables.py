@@ -97,53 +97,61 @@ CREATE TABLE abs_2016_irsd
 '''
   
 # create sa1 area linkage corresponding to later SA1 aggregate tables
-create_sa1_area = '''  
-  DROP TABLE IF EXISTS sa1_area;
-  CREATE TABLE sa1_area AS
+create_area_sa1 = '''  
+  DROP TABLE IF EXISTS area_sa1;
+  CREATE TABLE area_sa1 AS
   SELECT a.sa1_maincode, 
   string_agg(distinct(ssc_name_2016),',') AS suburb, 
   string_agg(distinct(lga_name_2016), ', ') AS lga,
-  c.geom
-  FROM  parcel_dwellings p
-  LEFT JOIN abs_linkage a ON p.mb_code_20 = a.mb_code_2016
-  LEFT JOIN non_abs_linkage b ON p.gnaf_pid = b.gnaf_pid
-  LEFT JOIN main_sa1_2016_aust_full c ON a.sa1_maincode = c.sa1_maincode
-  WHERE a.sa1_maincode IN (SELECT sa1_maincode FROM abs_2016_irsd)
-  GROUP BY a.sa1_maincode,c.geom
-  ORDER BY a.sa1_maincode ASC;
-  '''
-
-# create Suburb area linkage (including geometry reflecting SA1 exclusions)
-create_ssc_area = '''  
-  DROP TABLE IF EXISTS ssc_area;
-  CREATE TABLE ssc_area AS
-  SELECT ssc_name_2016 AS suburb, 
-  string_agg(distinct(lga_name_2016), ', ') AS lga,
+  COUNT(p.gnaf_id) AS resid_parcels,
+  SUM(dwelling) AS dwellings,
+  SUM(person) AS resid_persons,
   ST_Union(a.geom) AS geom
   FROM  parcel_dwellings p
   LEFT JOIN abs_linkage a ON p.mb_code_20 = a.mb_code_2016
   LEFT JOIN non_abs_linkage b ON p.gnaf_pid = b.gnaf_pid
-  WHERE sa1_maincode::int IN (SELECT sa1_maincode FROM abs_2016_irsd)
+  WHERE a.sa1_maincode IN (SELECT sa1_maincode FROM abs_2016_irsd)
+  GROUP BY a.sa1_maincode
+  ORDER BY a.sa1_maincode ASC;
+  '''
+
+# create Suburb area linkage (including geometry reflecting SA1 exclusions)
+create_area_ssc = '''  
+  DROP TABLE IF EXISTS area_ssc;
+  CREATE TABLE area_ssc AS
+  SELECT ssc_name_2016 AS suburb, 
+  string_agg(distinct(lga_name_2016), ', ') AS lga,
+  COUNT(p.gnaf_id) AS resid_parcels,
+  SUM(dwelling) AS dwellings,
+  SUM(person) AS resid_persons,
+  ST_Union(a.geom) AS geom
+  FROM  parcel_dwellings p
+  LEFT JOIN abs_linkage a ON p.mb_code_20 = a.mb_code_2016
+  LEFT JOIN non_abs_linkage b ON p.gnaf_pid = b.gnaf_pid
+  WHERE sa1_maincode IN (SELECT sa1_maincode FROM abs_2016_irsd)
   GROUP BY ssc_name_2016
   ORDER BY ssc_name_2016 ASC;
   '''
 
 # create LGA table corresponding to later SA1 aggregate tables
-create_lga_area = '''  
-  DROP TABLE IF EXISTS lga_area;
-  CREATE TABLE lga_area AS
+create_area_lga = '''  
+  DROP TABLE IF EXISTS area_lga;
+  CREATE TABLE area_lga AS
   SELECT lga_name_2016 AS suburb, 
+  COUNT(p.gnaf_id) AS resid_parcels,
+  SUM(dwelling) AS dwellings,
+  SUM(person) AS resid_persons,
   ST_Union(a.geom) AS geom
   FROM  parcel_dwellings p
   LEFT JOIN abs_linkage a ON p.mb_code_20 = a.mb_code_2016
   LEFT JOIN non_abs_linkage b ON p.gnaf_pid = b.gnaf_pid
-  WHERE sa1_maincode::int IN (SELECT sa1_maincode FROM abs_2016_irsd)
+  WHERE sa1_maincode IN (SELECT sa1_maincode FROM abs_2016_irsd)
   GROUP BY lga_name_2016
   ORDER BY lga_name_2016 ASC;
   '''  
   
 # OUTPUT PROCESS
-task = 'Extract parcel PFI and meshblock code from {}, and create ABS linkage table.'.format(A_points)
+task = 'Create ABS and non-ABS linkage tables using 2016 data sourced from ABS'
 print("Commencing task: {} at {}".format(task,time.strftime("%Y%m%d-%H%M%S")))
 # connect to the PostgreSQL server
 conn = psycopg2.connect(dbname=db, user=db_user, password=db_pwd)
@@ -195,8 +203,9 @@ curs.copy_expert(sql="COPY abs_2016_irsd FROM STDIN WITH CSV HEADER DELIMITER AS
 print("Done.")
 
 print("Create addition area linkage tables to list SA1s, and suburbs within LGAs... "),
-curs.execute(create_sa1_area)
-curs.execute(create_ssc_area)
+curs.execute(create_area_sa1)
+curs.execute(create_area_ssc)
+curs.execute(create_area_lga)
 conn.commit()
 print("Done.")
 

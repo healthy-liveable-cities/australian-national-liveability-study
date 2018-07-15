@@ -176,7 +176,7 @@ grant_query = '''GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA pu
 # cleaned data referenced below (including output from scripts) is located in ABS_derived
 
 # Index of Relative Socio-Economic Disadvantage (cleaned)
-abs_irsd  = os.path.join(folderPath,'ABS/ABS_derived/ABS_2016_IRSD.csv')
+abs_irsd  = os.path.join(folderPath,'ABS/derived/ABS_2016_IRSD.csv')
               
 # meshblock source shape file (ABS download)
 # Meshblock Dwellings feature name
