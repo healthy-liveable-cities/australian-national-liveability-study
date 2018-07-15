@@ -103,17 +103,17 @@ create_area_sa1 = '''
   SELECT a.sa1_maincode, 
   string_agg(distinct(ssc_name_2016),',') AS suburb, 
   string_agg(distinct(lga_name_2016), ', ') AS lga,
-  COUNT(p.gnaf_id) AS resid_parcels,
+  COUNT(p.{0}) AS resid_parcels,
   SUM(dwelling) AS dwellings,
   SUM(person) AS resid_persons,
   ST_Union(a.geom) AS geom
   FROM  parcel_dwellings p
   LEFT JOIN abs_linkage a ON p.mb_code_20 = a.mb_code_2016
-  LEFT JOIN non_abs_linkage b ON p.gnaf_pid = b.gnaf_pid
+  LEFT JOIN non_abs_linkage b ON p.{0} = b.{0}
   WHERE a.sa1_maincode IN (SELECT sa1_maincode FROM abs_2016_irsd)
   GROUP BY a.sa1_maincode
   ORDER BY a.sa1_maincode ASC;
-  '''
+  '''.format(points_id)
 
 # create Suburb area linkage (including geometry reflecting SA1 exclusions)
 create_area_ssc = '''  
@@ -121,34 +121,34 @@ create_area_ssc = '''
   CREATE TABLE area_ssc AS
   SELECT ssc_name_2016 AS suburb, 
   string_agg(distinct(lga_name_2016), ', ') AS lga,
-  COUNT(p.gnaf_id) AS resid_parcels,
+  COUNT(p.{0}) AS resid_parcels,
   SUM(dwelling) AS dwellings,
   SUM(person) AS resid_persons,
   ST_Union(a.geom) AS geom
   FROM  parcel_dwellings p
   LEFT JOIN abs_linkage a ON p.mb_code_20 = a.mb_code_2016
-  LEFT JOIN non_abs_linkage b ON p.gnaf_pid = b.gnaf_pid
+  LEFT JOIN non_abs_linkage b ON p.{0} = b.{0}
   WHERE sa1_maincode IN (SELECT sa1_maincode FROM abs_2016_irsd)
   GROUP BY ssc_name_2016
   ORDER BY ssc_name_2016 ASC;
-  '''
+  '''.format(points_id)
 
 # create LGA table corresponding to later SA1 aggregate tables
 create_area_lga = '''  
   DROP TABLE IF EXISTS area_lga;
   CREATE TABLE area_lga AS
-  SELECT lga_name_2016 AS suburb, 
-  COUNT(p.gnaf_id) AS resid_parcels,
+  SELECT lga_name_2016 AS lga, 
+  COUNT(p.{0}) AS resid_parcels,
   SUM(dwelling) AS dwellings,
   SUM(person) AS resid_persons,
   ST_Union(a.geom) AS geom
   FROM  parcel_dwellings p
   LEFT JOIN abs_linkage a ON p.mb_code_20 = a.mb_code_2016
-  LEFT JOIN non_abs_linkage b ON p.gnaf_pid = b.gnaf_pid
+  LEFT JOIN non_abs_linkage b ON p.{0} = b.{0}
   WHERE sa1_maincode IN (SELECT sa1_maincode FROM abs_2016_irsd)
   GROUP BY lga_name_2016
   ORDER BY lga_name_2016 ASC;
-  '''  
+  '''.format(points_id)
   
 # OUTPUT PROCESS
 task = 'Create ABS and non-ABS linkage tables using 2016 data sourced from ABS'
