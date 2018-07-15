@@ -176,7 +176,7 @@ grant_query = '''GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA pu
 # cleaned data referenced below (including output from scripts) is located in ABS_derived
 
 # Index of Relative Socio-Economic Disadvantage (cleaned)
-abs_irsd  = os.path.join(folderPath,'ABS/ABS_derived/ABS_2011_IRSD.csv')
+abs_irsd  = os.path.join(folderPath,'ABS/ABS_derived/ABS_2016_IRSD.csv')
               
 # meshblock source shape file (ABS download)
 # Meshblock Dwellings feature name
@@ -307,4 +307,3 @@ dest_counts = data.counts.tolist()   # cut off distance within which to evaluate
 
 # specify that the above modules and all variables below are imported on 'from config.py import *'
 __all__ = [x for x in dir() if x not in ['__file__','__all__', '__builtins__', '__doc__', '__name__', '__package__']]
- 

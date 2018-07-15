@@ -24,6 +24,7 @@ import subprocess as sp     # for executing external commands (e.g. pgsql2shp or
 import numpy
 import time
 import psycopg2 
+from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 from progressor import progressor
 
 from script_running_log import script_running_log
@@ -47,6 +48,9 @@ abs_linkage_table  = 'abs_linkage'
 suburb_feature = os.path.basename(abs_suburb).strip('.shp').lower()
 lga_feature = os.path.basename(abs_lga).strip('.shp').lower()
 
+# Note - I found SA1 7 digit code is not unique within a state and so can't be relied upon 
+# to uniquely identify an SA1; As such now using SA1 maincode
+# (WA example - #5110308 has n = 6 (only one of which is in GCCSA though)
 create_abslinkage_Table     = '''
   DROP TABLE IF EXISTS abs_linkage;
   CREATE TABLE IF NOT EXISTS abs_linkage AS
@@ -55,7 +59,7 @@ create_abslinkage_Table     = '''
       mb_category_name_2016           ,
       dwelling                        ,
       person                          ,                 
-      sa1_7digit                      ,
+      sa1_mainco AS sa1_maincode      ,
       sa2_name_2 AS sa2_name_2016     ,
       sa3_name_2 AS sa3_name_2016     ,
       sa4_name_2 AS sa4_name_2016     ,
@@ -71,6 +75,7 @@ create_abslinkage_Table     = '''
   '''
 
 create_non_abslinkage_Table     = '''
+  DROP TABLE IF EXISTS non_abs_linkage;
   CREATE TABLE IF NOT EXISTS non_abs_linkage AS
     SELECT
       {0},
@@ -84,6 +89,58 @@ create_non_abslinkage_Table     = '''
       where st_contains(b.geom,a.geom) AND st_contains(c.geom,a.geom);
   ALTER  TABLE non_abs_linkage ADD PRIMARY KEY ({0});
   '''.format(points_id,suburb_feature, lga_feature)
+
+create_irsd_table = '''
+DROP TABLE IF EXISTS abs_2016_irsd;
+CREATE TABLE abs_2016_irsd 
+(sa1_maincode varchar, sa1_7digit varchar, usual_resident_pop integer, irsd_score integer, aust_rank integer, aust_decile integer, aust_pctile integer, state varchar, state_rank integer, state_decile integer, state_pctile integer);
+'''
+  
+# create sa1 area linkage corresponding to later SA1 aggregate tables
+create_sa1_area = '''  
+  DROP TABLE IF EXISTS sa1_area;
+  CREATE TABLE sa1_area AS
+  SELECT a.sa1_maincode, 
+  string_agg(distinct(ssc_name_2016),',') AS suburb, 
+  string_agg(distinct(lga_name_2016), ', ') AS lga,
+  c.geom
+  FROM  parcel_dwellings p
+  LEFT JOIN abs_linkage a ON p.mb_code_20 = a.mb_code_2016
+  LEFT JOIN non_abs_linkage b ON p.gnaf_pid = b.gnaf_pid
+  LEFT JOIN main_sa1_2016_aust_full c ON a.sa1_maincode = c.sa1_maincode
+  WHERE a.sa1_maincode IN (SELECT sa1_maincode FROM abs_2016_irsd)
+  GROUP BY a.sa1_maincode,c.geom
+  ORDER BY a.sa1_maincode ASC;
+  '''
+
+# create Suburb area linkage (including geometry reflecting SA1 exclusions)
+create_ssc_area = '''  
+  DROP TABLE IF EXISTS ssc_area;
+  CREATE TABLE ssc_area AS
+  SELECT ssc_name_2016 AS suburb, 
+  string_agg(distinct(lga_name_2016), ', ') AS lga,
+  ST_Union(a.geom) AS geom
+  FROM  parcel_dwellings p
+  LEFT JOIN abs_linkage a ON p.mb_code_20 = a.mb_code_2016
+  LEFT JOIN non_abs_linkage b ON p.gnaf_pid = b.gnaf_pid
+  WHERE sa1_maincode::int IN (SELECT sa1_maincode FROM abs_2016_irsd)
+  GROUP BY ssc_name_2016
+  ORDER BY ssc_name_2016 ASC;
+  '''
+
+# create LGA table corresponding to later SA1 aggregate tables
+create_lga_area = '''  
+  DROP TABLE IF EXISTS lga_area;
+  CREATE TABLE lga_area AS
+  SELECT lga_name_2016 AS suburb, 
+  ST_Union(a.geom) AS geom
+  FROM  parcel_dwellings p
+  LEFT JOIN abs_linkage a ON p.mb_code_20 = a.mb_code_2016
+  LEFT JOIN non_abs_linkage b ON p.gnaf_pid = b.gnaf_pid
+  WHERE sa1_maincode::int IN (SELECT sa1_maincode FROM abs_2016_irsd)
+  GROUP BY lga_name_2016
+  ORDER BY lga_name_2016 ASC;
+  '''  
   
 # OUTPUT PROCESS
 task = 'Extract parcel PFI and meshblock code from {}, and create ABS linkage table.'.format(A_points)
@@ -126,6 +183,22 @@ print("Create non-ABS linkage table (linking point IDs with suburbs and LGAs... 
 curs.execute(create_non_abslinkage_Table)
 conn.commit()
 print("Done")
+
+   
+# NOTE: the copy statement is commented out as it does not work from script context; run this as an interactive query  
+   
+print("Import ABS SEIFA IRSD table... "),
+conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+curs = conn.cursor()
+curs.execute(create_irsd_table)
+curs.copy_expert(sql="COPY abs_2016_irsd FROM STDIN WITH CSV HEADER DELIMITER AS ',';", file=open(abs_irsd))
+print("Done.")
+
+print("Create addition area linkage tables to list SA1s, and suburbs within LGAs... "),
+curs.execute(create_sa1_area)
+curs.execute(create_ssc_area)
+conn.commit()
+print("Done.")
 
 # output to completion log    
 script_running_log(script, task, start, locale)
