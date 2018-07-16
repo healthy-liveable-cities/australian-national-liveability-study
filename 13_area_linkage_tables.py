@@ -101,12 +101,12 @@ create_area_sa1 = '''
   DROP TABLE IF EXISTS area_sa1;
   CREATE TABLE area_sa1 AS
   SELECT a.sa1_maincode, 
-  suburb, 
-  lga,
-  SUM(mb_parcel_count) AS resid_parcels,
-  SUM(a.dwelling) AS dwellings,
-  SUM(a.person) AS resid_persons,
-  ST_Union(a.geom) AS geom
+         suburb, 
+         lga,
+         SUM(mb_parcel_count) AS resid_parcels,
+         SUM(a.dwelling) AS dwellings,
+         SUM(a.person) AS resid_persons,
+         ST_Union(a.geom) AS geom
   FROM abs_linkage a 
   LEFT JOIN (SELECT mb_code_20 AS mb_code_2016, 
                     count(*) mb_parcel_count 
@@ -130,34 +130,55 @@ create_area_ssc = '''
   DROP TABLE IF EXISTS area_ssc;
   CREATE TABLE area_ssc AS
   SELECT ssc_name_2016 AS suburb, 
-  string_agg(distinct(lga_name_2016), ', ') AS lga,
-  COUNT(p.{0}) AS resid_parcels,
-  SUM(dwelling) AS dwellings,
-  SUM(person) AS resid_persons,
-  ST_Union(a.geom) AS geom
-  FROM  parcel_dwellings p
-  LEFT JOIN abs_linkage a ON p.mb_code_20 = a.mb_code_2016
-  LEFT JOIN non_abs_linkage b ON p.{0} = b.{0}
-  WHERE sa1_maincode IN (SELECT sa1_maincode FROM abs_2016_irsd)
-  GROUP BY ssc_name_2016
-  ORDER BY ssc_name_2016 ASC;
+         string_agg(distinct(lga_name_2016), ', ') AS lga,
+         sum(resid_parcels) AS resid_parcels,
+         sum(dwelling) AS dwellings,
+         sum(person) AS resid_persons,
+         ST_Union(geom) AS geom
+  FROM  (SELECT DISTINCT ON (mb_code_2016)
+                mb_code_2016,
+                ssc_name_2016,
+                lga_name_2016,
+                COUNT(*) AS resid_parcels,
+                dwelling,
+                person,
+                a.geom AS geom
+         FROM abs_linkage a
+         LEFT JOIN parcel_dwellings p ON a.mb_code_2016 = p.mb_code_20
+         LEFT JOIN non_abs_linkage b on p.{0} = b.{0}
+         WHERE a.sa1_maincode IN (SELECT sa1_maincode FROM abs_2016_irsd)
+         AND ssc_name_2016 IS NOT NULL
+         GROUP BY mb_code_2016,ssc_name_2016,lga_name_2016,dwelling,person,a.geom
+         ) t
+  GROUP BY suburb
+  ORDER BY suburb ASC;
   '''.format(points_id)  
   
 # create LGA table corresponding to later SA1 aggregate tables
 create_area_lga = '''  
   DROP TABLE IF EXISTS area_lga;
   CREATE TABLE area_lga AS
-  SELECT lga_name_2016 AS lga, 
-  COUNT(p.{0}) AS resid_parcels,
-  SUM(COALLESCE(dwelling,0)) AS dwellings,
-  SUM(person) AS resid_persons,
-  ST_Union(a.geom) AS geom
-  FROM  parcel_dwellings p
-  LEFT JOIN abs_linkage a ON p.mb_code_20 = a.mb_code_2016
-  LEFT JOIN non_abs_linkage b ON p.{0} = b.{0}
-  WHERE sa1_maincode IN (SELECT sa1_maincode FROM abs_2016_irsd)
-  GROUP BY lga_name_2016
-  ORDER BY lga_name_2016 ASC;
+  SELECT lga_name_2016 AS lga,
+         sum(resid_parcels) AS resid_parcels,
+         sum(dwelling) AS dwellings,
+         sum(person) AS resid_persons,
+         ST_Union(geom) AS geom
+  FROM  (SELECT DISTINCT ON (mb_code_2016)
+                mb_code_2016,
+                lga_name_2016,
+                COUNT(*) AS resid_parcels,
+                dwelling,
+                person,
+                a.geom AS geom
+         FROM abs_linkage a
+         LEFT JOIN parcel_dwellings p ON a.mb_code_2016 = p.mb_code_20
+         LEFT JOIN non_abs_linkage b on p.{0} = b.{0}
+         WHERE a.sa1_maincode IN (SELECT sa1_maincode FROM abs_2016_irsd)
+         AND lga_name_2016 IS NOT NULL
+         GROUP BY mb_code_2016,lga_name_2016,dwelling,person,a.geom
+         ) t
+  GROUP BY lga
+  ORDER BY lga ASC;
   '''.format(points_id)
 
 # create excluded Mesh Block table
