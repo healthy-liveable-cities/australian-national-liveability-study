@@ -199,6 +199,7 @@ abs_SA3    = os.path.join(folderPath,'ABS/derived/ASGS_2016_Volume_1_GDA2020/mai
 abs_SA4    = os.path.join(folderPath,'ABS/derived/ASGS_2016_Volume_1_GDA2020/main_SA4_2016_AUST_FULL.shp')
 abs_lga    = os.path.join(folderPath,'ABS/derived/ASGS_2016_Volume_3_GDA2020/main_LGA_2016_AUST.shp')
 abs_suburb = os.path.join(folderPath,'ABS/derived/ASGS_2016_Volume_3_GDA2020/main_SSC_2016_AUST.shp')
+abs_SOS    = os.path.join(folderPath,'ABS/derived/ASGS_2016_Volume_4_GDA2020/main_SOS_2016_AUST.shp')
 
 # parcels
 # Note that the process assumes we have already transformed points to GDA2020 GA LLC

@@ -214,6 +214,16 @@ create_area_no_dwelling = '''
           ST_Union(geom) AS geom  FROM mb_no_dwellings;
   '''
   
+create_no_sausage_sos_tally = '''
+  DROP TABLE IF EXISTS no_sausage_sos_tally;
+  CREATE TABLE no_sausage_sos_tally AS
+  SELECT sos_name_2 AS section_of_state, 
+         count(b.*) AS no_sausage_count 
+  FROM main_sos_2016_aust a 
+  LEFT JOIN no_sausage b ON ST_Intersects(a.geom,b.geom) 
+  WHERE no_sausage_count > 0
+  GROUP BY section_of_state ORDER BY section_of_state;
+'''
   
 # OUTPUT PROCESS
 task = 'Create ABS and non-ABS linkage tables using 2016 data sourced from ABS'
@@ -235,7 +245,7 @@ print("Copy ABS geometries to postgis...")
 # ie. instead of recording area as "127.17000000000", it records "127.17" -- better! and works.
 # see: https://gis.stackexchange.com/questions/254671/ogr2ogr-error-importing-shapefile-into-postgis-numeric-field-overflow
 
-for area in [abs_SA1,abs_SA2, abs_SA3, abs_SA4, abs_lga, abs_suburb]:
+for area in [abs_SA1,abs_SA2, abs_SA3, abs_SA4, abs_lga, abs_suburb,abs_SOS]:
   feature = os.path.basename(area).strip('.shp').lower()
   name = feature.strip('main_')[0:3]
   print('{}: '.format(name)), 
@@ -268,12 +278,19 @@ curs.copy_expert(sql="COPY abs_2016_irsd FROM STDIN WITH CSV HEADER DELIMITER AS
 print("Done.")
 
 print("Create addition area linkage tables to list SA1s, and suburbs within LGAs... "),
+print("  - SA1s"),
 curs.execute(create_area_sa1)
+print("  - Suburbs"),
 curs.execute(create_area_ssc)
+print("  - LGAs"),
 curs.execute(create_area_lga)
+print("  - Meshblocks, excluded due to no IRSD"),
 curs.execute(create_mb_excluded_no_irsd)
+print("  - Meshblocks, excluded due to no dwellings"),
 curs.execute(create_mb_no_dwellings)
+print("  - Total area excluded due to no IRSD"),
 curs.execute(create_area_no_irsd)
+print("  - Total area excluded due to no dwellings"),
 curs.execute(create_area_no_dwelling)
 conn.commit()
 print("Done.")
