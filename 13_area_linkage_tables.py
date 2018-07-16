@@ -295,6 +295,10 @@ curs.execute(create_area_no_dwelling)
 conn.commit()
 print("Done.")
 
+print("Make a summary table of parcel points lacking sausage buffer, grouped by section of state (the idea is, only a small proportion should be major or other urban"),
+curs.execute(create_no_sausage_sos_tally)
+conn.commit()
+
 # output to completion log    
 script_running_log(script, task, start, locale)
 
