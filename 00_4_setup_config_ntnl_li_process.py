@@ -31,6 +31,7 @@ folderPath = 'D:/ntnl_li_2018_template/data/'
 # Specify study region details  ************** This is the important bit! *******
 # Uncomment for study region as required
 
+
 # locale       = 'Adelaide'
 # locale       = 'Bris'
 # locale       = 'Canberra'
@@ -39,6 +40,7 @@ folderPath = 'D:/ntnl_li_2018_template/data/'
 # locale       = 'Melb'
 # locale       = 'Perth'
 # locale       = 'Syd'
+# locale       = 'Mitchell'
 
 # SQL Query to select study region
 region_where_clause_list = {'Adelaide': ''' "STATE_NAME" = 'South Australia' AND "GCCSA_NAME"  = 'Greater Adelaide' ''',
@@ -48,8 +50,23 @@ region_where_clause_list = {'Adelaide': ''' "STATE_NAME" = 'South Australia' AND
                             'Hobart': ''' "STATE_NAME" = 'Tasmania' AND "GCCSA_NAME"  = 'Greater Hobart' ''',
                             'Melb': ''' "STATE_NAME" = 'Victoria' AND "GCCSA_NAME"  = 'Greater Melbourne' ''',
                             'Perth': ''' "STATE_NAME" = 'Western Australia' AND "GCCSA_NAME"  = 'Greater Perth' ''',
-                            'Syd': ''' "STATE_NAME" = 'New South Wales' AND "GCCSA_NAME"  = 'Greater Sydney' '''}
+                            'Syd': ''' "STATE_NAME" = 'New South Wales' AND "GCCSA_NAME"  = 'Greater Sydney' ''',
+                            'Mitchell': ''' "STATE_NAME" = 'Victoria' AND "LGA_NAME_2"  = 'Mitchell (S)' '''}
 region_where_clause = region_where_clause_list[locale]
+
+
+# Point data locations (ie. GNAF address point features, in GDA2020 GA LCC)
+region_shape_list = {'Adelaide': 'ABS/derived/ASGS_2016_Volume_1_GDA2020/main_GCCSA_2016_AUST_FULL.shp',
+                     'Bris'    : 'ABS/derived/ASGS_2016_Volume_1_GDA2020/main_GCCSA_2016_AUST_FULL.shp',
+                     'Canberra': 'ABS/derived/ASGS_2016_Volume_1_GDA2020/main_GCCSA_2016_AUST_FULL.shp',
+                     'Darwin'  : 'ABS/derived/ASGS_2016_Volume_1_GDA2020/main_GCCSA_2016_AUST_FULL.shp',
+                     'Hobart'  : 'ABS/derived/ASGS_2016_Volume_1_GDA2020/main_GCCSA_2016_AUST_FULL.shp',
+                     'Melb'    : 'ABS/derived/ASGS_2016_Volume_1_GDA2020/main_GCCSA_2016_AUST_FULL.shp',
+                     'Perth'   : 'ABS/derived/ASGS_2016_Volume_1_GDA2020/main_GCCSA_2016_AUST_FULL.shp',
+                     'Syd'     : 'ABS/derived/ASGS_2016_Volume_1_GDA2020/main_GCCSA_2016_AUST_FULL.shp',
+                     'Mitchell': 'ABS/derived/ASGS_2016_Volume_3_GDA2020/main_LGA_2016_AUST.shp'}
+
+region_shape = region_shape_list[locale]
 
 # Point data locations (ie. GNAF address point features, in GDA2020 GA LCC)
 points_list = {'Adelaide': os.path.join(folderPath,'address_points/GDA2020_GA_LCC.gdb/gnaf_2018_sa') ,
@@ -59,7 +76,8 @@ points_list = {'Adelaide': os.path.join(folderPath,'address_points/GDA2020_GA_LC
                'Hobart'  : os.path.join(folderPath,'address_points/GDA2020_GA_LCC.gdb/gnaf_2018_tas'),
                'Melb'    : os.path.join(folderPath,'address_points/GDA2020_GA_LCC.gdb/gnaf_2018_vic'),
                'Perth'   : os.path.join(folderPath,'address_points/GDA2020_GA_LCC.gdb/gnaf_2018_wa') ,
-               'Syd'     : os.path.join(folderPath,'address_points/GDA2020_GA_LCC.gdb/gnaf_2018_nsw')}
+               'Syd'     : os.path.join(folderPath,'address_points/GDA2020_GA_LCC.gdb/gnaf_2018_nsw'),
+               'Mitchell': os.path.join(folderPath,'address_points/GDA2020_GA_LCC.gdb/gnaf_2018_vic')}
 
 points = points_list[locale]
 
