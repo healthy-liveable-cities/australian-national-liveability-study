@@ -479,50 +479,51 @@ for type in ['hard','soft']:
   curs.execute(createTable)
   conn.commit()
   print("Created {0} address-level percentiles for schema {1}".format(type,uli_schema))   
-  
-# create sa1 area linkage corresponding to later SA1 aggregate tables
-createTable = '''  
-  DROP TABLE IF EXISTS {0}.sa1_area;
-  CREATE TABLE {0}.sa1_area AS
-  SELECT sa1_7dig11, 
-  string_agg(distinct(ssc_name),',') AS suburb, 
-  string_agg(distinct(lga_name11), ', ') AS lga
-  FROM  {0}.raw_indicators_hard
-  WHERE sa1_7dig11 IN (SELECT sa1_7dig11 FROM abs_2011_irsd)
-  GROUP BY sa1_7dig11
-  ORDER BY sa1_7dig11 ASC;
-  '''.format(uli_schema)
-curs.execute(createTable)
-conn.commit()
+ 
+## INCORPORATING INTO ABS LINKAGE 
+# # create sa1 area linkage corresponding to later SA1 aggregate tables
+# createTable = '''  
+  # DROP TABLE IF EXISTS {0}.sa1_area;
+  # CREATE TABLE {0}.sa1_area AS
+  # SELECT sa1_7dig11, 
+  # string_agg(distinct(ssc_name),',') AS suburb, 
+  # string_agg(distinct(lga_name11), ', ') AS lga
+  # FROM  {0}.raw_indicators_hard
+  # WHERE sa1_7dig11 IN (SELECT sa1_7dig11 FROM abs_2011_irsd)
+  # GROUP BY sa1_7dig11
+  # ORDER BY sa1_7dig11 ASC;
+  # '''.format(uli_schema)
+# curs.execute(createTable)
+# conn.commit()
 
-# create sa2 area linkage corresponding to later SA1 aggregate tables
-createTable = '''  
-  DROP TABLE IF EXISTS {0}.sa2_area;
-  CREATE TABLE {0}.sa2_area AS
-  SELECT sa2_name11, 
-  string_agg(distinct(ssc_name),',') AS suburb, 
-  string_agg(distinct(lga_name11), ', ') AS lga
-  FROM  {0}.raw_indicators_hard
-  WHERE sa2_name11 IN (SELECT sa2_name11 FROM abs_2011_irsd)
-  GROUP BY sa2_name11
-  ORDER BY sa2_name11 ASC;
-  '''.format(uli_schema)
-curs.execute(createTable)
-conn.commit()
+# # create sa2 area linkage corresponding to later SA1 aggregate tables
+# createTable = '''  
+  # DROP TABLE IF EXISTS {0}.sa2_area;
+  # CREATE TABLE {0}.sa2_area AS
+  # SELECT sa2_name11, 
+  # string_agg(distinct(ssc_name),',') AS suburb, 
+  # string_agg(distinct(lga_name11), ', ') AS lga
+  # FROM  {0}.raw_indicators_hard
+  # WHERE sa2_name11 IN (SELECT sa2_name11 FROM abs_2011_irsd)
+  # GROUP BY sa2_name11
+  # ORDER BY sa2_name11 ASC;
+  # '''.format(uli_schema)
+# curs.execute(createTable)
+# conn.commit()
 
 
-# create Suburb area linkage corresponding to later SA1 aggregate tables
-createTable = '''  
-  DROP TABLE IF EXISTS {0}.ssc_area;
-  CREATE TABLE {0}.ssc_area AS
-  SELECT DISTINCT(ssc_name) AS suburb, 
-  string_agg(distinct(lga_name11), ', ') AS lga
-  FROM  {0}.raw_indicators_hard
-  GROUP BY ssc_name
-  ORDER BY ssc_name ASC;
-  '''.format(uli_schema)
-curs.execute(createTable)
-conn.commit()
+# # create Suburb area linkage corresponding to later SA1 aggregate tables
+# createTable = '''  
+  # DROP TABLE IF EXISTS {0}.ssc_area;
+  # CREATE TABLE {0}.ssc_area AS
+  # SELECT DISTINCT(ssc_name) AS suburb, 
+  # string_agg(distinct(lga_name11), ', ') AS lga
+  # FROM  {0}.raw_indicators_hard
+  # GROUP BY ssc_name
+  # ORDER BY ssc_name ASC;
+  # '''.format(uli_schema)
+# curs.execute(createTable)
+# conn.commit()
   
 # create aggregated raw liveability estimates for selected area
 for type in ['hard','soft']:
