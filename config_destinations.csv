@@ -32,7 +32,7 @@ code,destination,domain,cutoff,counts
 7,GTFS_NSW_stop_30_mins_2017,Transport,400,
 8,GTFS_NSW_stops_2017,Transport,1600,
 14,GTFS_NSW_stop_15_mins_train_2017,Transport,800,
-7,GTFS_NSW_stop_30_mins_bus_2017,Transport,400,
+15,GTFS_NSW_stop_30_mins_bus_2017,Transport,400,
 7,GTFS_NT_stop_30_mins_2017,Transport,400,
 8,GTFS_NT_stops_2017,Transport,1600,
 100,activity_centres_2017,Other,3200,

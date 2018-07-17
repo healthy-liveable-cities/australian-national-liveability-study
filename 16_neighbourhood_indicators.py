@@ -28,7 +28,7 @@ SELECT p.{id},
 FROM parcel_dwellings p  
 LEFT JOIN (SELECT {id}, 
                   (CASE WHEN SUM(COALESCE(ind_hard,0)) > 0 THEN 1 ELSE 0 END) AS ind_hard,
-                  AVG(COALESCE(ind_soft,0)) AS ind_soft
+                  MAX(COALESCE(ind_soft,0)) AS ind_soft
           FROM od_closest WHERE dest IN (2,3,4) GROUP BY {id}) convenience  
   ON p.{id} = convenience.{id}
 LEFT JOIN (SELECT {id}, ind_hard, ind_soft
@@ -106,6 +106,8 @@ LEFT JOIN (SELECT {id},count FROM od_counts WHERE dest = 6) AS supermarkets
 LEFT JOIN (SELECT {id},count FROM od_counts WHERE dest = 5) AS fastfood 
   ON p.{id} = fastfood.{id};
 '''.format(id = points_id)  
+
+
      
 create_neighbourhood_ind_list = {'daily_living': dl,
                                  'walkability': wa,
