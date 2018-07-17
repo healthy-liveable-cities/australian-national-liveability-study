@@ -261,11 +261,11 @@ def ODMatrixWorkerFunction(hex):
                                                                                                                          ind_hard  = ind_hard,
                                                                                                                          ind_soft  = ind_soft))
           if(count % sqlChunkify == 0):
-            curs.execute(queryPartA + ','.join(rowOfChunk for rowOfChunk in chunkedLines))
+            curs.execute(queryPartA + ','.join(rowOfChunk for rowOfChunk in chunkedLines) + ' ON CONFLICT DO NOTHING')
             conn.commit()
             chunkedLines = list()
         if(count % sqlChunkify != 0):
-          curs.execute(queryPartA + ','.join(rowOfChunk for rowOfChunk in chunkedLines))
+          curs.execute(queryPartA + ','.join(rowOfChunk for rowOfChunk in chunkedLines) + ' ON CONFLICT DO NOTHING')
           conn.commit()
         writeLog(hex,origin_point_count,destination_list[destNum],"Solved",(time.time()-destStartTime)/60)
     # return worker function as completed once all destinations processed
