@@ -18,13 +18,6 @@ start = time.time()
 script = os.path.basename(sys.argv[0])
 task = 'create destination indicator tables'
 
-nh1600m = '''
-  DROP TABLE IF EXISTS nh1600m;
-  CREATE TABLE IF NOT EXISTS nh1600m AS
-    SELECT {0}, area_sqm, area_sqm/1000000 AS area_sqkm, area_sqm/10000 AS area_ha FROM 
-      (SELECT {0}, ST_AREA(geom) AS area_sqm FROM {1}) AS t;
-  ALTER TABLE nh1600m ADD PRIMARY KEY ({0});
-  '''.format(points_id.lower(),"sausagebuffer_{}".format(distance))
 
 dl = '''
 DROP TABLE IF EXISTS ind_daily_living;
@@ -114,8 +107,7 @@ LEFT JOIN (SELECT {id},count FROM od_counts WHERE dest = 5) AS fastfood
   ON p.{id} = fastfood.{id};
 '''.format(id = points_id)  
      
-create_neighbourhood_ind_list = {'nh1600m': nh1600m,
-                                 'daily_living': dl,
+create_neighbourhood_ind_list = {'daily_living': dl,
                                  'walkability': wa,
                                  'activity_centres': activity,
                                  'supermarkets_1000': supermarkets_1000,

@@ -224,6 +224,14 @@ create_no_sausage_sos_tally = '''
   GROUP BY section_of_state 
   ORDER BY no_sausage_sos_tally;
 '''
+
+nh1600m = '''
+  DROP TABLE IF EXISTS nh1600m;
+  CREATE TABLE IF NOT EXISTS nh1600m AS
+    SELECT {0}, area_sqm, area_sqm/1000000 AS area_sqkm, area_sqm/10000 AS area_ha FROM 
+      (SELECT {0}, ST_AREA(geom) AS area_sqm FROM {1}) AS t;
+  ALTER TABLE nh1600m ADD PRIMARY KEY ({0});
+  '''.format(points_id.lower(),"sausagebuffer_{}".format(distance))
   
 # OUTPUT PROCESS
 task = 'Create ABS and non-ABS linkage tables using 2016 data sourced from ABS'
@@ -298,6 +306,11 @@ print("Done.")
 print("Make a summary table of parcel points lacking sausage buffer, grouped by section of state (the idea is, only a small proportion should be major or other urban"),
 curs.execute(create_no_sausage_sos_tally)
 conn.commit()
+
+print("Creating summary table of parcel id and area... "),
+curs.execute(createTable_nh1600m)
+conn.commit()  
+print("Done.")
 
 # output to completion log    
 script_running_log(script, task, start, locale)
