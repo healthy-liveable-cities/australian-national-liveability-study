@@ -218,14 +218,16 @@ create_no_sausage_sos_tally = '''
   DROP TABLE IF EXISTS no_sausage_sos_tally;
   CREATE TABLE no_sausage_sos_tally AS
   SELECT sos_name_2 AS section_of_state, 
-         count(b.*) AS no_sausage_count
+         count(b.*) AS no_sausage_count,
+         count(b.*) / (SELECT COUNT(*) FROM parcel_dwellings)::double precision AS no_sausage_prop
   FROM main_sos_2016_aust a 
   LEFT JOIN no_sausage b ON ST_Intersects(a.geom,b.geom) 
   GROUP BY section_of_state 
-  ORDER BY no_sausage_sos_tally;
+  ORDER BY no_sausage_count DESC;
+  DELETE FROM no_sausage_sos_tally WHERE no_sausage_count = 0;
 '''
 
-nh1600m = '''
+createTable_nh1600m = '''
   DROP TABLE IF EXISTS nh1600m;
   CREATE TABLE IF NOT EXISTS nh1600m AS
     SELECT {0}, area_sqm, area_sqm/1000000 AS area_sqkm, area_sqm/10000 AS area_ha FROM 
