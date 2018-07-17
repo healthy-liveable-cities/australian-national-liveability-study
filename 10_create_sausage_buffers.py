@@ -107,13 +107,6 @@ createTable_processor_log = '''
 queryInsertSausage = '''
   INSERT INTO {} VALUES
   '''.format(sausage_buffer_table)  
-
-createTable_nh1600m = '''
-  CREATE TABLE IF NOT EXISTS {0} AS
-    SELECT {1}, area_sqm, area_sqm/1000000 AS area_sqkm, area_sqm/10000 AS area_ha FROM 
-      (SELECT {1}, ST_AREA(geom) AS area_sqm FROM {2}) AS t;
-  ALTER TABLE {0} ADD PRIMARY KEY ({1});
-  '''.format(nh_sausagebuffer_summary,points_id.lower(),sausage_buffer_table)
   
 # Define log file write method
 def writeLog(hex = 0,parcel_count = 0,status = 'NULL',mins = 0, create = log_table):
@@ -389,12 +382,6 @@ if __name__ == '__main__':
   conn.commit()
   print("Done.")
       
-  # Create summary table of parcel id and area
-  print("Creating summary table of parcel id and area... "),
-  curs.execute(createTable_nh1600m)
-  conn.commit()  
-  print("Done.")
-  
   # Create summary table of parcel id and area
   print("Creating summary table of points with no sausage (are they mostly non-urban?)... "),  
   curs.execute("DROP TABLE IF EXISTS no_sausage; CREATE TABLE no_sausage AS SELECT * FROM parcel_dwellings WHERE {0} NOT IN (SELECT {0} FROM {1});".format(points_id,sausage_buffer_table))
