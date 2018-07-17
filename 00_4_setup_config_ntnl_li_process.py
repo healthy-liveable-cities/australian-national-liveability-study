@@ -42,6 +42,10 @@ folderPath = 'D:/ntnl_li_2018_template/data/'
 # locale       = 'Syd'
 # locale       = 'Mitchell'
 
+# More study region details
+year         = '2016'  # The year that the calculator indicator set approx. targets
+region       = 'GCCSA' # GCCSA probably for capitals, perhaps LGA for shires (e.g. Mitchell)
+
 # SQL Query to select study region
 region_where_clause_list = {'Adelaide': ''' "STATE_NAME" = 'South Australia' AND "GCCSA_NAME"  = 'Greater Adelaide' ''',
                             'Bris': ''' "STATE_NAME" = 'Queensland' AND "GCCSA_NAME"  = 'Greater Brisbane' ''',
@@ -102,14 +106,9 @@ if locale in pos_queries:
   pos_locale = pos_queries[locale]
   
 # Intersections data locations (ie. 3+ way intersection clipped to 10km buffered GCCSA, in GDA2020 GA LCC)                     
-intersections = os.path.join(folderPath,'roads/GDA2020_GA_LCC_3plus_way_intersections.gdb/gnaf_2018_intersections_2018_{}_gccsa10km'.format(locale.lower()))
+intersections = os.path.join(folderPath,'roads/GDA2020_GA_LCC_3plus_way_intersections.gdb/gnaf_2018_intersections_2018_{}_{}10km'.format(locale.lower(),region))
   
 # **************** Extra bits (hopefully don't need to change much) *******************************
-
-# More study region details
-year         = '2016'  # The year that the calculator indicator set approx. targets
-region       = 'GCCSA'
-region_shape = 'ABS/derived/ASGS_2016_Volume_1_GDA2020/main_GCCSA_2016_AUST_FULL.shp'
 
 # db suffix
 suffix = ''
@@ -234,7 +233,7 @@ parcel_dwellings = 'parcel_dwellings'
 # roads
 # Define network data name structures
 road_data                      = 'roads'   # the folder where road data is kept
-network_source = os.path.join(folderPath,road_data,'osm_gccsa10km_{}_pedestrian_20180628'.format(locale.lower()))
+network_source = os.path.join(folderPath,road_data,'osm_{}10km_{}_pedestrian_20180628'.format(region.lower(),locale.lower()))
 network_source_feature_dataset = 'PedestrianRoads' # The generalised network data name
 network_edges = 'edges'
 network_junctions = 'nodes'
@@ -245,7 +244,7 @@ network_transform_method = ''' GDA_1994_To_WGS_1984 + GDA_1994_To_GDA2020_NTv2_C
 network_in_coor_system = ''' GEOGCS['GCS_WGS_1984',DATUM['D_WGS_1984',SPHEROID['WGS_1984',6378137.0,298.257223563]],PRIMEM['Greenwich',0.0],UNIT['Degree',0.0174532925199433]]'''
 
 # Intersections with 3plus ways
-intersections = os.path.join(folderPath,'roads/GDA2020_GA_LCC_3plus_way_intersections.gdb/intersections_2018_{}_gccsa10km'.format(locale.lower()))
+intersections = os.path.join(folderPath,'roads/GDA2020_GA_LCC_3plus_way_intersections.gdb/intersections_2018_{}_{}10km'.format(locale.lower(),region.lower()))
 
 # Derived network data variables - no need to change, assuming the above works
 network_source_feature = '{}'.format(network_source_feature_dataset)
