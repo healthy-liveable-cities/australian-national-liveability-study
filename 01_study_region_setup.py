@@ -83,5 +83,20 @@ curs.execute(grant_query)
 conn.commit()
 conn.close()
 
+## The below step projects buffered study region from GDA2020 GA LCC to a WGS84 shape file
+# This buffered study region polygon is used to source OSMnx Pedestrian network
+if not os.path.exists(os.path.join(folderPath,'study_region')):
+    os.makedirs(os.path.join(folderPath,'study_region'))
+if not os.path.exists(os.path.join(folderPath,'study_region','wgs84_epsg4326')):
+    os.makedirs(os.path.join(folderPath,'study_region','wgs84_epsg4326'))    
+arcpy.Project_management(in_dataset="D:/ntnl_li_2018_template/data/{}.gdb/gccsa_2016_10000m".format(db), 
+                         out_dataset="D:/ntnl_li_2018_template/data/study_region/wgs84_epsg4326/{}_{}_2016_10000m.shp".format(locale.lower(),region.lower()), 
+                         out_coor_system="GEOGCS['GCS_WGS_1984',DATUM['D_WGS_1984',SPHEROID['WGS_1984',6378137.0,298.257223563]],PRIMEM['Greenwich',0.0],UNIT['Degree',0.0174532925199433]]", 
+                         transform_method="'GDA_1994_To_GDA2020_NTv2_CD + GDA_1994_To_WGS_1984'", 
+                         in_coor_system="PROJCS['GDA2020_GA_LCC',GEOGCS['GDA2020',DATUM['GDA2020',SPHEROID['GRS_1980',6378137.0,298.257222101]],PRIMEM['Greenwich',0.0],UNIT['Degree',0.0174532925199433]],PROJECTION['Lambert_Conformal_Conic'],PARAMETER['False_Easting',0.0],PARAMETER['False_Northing',0.0],PARAMETER['Central_Meridian',134.0],PARAMETER['Standard_Parallel_1',-18.0],PARAMETER['Standard_Parallel_2',-36.0],PARAMETER['Latitude_Of_Origin',0.0],UNIT['Meter',1.0]]", 
+                         preserve_shape="NO_PRESERVE_SHAPE",
+                         max_deviation="", 
+                         vertical="NO_VERTICAL")
+
 # output to completion log					
 script_running_log(script, task, start, locale)
