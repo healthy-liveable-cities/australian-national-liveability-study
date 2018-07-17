@@ -310,7 +310,7 @@ def CreateSausageBufferFunction(hex):
         for row in cursor:
           id =  row[0].encode('utf-8')
           wkt = row[1].encode('utf-8').replace(' NAN','').replace(' M ','')
-          curs.execute(queryInsertSausage + "( '{0}',{1},ST_Buffer(ST_SnapToGrid(ST_GeometryFromText('{2}', {3}),0.001),{4}));".format(id,hex,wkt,srid,line_buffer))
+          curs.execute(queryInsertSausage + "( '{0}',{1},ST_Buffer(ST_SnapToGrid(ST_GeometryFromText('{2}', {3}),{5}),{4}));".format(id,hex,wkt,srid,line_buffer,snap_to_grid))
           place = "after curs.execute insert sausage buffer" 
           conn.commit()
           place = "after conn.commit for insert sausage buffer" 

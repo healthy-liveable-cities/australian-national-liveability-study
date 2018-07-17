@@ -255,6 +255,18 @@ limit = 3000
 # Threshold paramaters
 soft_threshold_slope = 5
 
+# Sausage buffer run parameters
+# If you experience 'no forward edges' issues, change this value to 1
+# this means that for *subsequently processed* buffers, it will use 
+# an ST_SnapToGrid parameter of 0.01 instead of 0.001
+## The first pass should use 0.001, however.
+no_foward_edge_issues = 0
+snap_to_grid = 0.001
+if no_foward_edge_issues == 1:
+  snap_to_grid = 0.01
+  
+
+
 # POS
 # POS feature sourced from Julianna Rozek
 #  -- already projected in GDA2020 GA LCC
