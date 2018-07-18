@@ -59,7 +59,6 @@ state_list = {'Adelaide': 'SA',
 
 state = state_list[locale]
 
-
 # SQL Query to select study region
 region_where_clause_list = {'Adelaide': ''' "STATE_NAME" = 'South Australia' AND "GCCSA_NAME"  = 'Greater Adelaide' ''',
                             'Bris': ''' "STATE_NAME" = 'Queensland' AND "GCCSA_NAME"  = 'Greater Brisbane' ''',
