@@ -251,7 +251,6 @@ p.count_objectid         ,
 p.point_x                ,
 p.point_y                ,
 p.hex_id                 ,
-p.geom                   ,
 abs.mb_code_2016         ,
 abs.mb_category_name_2016,
 abs.dwelling             ,
@@ -266,7 +265,8 @@ non_abs.ssc_code_2016    ,
 non_abs.ssc_name_2016    ,
 non_abs.lga_code_2016    ,
 non_abs.lga_name_2016    ,
-{indicators}
+{indicators}             ,
+p.geom                   
 FROM
 parcel_dwellings p                                                                                 
 LEFT JOIN abs_linkage abs ON p.mb_code_20 = abs.mb_code_2016
@@ -277,8 +277,8 @@ LEFT JOIN non_abs_linkage non_abs ON p.{id} = non_abs.{id}
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()
 
-print("Creating compiled set of parcel level indicators for {} of {} in state of {}... ".format(region,locale,state)
-curs.execute(create_neighbourhood_ind_list[ind])
+print("Creating compiled set of parcel level indicators for {} of {} in state of {}... ".format(region,locale,state))
+curs.execute(create_parcel_indicators)
 conn.commit()
 print("Done.")
 
