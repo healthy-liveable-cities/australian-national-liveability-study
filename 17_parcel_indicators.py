@@ -25,7 +25,8 @@ engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_
                                                                  db   = db))
 
 ind_matrix = pandas.read_csv(os.path.join(sys.path[0],'ind_study_region_matrix.csv'))
-ind_matrix = ind_matrix[locale].dropna().tolist()
+ind_matrix = ind_matrix[[locale,'Description']].dropna()
+ind_list = ind_matrix[locale].tolist()
 
 # Define (query,source) tuples for all indicators.  
 # These are later appended to respective SQL query string portions based on subset of relevant indicators for a locale,
@@ -236,7 +237,7 @@ ind_source_unique = []
 null_query_summary = ''
 null_query_combined = ''
 print("Preparing relevant indicator queries for locale of {}:".format(locale))
-for ind in ind_matrix:
+for ind in ind_list:
   new_ind = globals()[ind]
   if new_ind[0] != "":
     # Build SQL query for specific indicator attributes relevant to locale
@@ -315,7 +316,7 @@ SELECT {id},
 FROM parcel_indicators;
 '''.format(id = points_id,
            null_query_combined = null_query_combined,
-           total_inds = len(ind_matrix))
+           total_inds = len(ind_list))
 
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()
@@ -344,12 +345,23 @@ print("Done.\n")
 df = pandas.read_sql_query('SELECT * FROM "parcel_inds_null_summary";',con=engine)
 df = df.transpose()
 df.columns = ['Null count']
-print("Summary of nulls by {} variables for {} of {} in state of {}:".format(len(ind_matrix),region,locale,state))
+print("Summary of nulls by {} variables for {} of {} in state of {}:".format(len(ind_list),region,locale,state))
 print(df)
 
 df2 = pandas.read_sql_query('SELECT * FROM "parcel_inds_null_tally";',con=engine)
-print("Summary of row-wise null values across {} variables:".format(len(ind_matrix)))
+print("Summary of row-wise null values across {} variables:".format(len(ind_list)))
 print(df2['null_tally'].describe().round(2))
+
+df.to_sql(name='parcel_ind_null_summary_t',con=engine,if_exists='replace')
+df2['null_tally'].describe().round(2).to_sql(name='parcel_inds_null_tally_summary',con=engine,if_exists='replace')
+ind_matrix.to_sql(name='ind_description',con=engine,if_exists='replace')
+
+print("\nPostgresql summary tables containing the above were created:")
+print("To view a description of all indicators for your region: SELECT * FROM ind_description;")
+print("To view a summary of by variable name: SELECT * FROM parcel_ind_null_summary_t;")
+print("To view a summary of row-wise null values: SELECT * FROM parcel_inds_null_tally_summary;")
+print("To view a summary of null values for a particular indicator stratified by section of state:")
+print(" SELECT sos_name_2016, COUNT(*) indicator_null_count FROM parcel_indicators p LEFT JOIN parcel_sos sos ON p.gnaf_pid = sos.gnaf_pid WHERE indicator IS NULL GROUP BY sos_name_2016;")
 
 # output to completion log    
 script_running_log(script, task, start, locale)
