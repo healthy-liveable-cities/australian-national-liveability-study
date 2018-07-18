@@ -46,6 +46,20 @@ folderPath = 'D:/ntnl_li_2018_template/data/'
 year         = '2016'  # The year that the calculator indicator set approx. targets
 region       = 'GCCSA' # GCCSA probably for capitals, perhaps LGA for shires (e.g. Mitchell)
 
+# State
+state_list = {'Adelaide': 'SA',
+              'Bris'    : 'QLD',
+              'Canberra': 'ACT',
+              'Darwin'  : 'NT',
+              'Hobart'  : 'Tas',
+              'Melb'    : 'Vic',
+              'Perth'   : 'WA',
+              'Syd'     : 'NSW',
+              'Mitchell': 'Vic'}
+
+state = state_list[locale]
+
+
 # SQL Query to select study region
 region_where_clause_list = {'Adelaide': ''' "STATE_NAME" = 'South Australia' AND "GCCSA_NAME"  = 'Greater Adelaide' ''',
                             'Bris': ''' "STATE_NAME" = 'Queensland' AND "GCCSA_NAME"  = 'Greater Brisbane' ''',
@@ -59,7 +73,7 @@ region_where_clause_list = {'Adelaide': ''' "STATE_NAME" = 'South Australia' AND
 region_where_clause = region_where_clause_list[locale]
 
 
-# Point data locations (ie. GNAF address point features, in GDA2020 GA LCC)
+# Study region boundary
 region_shape_list = {'Adelaide': 'ABS/derived/ASGS_2016_Volume_1_GDA2020/main_GCCSA_2016_AUST_FULL.shp',
                      'Bris'    : 'ABS/derived/ASGS_2016_Volume_1_GDA2020/main_GCCSA_2016_AUST_FULL.shp',
                      'Canberra': 'ABS/derived/ASGS_2016_Volume_1_GDA2020/main_GCCSA_2016_AUST_FULL.shp',
