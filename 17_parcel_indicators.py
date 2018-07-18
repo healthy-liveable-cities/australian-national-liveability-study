@@ -157,6 +157,7 @@ pos_5_wa_perth_2016 = ['''
 pos_5_wa.ind_hard AS pos_5_wa_perth_2016_hard,
 pos_5_wa.ind_soft AS pos_5_wa_perth_2016_soft,''',
 '''LEFT JOIN (SELECT * FROM od_pos WHERE threshold = 400 AND query = 'area_ha > 5 AND area_ha <= 20') pos_5_wa ON p.{id} = pos_5_wa.{id}'''.format(id = points_id)]
+
 ## </> 90% of residential dwellings < 400 m of a neighbourhood recreation park >0.5 ha
 pos_6_qld_bris_2016 = ['''
 pos_6_qld.ind_hard AS pos_6_qld_bris_2016_hard,
@@ -318,6 +319,7 @@ FROM parcel_indicators;
            null_query_combined = null_query_combined,
            total_inds = len(ind_list))
 
+          
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()
 
@@ -361,7 +363,8 @@ print("To view a description of all indicators for your region: SELECT * FROM in
 print("To view a summary of by variable name: SELECT * FROM parcel_ind_null_summary_t;")
 print("To view a summary of row-wise null values: SELECT * FROM parcel_inds_null_tally_summary;")
 print("To view a summary of null values for a particular indicator stratified by section of state:")
-print(" SELECT sos_name_2016, COUNT(*) indicator_null_count FROM parcel_indicators p LEFT JOIN parcel_sos sos ON p.gnaf_pid = sos.gnaf_pid WHERE indicator IS NULL GROUP BY sos_name_2016;")
+# The required linkage table for the below has not been created.... so commented out
+# print(" SELECT sos_name_2016, COUNT(*) indicator_null_count FROM parcel_indicators p LEFT JOIN parcel_sos sos ON p.gnaf_pid = sos.gnaf_pid WHERE indicator IS NULL GROUP BY sos_name_2016;")
 
 # output to completion log    
 script_running_log(script, task, start, locale)
