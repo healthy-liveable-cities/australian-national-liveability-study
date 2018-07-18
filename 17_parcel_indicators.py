@@ -144,19 +144,19 @@ pos_300.ind_soft AS pos_2_wa_perth_2016_soft,''',
 pos_3_wa_perth_2016 = ['''
 pos_3_wa.ind_hard AS pos_3_wa_perth_2016_hard,
 pos_3_wa.ind_soft AS pos_3_wa_perth_2016_soft,''',
-'''LEFT JOIN (SELECT * FROM od_pos WHERE threshold = 400 AND query = 'area_ha > 0.4 AND area_ha <= 1') pos_3_wa ON p.{id} = pos_3_wa.{id}'''.format(id = points_id)]
+'''LEFT JOIN (SELECT * FROM od_pos WHERE threshold = 400 AND query = 'area_ha > 0.4 AND area_ha <= 1 ') pos_3_wa ON p.{id} = pos_3_wa.{id}'''.format(id = points_id)]
 
 ## < / >= 50% of residential dwellings < 800 m of any neighbourhood park >1 ha - <= 5ha
 pos_4_wa_perth_2016 = ['''
 pos_4_wa.ind_hard AS pos_4_wa_perth_2016_hard,
 pos_4_wa.ind_soft AS pos_4_wa_perth_2016_soft,''',
-'''LEFT JOIN (SELECT * FROM od_pos WHERE threshold = 400 AND query = 'area_ha > 1 AND area_ha <= 5') pos_4_wa ON p.{id} = pos_4_wa.{id}'''.format(id = points_id)]
+'''LEFT JOIN (SELECT * FROM od_pos WHERE threshold = 800 AND query = 'area_ha > 1 AND area_ha <= 5') pos_4_wa ON p.{id} = pos_4_wa.{id}'''.format(id = points_id)]
 
 ## < / >= 50% of residential dwellings < 2 km of any district park >5 ha (<=20 ha)
 pos_5_wa_perth_2016 = ['''
 pos_5_wa.ind_hard AS pos_5_wa_perth_2016_hard,
 pos_5_wa.ind_soft AS pos_5_wa_perth_2016_soft,''',
-'''LEFT JOIN (SELECT * FROM od_pos WHERE threshold = 400 AND query = 'area_ha > 5 AND area_ha <= 20') pos_5_wa ON p.{id} = pos_5_wa.{id}'''.format(id = points_id)]
+'''LEFT JOIN (SELECT * FROM od_pos WHERE threshold = 2000 AND query = 'area_ha > 5 AND area_ha <= 20') pos_5_wa ON p.{id} = pos_5_wa.{id}'''.format(id = points_id)]
 
 ## </> 90% of residential dwellings < 400 m of a neighbourhood recreation park >0.5 ha
 pos_6_qld_bris_2016 = ['''
