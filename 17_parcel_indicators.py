@@ -126,12 +126,12 @@ any_pt_30.ind_soft AS trans_6_{state}_{locale}_2016_soft,'''.format(state = stat
 pos_1_vic_melb_2016 = ['''
 pos_400.ind_hard AS pos_1_vic_melb_2016_hard,
 pos_400.ind_soft AS pos_1_vic_melb_2016_soft,''',
-'''LEFT JOIN (SELECT * FROM od_pos WHERE threshold = 400) pos_400 ON p.{id} = pos_400.{id}'''.format(id = points_id)]
+'''LEFT JOIN (SELECT * FROM od_pos WHERE threshold = 400 AND query = '') pos_400 ON p.{id} = pos_400.{id}'''.format(id = points_id)]
 ## < / >= 100% of residential cadastre < 300 m of any public open space
 pos_2_wa_perth_2016 = ['''
 pos_300.ind_hard AS pos_2_wa_perth_2016_hard,
 pos_300.ind_soft AS pos_2_wa_perth_2016_soft,''',
-'''LEFT JOIN (SELECT * FROM od_pos WHERE threshold = 300) pos_300 ON p.{id} = pos_300.{id}'''.format(id = points_id)]
+'''LEFT JOIN (SELECT * FROM od_pos WHERE threshold = 300 AND query = '') pos_300 ON p.{id} = pos_300.{id}'''.format(id = points_id)]
 
 ## < / >= 50% of residential dwellings < 400 m of any local park >0.4 to <=1 ha
 pos_3_wa_perth_2016 = ['''
@@ -174,7 +174,7 @@ pos_9_nsw.ind_soft AS pos_9_nsw_syd_2016_soft,''',
 pos_10_state_locale_2016 = ['''
 pos_400.ind_hard AS pos_10_{state}_{locale}_2016_hard,
 pos_400.ind_soft AS pos_10_{state}_{locale}_2016_soft,'''.format(state = state.lower(), locale = locale.lower()),
-'''LEFT JOIN (SELECT * FROM od_pos WHERE threshold = 400) pos_400 ON p.{id} = pos_400.{id}'''.format(id = points_id)]
+'''LEFT JOIN (SELECT * FROM od_pos WHERE threshold = 400 AND query = '') pos_400 ON p.{id} = pos_400.{id}'''.format(id = points_id)]
 ## % residential dwellings < 400 m of POS > 1.5 ha
 pos_11_state_locale_2016 = ['''
 pos_400_large.ind_hard AS pos_11_{state}_{locale}_2016_hard,
@@ -227,6 +227,8 @@ alc_off.count AS alc_2_{state}_{locale}_2016'''.format(state = state.lower(), lo
 ind_queries = ''
 ind_sources = ''
 ind_source_unique = []
+null_query_summary = ''
+null_query_combined = ''
 print("Preparing relevant indicator queries for locale of {}:".format(locale))
 for ind in ind_matrix:
   new_ind = globals()[ind]
@@ -234,6 +236,18 @@ for ind in ind_matrix:
     # Build SQL query for specific indicator attributes relevant to locale
     ind_queries = '{previous_ind_queries}{new_ind_query}'.format(previous_ind_queries = ind_queries,
                                                                  new_ind_query        = new_ind[0])
+    # To aid post-table creation diagnostics, prepare a list of not null queries 
+    comma = ','
+    plus = '+'
+    if len(null_query_summary) == 0:
+      comma = ''
+      plus  = '+'
+    null_query_summary = '{prev} {comma} SUM(({ind} IS NULL::int)) AS {ind} '.format(prev = null_query_summary,
+                                                                                          comma = comma,
+                                                                                          ind   = ind)
+    null_query_combined = '{prev} {plus} ({ind} IS NULL::int)'.format(prev = null_query_combined,
+                                                                            plus = plus,
+                                                                            ind   = ind)                                                       
     # Build source query ensuring sources are only listed once 
     # (they may be re-used by indicators, but should only appear once in SQL query)    
     if new_ind[1] not in ind_source_unique:
@@ -241,8 +255,10 @@ for ind in ind_matrix:
       ind_sources = '{previous_ind_source} \n{new_ind_source}'.format(previous_ind_source = ind_sources,
                                                                       new_ind_source      = new_ind[1])
     print('  - {}'.format(ind))
+print("Done.\n")
 
 create_parcel_indicators = '''
+DROP TABLE IF EXISTS parcel_indicators;
 CREATE TABLE parcel_indicators AS
 SELECT
 p.{id}                   ,
@@ -274,11 +290,46 @@ LEFT JOIN non_abs_linkage non_abs ON p.{id} = non_abs.{id}
 {sources}
 '''.format(id = points_id, indicators = ind_queries, sources = ind_sources)
 
+
+null_query_summary_table = '''
+DROP TABLE IF EXISTS parcel_inds_null_summary; 
+CREATE TABLE parcel_inds_null_summary AS
+SELECT {null_query_summary} 
+FROM parcel_indicators;
+'''.format(null_query_summary = null_query_summary)
+
+null_query_combined_table = '''
+DROP TABLE IF EXISTS parcel_inds_null_tally; 
+CREATE TABLE parcel_inds_null_tally AS
+SELECT {id},
+       {null_query_combined} AS null_tally,
+       {total_inds} AS total_inds
+FROM parcel_indicators;
+'''.format(id = points_id,
+           null_query_combined = null_query_combined,
+           total_inds = len(ind_matrix))
+
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()
 
 print("Creating compiled set of parcel level indicators for {} of {} in state of {}... ".format(region,locale,state))
+print("SQL query:")
+print(create_parcel_indicators)
 curs.execute(create_parcel_indicators)
+conn.commit()
+print("Done.")
+
+print("Creating summary of nulls per indicator... ")
+print("SQL query:")
+print(null_query_summary_table)
+curs.execute(null_query_summary_table)
+conn.commit()
+print("Done.")
+
+print("Creating row-wise tally of nulls for each parcel...")
+print("SQL query:")
+print(null_query_combined_table)
+curs.execute(null_query_combined_table)
 conn.commit()
 print("Done.")
 
