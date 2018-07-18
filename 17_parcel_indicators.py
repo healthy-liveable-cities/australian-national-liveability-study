@@ -7,6 +7,7 @@ import os
 import sys
 import time
 import psycopg2 
+from sqlalchemy import create_engine
 
 from script_running_log import script_running_log
 
@@ -17,6 +18,11 @@ from config_ntnl_li_process import *
 start = time.time()
 script = os.path.basename(sys.argv[0])
 task = 'create destination indicator tables'
+
+engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_user,
+                                                                 pwd  = db_pwd,
+                                                                 host = db_host,
+                                                                 db   = db))
 
 ind_matrix = pandas.read_csv(os.path.join(sys.path[0],'ind_study_region_matrix.csv'))
 ind_matrix = ind_matrix[locale].dropna().tolist()
@@ -221,7 +227,7 @@ alc_on.count AS alc_1_{state}_{locale}_2016,'''.format(state = state.lower(), lo
 
 ## average number of off-licenses < 800 m
 alc_2_state_locale_2016 = ['''
-alc_off.count AS alc_2_{state}_{locale}_2016'''.format(state = state.lower(), locale = locale.lower()),
+alc_off.count AS alc_2_{state}_{locale}_2016,'''.format(state = state.lower(), locale = locale.lower()),
 '''LEFT JOIN (SELECT * FROM od_counts WHERE dest = 0) alc_off ON p.{id} = alc_off.{id}'''.format(id = points_id)]
 
 ind_queries = ''
@@ -242,12 +248,14 @@ for ind in ind_matrix:
     if len(null_query_summary) == 0:
       comma = ''
       plus  = '+'
-    null_query_summary = '{prev} {comma} SUM(({ind} IS NULL::int)) AS {ind} '.format(prev = null_query_summary,
+    nested_ind_list = new_ind[0].split(',')[0:new_ind[0].count(',')]
+    for nind in nested_ind_list:
+      null_query_summary = '{prev} {comma} SUM(({ind} IS NULL::int)) AS {ind} '.format(prev = null_query_summary,
                                                                                           comma = comma,
-                                                                                          ind   = ind)
-    null_query_combined = '{prev} {plus} ({ind} IS NULL::int)'.format(prev = null_query_combined,
+                                                                                          ind   = nind.split()[-1])
+      null_query_combined = '{prev} {plus} ({ind} IS NULL::int)'.format(prev = null_query_combined,
                                                                             plus = plus,
-                                                                            ind   = ind)                                                       
+                                                                            ind   = nind.split()[-1])                                                       
     # Build source query ensuring sources are only listed once 
     # (they may be re-used by indicators, but should only appear once in SQL query)    
     if new_ind[1] not in ind_source_unique:
@@ -281,7 +289,7 @@ non_abs.ssc_code_2016    ,
 non_abs.ssc_name_2016    ,
 non_abs.lga_code_2016    ,
 non_abs.lga_name_2016    ,
-{indicators}             ,
+{indicators}             
 p.geom                   
 FROM
 parcel_dwellings p                                                                                 
@@ -312,7 +320,7 @@ FROM parcel_indicators;
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()
 
-print("Creating compiled set of parcel level indicators for {} of {} in state of {}... ".format(region,locale,state))
+print("Creating compiled set of parcel level indicators...")
 print("SQL query:")
 print(create_parcel_indicators)
 curs.execute(create_parcel_indicators)
@@ -331,8 +339,17 @@ print("SQL query:")
 print(null_query_combined_table)
 curs.execute(null_query_combined_table)
 conn.commit()
-print("Done.")
+print("Done.\n")
 
+df = pandas.read_sql_query('SELECT * FROM "parcel_inds_null_summary";',con=engine)
+df = df.transpose()
+df.columns = ['Null count']
+print("Summary of nulls by {} variables for {} of {} in state of {}:".format(len(ind_matrix),region,locale,state))
+print(df)
+
+df2 = pandas.read_sql_query('SELECT * FROM "parcel_inds_null_tally";',con=engine)
+print("Summary of row-wise null values across {} variables:".format(len(ind_matrix)))
+print(df2['null_tally'].describe().round(2))
 
 # output to completion log    
 script_running_log(script, task, start, locale)
