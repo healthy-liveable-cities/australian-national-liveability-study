@@ -269,8 +269,8 @@ non_abs.lga_name_2016    ,
 {indicators}
 FROM
 parcel_dwellings p                                                                                 
-LEFT JOIN abs_linkage abs                                                                          ON p.{id} = abs.{id}
-LEFT JOIN non_abs_linkage non_abs                                                                  ON p.{id} = non_abs.{id}
+LEFT JOIN abs_linkage abs ON p.mb_code_20 = abs.mb_code_2016
+LEFT JOIN non_abs_linkage non_abs ON p.{id} = non_abs.{id}
 {sources}
 '''.format(id = points_id, indicators = ind_queries, sources = ind_sources)
 
