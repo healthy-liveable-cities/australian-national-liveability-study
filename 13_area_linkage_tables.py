@@ -321,6 +321,7 @@ print("Done.")
 print("Make a summary table of parcel points lacking sausage buffer, grouped by section of state (the idea is, only a small proportion should be major or other urban"),
 curs.execute(create_no_sausage_sos_tally)
 conn.commit()
+print("Done.")
 
 print("Creating summary table of parcel id and area... "),
 curs.execute(createTable_nh1600m)
