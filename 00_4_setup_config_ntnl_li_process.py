@@ -118,9 +118,6 @@ pos_queries = {'Bris':  [['',400],
 if locale in pos_queries:
   pos_locale = pos_queries[locale]
   
-# Intersections data locations (ie. 3+ way intersection clipped to 10km buffered GCCSA, in GDA2020 GA LCC)                     
-intersections = os.path.join(folderPath,'roads/GDA2020_GA_LCC_3plus_way_intersections.gdb/gnaf_2018_intersections_2018_{}_{}10km'.format(locale.lower(),region))
-  
 # **************** Extra bits (hopefully don't need to change much) *******************************
 
 # db suffix
