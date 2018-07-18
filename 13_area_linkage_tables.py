@@ -297,12 +297,12 @@ curs.execute(create_irsd_table)
 curs.copy_expert(sql="COPY abs_2016_irsd FROM STDIN WITH CSV HEADER DELIMITER AS ',';", file=open(abs_irsd))
 print("Done.")
 
-print("Create addition area linkage tables to list SA1s, and suburbs within LGAs... "),
-print("  - SA1s"),
+print("Create addition area linkage tables to list SA1s, and suburbs within LGAs:")
+print("  - SA1s")
 curs.execute(create_area_sa1)
-print("  - Suburbs"),
+print("  - Suburbs")
 curs.execute(create_area_ssc)
-print("  - LGAs"),
+print("  - LGAs")
 curs.execute(create_area_lga)
 print("  - SOS indexed by parcel")
 curs.execute(create_parcel_sos)
