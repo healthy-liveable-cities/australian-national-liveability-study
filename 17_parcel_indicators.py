@@ -250,7 +250,7 @@ for ind in ind_list:
     if len(null_query_summary) == 0:
       comma = ''
       plus  = '+'
-    nested_ind_list = new_ind[0].split(',')[0:new_ind[0].count(',')]
+    nested_ind_list = new_ind[0].split(', ')[0:new_ind[0].count(', ')]
     for nind in nested_ind_list:
       null_query_summary = '{prev} {comma} SUM(({ind} IS NULL::int)) AS {ind} '.format(prev = null_query_summary,
                                                                                           comma = comma,
