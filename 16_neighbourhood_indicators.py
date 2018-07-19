@@ -109,17 +109,17 @@ LEFT JOIN (SELECT {id},count FROM od_counts WHERE dest = 5) AS fastfood
 
 
      
-create_neighbourhood_ind_list = {'daily_living': dl,
-                                 'walkability': wa,
-                                 'activity_centres': activity,
-                                 'supermarkets_1000': supermarkets_1000,
-                                 'foodratio': foodratio}
+create_neighbourhood_ind_list = {'01_daily_living': dl,
+                                 '02_walkability': wa,
+                                 '03_activity_centres': activity,
+                                 '04_supermarkets_1000': supermarkets_1000,
+                                 '05_foodratio': foodratio}
         
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()
 
-for ind in create_neighbourhood_ind_list.keys():
-  print("Creating {} indicator table... ".format(ind)),
+for ind in sorted(create_neighbourhood_ind_list.keys()):
+  print("Creating {} indicator table... ".format(ind[3:len(ind)])),
   curs.execute(create_neighbourhood_ind_list[ind])
   conn.commit()
   print("Done.")

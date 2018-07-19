@@ -224,12 +224,12 @@ ind_supermarket1000.ind_sm1000_soft AS food_2_{state}_{locale}_2016_soft,'''.for
 '''LEFT JOIN ind_supermarket1000 ON p.{id} = ind_supermarket1000.{id}'''.format(id = points_id)]
 ## average number of on-licenses < 400 m
 alc_1_state_locale_2016 = ['''
-alc_on.count AS alc_1_{state}_{locale}_2016,'''.format(state = state.lower(), locale = locale.lower()),
+COALESCE(alc_on.count,0) AS alc_1_{state}_{locale}_2016,'''.format(state = state.lower(), locale = locale.lower()),
 '''LEFT JOIN (SELECT * FROM od_counts WHERE dest = 1) alc_on ON p.{id} = alc_on.{id}'''.format(id = points_id)]
 
 ## average number of off-licenses < 800 m
 alc_2_state_locale_2016 = ['''
-alc_off.count AS alc_2_{state}_{locale}_2016,'''.format(state = state.lower(), locale = locale.lower()),
+COALESCE(alc_off.count,0) AS alc_2_{state}_{locale}_2016,'''.format(state = state.lower(), locale = locale.lower()),
 '''LEFT JOIN (SELECT * FROM od_counts WHERE dest = 0) alc_off ON p.{id} = alc_off.{id}'''.format(id = points_id)]
 
 ind_queries = ''
