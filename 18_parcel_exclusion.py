@@ -1,4 +1,4 @@
-# Script:  exclude_parcels.py
+# Script:  18_parcel_exclusion.py
 # Purpose: This script develops a list of suspect parcels to investigate and exclude.
 # Author:  Carl Higgs
 
