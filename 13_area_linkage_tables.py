@@ -191,6 +191,15 @@ create_area_lga = '''
   # LEFT JOIN main_sos_2016_aust  r
   # ON ST_Intersects(p.geom,r.geom);
 # '''.format(id = points_id)
+create_parcel_sos = '''
+  DROP TABLE IF EXISTS parcel_sos;
+  CREATE TABLE parcel_sos AS 
+  SELECT a.{id},
+         b.sos_name_2 AS sos_name_2016 
+  FROM parcel_dwellings a,
+       main_sos_2016_aust b 
+  WHERE ST_Intersects(a.geom,b.geom);
+  '''.format(id = points_id)
 
 # create excluded Mesh Block table
 create_mb_excluded_no_irsd = '''  
@@ -305,8 +314,8 @@ print("  - Suburbs")
 curs.execute(create_area_ssc)
 print("  - LGAs")
 curs.execute(create_area_lga)
-# print("  - SOS indexed by parcel")
-# curs.execute(create_parcel_sos)
+print("  - SOS indexed by parcel")
+curs.execute(create_parcel_sos)
 print("  - Meshblocks, excluded due to no IRSD")
 curs.execute(create_mb_excluded_no_irsd)
 print("  - Meshblocks, excluded due to no dwellings")

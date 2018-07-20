@@ -239,6 +239,7 @@ ind_sources = ''
 ind_source_unique = []
 null_query_summary = ''
 null_query_combined = ''
+ind_names = []
 print("Preparing relevant indicator queries for locale of {}:".format(locale))
 for ind in ind_list:
   new_ind = globals()[ind]
@@ -254,12 +255,14 @@ for ind in ind_list:
       plus  = '+'
     nested_ind_list = new_ind[0].split(',')[0:new_ind[0].count(',')]
     for nind in nested_ind_list:
+      ind_name = nind.split()[-1]
+      ind_names.append(ind_name)
       null_query_summary = '{prev} {comma} SUM(({ind} IS NULL::int)) AS {ind} '.format(prev = null_query_summary,
                                                                                           comma = comma,
-                                                                                          ind   = nind.split()[-1])
+                                                                                          ind   = ind_name)
       null_query_combined = '{prev} {plus} ({ind} IS NULL::int)'.format(prev = null_query_combined,
                                                                             plus = plus,
-                                                                            ind   = nind.split()[-1])                                                       
+                                                                            ind   = ind_name)                                                       
     # Build source query ensuring sources are only listed once 
     # (they may be re-used by indicators, but should only appear once in SQL query)    
     if new_ind[1] not in ind_source_unique:
@@ -360,13 +363,22 @@ df.to_sql(name='parcel_ind_null_summary_t',con=engine,if_exists='replace')
 df2['null_tally'].describe().round(2).to_sql(name='parcel_inds_null_tally_summary',con=engine,if_exists='replace')
 ind_matrix.to_sql(name='ind_description',con=engine,if_exists='replace')
 
+print("\n Nulls by indicator and Section of state")
+for ind in ind_names:
+  print("\n{}".format(ind))
+  null_ind = pandas.read_sql_query("SELECT sos_name_2016, COUNT(*) null_count FROM parcel_indicators p LEFT JOIN parcel_sos sos ON p.gnaf_pid = sos.gnaf_pid WHERE {ind} IS NULL GROUP BY sos_name_2016;".format(ind = ind),con=engine)
+  if len(null_ind) != 0:
+    print(null_ind)
+  if len(null_ind) == 0:
+    print("No null values")
+
+
 print("\nPostgresql summary tables containing the above were created:")
 print("To view a description of all indicators for your region: SELECT * FROM ind_description;")
 print("To view a summary of by variable name: SELECT * FROM parcel_ind_null_summary_t;")
 print("To view a summary of row-wise null values: SELECT * FROM parcel_inds_null_tally_summary;")
 print("To view a summary of null values for a particular indicator stratified by section of state:")
-# The required linkage table for the below has not been created.... so commented out
-# print(" SELECT sos_name_2016, COUNT(*) indicator_null_count FROM parcel_indicators p LEFT JOIN parcel_sos sos ON p.{id} = sos.{id} WHERE indicator IS NULL GROUP BY sos_name_2016;")
+print(" SELECT sos_name_2016, COUNT(*) indicator_null_count FROM parcel_indicators p LEFT JOIN parcel_sos sos ON p.{id} = sos.{id} WHERE indicator IS NULL GROUP BY sos_name_2016;")
 
 # output to completion log    
 script_running_log(script, task, start, locale)
