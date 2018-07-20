@@ -101,9 +101,9 @@ SELECT p.{id},
           (COALESCE(supermarkets.count,0))/((COALESCE(supermarkets.count,0))+(COALESCE(fastfood.count,0)))::double precision
         ELSE NULL END) AS supermarket_proportion 
 FROM parcel_dwellings p
-LEFT JOIN (SELECT {id},count FROM od_counts WHERE dest = 6) AS supermarkets 
+LEFT JOIN (SELECT {id},COALESCE(count,0) AS count FROM od_counts WHERE dest = 6) AS supermarkets 
   ON p.{id} = supermarkets.{id}
-LEFT JOIN (SELECT {id},count FROM od_counts WHERE dest = 5) AS fastfood 
+LEFT JOIN (SELECT {id},COALESCE(count,0) AS count FROM od_counts WHERE dest = 5) AS fastfood 
   ON p.{id} = fastfood.{id};
 '''.format(id = points_id)  
 

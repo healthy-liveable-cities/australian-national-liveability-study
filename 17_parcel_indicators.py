@@ -34,6 +34,8 @@ ind_list = ind_matrix[locale].tolist()
 # Some queries may be undefined (e.g. ["",""] ) which is fine --- these will be skipped over.  They can be completed later 
 # and the indicator table where such indicators are to be included rebuilt.
 
+# An important formatting point for the indicator queries  - the first item in the tuple - is that they are assumed to end in a comma.  This is because the script regards them as just lists of variables in the SQL table to be created, but not the final one (which is parcel_dwellings.geom).  
+
 ## KNIME: % of street blocks with a perimeter of < 720 m (i.e. between 120 m and 240 m long and 60 m and 120 m wide)
 walk_1_vic_melb_2016 = ["",""]
 
@@ -98,9 +100,9 @@ ind_walkability.wa_soft AS walk_17_{state}_{locale}_2016_soft,'''.format(state =
 '''LEFT JOIN ind_walkability ON p.{id} = ind_walkability.{id}'''.format(id = points_id)]
 ## < / >= 95% of of residential cadastre with access to bus stop < 400 m OR < 600m of a tram stop OR < 800 m of a train station
 trans_1_vic_melb_2016 = ['''
-(CASE WHEN SUM(COALESCE(vic_pt.ind_hard,0)) > 0 THEN 1 ELSE 0 END) AS trans_1_vic_melb_2016_hard,
-MAX(COALESCE(vic_pt.ind_soft,0)) AS trans_1_vic_melb_2016_soft,'''.format(state = state.lower(), locale = locale.lower()),
-'''LEFT JOIN (SELECT * FROM od_closest WHERE dest IN (9,10,11)) vic_pt ON p.{id} = vic_pt.{id}'''.format(id = points_id)]
+(CASE WHEN SUM(vic_pt.ind_hard_coalesced) > 0 THEN 1 ELSE 0 END) AS trans_1_vic_melb_2016_hard,
+MAX(vic_pt.ind_soft_coalesced) AS trans_1_vic_melb_2016_soft,'''.format(state = state.lower(), locale = locale.lower()),
+'''LEFT JOIN (SELECT parcel_dwellings.{id}, COALESCE(ind_hard,0) AS ind_hard_coalesced, COALESCE(ind_soft,0) AS ind_soft_coalesced FROM parcel_dwellings LEFT JOIN od_closest ON parcel_dwellings.{id} = od_closest.{id} AND  dest IN (9,10,11)) vic_pt ON p.{id} = vic_pt.{id}'''.format(id = points_id)]
 
 ## < / >= 95% of dwellings with access to bus stop < 400 m
 trans_2_vic_melb_2016 = ['''
@@ -120,9 +122,9 @@ trans_4_qld_bris_2016 = ['''
 '''LEFT JOIN (SELECT * FROM od_closest WHERE dest = 8) qld_pt ON p.{id} = qld_pt.{id}'''.format(id = points_id)]
 ## < / >= 100% of residential cadastre < 400 m of a bus stop every 30 min OR < 800 m of a train station every 15 min
 trans_5_nsw_syd_2016 = ['''
-(CASE WHEN SUM(COALESCE(nsw_pt.ind_hard,0)) > 0 THEN 1 ELSE 0 END) AS trans_5_nsw_syd_2016_hard,
-MAX(COALESCE(nsw_pt.ind_soft,0)) AS trans_5_nsw_syd_2016_soft,''',
-'''LEFT JOIN (SELECT * FROM od_closest WHERE dest IN (14,15) nsw_pt ON p.{id} = nsw_pt.{id}'''.format(id = points_id)]
+(CASE WHEN SUM(nsw_pt.ind_hard_coalesced) > 0 THEN 1 ELSE 0 END) AS trans_5_nsw_syd_2016_hard,
+MAX(nsw_pt.ind_soft_coalesced) AS trans_5_nsw_syd_2016_soft,''',
+'''LEFT JOIN (SELECT parcel_dwellings.{id}, COALESCE(ind_hard,0) AS ind_hard_coalesced, COALESCE(ind_soft,0) AS ind_soft_coalesced FROM parcel_dwellings LEFT JOIN od_closest ON parcel_dwellings.{id} = od_closest.{id} AND dest IN (14,15)) nsw_pt ON p.{id} = nsw_pt.{id}'''.format(id = points_id)]
 ## % of residential dwellings < 400 m of a public transport stop with a scheduled service at least every 30 minutes between 7am and 7pm on a normal weekday (= a combined measure of proximity and frequency)
 trans_6_state_locale_2016 = ['''
 any_pt_30.ind_hard AS trans_6_{state}_{locale}_2016_hard,
@@ -133,61 +135,61 @@ any_pt_30.ind_soft AS trans_6_{state}_{locale}_2016_soft,'''.format(state = stat
 pos_1_vic_melb_2016 = ['''
 pos_400.ind_hard AS pos_1_vic_melb_2016_hard,
 pos_400.ind_soft AS pos_1_vic_melb_2016_soft,''',
-'''LEFT JOIN (SELECT * FROM od_pos WHERE threshold = 400 AND query = '') pos_400 ON p.{id} = pos_400.{id}'''.format(id = points_id)]
+'''LEFT JOIN (SELECT parcel_dwellings.{id}, COALESCE(ind_hard,0) AS ind_hard, COALESCE(ind_soft,0) AS ind_soft FROM parcel_dwellings LEFT JOIN od_pos ON parcel_dwellings.{id} = od_pos.{id} AND threshold = 400 AND query = '') pos_400 ON p.{id} = pos_400.{id}'''.format(id = points_id)]
 ## < / >= 100% of residential cadastre < 300 m of any public open space
 pos_2_wa_perth_2016 = ['''
 pos_300.ind_hard AS pos_2_wa_perth_2016_hard,
 pos_300.ind_soft AS pos_2_wa_perth_2016_soft,''',
-'''LEFT JOIN (SELECT * FROM od_pos WHERE threshold = 300 AND query = '') pos_300 ON p.{id} = pos_300.{id}'''.format(id = points_id)]
+'''LEFT JOIN (SELECT parcel_dwellings.{id}, COALESCE(ind_hard,0) AS ind_hard, COALESCE(ind_soft,0) AS ind_soft FROM parcel_dwellings LEFT JOIN od_pos ON parcel_dwellings.{id} = od_pos.{id} AND threshold = 300 AND query = '') pos_300 ON p.{id} = pos_300.{id}'''.format(id = points_id)]
 
 ## < / >= 50% of residential dwellings < 400 m of any local park >0.4 to <=1 ha
 pos_3_wa_perth_2016 = ['''
 pos_3_wa.ind_hard AS pos_3_wa_perth_2016_hard,
 pos_3_wa.ind_soft AS pos_3_wa_perth_2016_soft,''',
-'''LEFT JOIN (SELECT * FROM od_pos WHERE threshold = 400 AND query = 'area_ha > 0.4 AND area_ha <= 1 ') pos_3_wa ON p.{id} = pos_3_wa.{id}'''.format(id = points_id)]
+'''LEFT JOIN (SELECT parcel_dwellings.{id}, COALESCE(ind_hard,0) AS ind_hard, COALESCE(ind_soft,0) AS ind_soft FROM parcel_dwellings LEFT JOIN od_pos ON parcel_dwellings.{id} = od_pos.{id} AND threshold = 400 AND query = 'area_ha > 0.4 AND area_ha <= 1 ') pos_3_wa ON p.{id} = pos_3_wa.{id}'''.format(id = points_id)]
 
 ## < / >= 50% of residential dwellings < 800 m of any neighbourhood park >1 ha - <= 5ha
 pos_4_wa_perth_2016 = ['''
 pos_4_wa.ind_hard AS pos_4_wa_perth_2016_hard,
 pos_4_wa.ind_soft AS pos_4_wa_perth_2016_soft,''',
-'''LEFT JOIN (SELECT * FROM od_pos WHERE threshold = 800 AND query = 'area_ha > 1 AND area_ha <= 5') pos_4_wa ON p.{id} = pos_4_wa.{id}'''.format(id = points_id)]
+'''LEFT JOIN (SELECT parcel_dwellings.{id}, COALESCE(ind_hard,0) AS ind_hard, COALESCE(ind_soft,0) AS ind_soft FROM parcel_dwellings LEFT JOIN od_pos ON parcel_dwellings.{id} = od_pos.{id} AND threshold = 800 AND query = 'area_ha > 1 AND area_ha <= 5') pos_4_wa ON p.{id} = pos_4_wa.{id}'''.format(id = points_id)]
 
 ## < / >= 50% of residential dwellings < 2 km of any district park >5 ha (<=20 ha)
 pos_5_wa_perth_2016 = ['''
 pos_5_wa.ind_hard AS pos_5_wa_perth_2016_hard,
 pos_5_wa.ind_soft AS pos_5_wa_perth_2016_soft,''',
-'''LEFT JOIN (SELECT * FROM od_pos WHERE threshold = 2000 AND query = 'area_ha > 5 AND area_ha <= 20') pos_5_wa ON p.{id} = pos_5_wa.{id}'''.format(id = points_id)]
+'''LEFT JOIN (SELECT parcel_dwellings.{id}, COALESCE(ind_hard,0) AS ind_hard, COALESCE(ind_soft,0) AS ind_soft FROM parcel_dwellings LEFT JOIN od_pos ON parcel_dwellings.{id} = od_pos.{id} AND threshold = 2000 AND query = 'area_ha > 5 AND area_ha <= 20') pos_5_wa ON p.{id} = pos_5_wa.{id}'''.format(id = points_id)]
 
 ## </> 90% of residential dwellings < 400 m of a neighbourhood recreation park >0.5 ha
 pos_6_qld_bris_2016 = ['''
 pos_6_qld.ind_hard AS pos_6_qld_bris_2016_hard,
 pos_6_qld.ind_soft AS pos_6_qld_bris_2016_soft,''',
-'''LEFT JOIN (SELECT * FROM od_pos WHERE threshold = 400 AND query = 'area_ha > 0.5') pos_6_qld ON p.{id} = pos_6_qld.{id}'''.format(id = points_id)]
+'''LEFT JOIN (SELECT parcel_dwellings.{id}, COALESCE(ind_hard,0) AS ind_hard, COALESCE(ind_soft,0) AS ind_soft FROM parcel_dwellings LEFT JOIN od_pos ON parcel_dwellings.{id} = od_pos.{id} AND threshold = 400 AND query = 'area_ha > 0.5') pos_6_qld ON p.{id} = pos_6_qld.{id}'''.format(id = points_id)]
 ## </> 90% of residential dwellings < 2.5 km of a district recreation park >5 ha
 pos_7_qld_bris_2016 = ['''
 pos_7_qld.ind_hard AS pos_7_qld_bris_2016_hard,
 pos_7_qld.ind_soft AS pos_7_qld_bris_2016_soft,''',
-'''LEFT JOIN (SELECT * FROM od_pos WHERE threshold = 2500 AND query = 'area_ha > 5') pos_7_qld ON p.{id} = pos_7_qld.{id}'''.format(id = points_id)]
+'''LEFT JOIN (SELECT parcel_dwellings.{id}, COALESCE(ind_hard,0) AS ind_hard, COALESCE(ind_soft,0) AS ind_soft FROM parcel_dwellings LEFT JOIN od_pos ON parcel_dwellings.{id} = od_pos.{id} AND threshold = 2500 AND query = 'area_ha > 5') pos_7_qld ON p.{id} = pos_7_qld.{id}'''.format(id = points_id)]
 ## < / >= 50% of residential dwellings < 400 m of a park >0.5 ha
 pos_8_nsw_syd_2016 = ['''
 pos_8_nsw.ind_hard AS pos_8_nsw_syd_2016_hard,
 pos_8_nsw.ind_soft AS pos_8_nsw_syd_2016_soft,''',
-'''LEFT JOIN (SELECT * FROM od_pos WHERE threshold = 400 AND query = 'area_ha > 0.5') pos_8_nsw ON p.{id} = pos_8_nsw.{id}'''.format(id = points_id)]
+'''LEFT JOIN (SELECT parcel_dwellings.{id}, COALESCE(ind_hard,0) AS ind_hard, COALESCE(ind_soft,0) AS ind_soft FROM parcel_dwellings LEFT JOIN od_pos ON parcel_dwellings.{id} = od_pos.{id} AND threshold = 400 AND query = 'area_ha > 0.5') pos_8_nsw ON p.{id} = pos_8_nsw.{id}'''.format(id = points_id)]
 ## < / >= 50% of residential dwellings < 2 km of a park >2 ha
 pos_9_nsw_syd_2016 = ['''
 pos_9_nsw.ind_hard AS pos_9_nsw_syd_2016_hard,
 pos_9_nsw.ind_soft AS pos_9_nsw_syd_2016_soft,''',
-'''LEFT JOIN (SELECT * FROM od_pos WHERE threshold = 2000 AND query = 'area_ha > 2') pos_9_nsw ON p.{id} = pos_9_nsw.{id}'''.format(id = points_id)]
+'''LEFT JOIN (SELECT parcel_dwellings.{id}, COALESCE(ind_hard,0) AS ind_hard, COALESCE(ind_soft,0) AS ind_soft FROM parcel_dwellings LEFT JOIN od_pos ON parcel_dwellings.{id} = od_pos.{id} AND threshold = 2000 AND query = 'area_ha > 2') pos_9_nsw ON p.{id} = pos_9_nsw.{id}'''.format(id = points_id)]
 ## % residential dwellings < 400 m of POS
 pos_10_state_locale_2016 = ['''
 pos_400.ind_hard AS pos_10_{state}_{locale}_2016_hard,
 pos_400.ind_soft AS pos_10_{state}_{locale}_2016_soft,'''.format(state = state.lower(), locale = locale.lower()),
-'''LEFT JOIN (SELECT * FROM od_pos WHERE threshold = 400 AND query = '') pos_400 ON p.{id} = pos_400.{id}'''.format(id = points_id)]
+'''LEFT JOIN (SELECT parcel_dwellings.{id}, COALESCE(ind_hard,0) AS ind_hard, COALESCE(ind_soft,0) AS ind_soft FROM parcel_dwellings LEFT JOIN od_pos ON parcel_dwellings.{id} = od_pos.{id} AND threshold = 400 AND query = '') pos_400 ON p.{id} = pos_400.{id}'''.format(id = points_id)]
 ## % residential dwellings < 400 m of POS > 1.5 ha
 pos_11_state_locale_2016 = ['''
 pos_400_large.ind_hard AS pos_11_{state}_{locale}_2016_hard,
 pos_400_large.ind_soft AS pos_11_{state}_{locale}_2016_soft,'''.format(state = state.lower(), locale = locale.lower()),
-'''LEFT JOIN (SELECT * FROM od_pos WHERE threshold = 400 AND query = 'area_ha > 1.5') pos_400_large ON p.{id} = pos_400_large.{id}'''.format(id = points_id)]
+'''LEFT JOIN (SELECT parcel_dwellings.{id}, COALESCE(ind_hard,0) AS ind_hard, COALESCE(ind_soft,0) AS ind_soft FROM parcel_dwellings LEFT JOIN od_pos ON parcel_dwellings.{id} = od_pos.{id} AND threshold = 400 AND query = 'area_ha > 1.5') pos_400_large ON p.{id} = pos_400_large.{id}'''.format(id = points_id)]
 ## KNIME: % of suburb area that is parkland
 pos_12_state_locale_2016 = ["",""]
 
@@ -224,13 +226,13 @@ ind_supermarket1000.ind_sm1000_soft AS food_2_{state}_{locale}_2016_soft,'''.for
 '''LEFT JOIN ind_supermarket1000 ON p.{id} = ind_supermarket1000.{id}'''.format(id = points_id)]
 ## average number of on-licenses < 400 m
 alc_1_state_locale_2016 = ['''
-COALESCE(alc_on.count,0) AS alc_1_{state}_{locale}_2016,'''.format(state = state.lower(), locale = locale.lower()),
-'''LEFT JOIN (SELECT * FROM od_counts WHERE dest = 1) alc_on ON p.{id} = alc_on.{id}'''.format(id = points_id)]
+alc_on.count_coalesced AS alc_1_{state}_{locale}_2016,'''.format(state = state.lower(), locale = locale.lower()),
+'''LEFT JOIN (SELECT parcel_dwellings.{id}, COALESCE(od_counts.count,0) AS count_coalesced FROM parcel_dwellings LEFT JOIN od_counts ON parcel_dwellings.{id} = od_counts.{id} AND dest = 1) alc_on ON p.{id} = alc_on.{id}'''.format(id = points_id)]
 
 ## average number of off-licenses < 800 m
 alc_2_state_locale_2016 = ['''
-COALESCE(alc_off.count,0) AS alc_2_{state}_{locale}_2016,'''.format(state = state.lower(), locale = locale.lower()),
-'''LEFT JOIN (SELECT * FROM od_counts WHERE dest = 0) alc_off ON p.{id} = alc_off.{id}'''.format(id = points_id)]
+alc_off.count_coalesced AS alc_2_{state}_{locale}_2016,'''.format(state = state.lower(), locale = locale.lower()),
+'''LEFT JOIN (SELECT parcel_dwellings.{id}, COALESCE(od_counts.count,0) AS count_coalesced FROM parcel_dwellings LEFT JOIN od_counts ON parcel_dwellings.{id} = od_counts.{id} AND dest = 0) alc_off ON p.{id} = alc_off.{id}'''.format(id = points_id)]
 
 ind_queries = ''
 ind_sources = ''
@@ -250,7 +252,7 @@ for ind in ind_list:
     if len(null_query_summary) == 0:
       comma = ''
       plus  = '+'
-    nested_ind_list = new_ind[0].split(', ')[0:new_ind[0].count(', ')]
+    nested_ind_list = new_ind[0].split(',')[0:new_ind[0].count(',')]
     for nind in nested_ind_list:
       null_query_summary = '{prev} {comma} SUM(({ind} IS NULL::int)) AS {ind} '.format(prev = null_query_summary,
                                                                                           comma = comma,
@@ -364,7 +366,7 @@ print("To view a summary of by variable name: SELECT * FROM parcel_ind_null_summ
 print("To view a summary of row-wise null values: SELECT * FROM parcel_inds_null_tally_summary;")
 print("To view a summary of null values for a particular indicator stratified by section of state:")
 # The required linkage table for the below has not been created.... so commented out
-# print(" SELECT sos_name_2016, COUNT(*) indicator_null_count FROM parcel_indicators p LEFT JOIN parcel_sos sos ON p.gnaf_pid = sos.gnaf_pid WHERE indicator IS NULL GROUP BY sos_name_2016;")
+# print(" SELECT sos_name_2016, COUNT(*) indicator_null_count FROM parcel_indicators p LEFT JOIN parcel_sos sos ON p.{id} = sos.{id} WHERE indicator IS NULL GROUP BY sos_name_2016;")
 
 # output to completion log    
 script_running_log(script, task, start, locale)
