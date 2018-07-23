@@ -25,22 +25,32 @@ engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_
                                                                  db   = db))
 # Read in indicator description matrix
 ind_matrix = pandas.read_csv(os.path.join(sys.path[0],'ind_study_region_matrix.csv'))
+
 # Restrict to indicators associated with study region
 ind_matrix = ind_matrix[ind_matrix['locale'].str.contains(locale)]
+
 # Restrict to indicators with a defined source
 ind_matrix = ind_matrix[pandas.notnull(ind_matrix['Source'])]
 
-
+# Make concatenated indicator and tag name (e.g. 'walk_14' + 'hard')
+# Tags could be useful later as can allow to search by name for e.g. threshold type,
+# or other keywords (policy, binary, obsolete, planned --- i don't know, whatever)
+# These tags are tacked on the end of the ind name seperated with underscores
 ind_matrix['indicators'] = ind_matrix['ind'] + ind_matrix['tags'].fillna('')
-ind_matrix['null_queries'] = "SUM((" + ind_matrix['ind'] + " IS NULL::int)) AS " + ind_matrix['ind']
 
+# Compile list of indicators
 ind_list = ind_matrix['indicators'].tolist()
 
+# Compile string of queries, and of unique sources to plug in SQL table creation query
 ind_queries = '\n'.join(ind_matrix['Query'])
 ind_sources = '\n'.join(ind_matrix['Source'].unique())
+
+# Generate strings for checking nulls: by column (indicator), and by row
 null_query_summary = ',\n'.join("SUM(" + ind_matrix['indicators'] + " IS NULL::int) AS " + ind_matrix['indicators'])
 null_query_combined = '+\n'.join("(" + ind_matrix['indicators'] + " IS NULL::int)")
 
+# Define parcel level indicator table creation query
+# Note that we modify inds slightly later when aggregated to reflect cutoffs etc
 create_parcel_indicators = '''
 DROP TABLE IF EXISTS parcel_indicators;
 CREATE TABLE parcel_indicators AS
@@ -74,7 +84,7 @@ LEFT JOIN non_abs_linkage non_abs ON p.{id} = non_abs.{id}
 {sources}
 '''.format(id = points_id, indicators = ind_queries, sources = ind_sources)
 
-
+# Define null query tables
 null_query_summary_table = '''
 DROP TABLE IF EXISTS parcel_inds_null_summary; 
 CREATE TABLE parcel_inds_null_summary AS
@@ -93,7 +103,8 @@ FROM parcel_indicators;
            null_query_combined = null_query_combined,
            total_inds = len(ind_list))
 
-          
+# Process it all  
+# Note that the sql queries used are printed to screen for reference and checking purposes       
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()
 
@@ -118,6 +129,7 @@ curs.execute(null_query_combined_table)
 conn.commit()
 print("Done.\n")
 
+# Generate some summary information to print to screen
 df = pandas.read_sql_query('SELECT * FROM "parcel_inds_null_summary";',con=engine)
 df = df.transpose()
 df.columns = ['Null count']
