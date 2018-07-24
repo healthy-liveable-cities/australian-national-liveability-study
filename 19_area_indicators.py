@@ -142,10 +142,14 @@ for area_code in areas.keys():
   SELECT {area_code},
     {indicators}
     FROM parcel_indicators
+    {exclusion}
     GROUP BY {area_code}
     ORDER BY {area_code} ASC;
   ALTER TABLE li_inds_{area} ADD PRIMARY KEY ({area_code});
-  '''.format(area = area,area_code = area_code,indicators = ind_avg)
+  '''.format(area = area,
+             area_code = area_code,
+             indicators = ind_avg,
+             exclusion = exclusion_criteria)
   curs.execute(createTable)
   conn.commit()
   print("Done.")
@@ -160,12 +164,14 @@ for area_code in areas.keys():
   SELECT {area_code},
     {indicators}     
     FROM parcel_indicators
+    {exclusion}
     GROUP BY {area_code}
     ORDER BY {area_code} ASC;
   ALTER TABLE li_range_{area} ADD PRIMARY KEY ({area_code});
   '''.format(area = area,
              area_code = area_code,
-             indicators = ind_range)
+             indicators = ind_range,
+             exclusion = exclusion_criteria)
   curs.execute(createTable)
   conn.commit()
   print("Done.")
@@ -177,12 +183,14 @@ for area_code in areas.keys():
   SELECT {area_code},
     {indicators}     
     FROM parcel_indicators
+    {exclusion}
     GROUP BY {area_code}
     ORDER BY {area_code} ASC;
   ALTER TABLE li_iqr_{area} ADD PRIMARY KEY ({area_code});
   '''.format(area = area,
              area_code = area_code,
-             indicators = ind_iqr)
+             indicators = ind_iqr,
+             exclusion = exclusion_criteria)
   curs.execute(createTable)
   conn.commit()
   print("Done.")
@@ -252,14 +260,20 @@ for area_code in areas.keys():
     print("Creating map feature at {} level".format(area))
     curs.execute(createTable)
     conn.commit()
-    print("Output to shape file... "),
-    command = 'pgsql2shp -f {path}/li_map_{area}.shp -h {host} -u {user} -P {pwd} {db} li_map_{area}'.format(path = locale_shp_outpath,
-                                                                                                   area = area,
-                                                                                                   host = db_host,
-                                                                                                   user = db_user,
-                                                                                                   pwd = db_pwd,
-                                                                                                   db = db)
-    sp.call(command.split())
+    print("Output to geopackage gpkg: {path}/li_map_{area}.gpkg... ".format(path = locale_shp_outpath,area = area)),
+    command = 'ogr2ogr -overwrite -f GPKG {path}/li_map_{area}.gpkg PG:"host={host} user={user} dbname={db} password={pwd}" "li_map_{area}"'.format(path = locale_shp_outpath,
+                                                                                                                                       area = area,
+                                                                                                                                       host = db_host,
+                                                                                                                                       user = db_user,
+                                                                                                                                       pwd = db_pwd,
+                                                                                                                                       db = db)
+    # command = 'pgsql2shp -f {path}/li_map_{area}.shp -h {host} -u {user} -P {pwd} {db} li_map_{area}'.format(path = locale_shp_outpath,
+                                                                                                   # area = area,
+                                                                                                   # host = db_host,
+                                                                                                   # user = db_user,
+                                                                                                   # pwd = db_pwd,
+                                                                                                   # db = db)
+    sp.call(command)
     print("Done.")
     
 print("Created SA1, suburb and LGA level tables for map web app.")
