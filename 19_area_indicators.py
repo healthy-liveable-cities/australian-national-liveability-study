@@ -115,11 +115,9 @@ exclusion_criteria = 'WHERE  {0} NOT IN (SELECT DISTINCT({0}) FROM excluded_parc
 
 # The shape file for map features are output 
 map_features_outpath = os.path.join(folderPath,'study_region','wgs84_epsg4326','map_features')
-locale_shp_outpath = os.path.join(map_features_outpath,db)
 
-for dir in [map_features_outpath,locale_shp_outpath]:
-  if not os.path.exists(dir):
-      os.makedirs(dir)   
+if not os.path.exists(map_features_outpath):
+  os.makedirs(map_features_outpath)   
 
       
       
@@ -260,21 +258,15 @@ for area_code in areas.keys():
     print("Creating map feature at {} level".format(area))
     curs.execute(createTable)
     conn.commit()
-    print("Output to geopackage gpkg: {path}/li_map_{area}.gpkg... ".format(path = locale_shp_outpath,area = area)),
-    command = 'ogr2ogr -overwrite -f GPKG {path}/li_map_{area}.gpkg PG:"host={host} user={user} dbname={db} password={pwd}" "li_map_{area}"'.format(path = locale_shp_outpath,
-                                                                                                                                       area = area,
-                                                                                                                                       host = db_host,
-                                                                                                                                       user = db_user,
-                                                                                                                                       pwd = db_pwd,
-                                                                                                                                       db = db)
-    # command = 'pgsql2shp -f {path}/li_map_{area}.shp -h {host} -u {user} -P {pwd} {db} li_map_{area}'.format(path = locale_shp_outpath,
-                                                                                                   # area = area,
-                                                                                                   # host = db_host,
-                                                                                                   # user = db_user,
-                                                                                                   # pwd = db_pwd,
-                                                                                                   # db = db)
-    sp.call(command)
-    print("Done.")
+
+print("Output to geopackage gpkg: {path}/li_map.gpkg... ".format(path = map_features_outpath)),
+command = 'ogr2ogr -overwrite -f GPKG {path}/li_map_{db}.gpkg PG:"host={host} user={user} dbname={db} password={pwd}" "li_map_sa1" "li_map_ssc" "li_map_lga"'.format(path = map_features_outpath,
+                                                                                                                                                                host = db_host,
+                                                                                                                                                                user = db_user,
+                                                                                                                                                                pwd = db_pwd,
+                                                                                                                                                                db = db)
+sp.call(command)
+print("Done.")
     
 print("Created SA1, suburb and LGA level tables for map web app.")
 conn.close()
