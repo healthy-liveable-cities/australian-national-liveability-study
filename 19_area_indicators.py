@@ -260,11 +260,12 @@ for area_code in areas.keys():
     conn.commit()
 
 print("Output to geopackage gpkg: {path}/li_map.gpkg... ".format(path = map_features_outpath)),
-command = 'ogr2ogr -overwrite -f GPKG {path}/li_map_{db}.gpkg PG:"host={host} user={user} dbname={db} password={pwd}" "li_map_sa1" "li_map_ssc" "li_map_lga"'.format(path = map_features_outpath,
-                                                                                                                                                                host = db_host,
-                                                                                                                                                                user = db_user,
-                                                                                                                                                                pwd = db_pwd,
-                                                                                                                                                                db = db)
+command = 'ogr2ogr -overwrite -f GPKG {path}/li_map_{db}.gpkg PG:"host={host} user={user} dbname={db} password={pwd}" '.format(path = map_features_outpath,
+                                                                                                                               host = db_host,
+                                                                                                                               user = db_user,
+                                                                                                                               pwd = db_pwd,
+                                                                                                                               db = db) \
+          + ' "li_map_sa1" "li_map_ssc" "li_map_lga" "ind_description" '
 sp.call(command)
 print("Done.")
     
