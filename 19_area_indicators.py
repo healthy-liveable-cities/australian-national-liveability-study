@@ -259,7 +259,12 @@ for area_code in areas.keys():
     curs.execute(createTable)
     conn.commit()
 
+ 
+    
 print("Output to geopackage gpkg: {path}/li_map.gpkg... ".format(path = map_features_outpath)),
+# need to add in a geometry column to ind_description to allow for importing of this table as a layer in geoserver
+curs.execute("SELECT AddGeometryColumn ('public','ind_description','geom',4326,'POINT',2);")
+conn.commit()
 command = 'ogr2ogr -overwrite -f GPKG {path}/li_map_{db}.gpkg PG:"host={host} user={user} dbname={db} password={pwd}" '.format(path = map_features_outpath,
                                                                                                                                host = db_host,
                                                                                                                                user = db_user,
@@ -268,6 +273,8 @@ command = 'ogr2ogr -overwrite -f GPKG {path}/li_map_{db}.gpkg PG:"host={host} us
           + ' "li_map_sa1" "li_map_ssc" "li_map_lga" "ind_description" '
 sp.call(command)
 print("Done.")
+
+
     
 print("Created SA1, suburb and LGA level tables for map web app.")
 conn.close()
