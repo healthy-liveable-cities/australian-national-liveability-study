@@ -64,6 +64,32 @@ conn.commit()
 print("To view how many excluded parcels you have by section of state, run this query in psql:")
 print("SELECT sos_name_2016, COUNT(DISTINCT(a.gnaf_pid)) from parcel_sos a LEFT JOIN excluded_parcels b ON a.gnaf_pid = b.gnaf_pid WHERE b.gnaf_pid IS NOT NULL GROUP BY sos_name_2016;")
 
+if pos_inclusion != "*":
+  print("\nNullifying POS records for parcels and edge cases not in inclusion region feature (ie. cases where POS data coverage < study region extent)")
+  print(" - import inclusion feature... "), 
+  command = 'ogr2ogr -overwrite -progress -f "PostgreSQL" ' \
+          + 'PG:"host={host} port=5432 dbname={db} '.format(host = db_host,db = db) \
+          + 'user={user} password = {pwd}" '.format(user = db_user,pwd = db_pwd) \
+          + '{gdb} "{feature}" '.format(gdb = os.path.dirname(pos_inclusion),feature = os.path.basename(pos_inclusion)) \
+          + '-lco geometry_name="geom"'
+  sp.call(command, shell=True)
+  print("Done")
+  print(" - Nullify parcels not within bounds of inclusion feature... "),
+  nullify_nonincluded_pos = '''
+  UPDATE od_pos 
+    SET 
+      distance = NULL,
+      ind_hard = NULL,
+      ind_soft = NULL
+  WHERE {id} IN (SELECT {id} 
+                 FROM parcel_dwellings p 
+                 LEFT JOIN {pos_inclusion} i
+                 ON ST_Intersects(p.geom, i.geom));
+  '''
+  curs.execute(nullify_nonincluded_pos)
+  conn.commit()
+  print("Done.")
+
 # output to completion log    
 script_running_log(script, task, start, locale)
 
