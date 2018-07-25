@@ -75,6 +75,8 @@ if pos_inclusion != "*":
   sp.call(command, shell=True)
   print("Done")
   print(" - Nullify parcels not within bounds of inclusion feature... "),
+  # The idea of this query is that, where there is no intersection between a point and inclusion region (i.geom IS NULL)
+  # then the distance to POS and indicator records associated with that entry are made NULL.
   nullify_nonincluded_pos = '''
   UPDATE od_pos 
     SET 
@@ -84,8 +86,9 @@ if pos_inclusion != "*":
   WHERE {id} IN (SELECT {id} 
                  FROM parcel_dwellings p 
                  LEFT JOIN {pos_inclusion} i
-                 ON ST_Intersects(p.geom, i.geom));
-  '''
+                 ON ST_Intersects(p.geom, i.geom)
+                 WHERE i.geom IS NULL);
+  '''.format(id = points_id, pos_inclusion = os.path.basename(pos_inclusion))
   curs.execute(nullify_nonincluded_pos)
   conn.commit()
   print("Done.")
