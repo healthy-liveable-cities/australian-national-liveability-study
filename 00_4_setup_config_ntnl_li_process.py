@@ -117,6 +117,20 @@ pos_queries = {'Bris':  [['',400],
                          ['area_ha > 2',2000]]}
 if locale in pos_queries:
   pos_locale = pos_queries[locale]
+
+# Feature for restricted inclusion of POS analysis; used where POS data coverage < study region extent
+# Note that at the moment we are using a single feature with a 400m Euclidean buffer; indicators
+# use network distance however (400m network would be no greater than 400 Euclidean), but some seek POS across 
+# a larger network distance of say 2km.  So, situations may arise where some edge cases are still unfairly 
+# penalised.  However in practice, for Sydney where this issue could arises the portion of study region where 
+# this issue arises is not urban and will be marked for exclusion anyway.  
+# So, to avoid a more complicated scripting approach, we are sticking with single inclusion feature, for now.
+pos_inclusion = {'Melb'    : os.path.join(folderPath,'address_points/GDA2020_GA_LCC.gdb/gnaf_2018_vic'),
+                 'Syd'     : os.path.join(folderPath,'address_points/GDA2020_GA_LCC.gdb/gnaf_2018_nsw')}
+            
+if locale in pos_inclusion.keys():
+  pos_inclusion = pos_inclusion[locale]
+
   
 # **************** Extra bits (hopefully don't need to change much) *******************************
 
