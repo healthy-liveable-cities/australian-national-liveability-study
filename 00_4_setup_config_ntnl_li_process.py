@@ -125,12 +125,12 @@ if locale in pos_queries:
 # penalised.  However in practice, for Sydney where this issue could arises the portion of study region where 
 # this issue arises is not urban and will be marked for exclusion anyway.  
 # So, to avoid a more complicated scripting approach, we are sticking with single inclusion feature, for now.
-pos_inclusion = {'Melb'    : os.path.join(folderPath,'destinations/pos_includedareas_2018.gdb/syd_included_400m_2018'),
-                 'Syd'     : os.path.join(folderPath,'destinations/pos_includedareas_2018.gdb/syd_included_400m_2018')}
-if locale in pos_inclusion.keys():
-  pos_inclusion = pos_inclusion[locale]
+pos_inclusion_list = {'Melb'    : os.path.join(folderPath,'destinations/pos_includedareas_2018.gdb/syd_included_400m_2018'),
+                      'Syd'     : os.path.join(folderPath,'destinations/pos_includedareas_2018.gdb/syd_included_400m_2018')}
+if locale in pos_inclusion_list.keys():
+  pos_inclusion = pos_inclusion_list[locale]
 
-if locale not in pos_inclusion.keys():
+if locale not in pos_inclusion_list.keys():
   pos_inclusion = "*"
   
 # **************** Extra bits (hopefully don't need to change much) *******************************
