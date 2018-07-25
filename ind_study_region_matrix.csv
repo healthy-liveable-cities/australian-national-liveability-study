@@ -1,6 +1,6 @@
 ind,tags,locale,Description,Query,Source,agg_form,agg_scale,agg_split_greq
 walk_1,,Melb,% of street blocks with a perimeter of < 720 m (i.e. between 120 m and 240 m long and 60 m and 120 m wide),,,percent,100,
-walk_2,_hard,Melb,< / >= 80% dwellings < 1 km of an activity centre with a supermarket,(CASE WHEN ind_activity.distance <  1000 THEN 1 WHEN ind_activity.distance >= 1000 THEN 0 ELSE NULL END) as walk_12_hard,LEFT JOIN ind_activity ON p.gnaf_pid = ind_activity.gnaf_pid,yesno,1,80
+walk_2,_hard,Melb,< / >= 80% dwellings < 1 km of an activity centre with a supermarket,"(CASE WHEN ind_activity.distance <  1000 THEN 1 WHEN ind_activity.distance >= 1000 THEN 0 ELSE NULL END) as walk_12_hard,",LEFT JOIN ind_activity ON p.gnaf_pid = ind_activity.gnaf_pid,yesno,1,80
 walk_2,_soft,Melb,< / >= 80% dwellings < 1 km of an activity centre with a supermarket,"1-1/(1+exp(-5*(ind_activity.distance-1000)/1000::double precision)) AS walk_12_soft,",LEFT JOIN ind_activity ON p.gnaf_pid = ind_activity.gnaf_pid,yesno,1,80
 walk_3,,Melb,</ >= 15 dwellings per net developable hectare,,,yesno,1,15
 walk_4,,Perth,% of street blocks with a perimeter of < 720 m (i.e. <240 m long and <120 m wide),,,percent,100,
