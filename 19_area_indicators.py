@@ -263,8 +263,15 @@ for area_code in areas.keys():
     
 print("Output to geopackage gpkg: {path}/li_map.gpkg... ".format(path = map_features_outpath)),
 # need to add in a geometry column to ind_description to allow for importing of this table as a layer in geoserver
-curs.execute("SELECT AddGeometryColumn ('public','ind_description','geom',4326,'POINT',2);")
-conn.commit()
+# If it doesn't already exists
+# So, check if it already exists
+curs.execute("SELECT column_name FROM information_schema.columns WHERE table_name='ind_description' and column_name='geom';")
+null_geom_check = curs.fetchall()
+if len(null_geom_check)==0:
+  # if geom doesn't exist, created it
+  curs.execute("SELECT AddGeometryColumn ('public','ind_description','geom',4326,'POINT',2);")
+  conn.commit()
+# Output to geopackage using ogr2ogr; note that this command is finnicky and success depends on version of ogr2ogr that you have  
 command = 'ogr2ogr -overwrite -f GPKG {path}/li_map_{db}.gpkg PG:"host={host} user={user} dbname={db} password={pwd}" '.format(path = map_features_outpath,
                                                                                                                                host = db_host,
                                                                                                                                user = db_user,
@@ -273,8 +280,6 @@ command = 'ogr2ogr -overwrite -f GPKG {path}/li_map_{db}.gpkg PG:"host={host} us
           + ' "li_map_sa1" "li_map_ssc" "li_map_lga" "ind_description" '
 sp.call(command)
 print("Done.")
-
-
     
 print("Created SA1, suburb and LGA level tables for map web app.")
 conn.close()
