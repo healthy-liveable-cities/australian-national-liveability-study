@@ -138,7 +138,7 @@ fcLines  = "Lines"
 arcpy.CheckOutExtension('Network')
 
 # list of OIDs to iterate over
-curs.execute("SELECT {id} FROM no_sausage;".format(id = points_id.lower())
+curs.execute("SELECT {id} FROM no_sausage;".format(id = points_id.lower()))
 point_id_list = [x[0] for x in  list(curs)]
 valid_pointCount = len(point_id_list)
 print("\nOkay, so there are {} points in the no_sausage table; lets have another crack at this...".format(valid_pointCount))
@@ -152,11 +152,11 @@ success_count = 0
 failure_count = 0
 for point in point_id_list:
     place = "select a single no sausage point"
-    arcpy.MakeFeatureLayer_management(points, "selection", where_clause = '"gnaf_pid" = {}'.format(point)) 
+    arcpy.MakeFeatureLayer_management(points, "selection", where_clause = "gnaf_pid = '{}'".format(point)) 
     place = "add point as a location"
     # Process: Add Locations
     place = "AddLocations" 
-    arcpy.AddLocations_na(in_network_analysis_layer = "ServiceArea"), 
+    arcpy.AddLocations_na(in_network_analysis_layer = "ServiceArea", 
                 sub_layer                      = facilitiesLayerName, 
                 in_table                       = "selection", 
                 field_mappings                 = "Name {} #".format(points_id), 
@@ -174,6 +174,7 @@ for point in point_id_list:
     if result[1] == u'false':
       failure_count+=1
       count += 1   
+      progressor(count,valid_pointCount,start,"{} / {} points processed, with {} successes and {} failures.".format(count,valid_pointCount,success_count,failure_count))
     if result[1] != u'false':
       # Dissolve linesLayerName
       place = "Dissolve"
@@ -196,7 +197,7 @@ for point in point_id_list:
       
       # write output line features within chunk to Postgresql spatial feature
       # Need to parse WKT output slightly (Postgresql doesn't take this M-values nonsense)
-      place = insert to postgis 
+      place = "insert to postgis "
       with arcpy.da.SearchCursor("tempLayer",['Facilities.Name','Shape@WKT']) as cursor:
         for row in cursor:
           id =  row[0].encode('utf-8')
@@ -208,7 +209,7 @@ for point in point_id_list:
           row_count+=1  
       count += 1   
       success_count+=1
-      progressor(numerator,denominator,start,"{} / {} points processed, with {} successes and {} failures.".format(count,valid_pointCount,success_count,failure_count))
+      progressor(count,valid_pointCount,start,"{} / {} points processed, with {} successes and {} failures.".format(count,valid_pointCount,success_count,failure_count))
 
       
 # fetch list of successfully processed buffers, if any
@@ -216,7 +217,7 @@ curs.execute("SELECT COUNT(*) FROM {} ".format(sausage_buffer_table))
 subsequent_point_count = int(list(curs)[0][0])
       
 if processed_point_count == subsequent_point_count:
-  print(There has been no change in point count. We'll have to look closer or give up.")
+  print("There has been no change in point count. We'll have to look closer or give up.")
 
 if processed_point_count < subsequent_point_count:  
   print("It looks like we have processed an additional {} points; great!".format(subsequent_point_count-processed_point_count))
