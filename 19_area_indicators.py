@@ -320,7 +320,7 @@ print("Done.")
 
 
 print("Can you please also run the following from the command prompt in the following directory: {folderPath}/study_region//wgs84_epsg4326/".format(folderPath = folderPath))
-print('pg_dump -U postgres -h localhost -W  "li_map_sa1" "li_map_ssc" "li_map_lga" "ind_description" "boundaries_sa1" "boundaries_ssc" "boundaries_lga" "urban_sos" {db} > {db}.sql'.format(db = db))
+print('pg_dump -U postgres -h localhost -W  -t "li_map_sa1" -t "li_map_ssc" -t "li_map_lga" -t "ind_description" -t "boundaries_sa1" -t "boundaries_ssc" -t "boundaries_lga" -t "urban_sos" {db} > {db}.sql'.format(db = db))
 
 print("Created SA1, suburb and LGA level tables for map web app.")
 conn.close()
