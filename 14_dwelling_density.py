@@ -92,15 +92,10 @@ print("{:4.2f} mins.".format((time.time() - start)/60))
 try:   
   print("fetch list of processed parcels, if any..."), 
   # (for string match to work, had to select first item of returned tuple)
-  curs.execute("SELECT {} FROM {}".format(points_id.lower(),buffer_table))
-  raw_point_id_list = list(curs)
-  raw_point_id_list = [x[0] for x in raw_point_id_list]
-  
-  curs.execute("SELECT {} FROM {}".format(points_id.lower(),dd_table))
-  completed_points = list(curs)
-  completed_points = [x[0] for x in completed_points]
-  
-  point_id_list = [x for x in raw_point_id_list if x not in completed_points]  
+  curs.execute("SELECT {id} FROM {nh_geom} WHERE {id} NOT IN (SELECT {id} FROM {table});".format(id = points_id.lower(),
+  nh_geom  = sausage_buffer_table,
+  table = 'nh1600m'))
+  point_id_list = [x[0] for x in  list(curs)]
   print("Done.")
   
   denom = len(point_id_list)
