@@ -218,7 +218,11 @@ for area_code in areas.keys():
     area_code2 = {'sa1_maincode' :'sa1_maincode',
                   'ssc_name_2016':'suburb',
                   'lga_name_2016':'lga'}    
-    
+
+    area_names2 = {'sa1_maincode' :'sa1_mainco',
+                  'ssc_name_2016':'ssc_name_2',
+                  'lga_name_2016':'lga_name_2'}                      
+  
     area_code_tables = {'sa1_maincode' :'''LEFT JOIN main_sa1_2016_aust_full AS area_code ON area.sa1_maincode = area_code.sa1_mainco''',
                         'ssc_name_2016':'''LEFT JOIN main_ssc_2016_aust      AS area_code ON area.suburb       = area_code.ssc_name_2''',
                         'lga_name_2016':'''LEFT JOIN main_lga_2016_aust      AS area_code ON area.lga          = area_code.lga_name_2'''}
@@ -226,7 +230,11 @@ for area_code in areas.keys():
     community_code = {'sa1_maincode' :'''area_code.sa1_7digit AS community_code''',
                       'ssc_name_2016':'''CONCAT('SSC',area_code.ssc_code_2::varchar) AS community_code''',
                       'lga_name_2016':'''CONCAT('LGA',area_code.lga_code_2::varchar) AS community_code'''}
-                    
+
+    boundary_tables = {'sa1_maincode' :'''main_sa1_2016_aust_full b WHERE b.sa1_mainco IN (SELECT sa1_maincode FROM area_sa1)''',
+                       'ssc_name_2016': '''main_ssc_2016_aust b WHERE b.ssc_name_2 IN (SELECT suburb FROM area_ssc) ''',
+                       'lga_name_2016': '''main_lga_2016_aust b WHERE b.lga_name_2 IN (SELECT lga FROM area_lga) '''}
+                        
     createTable = '''DROP TABLE IF EXISTS li_map_{area};
     CREATE TABLE li_map_{area} AS
     SELECT {area_strings}
@@ -258,9 +266,38 @@ for area_code in areas.keys():
     print("Creating map feature at {} level".format(area))
     curs.execute(createTable)
     conn.commit()
-
- 
     
+    createTable = '''
+    DROP TABLE IF EXISTS boundaries_{area};
+    CREATE TABLE boundaries_{area} AS
+    SELECT {area_names2} AS {area_code},
+            ST_Transform(geom,4326) AS geom         
+    FROM {boundaries};
+    '''.format(area = area,
+               area_names2 = area_names2[area_code],
+               area_code = area_code,
+               boundaries = boundary_tables[area_code])
+    print("Creating boundary overlays at {} level".format(area)),
+    curs.execute(createTable)
+    conn.commit()
+    print("Done.")
+    
+    
+createTable = '''
+DROP TABLE IF EXISTS urban_sos;
+CREATE TABLE urban_sos AS
+SELECT sos_name_2 AS sos_name_2016,
+       ST_Transform(u.geom,4326) AS geom
+FROM main_sos_2016_aust u
+LEFT JOIN gccsa_2016 s
+ON ST_Intersects(u.geom,s.geom)
+WHERE u.sos_name_2 IN ('Major Urban', 'Other Urban'); 
+'''
+print("Creating urban geometry features within study region")
+curs.execute(createTable)
+conn.commit()
+print("Done.")
+
 print("Output to geopackage gpkg: {path}/li_map.gpkg... ".format(path = map_features_outpath)),
 # need to add in a geometry column to ind_description to allow for importing of this table as a layer in geoserver
 # If it doesn't already exists
@@ -280,7 +317,11 @@ command = 'ogr2ogr -overwrite -f GPKG {path}/li_map_{db}.gpkg PG:"host={host} us
           + ' "li_map_sa1" "li_map_ssc" "li_map_lga" "ind_description" '
 sp.call(command)
 print("Done.")
-    
+
+
+print("Can you please also run the following from the command prompt in the following directory: {folderPath}/study_region//wgs84_epsg4326/".format(folderPath = folderPath))
+print('pg_dump -U postgres -h localhost -W  "li_map_sa1" "li_map_ssc" "li_map_lga" "ind_description" "boundaries_sa1" "boundaries_ssc" "boundaries_lga" "urban_sos" {db} > {db}.sql'.format(db = db))
+
 print("Created SA1, suburb and LGA level tables for map web app.")
 conn.close()
   
