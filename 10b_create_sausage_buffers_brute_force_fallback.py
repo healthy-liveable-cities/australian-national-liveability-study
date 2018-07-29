@@ -198,10 +198,11 @@ for point in point_id_list:
       # write output line features within chunk to Postgresql spatial feature
       # Need to parse WKT output slightly (Postgresql doesn't take this M-values nonsense)
       place = "insert to postgis "
-      with arcpy.da.SearchCursor("tempLayer",['Facilities.Name','Shape@WKT']) as cursor:
+      with arcpy.da.SearchCursor("tempLayer",['Facilities.Name','Shape@WKT','hex_id']) as cursor:
         for row in cursor:
           id =  row[0].encode('utf-8')
           wkt = row[1].encode('utf-8').replace(' NAN','').replace(' M ','')
+          hex = row[2]
           curs.execute(queryInsertSausage + "( '{0}',{1},ST_Buffer(ST_SnapToGrid(ST_GeometryFromText('{2}', {3}),{5}),{4}));".format(id,hex,wkt,srid,line_buffer,snap_to_grid))
           place = "after curs.execute insert sausage buffer" 
           conn.commit()
@@ -237,6 +238,10 @@ if processed_point_count < subsequent_point_count:
   curs.execute("DROP TABLE IF EXISTS no_sausage; CREATE TABLE no_sausage AS SELECT * FROM parcel_dwellings WHERE {0} NOT IN (SELECT {0} FROM {1});".format(points_id,sausage_buffer_table))
   conn.commit()    
   print("Done.")
+  
+  df_ns = pandas.read_sql_query('SELECT hex_id,COUNT(*) FROM no_sausage GROUP BY hex_id;";',con=engine)
+  print("\nHere's a summary of the 'no_sausage' parcels by hex_id --- if there are large numbers of parcels missing buffers for a particular hex (which is quite a large area) you will want to check out to see if its been systematically missed")
+  print(df_ns)
   
   # output to completion log    
   script_running_log(script, task, start, locale)
