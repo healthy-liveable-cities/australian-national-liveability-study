@@ -37,7 +37,7 @@ start = time.time()
 script = os.path.basename(sys.argv[0])
 task = 'creates {}{} sausage buffers for locations in {} based on road network {} for those parcels in "no sausage" table for which processing otherwise failed on first pass'.format(distance,units,points,in_network_dataset)
 
-# ArcGIS environment settings
+# Environment settings
 arcpy.env.workspace = gdb_path  
 arcpy.env.overwriteOutput = True 
 
@@ -103,6 +103,11 @@ def unique_values(table, field):
 # initiate postgresql connection
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()  
+
+engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_user,
+                                                                 pwd  = db_pwd,
+                                                                 host = db_host,
+                                                                 db   = db))
 
 # preparatory set up
 # Process: Make Service Area Layer
@@ -202,7 +207,8 @@ for point in point_id_list:
         for row in cursor:
           id =  row[0].encode('utf-8')
           wkt = row[1].encode('utf-8').replace(' NAN','').replace(' M ','')
-          hex = row[2]
+          curs.execute("SELECT hex_id FROM parcel_dwellings WHERE gnaf_pid = '{}'".format(id))
+          hex = curs.fetchall()[0][0]
           curs.execute(queryInsertSausage + "( '{0}',{1},ST_Buffer(ST_SnapToGrid(ST_GeometryFromText('{2}', {3}),{5}),{4}));".format(id,hex,wkt,srid,line_buffer,snap_to_grid))
           place = "after curs.execute insert sausage buffer" 
           conn.commit()
