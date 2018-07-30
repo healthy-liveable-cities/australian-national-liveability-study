@@ -80,7 +80,7 @@ ind_iqr = ',\n'.join("round(percentile_cont(0.25) WITHIN GROUP (ORDER BY " +
 # Create query for percentile           
 ind_percentile = ',\n'.join("round(100*cume_dist() OVER(ORDER BY "+
                             ind_matrix['indicators'] + 
-                            " "
+                            " " +
                             ind_matrix['polarity'] +
                             ")::numeric,0) AS " +
                             ind_matrix['indicators'])        
