@@ -92,30 +92,32 @@ print("{:4.2f} mins.".format((time.time() - start)/60))
 try:   
   print("fetch list of processed parcels, if any..."), 
   # (for string match to work, had to select first item of returned tuple)
-  curs.execute("SELECT {id} FROM {nh_geom} WHERE {id} NOT IN (SELECT {id} FROM {table});".format(id = points_id.lower(),
-  nh_geom  = buffer_table,
-  table = 'nh1600m'))
+  curs.execute("SELECT {id} FROM {nh_geom} WHERE {id} NOT IN (SELECT {id} FROM dd_nh1600m);".format(id = points_id.lower(),
+  nh_geom  = buffer_table))
   point_id_list = [x[0] for x in  list(curs)]
   print("Done.")
   
-  denom = len(point_id_list)
-  count = 0
-  chunkedPoints = list()
-  
-  print("Processing points...")
-  for point in point_id_list:
-    count += 1
-    chunkedPoints.append(point) 
-    if (count % sqlChunkify == 0) :
-        curs.execute('{} ({}) {}'.format(query_A,','.join("'"+x+"'" for x in chunkedPoints),query_C))
-        conn.commit()
-        chunkedPoints = list()
-        progressor(count,denom,start,"{}/{} points processed".format(count,denom))
-  if(count % sqlChunkify != 0):
-     curs.execute('{} ({}) {}'.format(query_A,','.join("'"+x+"'" for x in chunkedPoints),query_C))
-     conn.commit()
-  
-  progressor(count,denom,start,"{}/{} points processed".format(count,denom))
+  if len(point_id_list) > 0:   
+    denom = len(point_id_list)
+    count = 0
+    chunkedPoints = list()
+    
+    print("Processing points...")
+    for point in point_id_list:
+      count += 1
+      chunkedPoints.append(point) 
+      if (count % sqlChunkify == 0) :
+          curs.execute('{} ({}) {}'.format(query_A,','.join("'"+x+"'" for x in chunkedPoints),query_C))
+          conn.commit()
+          chunkedPoints = list()
+          progressor(count,denom,start,"{}/{} points processed".format(count,denom))
+    if(count % sqlChunkify != 0):
+       curs.execute('{} ({}) {}'.format(query_A,','.join("'"+x+"'" for x in chunkedPoints),query_C))
+       conn.commit()
+    
+    progressor(count,denom,start,"{}/{} points processed".format(count,denom))
+  if len(point_id_list) == 0:
+    print("All point ids from the sausage buffer table are already accounted for in the dwelling density table; I think we're done, so no need to re-run this script!")
   
 except:
        print("HEY, IT'S AN ERROR:")
