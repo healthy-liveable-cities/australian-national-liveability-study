@@ -110,6 +110,12 @@ engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_
                                                                  host = db_host,
                                                                  db   = db))
 
+# Create summary table of parcel id and area
+print("Creating summary table of points with no sausage (are they mostly non-urban?)... "),  
+curs.execute("DROP TABLE IF EXISTS no_sausage; CREATE TABLE no_sausage AS SELECT * FROM parcel_dwellings WHERE {0} NOT IN (SELECT {0} FROM {1});".format(points_id,sausage_buffer_table))
+conn.commit()    
+print("Done.")                                                                 
+                                                                 
 # preparatory set up
 # Process: Make Service Area Layer
 outSAResultObject = arcpy.MakeServiceAreaLayer_na(in_network_dataset = in_network_dataset, 
@@ -204,7 +210,7 @@ for point in point_id_list:
       # write output line features within chunk to Postgresql spatial feature
       # Need to parse WKT output slightly (Postgresql doesn't take this M-values nonsense)
       place = "insert to postgis "
-      with arcpy.da.SearchCursor("tempLayer",['Facilities.Name','Shape@WKT','hex_id']) as cursor:
+      with arcpy.da.SearchCursor("tempLayer",['Facilities.Name','Shape@WKT']) as cursor:
         for row in cursor:
           id =  row[0].encode('utf-8')
           wkt = row[1].encode('utf-8').replace(' NAN','').replace(' M ','')
