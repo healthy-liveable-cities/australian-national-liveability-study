@@ -93,7 +93,7 @@ try:
   print("fetch list of processed parcels, if any..."), 
   # (for string match to work, had to select first item of returned tuple)
   curs.execute("SELECT {id} FROM {nh_geom} WHERE {id} NOT IN (SELECT {id} FROM {table});".format(id = points_id.lower(),
-  nh_geom  = sausage_buffer_table,
+  nh_geom  = buffer_table,
   table = 'nh1600m'))
   point_id_list = [x[0] for x in  list(curs)]
   print("Done.")
