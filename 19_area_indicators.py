@@ -314,7 +314,7 @@ command = 'ogr2ogr -overwrite -f GPKG {path}/li_map_{db}.gpkg PG:"host={host} us
                                                                                                                                user = db_user,
                                                                                                                                pwd = db_pwd,
                                                                                                                                db = db) \
-          + ' "li_map_sa1" "li_map_ssc" "li_map_lga" "ind_description" '
+          + ' "li_map_sa1" "li_map_ssc" "li_map_lga" "ind_description" "boundaries_sa1" "boundaries_ssc" "boundaries_lga" "urban_sos"'
 sp.call(command)
 print("Done.")
 
