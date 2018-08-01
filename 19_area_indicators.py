@@ -56,20 +56,20 @@ ind_avg = ',\n'.join("AVG(" + ind_matrix['indicators'] + " ) AS " + ind_matrix['
 
 # Create query for indicator range (including scaling of percent variables)
 ind_range = ',\n'.join("ROUND(MIN(" +
-                       ind_matrix['agg_scale'].apply(lambda x: '100*' if x == 100 else '') +
+                       ind_matrix['agg_scale'].apply(lambda x: '100.0*' if x == 100 else '1.0*') +
                        ind_matrix['indicators'] + 
                        ")::numeric,1)::text || ' to ' ||ROUND(MAX(" +
-                       ind_matrix['agg_scale'].apply(lambda x: '100*' if x == 100 else '') +
+                       ind_matrix['agg_scale'].apply(lambda x: '100.0*' if x == 100 else '1.0*') +
                        ind_matrix['indicators'] + 
                        ")::numeric,1)::text AS " +
                        ind_matrix['indicators'])
 
 # Create query for Interquartile range interval (25% to 75%) to represent the range within which the middle 50% of observations lie                       
 ind_iqr = ',\n'.join("round(percentile_cont(0.25) WITHIN GROUP (ORDER BY " +
-                       ind_matrix['agg_scale'].apply(lambda x: '100*' if x == 100 else '') +
+                       ind_matrix['agg_scale'].apply(lambda x: '100.0*' if x == 100 else '1.0*') +
                        ind_matrix['indicators'] + 
                        ")::numeric,1)::text || ' to ' ||round(percentile_cont(0.75) WITHIN GROUP (ORDER BY " +
-                       ind_matrix['agg_scale'].apply(lambda x: '100*' if x == 100 else '') +
+                       ind_matrix['agg_scale'].apply(lambda x: '100.0*' if x == 100 else '1.0*') +
                        ind_matrix['indicators'] + 
                        ")::numeric,1)::text AS " +
                        ind_matrix['indicators'])                  
