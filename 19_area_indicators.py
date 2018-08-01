@@ -58,7 +58,7 @@ ind_avg = ',\n'.join("AVG(" + ind_matrix['indicators'] + " ) AS " + ind_matrix['
 ind_range = ',\n'.join("ROUND(MIN(" +
                        ind_matrix['agg_scale'].apply(lambda x: '100*' if x == 100 else '') +
                        ind_matrix['indicators'] + 
-                       ")::numeric,1)::text || ' - ' ||ROUND(MAX(" +
+                       ")::numeric,1)::text || ' to ' ||ROUND(MAX(" +
                        ind_matrix['agg_scale'].apply(lambda x: '100*' if x == 100 else '') +
                        ind_matrix['indicators'] + 
                        ")::numeric,1)::text AS " +
@@ -68,7 +68,7 @@ ind_range = ',\n'.join("ROUND(MIN(" +
 ind_iqr = ',\n'.join("round(percentile_cont(0.25) WITHIN GROUP (ORDER BY " +
                        ind_matrix['agg_scale'].apply(lambda x: '100*' if x == 100 else '') +
                        ind_matrix['indicators'] + 
-                       ")::numeric,1)::text || ' - ' ||round(percentile_cont(0.75) WITHIN GROUP (ORDER BY " +
+                       ")::numeric,1)::text || ' to ' ||round(percentile_cont(0.75) WITHIN GROUP (ORDER BY " +
                        ind_matrix['agg_scale'].apply(lambda x: '100*' if x == 100 else '') +
                        ind_matrix['indicators'] + 
                        ")::numeric,1)::text AS " +
