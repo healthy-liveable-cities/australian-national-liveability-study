@@ -52,7 +52,7 @@ ind_list = ind_matrix['indicators'].tolist()
 # Note that postgresql ignores null values when calculating averages
 # We can passively exploit this feature in the case of POS as those parcels with nulls will be 
 # ignored --- this is exactly what we want.  Excellent.
-ind_avg = ',\n'.join("AVG(" + ind_matrix['indicators'] + " ) AS " + ind_matrix['indicators'])
+ind_avg = ',\n'.join("AVG(" + ind_matrix['agg_scale'].apply(lambda x: '100.0*' if x == 100 else '1.0*') + ind_matrix['indicators'] + " ) AS " + ind_matrix['indicators'])
 
 # Create query for indicator range (including scaling of percent variables)
 ind_range = ',\n'.join("ROUND(MIN(" +
