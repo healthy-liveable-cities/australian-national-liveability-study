@@ -18,7 +18,7 @@ ALTER TABLE ind_description RENAME TO ind_description_{locale}_{year};
 ALTER TABLE boundaries_sa1  RENAME TO boundaries_sa1_{locale}_{year};  
 ALTER TABLE boundaries_ssc  RENAME TO boundaries_ssc_{locale}_{year};  
 ALTER TABLE boundaries_lga  RENAME TO boundaries_lga_{locale}_{year};  
-CREATE TABLE urban_sos_{locale}_{year} AS SELECT a.* FROM urban_sos a LEFT JOIN gccsa_2016 b ON ST_Intersects(a.geom,b.geom) WHERE a.geom IS NOT NULL;'''.format(locale = locale.lower(), year = year)
+CREATE TABLE urban_sos_{locale}_{year} AS SELECT sos_name_2 AS sos_name_2016, ST_Transform(a.geom,4326) AS geom FROM  main_sos_2016_aust a, gccsa_2016 b WHERE ST_Intersects(a.geom,b.geom) AND sos_name_2 IN('Major Urban','Other Urban');'''.format(locale = locale.lower(), year = year)
 
 curs.execute(localise_names)
 conn.commit()
