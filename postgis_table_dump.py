@@ -1,0 +1,34 @@
+# Script:  postgis_table_dump.py
+# Purpose: Output table
+# Author:  Carl Higgs 
+# Date:    3 August 2018
+
+# Import custom variables for National Liveability indicator process
+import psycopg2 
+from config_ntnl_li_process import *
+
+conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
+curs = conn.cursor()
+
+localise_names = '''
+ALTER TABLE li_map_sa1      RENAME TO li_map_sa1_{locale}_{year};
+ALTER TABLE li_map_ssc      RENAME TO li_map_ssc_{locale}_{year};      
+ALTER TABLE li_map_lga      RENAME TO li_map_lga_{locale}_{year};      
+ALTER TABLE ind_description RENAME TO ind_description_{locale}_{year}; 
+ALTER TABLE boundaries_sa1  RENAME TO boundaries_sa1_{locale}_{year};  
+ALTER TABLE boundaries_ssc  RENAME TO boundaries_ssc_{locale}_{year};  
+ALTER TABLE boundaries_lga  RENAME TO boundaries_lga_{locale}_{year};  
+CREATE TABLE urban_sos_{locale}_{year} AS SELECT a.* FROM urban_sos a LEFT JOIN gccsa_2016 b ON ST_Intersects(a.geom,b.geom) WHERE a.geom IS NOT NULL;'''.format(locale = locale.lower(), year = year)
+
+curs.execute(localise_names)
+conn.commit()
+  
+print("Can you please run the following from the command prompt in the following directory: {folderPath}/study_region//wgs84_epsg4326/".format(folderPath = folderPath))
+print('''
+pg_dump -U postgres -h localhost -W  -t "li_map_sa1_{locale}_{year}" -t "li_map_ssc_{locale}_{year}" -t "li_map_lga_{locale}_{year}" -t "ind_description_{locale}_{year}" -t "boundaries_sa1_{locale}_{year}" -t "boundaries_ssc_{locale}_{year}" -t "boundaries_lga_{locale}_{year}" -t "urban_sos_{locale}_{year}" {db} > {db}.sql
+'''.format(locale = locale.lower(), year = year,db = db))
+
+print('''
+Also, can you send the following line of text to Carl please?
+psql observatory < D:/ntnl_li_2018_template/data/study_region/wgs84_epsg4326/map_features/{db}.sql postgres
+'''.format(db = db))
