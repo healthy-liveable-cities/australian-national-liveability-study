@@ -326,24 +326,26 @@ for area_code in areas.keys():
                        
     percentile_join_string = ' '              
     if area != 'region':
-      percentile_join_string = 'LEFT JOIN li_percentiles_{area} AS perc ON area.{area_code2} = perc.{area_code}'.format(area = area,area_code = area_code, area_code2 = area_code2[area_code])                        
+      percentile_join_string = 'LEFT JOIN li_percentiles_{area} AS perc ON area.{area_code2} = perc.{area_code}'.format(area = area,area_code = area_code, area_code2 = area_code2[area_code])
+
+    # Note -i've excerpted SD and median out of the below table for now; too much for SA1s  
+    #        {sd},
+    #        {median},
+    # LEFT JOIN li_median_{area} AS median ON area.{area_code2} = median.{area_code}
+    LEFT JOIN li_sd_{area} AS sd ON area.{area_code2} = raw.{area_code}
     createTable = '''DROP TABLE IF EXISTS li_map_{area};
     CREATE TABLE li_map_{area} AS
     SELECT {area_strings},
            {raw},
-           {sd},
            {percentile}
            {range},
-           {median},
            {iqr},
            {community_code},
            ST_TRANSFORM(area.geom,4326) AS geom              
     FROM {area_table} AS area
     LEFT JOIN li_inds_{area} AS raw ON area.{area_code2} = raw.{area_code}
-    LEFT JOIN li_sd_{area} AS sd ON area.{area_code2} = raw.{area_code}
     {percentile_join}
     LEFT JOIN li_range_{area} AS range ON area.{area_code2} = range.{area_code}
-    LEFT JOIN li_median_{area} AS median ON area.{area_code2} = median.{area_code}
     LEFT JOIN li_iqr_{area} AS iqr ON area.{area_code2} = iqr.{area_code}
     {area_code_table};
     '''.format(area = area,
@@ -378,130 +380,6 @@ for area_code in areas.keys():
     curs.execute(createTable)
     conn.commit()
     print("Done.")
-
-# # Create Region-wide summary, by SOS
-# area = 'region'
-# area_code = 'sos_name_2016'
-# # create aggregated raw liveability estimates for selected area
-# print("Create aggregate indicator table li_inds_{}... ".format(area)),
-# createTable = '''
-# DROP TABLE IF EXISTS li_inds_{area} ; 
-# CREATE TABLE li_inds_{area} AS
-# SELECT {area_code},
-  # {indicators}
-  # FROM parcel_indicators
-  # {exclusion}
-  # GROUP BY {area_code}
-  # ORDER BY {area_code} ASC;
-# ALTER TABLE li_inds_{area} ADD PRIMARY KEY ({area_code});
-# '''.format(area = area,
-           # area_code = area_code,
-           # indicators = ind_avg,
-           # exclusion = exclusion_criteria)
-# curs.execute(createTable)
-# conn.commit()
-# print("Done.")
-
-
-# ### Note: for now, we are just doing the continuous scale indicators with averages; later I'll implement a second pass to evaluate the threshold cutoffs.
-
-# print("Create range summary table li_range_{}... ".format(area)),
-# createTable = '''
-# DROP TABLE IF EXISTS li_range_{area} ; 
-# CREATE TABLE li_range_{area} AS
-# SELECT 'region'::varchar AS region,
-  # {indicators}     
-  # FROM parcel_indicators
-  # {exclusion}
-  # GROUP BY {area_code}
-  # ORDER BY {area_code} ASC;
-# ALTER TABLE li_range_{area} ADD PRIMARY KEY ({area_code});
-# '''.format(area = area,
-           # area_code = area_code,
-           # indicators = ind_range,
-           # exclusion = exclusion_criteria)
-# curs.execute(createTable)
-# conn.commit()
-# print("Done.")
-
-# print("Create IQR summary table li_iqr_{}... ".format(area)),  
-# createTable = '''
-# DROP TABLE IF EXISTS li_iqr_{area} ; 
-# CREATE TABLE li_iqr_{area} AS
-# SELECT 'region'::varchar AS region,
-  # {indicators}     
-  # FROM parcel_indicators
-  # {exclusion}
-  # GROUP BY {area_code}
-  # ORDER BY {area_code} ASC;
-# ALTER TABLE li_iqr_{area} ADD PRIMARY KEY ({area_code});
-# '''.format(area = area,
-           # area_code = area_code,
-           # indicators = ind_iqr,
-           # exclusion = exclusion_criteria)
-# curs.execute(createTable)
-# conn.commit()
-# print("Done.")
-
-# # Create shape files for interactive map visualisation
-
-# area_code2 = {'region':"'region'"}    
-
-# area_names2 = {'region':"'region'"}                      
-
-# # Note: may want to parameterise the region here later to allow for potentially non-urban areas
-# area_tables = {'region': 'study_region_urban'}     
-
-# area_code_tables = {'region': ''}
-                  
-# boundary_tables = {'region' : '''study_region_urban '''}
-                    
-# createTable = '''DROP TABLE IF EXISTS li_map_{area};
-# CREATE TABLE li_map_{area} AS
-# SELECT 'region'::varchar AS region,
-       # area.resid_parcels,
-       # area.dwellings,
-       # area.resid_persons,
-       # {raw},
-       # {range},
-       # {iqr},
-       # ST_TRANSFORM(ST_Union(area.geom),4326) AS geom              
-# FROM {area_table} AS area,
-# li_inds_{area} AS raw ON area.{area_code2} = raw.{area_code}
-# li_percentiles_{area} AS perc ON area.{area_code2} = perc.{area_code}
-# li_range_{area} AS range ON area.{area_code2} = range.{area_code}
-# li_iqr_{area} AS iqr ON area.{area_code2} = iqr.{area_code}
-# {area_code_table};
-# '''.format(area = area,
-           # area_code = area_code,
-           # area_table = area_tables[area],
-           # area_strings = area_strings[area_code],
-           # raw = map_ind_raw,
-           # percentile = map_ind_percentile,
-           # range = map_ind_range,
-           # iqr = map_ind_iqr,
-           # community_code = community_code[area_code],
-           # area_code2 = area_code2[area_code],
-           # area_code_table = area_code_tables[area_code])
-# print("Creating map feature at {} level".format(area))
-# curs.execute(createTable)
-# conn.commit()
-
-# createTable = '''
-# DROP TABLE IF EXISTS boundaries_{area};
-# CREATE TABLE boundaries_{area} AS
-# SELECT {area_names2} AS {area_code},
-        # ST_Transform(geom,4326) AS geom         
-# FROM {boundaries};
-# '''.format(area = area,
-           # area_names2 = area_names2[area_code],
-           # area_code = area_code,
-           # boundaries = boundary_tables[area_code])
-# print("Creating boundary overlays at {} level".format(area)),
-# curs.execute(createTable)
-# conn.commit()
-# print("Done.")
-
     
 print("Output to geopackage gpkg: {path}/li_map_{db}.gpkg... ".format(path = map_features_outpath, db = db)),
 # need to add in a geometry column to ind_description to allow for importing of this table as a layer in geoserver
