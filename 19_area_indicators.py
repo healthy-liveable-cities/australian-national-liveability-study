@@ -503,7 +503,7 @@ for area_code in areas.keys():
 # print("Done.")
 
     
-print("Output to geopackage gpkg: {path}/li_map.gpkg... ".format(path = map_features_outpath)),
+print("Output to geopackage gpkg: {path}/li_map_{db}.gpkg... ".format(path = map_features_outpath, db = db)),
 # need to add in a geometry column to ind_description to allow for importing of this table as a layer in geoserver
 # If it doesn't already exists
 # So, check if it already exists
