@@ -332,7 +332,7 @@ for area_code in areas.keys():
     #        {sd},
     #        {median},
     # LEFT JOIN li_median_{area} AS median ON area.{area_code2} = median.{area_code}
-    LEFT JOIN li_sd_{area} AS sd ON area.{area_code2} = raw.{area_code}
+    # LEFT JOIN li_sd_{area} AS sd ON area.{area_code2} = raw.{area_code}
     createTable = '''DROP TABLE IF EXISTS li_map_{area};
     CREATE TABLE li_map_{area} AS
     SELECT {area_strings},
