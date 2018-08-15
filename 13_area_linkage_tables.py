@@ -95,6 +95,36 @@ DROP TABLE IF EXISTS abs_2016_irsd;
 CREATE TABLE abs_2016_irsd 
 (sa1_maincode varchar, sa1_7digit varchar, usual_resident_pop integer, irsd_score integer, aust_rank integer, aust_decile integer, aust_pctile integer, state varchar, state_rank integer, state_decile integer, state_pctile integer);
 '''
+
+
+# Create study region tables
+create_study_region_tables = '''
+  DROP TABLE IF EXISTS study_region_urban;
+  CREATE TABLE study_region_urban AS 
+  SELECT b.sos_name_2 AS sos_name_2016, 
+         ST_Intersection(a.geom, b.geom) AS geom
+  FROM 
+  {region}_{year} a, 
+  main_sos_2016_aust b 
+  WHERE sos_name_2 IN ('Major Urban', 'Other Urban');
+  
+  DROP TABLE IF EXISTS study_region_not_urban;
+  CREATE TABLE study_region_not_urban AS 
+  SELECT b.sos_name_2 AS sos_name_2016, 
+         ST_Intersection(a.geom, b.geom) AS geom
+  FROM 
+  {region}_{year} a, 
+  main_sos_2016_aust b 
+  WHERE sos_name_2 NOT IN ('Major Urban', 'Other Urban');
+  
+  DROP TABLE IF EXISTS study_region_all_sos;
+  CREATE TABLE study_region_all_sos AS 
+  SELECT b.sos_name_2 AS sos_name_2016, 
+         ST_Intersection(a.geom, b.geom) AS geom
+  FROM 
+  {region}_{year} a, 
+  main_sos_2016_aust b ;
+'''.format(region = region.lower(), year = year.lower())
   
 # create sa1 area linkage corresponding to later SA1 aggregate tables
 create_area_sa1 = '''  
@@ -106,7 +136,7 @@ create_area_sa1 = '''
          SUM(mb_parcel_count) AS resid_parcels,
          SUM(a.dwelling) AS dwellings,
          SUM(a.person) AS resid_persons,
-         ST_Union(a.geom) AS geom
+         ST_Intersection(ST_Union(a.geom),c.geom) AS geom
   FROM abs_linkage a 
   LEFT JOIN (SELECT mb_code_20 AS mb_code_2016, 
                     count(*) mb_parcel_count 
@@ -119,9 +149,13 @@ create_area_sa1 = '''
              LEFT JOIN non_abs_linkage ON parcel_dwellings.{0} = non_abs_linkage.{0}
              LEFT JOIN abs_linkage ON parcel_dwellings.mb_code_20 = abs_linkage.mb_code_2016 
              GROUP BY sa1_maincode) b ON a.sa1_maincode = b.sa1_maincode
+  LEFT JOIN (SELECT sa1_mainco, 
+                    ST_Intersection(a.geom, b.geom) AS geom
+             FROM main_sa1_2016_aust_full a, 
+                  study_region_urban b) c ON a.sa1_maincode = c.sa1_mainco
   WHERE a.sa1_maincode IN (SELECT sa1_maincode FROM abs_2016_irsd)
   AND suburb IS NOT NULL 
-  GROUP BY a.sa1_maincode, suburb, lga
+  GROUP BY a.sa1_maincode, suburb, lga, c.geom
   ORDER BY a.sa1_maincode ASC;
   '''.format(points_id)
 
@@ -134,7 +168,7 @@ create_area_ssc = '''
          sum(resid_parcels) AS resid_parcels,
          sum(dwelling) AS dwellings,
          sum(person) AS resid_persons,
-         ST_Union(geom) AS geom
+         ST_Intersection(ST_Union(t.geom),c.geom) AS geom
   FROM  (SELECT DISTINCT ON (mb_code_2016)
                 mb_code_2016,
                 ssc_name_2016,
@@ -150,7 +184,11 @@ create_area_ssc = '''
          AND ssc_name_2016 IS NOT NULL
          GROUP BY mb_code_2016,ssc_name_2016,lga_name_2016,dwelling,person,a.geom
          ) t
-  GROUP BY suburb
+  LEFT JOIN (SELECT ssc_name_2, 
+                    ST_Intersection(a.geom, b.geom) AS geom
+             FROM main_ssc_2016_aust a, 
+                  study_region_urban b) c ON t.ssc_name_2016 = c.ssc_name_2
+  GROUP BY suburb, c.geom
   ORDER BY suburb ASC;
   '''.format(points_id)  
   
@@ -162,7 +200,7 @@ create_area_lga = '''
          sum(resid_parcels) AS resid_parcels,
          sum(dwelling) AS dwellings,
          sum(person) AS resid_persons,
-         ST_Union(geom) AS geom
+         ST_Intersection(ST_Union(t.geom),c.geom) AS geom
   FROM  (SELECT DISTINCT ON (mb_code_2016)
                 mb_code_2016,
                 lga_name_2016,
@@ -177,27 +215,22 @@ create_area_lga = '''
          AND lga_name_2016 IS NOT NULL
          GROUP BY mb_code_2016,lga_name_2016,dwelling,person,a.geom
          ) t
-  GROUP BY lga
+  LEFT JOIN (SELECT lga_name_2, 
+                    ST_Intersection(a.geom, b.geom) AS geom
+             FROM main_lga_2016_aust a, 
+                  study_region_urban b) c ON t.lga_name_2016 = c.lga_name_2
+  GROUP BY lga, c.geom
   ORDER BY lga ASC;
   '''.format(points_id)
 
-# This table takes too long to create --- i'm not sure why, so i'm skipping.  
-# create_parcel_sos = '''
-  # DROP TABLE IF EXISTS parcel_sos;
-  # CREATE TABLE parcel_sos AS
-  # SELECT {id},
-         # sos_name_2 AS sos_name_2016
-  # FROM parcel_dwellings p
-  # LEFT JOIN main_sos_2016_aust  r
-  # ON ST_Intersects(p.geom,r.geom);
-# '''.format(id = points_id)
+
 create_parcel_sos = '''
   DROP TABLE IF EXISTS parcel_sos;
   CREATE TABLE parcel_sos AS 
-  SELECT a.{id},
-         b.sos_name_2 AS sos_name_2016 
+  SELECT a.gnaf_pid,
+         sos_name_2016 
   FROM parcel_dwellings a,
-       main_sos_2016_aust b 
+       study_region_all_sos b 
   WHERE ST_Intersects(a.geom,b.geom);
   '''.format(id = points_id)
 
@@ -308,20 +341,30 @@ curs.copy_expert(sql="COPY abs_2016_irsd FROM STDIN WITH CSV HEADER DELIMITER AS
 print("Done.")
 
 print("Create addition area linkage tables to list SA1s, and suburbs within LGAs:")
+print("  - Study region tables (urban, not urban, all sos; within study region bounds)")
+curs.execute(create_study_region_tables)
+conn.commit()
 print("  - SA1s")
 curs.execute(create_area_sa1)
+conn.commit()
 print("  - Suburbs")
 curs.execute(create_area_ssc)
+conn.commit()
 print("  - LGAs")
 curs.execute(create_area_lga)
+conn.commit()
 print("  - SOS indexed by parcel")
 curs.execute(create_parcel_sos)
+conn.commit()
 print("  - Meshblocks, excluded due to no IRSD")
 curs.execute(create_mb_excluded_no_irsd)
+conn.commit()
 print("  - Meshblocks, excluded due to no dwellings")
 curs.execute(create_mb_no_dwellings)
+conn.commit()
 print("  - Total area excluded due to no IRSD")
 curs.execute(create_area_no_irsd)
+conn.commit()
 print("  - Total area excluded due to no dwellings")
 curs.execute(create_area_no_dwelling)
 conn.commit()

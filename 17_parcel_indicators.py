@@ -75,12 +75,14 @@ non_abs.ssc_code_2016    ,
 non_abs.ssc_name_2016    ,
 non_abs.lga_code_2016    ,
 non_abs.lga_name_2016    ,
+sos.sos_name_2016        ,
 {indicators}             
 p.geom                   
 FROM
 parcel_dwellings p                                                                                 
 LEFT JOIN abs_linkage abs ON p.mb_code_20 = abs.mb_code_2016
 LEFT JOIN non_abs_linkage non_abs ON p.{id} = non_abs.{id}
+LEFT JOIN parcel_sos sos ON p.{id} = sos.{id}
 {sources}
 '''.format(id = points_id, indicators = ind_queries, sources = ind_sources)
 
@@ -142,12 +144,17 @@ print(df2['null_tally'].describe().round(2))
 
 df.to_sql(name='parcel_ind_null_summary_t',con=engine,if_exists='replace')
 df2['null_tally'].describe().round(2).to_sql(name='parcel_inds_null_tally_summary',con=engine,if_exists='replace')
+
+# Drop index for ind_description table if it exists; 
+# this causes an error when (re-)creating the ind_description table if index exists
+curs.execute('DROP INDEX IF EXISTS ix_ind_description_index;')
+conn.commit()
 ind_matrix.to_sql(name='ind_description',con=engine,if_exists='replace')
 
 print("\n Nulls by indicator and Section of state")
 for ind in ind_list:
   print("\n{}".format(ind))
-  null_ind = pandas.read_sql_query("SELECT sos_name_2016, COUNT(*) null_count FROM parcel_indicators p LEFT JOIN parcel_sos sos ON p.gnaf_pid = sos.gnaf_pid WHERE {ind} IS NULL GROUP BY sos_name_2016;".format(ind = ind),con=engine)
+  null_ind = pandas.read_sql_query("SELECT sos_name_2016, COUNT(*) null_count FROM parcel_indicators p WHERE {ind} IS NULL GROUP BY sos_name_2016;".format(ind = ind),con=engine)
   if len(null_ind) != 0:
     print(null_ind)
   if len(null_ind) == 0:
