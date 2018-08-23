@@ -99,6 +99,16 @@ points_list = {'Adelaide': os.path.join(folderPath,'address_points/GDA2020_GA_LC
 points = points_list[locale]
 
 # POS queries - combined national and state-based scenarios, as lists of query-distance 2-tuples by locale
+# This variable is null by default; if defined, it refers to a POS category fields
+# e.g. differentiating as 'river','lake', 'reserve' etc.
+# If this is defined, it can be used when defining specific POS queries for a locale 
+# in the config file: 
+# e.g. you could do queries like
+# ["area_ha > 1.5 AND {} in ('park','reserve')".format(pos_category),400]
+# ["area_ha > 1.5 AND {}  = 'river'".format(pos_category),400]
+# ["{}  = 'natural reserve'".format(pos_category),3200]
+pos_category = ''
+
 pos_queries = {'Bris':  [['',400],
                          ['area_ha > 1.5',400],
                          ['area_ha > 0.5',400],

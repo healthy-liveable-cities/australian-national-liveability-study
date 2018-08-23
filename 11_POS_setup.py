@@ -104,20 +104,56 @@ arcpy.MakeFeatureLayer_management(temp_pos_points, 'skinny_pos', '', field_info=
 arcpy.CopyFeatures_management('skinny_pos', 'pos_50m_vertices') 
 print(" Done.")
   
+# connect to the PostgreSQL server and ensure privileges are granted for all public tables
+conn = psycopg2.connect(dbname=db, user=db_user, password=db_pwd)
+curs = conn.cursor()  
+  
 # gdb to pgsql
-print("Copy the pos points with area attribute data to PostgreSQL database..."),
+print("Copy the pos shape to PostgreSQL database..."),
 command = 'ogr2ogr -overwrite -progress -f "PostgreSQL" ' \
         + 'PG:"host={host} port=5432 dbname={db} '.format(host = db_host,db = db) \
         + 'user={user} password = {pwd} " '.format(user = db_user,pwd = db_pwd) \
-        + '{gdb} "{feature}" '.format(gdb = gdb_path,feature = "pos_50m_vertices") \
+        + '{gdb} "{feature}" '.format(gdb = gdb_path,feature = "pos_shape") \
         + '-lco geometry_name="geom" '
 sp.call(command, shell=True)
 
-# connect to the PostgreSQL server and ensure privileges are granted for all public tables
-conn = psycopg2.connect(dbname=db, user=db_user, password=db_pwd)
-curs = conn.cursor()
-curs.execute(grant_query)
-conn.commit()
+
+# Depending on whether pos_category variable is defined, this will be included in the
+# pos_50m_vertices table; if included, the pos_category variable can be used to define 
+# queries in the config file.
+if pos_category == '':
+  print("Copy the pos points with area attribute data to PostgreSQL database..."),
+  command = 'ogr2ogr -overwrite -progress -f "PostgreSQL" ' \
+          + 'PG:"host={host} port=5432 dbname={db} '.format(host = db_host,db = db) \
+          + 'user={user} password = {pwd} " '.format(user = db_user,pwd = db_pwd) \
+          + '{gdb} "{feature}" '.format(gdb = gdb_path,feature = "pos_50m_vertices") \
+          + '-lco geometry_name="geom" '
+  sp.call(command, shell=True)
+  curs.execute(grant_query)
+  conn.commit()
+
+if pos_category != '':
+  print("Copy the pos points with area attribute data to PostgreSQL database..."),
+  command = 'ogr2ogr -overwrite -progress -f "PostgreSQL" ' \
+          + 'PG:"host={host} port=5432 dbname={db} '.format(host = db_host,db = db) \
+          + 'user={user} password = {pwd} " '.format(user = db_user,pwd = db_pwd) \
+          + '{gdb} "{feature}" '.format(gdb = gdb_path,feature = "temp_pos_vertices") \
+          + '-lco geometry_name="geom" '
+  sp.call(command, shell=True)
+  curs.execute(grant_query)
+  conn.commit()
+  pos_vertices_with_cat = '''
+  CREATE TABLE pos_50m_vertices AS
+  SELECT a.*, 
+         b.{pos_cat} 
+  FROM temp_pos_vertices a
+  LEFT JOIN pos_shape b ON a.pos_id = b.objectid;
+  '''.format(pos_cat = pos_category)
+  curs.execute(pos_verticies_with_cat)
+  conn.commit()
+  curs.execute(grant_query)
+  conn.commit()
+  
 conn.close()
 print(" Done.") 
  

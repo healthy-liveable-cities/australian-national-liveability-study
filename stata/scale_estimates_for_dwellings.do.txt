@@ -47,3 +47,6 @@ count if mean <= 1000
 di 100*r(N)/c(N)
 count if sim_access <= 1000
 di 100*r(N)/c(N)
+
+
+scatterbox sim_access mean, xtitle(Mesh block mean distance, margin(medsmall)) ytitle(simulated distance, margin(medsmall)) subtitle("Distance to nearest train station for dwellings")  xlab(5 "5m" 50 "50m" 500 "500m" 5000 "5km" 10000 "10km" 40000 "40km") ylab(5 "5m"  50 "50m" 500 "500m" 5000 "5km" 10000 "10km" 40000 "40km", angle(h) nogrid) ysize(20) xsize(20) ysca(log) xsca(log) $tw_style ms(oh)
