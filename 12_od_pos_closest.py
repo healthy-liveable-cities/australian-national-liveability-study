@@ -155,7 +155,7 @@ def writeLog(hex = 0, AhexN = 'NULL', Bcode = 'NULL', status = 'NULL', mins= 0, 
       moment = time.strftime("%Y%m%d-%H%M%S")
   
       # write to sql table
-      curs.execute("{0} ({1},{2},'{3}','{4}',{5}) {6}".format(queryInsert,hex, AhexN, Bcode,status, mins, queryUpdate))
+      curs.execute("{0} ({1},{2},$${3}$$,$${4}$$,{5}) {6}".format(queryInsert,hex, AhexN, Bcode,status, mins, queryUpdate))
       conn.commit()  
   except:
     print("ERROR: {}".format(sys.exc_info()))
@@ -202,7 +202,7 @@ def ODMatrixWorkerFunction(hex):
     # loop over POS scenarios for this study region
     for query in pos_locale:
       # ensure only non-processed parcels are processed (ie. in case script has been previously run)
-      curs.execute("SELECT {} FROM {} WHERE query = '{}'".format(origin_pointsID,sqlTableName,hex,query[0]))
+      curs.execute("SELECT {} FROM {} WHERE query = $${}$$".format(origin_pointsID,sqlTableName,hex,query[0]))
       processed_points = [x[0] for x in list(curs)]
       # Only procede with the POS scenario if it has not been previously processed
       if len(processed_points) < A_pointCount:
@@ -217,7 +217,7 @@ def ODMatrixWorkerFunction(hex):
         # define query and distance as destination code, for use in log file 
         dest_code = "{} @ {}m".format(query[0],query[1])
         dest_name = "POS: {}".format(dest_code)
-        
+
         place = 'before skip empty B hexes'
         # Skip empty B hexes
         if B_pointCount != 0:          
@@ -268,7 +268,7 @@ def ODMatrixWorkerFunction(hex):
               ind_hard  = int(distance < threshold)
               ind_soft = 1 - 1.0 / (1+np.exp(-soft_threshold_slope*(distance-threshold)/threshold))
               place = "before chunk append"
-              chunkedLines.append("('{ID_A}','{ID_B}','{query}',{distance},{threshold},{ind_hard},{ind_soft})".format(ID_A      = ID_A,
+              chunkedLines.append("('{ID_A}','{ID_B}',$${query}$$,{distance},{threshold},{ind_hard},{ind_soft})".format(ID_A      = ID_A,
                                                                                                                       ID_B      = ID_B,
                                                                                                                       query     = query[0],
                                                                                                                       distance  = distance,
