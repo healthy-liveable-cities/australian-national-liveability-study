@@ -98,6 +98,8 @@ points_list = {'Adelaide': os.path.join(folderPath,'address_points/GDA2020_GA_LC
 
 points = points_list[locale]
 
+# POS feature source (make sure in correct projection as per project)
+pos_source   = os.path.join(folderPath,'destinations','pos_2018.gdb','{}_pos_2018'.format(locale.lower()))
 # POS queries - combined national and state-based scenarios, as lists of query-distance 2-tuples by locale
 # This variable is null by default; if defined, it refers to a POS category fields
 # e.g. differentiating as 'river','lake', 'reserve' etc.
@@ -320,10 +322,6 @@ if no_foward_edge_issues == 1:
 
 
 # POS
-# POS feature sourced from Julianna Rozek
-#  -- already projected in GDA2020 GA LCC
-#  -- various sources (OSM, Government, ??)
-pos_source   = os.path.join(folderPath,'destinations','pos_2018.gdb','{}_pos_2018'.format(locale.lower()))
 pos_vertices = 50  # used to create series of hypothetical entry points around park
 
 # Destinations - locate destinations.gdb within dest_dir (ie. 'D:\ntnl_li_2018\data\destinations\' or whereever your ntnl_li_2018 folder is located)

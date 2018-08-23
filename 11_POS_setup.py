@@ -98,9 +98,8 @@ arcpy.CalculateField_management(in_table=temp_pos_points,
                                 expression_type="PYTHON")
 print(" Done.")                                
 
-print("Save to geodatabase with only important fields retained (OID, shape, orig_fid and pos_entry_id)..."),
-field_info_str = 'OBJECTID OBJECTID VISIBLE;Shape Shape VISIBLE;mem_point_LineOID mem_point_LineOID HIDDEN;mem_point_Value mem_point_Value HIDDEN;pos_line_OBJECTID pos_line_OBJECTID HIDDEN;pos_line_Id pos_line_Id HIDDEN;pos_line_area_ha area_ha VISIBLE;pos_line_ORIG_FID pos_id VISIBLE;pos_entryid pos_entryid VISIBLE;'             
-arcpy.MakeFeatureLayer_management(temp_pos_points, 'skinny_pos', '', field_info=field_info_str)            
+print("Save to geodatabase"),           
+arcpy.MakeFeatureLayer_management(temp_pos_points, 'skinny_pos')            
 arcpy.CopyFeatures_management('skinny_pos', 'pos_50m_vertices') 
 print(" Done.")
   
@@ -117,42 +116,18 @@ command = 'ogr2ogr -overwrite -progress -f "PostgreSQL" ' \
         + '-lco geometry_name="geom" '
 sp.call(command, shell=True)
 
-
 # Depending on whether pos_category variable is defined, this will be included in the
 # pos_50m_vertices table; if included, the pos_category variable can be used to define 
 # queries in the config file.
-if pos_category == '':
-  print("Copy the pos points with area attribute data to PostgreSQL database..."),
-  command = 'ogr2ogr -overwrite -progress -f "PostgreSQL" ' \
-          + 'PG:"host={host} port=5432 dbname={db} '.format(host = db_host,db = db) \
-          + 'user={user} password = {pwd} " '.format(user = db_user,pwd = db_pwd) \
-          + '{gdb} "{feature}" '.format(gdb = gdb_path,feature = "pos_50m_vertices") \
-          + '-lco geometry_name="geom" '
-  sp.call(command, shell=True)
-  curs.execute(grant_query)
-  conn.commit()
-
-if pos_category != '':
-  print("Copy the pos points with area attribute data to PostgreSQL database..."),
-  command = 'ogr2ogr -overwrite -progress -f "PostgreSQL" ' \
-          + 'PG:"host={host} port=5432 dbname={db} '.format(host = db_host,db = db) \
-          + 'user={user} password = {pwd} " '.format(user = db_user,pwd = db_pwd) \
-          + '{gdb} "{feature}" '.format(gdb = gdb_path,feature = "temp_pos_vertices") \
-          + '-lco geometry_name="geom" '
-  sp.call(command, shell=True)
-  curs.execute(grant_query)
-  conn.commit()
-  pos_vertices_with_cat = '''
-  CREATE TABLE pos_50m_vertices AS
-  SELECT a.*, 
-         b.{pos_cat} 
-  FROM temp_pos_vertices a
-  LEFT JOIN pos_shape b ON a.pos_id = b.objectid;
-  '''.format(pos_cat = pos_category)
-  curs.execute(pos_verticies_with_cat)
-  conn.commit()
-  curs.execute(grant_query)
-  conn.commit()
+print("Copy the pos points with area attribute data to PostgreSQL database..."),
+command = 'ogr2ogr -overwrite -progress -f "PostgreSQL" ' \
+        + 'PG:"host={host} port=5432 dbname={db} '.format(host = db_host,db = db) \
+        + 'user={user} password = {pwd} " '.format(user = db_user,pwd = db_pwd) \
+        + '{gdb} "{feature}" '.format(gdb = gdb_path,feature = "pos_50m_vertices") \
+        + '-lco geometry_name="geom" '
+sp.call(command, shell=True)
+curs.execute(grant_query)
+conn.commit()
   
 conn.close()
 print(" Done.") 
