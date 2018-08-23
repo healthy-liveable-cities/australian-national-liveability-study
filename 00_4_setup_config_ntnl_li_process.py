@@ -109,6 +109,12 @@ pos_source   = os.path.join(folderPath,'destinations','pos_2018.gdb','{}_pos_201
 # ["area_ha > 1.5 AND {} in ('park','reserve')".format(pos_category),400]
 # ["area_ha > 1.5 AND {}  = 'river'".format(pos_category),400]
 # ["{}  = 'natural reserve'".format(pos_category),3200]
+
+# For Mitchell we set the variable name 'pos_line_pos_cat', as the source variable was 'pos_cat'; 
+# the processing renames the category variable 'pos_cat' to pos_line_pos_cat.  
+# So if you have another category variable, add the prefix 'pos_line' and it should work.
+# Try to use all lower case for your variable name.
+# pos_category = 'pos_line_pos_cat'
 pos_category = ''
 
 pos_queries = {'Bris':  [['',400],
@@ -117,6 +123,13 @@ pos_queries = {'Bris':  [['',400],
                          ['area_ha > 5',2500]],
                'Melb':  [['',400],
                          ['area_ha > 1.5',400]],
+           'Mitchell':  [['',1600],
+                         ["{} = 'Lake or wetland'".format(pos_category),1600],
+                         ["{} = 'Creek or River'".format(pos_category),1600],
+                         ["{} = 'Bushland reserve'".format(pos_category),1600],
+                         ["{} = 'Public Park'".format(pos_category),1600],
+                         ["{} = 'Recreation reserve'".format(pos_category),1600],
+                         ["{} = 'Agricultural Area'".format(pos_category),1600]],
                'Perth': [['',400],
                          ['area_ha > 1.5',400],
                          ['area_ha > 0.4 AND area_ha <= 1 ',400],
