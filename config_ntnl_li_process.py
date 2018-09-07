@@ -1,36 +1,31 @@
 # Script:  config_ntnl_li_process.py
 # Liveability indicator calculation template custom configuration file
-# Version: 20180824
-# Author:  Carl Higgs, Rebecca Roberts, Julianna Rozek
+# Version: 20180907
+# Author:  Carl Higgs
 #
-# About:
 # All scripts within the process folder draw on the sources, parameters and modules
-# specified in this file to source and output resources.  As such,
-# it is the best definition of where resources are sourced from and should be import os
-# modified within a local implementation of the liveability index.
+# specified in the file ind_study_region_matrix.xlsx to source and output 
+# resources. It is the best definition of where resources are sourced from and 
+# how the methods used have been parameterised.
 #
-# This is the project configuration file.  It should
-#   - define parameters which apply across all study regions in a project
-#   - a project might be considered a batch job, where results are calculated
-#     for a range of study regions or locales
-#   - a particular project might target a particular time point e.g. 2016
-#   - in contrast, a study region targets a specific place (e.g. Melbourne GCCSA)
+# If you are starting a new project, you can set up the global parameters which 
+# (pending overrides) should be applied for each study region in the 
+#  detailed_explanation' folder.
 #
-# The study region configuration file should detail those aspects specific to a locale
-#   - the definition of a particular study region
-#   - study region specific data sources
-#   - any overrides to the global project parameters where required (but try to avoid this)
+# If you are adding a new study region to an existing project, this study region
+# will be entered as a row in the 'study_regions' worksheet; the corresponding
+# column fields must be completed as required.  See the worksheet 'detailed 
+# explanation' for a description of what is expected for each field.
 #
-# Directions:
-# - customise entries here to match your 
-    # - folder structure
-    # - project parameters
-# - Once customised: 
-#   **** Save this file (00_4_setup_config_ntnl_li_process.py) 
-#   **** as 'config_ntnl_li_process.py' within the 'process' 
+# If you are running a project on a specific computer that requires some kind of 
+# override of the parameters set up above, you can **in theory** use the 
+# 'local_environments' worksheet to do this.  In practice this hasn't been 
+# implemented yet, and the sheet is just a placeholder for the event that such 
+# overrides are required.
 #
-#   **** Remember to update config_destionations.csv
-#   **** Specify in config_destionations.csv: destinations, domain, cutoff, count distance
+# The file which draws on the project, study region, destination and local settings 
+# specificied in the ind_study_region_matrix.xlsx file and implements these across 
+# scripts is THIS FILE config_ntnl_li_process.py
 
 # import modules
 import os
@@ -52,13 +47,15 @@ folderPath = df_parameters.loc['folderPath']['value']
 # if current branch is master, the scripts will fail (locale = '')
 # if current branch is 'li_studyregion_2016', locale will be set as 'studyregion'
 locale = '_'.join(sp.check_output(["git", "status"],cwd=sys.path[0],shell=True).split('\n')[0].split(' ')[2].split('_')[1:-1])
-
+if locale=='':
+  # this implies the user is on the master branch of the script repository
+  locale = 'testing'
 
 
 # More study region details
 year   = df_parameters.loc['year']['value']
-region = df_studyregion.loc[locale]['region']
-state  = df_studyregion.loc[locale]['state']
+region = df_studyregion.loc[locale]['region'].encode('utf')
+state  = df_studyregion.loc[locale]['state'].encode('utf')
 
 
 # Study region boundary
@@ -67,28 +64,16 @@ region_shape = df_studyregion.loc[locale]['region_shape']
 # SQL Query to select study region
 region_where_clause = df_studyregion.loc[locale]['region_shape'].encode('utf')
 
-
-# Point data locations (ie. GNAF address point features, in GDA2020 GA LCC)
-points = df_studyregion.loc[locale]['points'].encode('utf')
-
-# POS queries - combined national and state-based scenarios, as lists of query-distance 2-tuples by locale
-pos_locale = df_studyregion.loc[locale]['pos_queries'].encode('utf')
-
-# Feature for restricted inclusion of POS analysis; used where POS data coverage < study region extent
-# Note that at the moment we are using a single feature with a 400m Euclidean buffer; indicators
-# use network distance however (400m network would be no greater than 400 Euclidean), but some seek POS across 
-# a larger network distance of say 2km.  So, situations may arise where some edge cases are still unfairly 
-# penalised.  However in practice, for Sydney where this issue could arises the portion of study region where 
-# this issue arises is not urban and will be marked for exclusion anyway.  
-# So, to avoid a more complicated scripting approach, we are sticking with single inclusion feature, for now.
-pos_inclusion = df_studyregion.loc[locale]['pos_inclusion'].encode('utf')
-if pos_inclusion = ""
-  pos_inclusion = "*"
-
-# **************** Extra bits (hopefully don't need to change much) *******************************
-
 # db suffix
-suffix = df_studyregion.loc[locale]['suffix'].encode('utf')
+suffix = df_studyregion.loc[locale]['suffix']
+if suffix.dtype!='float64':
+  # this implies at least one value was a string, and this can be encoded as utf
+  suffix = suffix.encode('utf')
+  
+if pd.np.isnan(suffix):
+  # this implies all suffixes are blank and this has been interpreted as 'nan'
+  suffix = ''
+
 
 # derived study region name (no need to change!)
 study_region = '{0}_{1}'.format(region,year).lower()
@@ -139,7 +124,7 @@ feature_ds_out_spatial_ref = df_parameters.loc['feature_ds_out_spatial_ref']['va
 
 # SQL Settings
 db_host   = df_parameters.loc['db_host']['value'].encode('utf')
-db_port   = df_parameters.loc['db_port']['value']
+db_port   = '{}'.format(df_parameters.loc['db_port']['value'])
 db_user   = df_parameters.loc['db_user']['value'].encode('utf')
 db_pwd    = df_parameters.loc['db_pwd']['value'].encode('utf')
 arc_sde_user = df_parameters.loc['arc_sde_user']['value'].encode('utf')
@@ -182,9 +167,9 @@ meshblock_id    = df_parameters.loc['meshblock_id']['value'].encode('utf')
 # Dwelling count source csv (ABS download)
 # CLEAN APPLIED: removed comments from end of file
 dwellings        = os.path.join(folderPath,
-                         df_parameters.loc['']['value'].encode('utf'))
-dwellings_id     = df_parameters.loc['']['value'].encode('utf')
-dwellings_field  = df_parameters.loc['']['value'].encode('utf')
+                         df_parameters.loc['dwellings']['value'].encode('utf'))
+dwellings_id     = df_parameters.loc['dwellings_id']['value'].encode('utf')
+dwellings_field  = df_parameters.loc['dwellings_id']['value'].encode('utf')
 
 # other areas
 abs_SA1 = os.path.join(folderPath,
@@ -202,9 +187,10 @@ abs_lga = os.path.join(folderPath,
 abs_suburb = os.path.join(folderPath,
                       df_parameters.loc['abs_suburb']['value'].encode('utf'))
 
-# parcels
-# Note that the process assumes we have already transformed points to GDA2020 GA LLC
-
+# parcels (point data locations used for sampling)
+# Note that the process assumes we have already transformed points to the project's spatial reference
+# Point data locations (e.g. GNAF address point features)
+points = df_studyregion.loc[locale]['points'].encode('utf')
 points_id = df_parameters.loc['points_id']['value'].encode('utf')
 points_srid = df_parameters.loc['points_srid']['value']
 
@@ -212,16 +198,16 @@ points_srid = df_parameters.loc['points_srid']['value']
 # but our last run of scripts invested in this, so for now we'll leave it in so things work
 # A better name might be something like 'units_of_analysis' or 'included_points'
 # I don't know; but that is what this refers to. Its just a name.
-parcel_dwellings = df_parameters.loc['parcel_dwellings']['value'].encode('utf')
+parcel_dwellings = 'parcel_dwellings'
 
 # roads
 # Define network data name structures
 road_data = df_parameters.loc['road_data']['value'].encode('utf')  # the folder where road data is kept
 network_source = os.path.join(folderPath,road_data,'osm_gccsa10km_{}_pedestrian_20180628'.format(locale.lower()))
-network_source_feature_dataset = df_parameters.loc['']['value'].encode('utf')
+network_source_feature_dataset = df_parameters.loc['network_source_feature_dataset']['value'].encode('utf')
 network_edges = df_parameters.loc['network_edges']['value'].encode('utf')
 network_junctions = df_parameters.loc['network_junctions']['value'].encode('utf')
-network_template = os.path.join(folderPath,road_data,'')
+network_template = os.path.join(folderPath,road_data,df_parameters.loc['network_template']['value'].encode('utf'))
 
 # transformations for network (currently WGS84 to GDA GA LCC using NTv2)
 network_transform_method = df_parameters.loc['network_transform_method']['value'].encode('utf')
@@ -261,22 +247,40 @@ soft_threshold_slope = df_parameters.loc['soft_threshold_slope']['value']
 # this means that for *subsequently processed* buffers, it will use 
 # an ST_SnapToGrid parameter of 0.01 instead of 0.001
 ## The first pass should use 0.001, however.
-no_foward_edge_issues = df_studyregion.loc[locale]['no_foward_edge_issues']
+no_foward_edge_issues = df_studyregion.loc[locale]['no_forward_edge_issues']
 snap_to_grid = 0.001
 if no_foward_edge_issues == 1:
   snap_to_grid = 0.01
 
 # POS
 #  -- make sure projected according to project spatial reference
-pos_source   = os.path.join(folderPath,df_studyregion.loc[locale]['pos_source'].encode('utf'))
-pos_vertices = df_studyregion.loc[locale]['pos_vertices']  # used to create series of hypothetical entry points around park
+
+if type(df_studyregion.loc[locale]['pos_source']) is unicode:
+  # implies POS has been defined; else is nan
+  pos_source   = os.path.join(folderPath,df_studyregion.loc[locale]['pos_source'].encode('utf'))
+  pos_vertices = df_parameters.loc['pos_vertices']['value']  # used to create series of hypothetical entry points around park
+
+  # POS queries - combined national and state-based scenarios, as lists of query-distance 2-tuples by locale
+  pos_locale = df_studyregion.loc[locale]['pos_queries'].encode('utf')
+
+  # Feature for restricted inclusion of POS analysis; used where POS data coverage < study region extent
+  # Note that at the moment we are using a single feature with a 400m Euclidean buffer; indicators
+  # use network distance however (400m network would be no greater than 400 Euclidean), but some seek POS across 
+  # a larger network distance of say 2km.  So, situations may arise where some edge cases are still unfairly 
+  # penalised.  However in practice, for Sydney where this issue could arises the portion of study region where 
+  # this issue arises is not urban and will be marked for exclusion anyway.  
+  # So, to avoid a more complicated scripting approach, we are sticking with single inclusion feature, for now.
+  if type(df_studyregion.loc[locale]['pos_inclusion']) is unicode:
+    pos_inclusion = df_studyregion.loc[locale]['pos_inclusion'].encode('utf')
+  else:
+    pos_inclusion = "*"
 
 # Destinations - locate destinations.gdb within dest_dir (ie. 'D:\ntnl_li_2018\data\destinations\' or whereever your ntnl_li_2018 folder is located)
 # Destinations data directory
 dest_dir = os.path.join(folderPath,df_parameters.loc['dest_dir']['value'].encode('utf'))
 src_destinations = os.path.join(dest_dir,df_parameters.loc['src_destinations']['value'].encode('utf'))
 destination_id = df_parameters.loc['destination_id']['value'].encode('utf')
-destinations_gdb_has_datasets = df_parameters.loc['destinations_gdb_has_datasets']['value'].encode('utf')
+destinations_gdb_has_datasets = df_parameters.loc['destinations_gdb_has_datasets']['value']
 
 # when recompiling destinations, the attributes are copied to csv in case later linkage is req'data
 # some fields are problematic however -- too large.  detail here to not copy.
@@ -305,7 +309,7 @@ outCombinedFeature = 'study_destinations'
 # The table 'dest_type' will be created in Postgresql to keep track of destinations
 
 ## Read in the externally defined csv file
-df_destinations = df_destinations.replace(pandas.np.nan, 'NULL', regex=True)
+df_destinations = df_destinations.replace(pd.np.nan, 'NULL', regex=True)
 
 ## Retrieve defined variables from destinations csv
 destination_list = df_destinations.destination.tolist() # the destinations 
