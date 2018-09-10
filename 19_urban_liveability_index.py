@@ -30,7 +30,7 @@ uli_locations = ind_matrix[ind_matrix['ind']=='uli']['locale'].iloc[0].encode('u
 if locale not in uli_locations:
   print("This location ('{locale}') is not marked for calculation of the Urban Liveability Index; check the ind_study_region_matrix file.".format(locale = locale))
 else:
-  inclusion_criteria = '{0} NOT IN (SELECT DISTINCT({0}) FROM excluded_parcels)'.format(points_id.lower())
+  id_inclusion_criteria = 'NOT IN (SELECT DISTINCT({0}) FROM excluded_parcels)'.format(points_id.lower())
   
   conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
   curs = conn.cursor()  
@@ -66,7 +66,6 @@ else:
   
   # create destination group based indicators specific to this liveability schema
   
-  points_id = '{id}'
   createTable = '''
   DROP TABLE IF EXISTS li_inds ; 
   CREATE TABLE li_inds AS
@@ -83,9 +82,9 @@ else:
    FROM od_closest 
       WHERE dest IN (2,3,4) GROUP BY {id}
    ) convenience ON p.{id} = convenience.{id}
-  WHERE {inclusion};
-  ALTER TABLE li_inds ADD PRIMARY KEY (id);
-    '''.format(id = points_id, inclusion = inclusion_criteria)
+  WHERE p.{id} {inclusion};
+  ALTER TABLE li_inds ADD PRIMARY KEY ({id});
+    '''.format(id = points_id, inclusion = id_inclusion_criteria)
   
   curs.execute(createTable)
   conn.commit()
