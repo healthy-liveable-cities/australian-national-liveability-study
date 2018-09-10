@@ -30,15 +30,15 @@
 # import modules
 import os
 import sys
-import pandas as pd
+import pandas
 import subprocess as sp
 
 # Load settings from ind_study_region_matrix.xlsx
-xls = pd.ExcelFile(os.path.join(sys.path[0],'ind_study_region_matrix.xlsx'))
-df_parameters = pd.read_excel(xls, 'parameters',index_col=0)
-df_studyregion = pd.read_excel(xls, 'study_regions',index_col=0)
-df_inds = pd.read_excel(xls, 'ind_study_region_matrix')
-df_destinations = pd.read_excel(xls, 'destinations')
+xls = pandas.ExcelFile(os.path.join(sys.path[0],'ind_study_region_matrix.xlsx'))
+df_parameters = pandas.read_excel(xls, 'parameters',index_col=0)
+df_studyregion = pandas.read_excel(xls, 'study_regions',index_col=0)
+df_inds = pandas.read_excel(xls, 'ind_study_region_matrix')
+df_destinations = pandas.read_excel(xls, 'destinations')
 
 # The main directory for data
 folderPath = df_parameters.loc['folderPath']['value']
@@ -70,7 +70,7 @@ if suffix.dtype!='float64':
   # this implies at least one value was a string, and this can be encoded as utf
   suffix = suffix.encode('utf')
   
-if pd.np.isnan(suffix):
+if pandas.np.isnan(suffix):
   # this implies all suffixes are blank and this has been interpreted as 'nan'
   suffix = ''
 
@@ -309,7 +309,7 @@ outCombinedFeature = 'study_destinations'
 # The table 'dest_type' will be created in Postgresql to keep track of destinations
 
 ## Read in the externally defined csv file
-df_destinations = df_destinations.replace(pd.np.nan, 'NULL', regex=True)
+df_destinations = df_destinations.replace(pandas.np.nan, 'NULL', regex=True)
 
 ## Retrieve defined variables from destinations csv
 destination_list = df_destinations.destination.tolist() # the destinations 

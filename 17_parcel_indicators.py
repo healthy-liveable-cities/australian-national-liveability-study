@@ -3,8 +3,6 @@
 # Author:  Carl Higgs 
 # Date:    20180717
 
-import os
-import sys
 import time
 import psycopg2 
 from sqlalchemy import create_engine

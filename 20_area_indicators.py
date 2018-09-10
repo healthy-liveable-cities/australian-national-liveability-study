@@ -21,21 +21,13 @@ task = 'Create area level indicator tables for {}'.format(locale)
 
 
 # Read in indicator description matrix
-ind_matrix = pandas.read_csv(os.path.join(sys.path[0],'ind_study_region_matrix.csv'))
-# Restrict to indicators associated with study region
-ind_matrix = ind_matrix[ind_matrix['locale'].str.contains(locale)]
-# Restrict to indicators with a defined source
-ind_matrix = ind_matrix[pandas.notnull(ind_matrix['Source'])]
-
-
-# Read in indicator description matrix
-ind_matrix = pandas.read_csv(os.path.join(sys.path[0],'ind_study_region_matrix.csv'))
+ind_matrix = df_inds
 
 # Restrict to indicators associated with study region
 ind_matrix = ind_matrix[ind_matrix['locale'].str.contains(locale)]
 
-# Restrict to indicators with a defined source
-ind_matrix = ind_matrix[pandas.notnull(ind_matrix['Source'])]
+# Restrict to indicators with a defined source, or the urban liveability index
+ind_matrix = ind_matrix[((pandas.notnull(ind_matrix['Source'])) | (ind_matrix['ind']=='uli'))]
 
 # Make concatenated indicator and tag name (e.g. 'walk_14' + 'hard')
 # Tags could be useful later as can allow to search by name for e.g. threshold type,
