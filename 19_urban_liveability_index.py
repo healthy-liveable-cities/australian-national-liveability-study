@@ -21,12 +21,6 @@ start = time.time()
 script = os.path.basename(sys.argv[0])
 task = 'calculate urban liveability index (ULI) for {}'.format(locale)
 
-# SQL Settings
-sqlDBName   = parser.get('postgresql', 'database')
-sqlDBHost   = parser.get('postgresql', 'host')
-sqlUserName = parser.get('postgresql', 'user')
-sqlPWD      = parser.get('postgresql', 'password')
-
 # Read in indicator description matrix
 ind_matrix = df_inds
 
@@ -38,8 +32,8 @@ if locale in uli_locations:
 else:
   inclusion_criteria = '{0} NOT IN (SELECT DISTINCT({0}) FROM excluded_parcels)'.format(points_id.lower())
   
-  conn = psycopg2.connect(database=sqlDBName, user=sqlUserName, password=sqlPWD)
-  curs = conn.cursor()
+  conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
+  curs = conn.cursor()  
   
   # Define function to shape if variable is outlying  
   createFunction = '''
