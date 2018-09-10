@@ -88,7 +88,7 @@ else:
   
   curs.execute(createTable)
   conn.commit()
-  print("Created liveability indicator table li_inds.".format(i,uli_schema))
+  print("Created liveability indicator table li_inds.")
   
   # The below uses our custom clean function, drawing on (indicator, min, max, mean, sd)
   createTable = '''
@@ -140,7 +140,7 @@ else:
   
   curs.execute(createTable)
   conn.commit()
-  print("Created table 'li_inds_norm', a table of MPI-normalised indicators.".format(i,uli_schema))
+  print("Created table 'li_inds_norm', a table of MPI-normalised indicators.")
    
   createTable = ''' 
   -- 2. Create ULI
@@ -166,7 +166,7 @@ else:
   
   curs.execute(createTable)
   conn.commit()
-  print("Created table 'uli', containing parcel level urban liveability index estimates, along with its required summary ingredients (mean, sd, coefficient of variation).".format(i,uli_schema))
+  print("Created table 'uli', containing parcel level urban liveability index estimates, along with its required summary ingredients (mean, sd, coefficient of variation).")
   
   createTable  = '''
   -- Create a temporary parcel indicators table containing the ULI
@@ -184,7 +184,7 @@ else:
   
   curs.execute(createTable)
   conn.commit()
-  print("Replaced table 'parcel_indicators' with a new version, containing the ULI".format(i,uli_schema))
+  print("Replaced table 'parcel_indicators' with a new version, containing the ULI")
   
   # output to completion log    
   script_running_log(script, task, start)
