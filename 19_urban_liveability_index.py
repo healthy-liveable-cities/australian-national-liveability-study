@@ -162,7 +162,7 @@ else:
         FROM li_inds_norm ) alias
   GROUP BY {id};
   ALTER TABLE uli ADD PRIMARY KEY ({id});
-  '''.format(A_pointsID.lower())
+  '''.format(id = points_id)
   
   curs.execute(createTable)
   conn.commit()
