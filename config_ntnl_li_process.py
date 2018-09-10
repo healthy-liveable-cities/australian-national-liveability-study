@@ -36,7 +36,7 @@ import subprocess as sp
 # Load settings from ind_study_region_matrix.xlsx
 xls = pandas.ExcelFile(os.path.join(sys.path[0],'ind_study_region_matrix.xlsx'))
 df_parameters = pandas.read_excel(xls, 'parameters',index_col=0)
-df_studyregion = pandas.read_excel(xls, 'study_regions',index_col=0)
+df_studyregion = pandas.read_excel(xls, 'study_regions',index_col=1)
 df_inds = pandas.read_excel(xls, 'ind_study_region_matrix')
 df_destinations = pandas.read_excel(xls, 'destinations')
 
