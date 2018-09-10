@@ -1,0 +1,174 @@
+# Script:  19_urban_liveability_index.py
+# Purpose: Create parcel indicators for national liveability project
+# Author:  Carl Higgs 
+# Date:    20180910
+
+#  Postgresql MPI implementation steps for i indicators across j parcels
+#  De Muro P., Mazziotta M., Pareto A. (2011), "Composite Indices of Development and Poverty: An Application to MDGs", Social Indicators Research, Volume 104, Number 1, pp. 1-18.
+#  Vidoli, F., Fusco, E. Compind: Composite Indicators Functions, Version 1.1.2, 2016 
+#  Adapted for postgresql by Carl Higgs, 4/4/2017
+
+
+import os
+import sys
+import time
+import psycopg2 
+
+from script_running_log import script_running_log
+
+# Import custom variables for National Liveability indicator process
+from config_ntnl_li_process import *
+
+# simple timer for log file
+start = time.time()
+script = os.path.basename(sys.argv[0])
+task = 'calculate urban liveability index (ULI) for {}'.format(locale)
+
+inclusion_criteria = '{0} NOT IN (SELECT DISTINCT({0}) FROM excluded_parcels)'.format(points_id.lower())
+
+# SQL Settings - storing passwords in plain text is obviously not ideal
+sqlDBName   = parser.get('postgresql', 'database')
+sqlDBHost   = parser.get('postgresql', 'host')
+sqlUserName = parser.get('postgresql', 'user')
+sqlPWD      = parser.get('postgresql', 'password')
+
+conn = psycopg2.connect(database=sqlDBName, user=sqlUserName, password=sqlPWD)
+curs = conn.cursor()
+
+# Define function to shape if variable is outlying  
+createFunction = '''
+  -- outlier limiting/compressing function
+  -- if x < -2SD(x), scale up (hard knee upwards compression) to reach minimum by -3SD.
+  -- if x > 2SD(x), scale up (hard knee downwards compression) to reach maximum by 3SD(x).
+  
+  CREATE OR REPLACE FUNCTION clean(var double precision,min_val double precision, max_val double precision, mean double precision, sd double precision) RETURNS double precision AS 
+  $$
+  DECLARE
+  ll double precision := mean - 2*sd;
+  ul double precision := mean + 2*sd;
+  c  double precision :=  1*sd;
+  BEGIN
+    IF (min_val < ll-c) AND (var < ll) THEN 
+      RETURN ll - c + c*(var - min_val)/(ll-min_val);
+    ELSIF (max_val > ul+c) AND (var > ul) THEN 
+      RETURN ul + c*(var - ul)/( max_val - ul );
+    ELSE 
+      RETURN var;
+    END IF;
+  END;
+  $$
+  LANGUAGE plpgsql
+  RETURNS NULL ON NULL INPUT;
+  '''
+curs.execute(createFunction)
+conn.commit()
+print("Created custom function.")
+
+# create destination group based indicators specific to this liveability schema
+
+points_id = '{id}'
+createTable = '''
+DROP TABLE IF EXISTS li_inds ; 
+CREATE TABLE li_inds AS
+SELECT p.{id},
+        COALESCE(walk_15,0) AS sc_nh1600m,
+        COALESCE(walk_16,0) AS dd_nh1600m,
+        COALESCE(convenience,0) AS convenience_1600m,
+        COALESCE(food_2_soft,0) AS supermarket_1km,
+        COALESCE(trans_6_soft,0) AS pt_regular_400m,
+        COALESCE(pos_11_soft,0) AS pos_large_400m
+FROM parcel_indicators p LEFT JOIN
+(SELECT {id}, 
+        MAX(COALESCE(ind_soft,0)) AS convenience 
+ FROM od_closest 
+    WHERE dest IN (2,3,4) GROUP BY {id}
+ ) convenience ON p.{id} = convenience.{id}
+WHERE {inclusion};
+ALTER TABLE li_inds ADD PRIMARY KEY (id);
+  '''.format(id = points_id, inclusion = inclusion_criteria)
+
+curs.execute(createTable)
+conn.commit()
+print("Created liveability indicator table li_inds.".format(i,uli_schema))
+
+# The below uses our custom clean function, drawing on (indicator, min, max, mean, sd)
+createTable = '''
+DROP TABLE IF EXISTS li_inds_clean ; 
+CREATE TABLE li_inds_clean AS
+SELECT i.{id},
+       clean(i.sc_nh1600m       , s.sc_nh1600m[1],       s.sc_nh1600m[2],       s.sc_nh1600m[3],       s.sc_nh1600m[4]       ) AS sc_nh1600m       ,
+       clean(i.dd_nh1600m       , s.dd_nh1600m[1],       s.dd_nh1600m[2],       s.dd_nh1600m[3],       s.dd_nh1600m[4]       ) AS dd_nh1600m       ,
+       clean(i.convenience_1600m, s.convenience_1600m[1],s.convenience_1600m[2],s.convenience_1600m[3],s.convenience_1600m[4]) AS convenience_1600m,
+       clean(i.supermarket_1km  , s.supermarket_1km[1],  s.supermarket_1km[2],  s.supermarket_1km[3],  s.supermarket_1km[4]  ) AS supermarket_1km  ,
+       clean(i.   , s.pt_regular_400m[1],  s.pt_regular_400m[2],  s.pt_regular_400m[3],  s.pt_regular_400m[4]  ) AS pt_regular_400m  ,
+       clean(i.pos_large_400m   , s.pos_large_400m[1],   s.pos_large_400m[2],   s.pos_large_400m[3],   s.pos_large_400m[4]   ) AS pos_large_400m     
+FROM li_inds i,
+(SELECT ARRAY[MIN(sc_nh1600m       ),MAX(sc_nh1600m       ),AVG(sc_nh1600m       ),STDDEV(sc_nh1600m       )] AS sc_nh1600m       ,
+        ARRAY[MIN(dd_nh1600m       ),MAX(dd_nh1600m       ),AVG(dd_nh1600m       ),STDDEV(dd_nh1600m       )] AS dd_nh1600m       ,
+        ARRAY[MIN(convenience_1600m),MAX(convenience_1600m),AVG(convenience_1600m),STDDEV(convenience_1600m)] AS convenience_1600m,
+        ARRAY[MIN(supermarket_1km  ),MAX(supermarket_1km  ),AVG(supermarket_1km  ),STDDEV(supermarket_1km  )] AS supermarket_1km  ,
+        ARRAY[MIN(pt_regular_400m  ),MAX(pt_regular_400m  ),AVG(pt_regular_400m  ),STDDEV(pt_regular_400m  )] AS pt_regular_400m  ,
+        ARRAY[MIN(pos_large_400m   ),MAX(pos_large_400m   ),AVG(pos_large_400m   ),STDDEV(pos_large_400m   )] AS pos_large_400m   
+ FROM li_inds) s;
+ALTER TABLE li_inds_clean ADD PRIMARY KEY ({id});
+  '''.format(id = points_id)
+curs.execute(createTable)
+conn.commit()
+print("Created table 'li_inds_clean'")
+
+
+createTable = '''
+-- Note that in this normalisation stage, indicator polarity is adjusted for: air pollution has values substracted from 100, whilst positive indicators have them added.
+DROP TABLE IF EXISTS li_inds_norm ; 
+CREATE TABLE li_inds_norm AS    
+SELECT c.{id},
+       100 + 10 * (c.sc_nh1600m       - s.sc_nh1600m[1]       ) / s.sc_nh1600m[2]       ::double precision AS sc_nh1600m       ,
+       100 + 10 * (c.dd_nh1600m       - s.dd_nh1600m[1]       ) / s.dd_nh1600m[2]       ::double precision AS dd_nh1600m       ,
+       100 + 10 * (c.convenience_1600m- s.convenience_1600m[1]) / s.convenience_1600m[2]::double precision AS convenience_1600m,
+       100 + 10 * (c.supermarket_1km  - s.supermarket_1km[1]  ) / s.supermarket_1km[2]  ::double precision AS supermarket_1km  ,
+       100 + 10 * (c.pt_regular_400m  - s.pt_regular_400m[1]  ) / s.pt_regular_400m[2]  ::double precision AS pt_regular_400m  ,
+       100 + 10 * (c.pos_large_400m   - s.pos_large_400m[1]   ) / s.pos_large_400m[2]   ::double precision AS pos_large_400m    
+FROM li_inds_clean c,
+(SELECT ARRAY[AVG(sc_nh1600m       ),STDDEV(sc_nh1600m       )] AS sc_nh1600m       ,
+        ARRAY[AVG(dd_nh1600m       ),STDDEV(dd_nh1600m       )] AS dd_nh1600m       ,
+        ARRAY[AVG(convenience_1600m),STDDEV(convenience_1600m)] AS convenience_1600m,
+        ARRAY[AVG(supermarket_1km  ),STDDEV(supermarket_1km  )] AS supermarket_1km  ,
+        ARRAY[AVG(pt_regular_400m  ),STDDEV(pt_regular_400m  )] AS pt_regular_400m  ,
+        ARRAY[AVG(pos_large_400m   ),STDDEV(pos_large_400m   )] AS pos_large_400m   
+ FROM li_inds_clean) s;
+ALTER TABLE li_inds_norm ADD PRIMARY KEY ({id});
+'''.format(id = points_id)
+
+curs.execute(createTable)
+conn.commit()
+print("Created table '{1}.clean_ind_mpi_norm_{0}', a table of MPI-normalised indicators.".format(i,uli_schema))
+ 
+createTable = ''' 
+-- 2. Create ULI
+-- rowmean*(1-(rowsd(z_j)/rowmean(z_j))^2) AS mpi_est_j
+DROP TABLE IF EXISTS uli ; 
+CREATE TABLE uli AS
+SELECT {id}, 
+       AVG(val) AS mean, 
+       stddev_pop(val) AS sd, 
+       stddev_pop(val)/AVG(val) AS cv, 
+       AVG(val)-(stddev_pop(val)^2)/AVG(val) AS li_ci_est 
+FROM (SELECT {id}, 
+             unnest(array[sc_nh1600m       ,
+                          dd_nh1600m       ,
+                          convenience_1600m,
+                          supermarket_1km  ,
+                          pt_regular_400m  ,
+                          pos_large_400m]) as val 
+      FROM li_inds_norm ) alias
+GROUP BY {id};
+ALTER TABLE uli ADD PRIMARY KEY ({id});
+'''.format(A_pointsID.lower())
+
+curs.execute(createTable)
+conn.commit()
+print("Created table '{1}.clean_li_ci_{0}_est', a parcel level composite indicator estimate for liveability.".format(i,uli_schema))
+
+# output to completion log    
+script_running_log(script, task, start)
+
