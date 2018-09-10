@@ -27,7 +27,7 @@ ind_matrix = df_inds
 # Restrict to indicators associated with study region
 ind_matrix = ind_matrix[ind_matrix['ind']=='uli']
 uli_locations = ind_matrix[ind_matrix['ind']=='uli']['locale'].iloc[0].encode('utf')
-if locale in not in uli_locations:
+if locale not in uli_locations:
   print("This location ('{locale}') is not marked for calculation of the Urban Liveability Index; check the ind_study_region_matrix file.".format(locale = locale))
 else:
   inclusion_criteria = '{0} NOT IN (SELECT DISTINCT({0}) FROM excluded_parcels)'.format(points_id.lower())
