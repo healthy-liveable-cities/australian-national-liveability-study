@@ -15,9 +15,13 @@ import os
 import sys
 import argparse
 import subprocess as sp
+from datetime import datetime
 
 print("For help. run the script as: python osmosis_from_polydir.py --help")
 search_dir = os.path.dirname(sys.argv[0])
+
+# Start timing the code
+start_time = time.time()
 
 def valid_path(arg):
     if not os.path.exists(arg):
@@ -74,9 +78,10 @@ for root, dirs, files in os.walk(args.dir):
                                                          suffix = suffix,
                                                          osm_format = osm_format)
                                                          
-           print('\nRunning: {}...'.format(command)),
+           print('\nRunning {time}: {command}...'.format(time = datetime.now().isoformat(),command = command)),
            sp.call(command, shell=True, cwd=exepath)
-           print('Done.')
+           print(' Done.')
            count += 1
             
-print('Extracted (or attempted to extract) {} OSM portions.'.format(count))            
+print('\nExtracted (or attempted to extract) {} OSM portions.'.format(count))            
+print("Elapsed time was %g seconds" % (time.time() - start_time))
