@@ -13,6 +13,7 @@
 
 import os
 import sys
+
 import argparse
 import subprocess as sp
 from datetime import datetime
@@ -21,7 +22,7 @@ print("For help. run the script as: python osmosis_from_polydir.py --help")
 search_dir = os.path.dirname(sys.argv[0])
 
 # Start timing the code
-start_time = time.time()
+start_time = datetime.now()
 
 def valid_path(arg):
     if not os.path.exists(arg):
@@ -84,4 +85,4 @@ for root, dirs, files in os.walk(args.dir):
            count += 1
             
 print('\nExtracted (or attempted to extract) {} OSM portions.'.format(count))            
-print("Elapsed time was %g seconds" % (time.time() - start_time))
+print("Elapsed time was %g minutes" % (datetime.now() - start_time).total_seconds()/60)
