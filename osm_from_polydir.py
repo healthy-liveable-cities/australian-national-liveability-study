@@ -85,4 +85,4 @@ for root, dirs, files in os.walk(args.dir):
            count += 1
             
 print('\nExtracted (or attempted to extract) {} OSM portions.'.format(count))            
-print("Elapsed time was %g minutes" % (datetime.now() - start_time).total_seconds()/60)
+print("Elapsed time was {:.1f} minutes".format((datetime.now() - start_time).total_seconds()/60.0))
