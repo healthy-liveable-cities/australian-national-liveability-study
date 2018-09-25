@@ -320,17 +320,46 @@ DROP TABLE schools;
 CREATE TABLE schools AS 
 SELECT * FROM planet_osm_polygon p 
 WHERE p.amenity IN ('school');
+ALTER TABLE schools ADD COLUMN is_school boolean; 
+UPDATE schools SET is_school = TRUE;
 
+-- Set up OS for distinction based on location within a school
 ALTER TABLE open_space ADD COLUMN in_school boolean; 
 UPDATE open_space SET in_school = FALSE;
 UPDATE open_space SET in_school = TRUE FROM schools WHERE ST_CoveredBy(open_space.geom,schools.geom);
+ALTER TABLE open_space ADD COLUMN is_school boolean; 
+UPDATE open_space SET is_school = FALSE;
+ALTER TABLE open_space ADD COLUMN no_school_geom geometry; 
+UPDATE open_space SET no_school_geom = geom WHERE in_school = FALSE;
 
--- Summarise parks by in_school status
-SELECT in_school, COUNT(*), AVG(area_ha) FROM open_space GROUP BY in_school;
+-- Insert school polygons in open space, restricting to relevant de-identified subset of tags (ie. no school names, contact details, etc)
+INSERT INTO open_space (tags,is_school,geom)
+SELECT  slice(tags, 
+              ARRAY['designation'     ,
+                    'fee'             ,
+                    'grades'          ,
+                    'isced'           ,
+                    'school:gender'   ,
+                    'school:enrolment',
+                    'school:selective',
+                    'school:specialty']),
+        is_school,
+        geom
+FROM schools
+
+SELECT is_school,count(*) FROM open_space GROUP BY is_school;
+--  is_school | count
+-- -----------+-------
+--  f         |  1839
+--  t         |    58
 
 
-
-
+SELECT in_school,count(*) FROM open_space GROUP BY in_school;
+-- in_school | count
+-- ----------+-------
+--           |    58
+-- t         |    69
+-- f         |  1770
 
 
 
@@ -340,11 +369,11 @@ WITH clusters AS(
     SELECT unnest(ST_ClusterWithin(open_space.geom, .001)) AS gc
        FROM open_space WHERE in_school IS FALSE AND (linear_feature IS FALSE OR contained_linear_feature IS TRUE)
     UNION
-    SELECT  unnest(ST_ClusterWithin(open_space.geom, .001)) AS gc
-       FROM open_space WHERE in_school IS TRUE
+    SELECT  unnest(ST_ClusterWithin(school_os.geom, .001)) AS gc
+       FROM open_space AS school_os WHERE in_school IS TRUE OR is_school IS TRUE
     UNION
-    SELECT  geom AS gc
-       FROM open_space WHERE linear_feature IS TRUE AND contained_linear_feature IS FALSE
+    SELECT  linear_os.geom AS gc
+       FROM open_space AS linear_os WHERE linear_feature IS TRUE AND contained_linear_feature IS FALSE
        )
 , unclustered AS( --unpacking GeomCollections
     SELECT row_number() OVER () AS cluster_id, (ST_DUMP(gc)).geom AS geom 
@@ -366,58 +395,22 @@ SELECT cluster_id as gid,
                   "medial_axis_length",
                   "amal_to_area_ratio",
                   "in_school",
+                  "is_school",
                   "linear_feature",
                   "contained_linear_feature") d)))) AS attributes,
     COUNT(1) AS numgeom,
-    ST_Union(geom) AS geom
+    ST_Union(no_school_geom) AS geom,
+    ST_Union(geom) AS geom_w_schools
     FROM open_space
     INNER JOIN unclustered USING(geom)
     GROUP BY cluster_id;   
- 
- 
-    SELECT (CASE 
-              WHEN in_school IS FALSE AND (linear_feature IS FALSE OR contained_linear_feature IS TRUE)
-                THEN unnest(ST_ClusterWithin(open_space.geom, .001))
-              ELSE geom
-           END) AS gc
- 
- 
-DROP TABLE IF EXISTS open_space_areas2; 
-CREATE TABLE open_space_areas2 AS 
-WITH clusters AS(
-    SELECT unnest(ST_ClusterWithin(open_space.geom, .00001)) AS gc
-       FROM open_space)
-, unclustered AS( --unpacking GeomCollections
-    SELECT row_number() OVER () AS cluster_id, (ST_DUMP(gc)).geom AS geom 
-       FROM clusters)
-SELECT cluster_id as gid, 
-       jsonb_agg(jsonb_strip_nulls(to_jsonb( 
-           (SELECT d FROM 
-               (SELECT 
-                  "pos_id",
-                  "area_ha",
-                  "amenity",                  
-                  "access",  
-                  "landuse", 
-                  "leisure", 
-                  "natural", 
-                  "sport", 
-                  "waterway", 
-                  "wood") d)))) AS attributes,
-    COUNT(1) AS numgeom,
-    ST_Union(geom) AS geom
-    FROM open_space
-    INNER JOIN unclustered USING(geom)
-    GROUP BY cluster_id;    
-
-    
   
-    
 -- Create variable for park size 
-ALTER TABLE open_space_areas2 ADD COLUMN aos_ha double precision; 
-ALTER TABLE open_space_areas2 ADD COLUMN aos_ha_school double precision; 
-UPDATE open_space_areas2 SET aos_ha = ST_Area(geom)/10000.0; 
-UPDATE open_space_areas2 SET aos_ha_school = ST_Area(school_geom)/10000.0; 
+ALTER TABLE open_space_areas ADD COLUMN aos_ha double precision; 
+ALTER TABLE open_space_areas ADD COLUMN aos_ha_school double precision; 
+UPDATE open_space_areas SET aos_ha = ST_Area(geom)/10000.0; 
+UPDATE open_space_areas SET aos_ha_school = ST_Area(geom_w_schools)/10000.0; 
+UPDATE open_space_areas SET aos_ha_school = NULL WHERE aos_ha = aos_ha_school;
 
     
 -- Create a linestring pos table 
