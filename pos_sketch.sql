@@ -362,6 +362,16 @@ SELECT in_school,count(*) FROM open_space GROUP BY in_school;
 -- f         |  1770
 
 
+-- Create Areas of Open Space (AOS) table
+-- this includes schools and contains indicators to differentiate schools, and parks within schools
+-- the 'geom' attributes is the area within an AOS not including a school
+--    -- this is what we want to use to evaluate collective OS area within the AOS (aos_ha)
+-- the 'geom_w_schools' attribute is the area including the school (so if there is no school, this is equal to geom)
+--    -- this is what we will use to create entry nodes for the parks (as otherwise school ovals would be inaccessible)
+-- School AOS features 
+--    -- can always be excluded from analysis, or an analysis can be restricted to focus on these.
+--    -- contains a subset of anonymised tags present for the school itself 
+--    -- specifically, 'designation', 'fee', 'grades', 'isced', 'school:gender', 'school:enrolment', 'school:selective', 'school:specialty'
 
 DROP TABLE IF EXISTS open_space_areas; 
 CREATE TABLE open_space_areas AS 
@@ -397,7 +407,7 @@ SELECT cluster_id as gid,
                   "in_school",
                   "is_school",
                   "linear_feature",
-                  "contained_linear_feature") d)))) AS attributes,
+                  "contained_linear_feature") d)) || hstore_to_jsonb(tags) )) AS attributes,
     COUNT(1) AS numgeom,
     ST_Union(no_school_geom) AS geom,
     ST_Union(geom) AS geom_w_schools
@@ -411,6 +421,15 @@ ALTER TABLE open_space_areas ADD COLUMN aos_ha_school double precision;
 UPDATE open_space_areas SET aos_ha = ST_Area(geom)/10000.0; 
 UPDATE open_space_areas SET aos_ha_school = ST_Area(geom_w_schools)/10000.0; 
 UPDATE open_space_areas SET aos_ha_school = NULL WHERE aos_ha = aos_ha_school;
+
+    
+-- Select those AOS which are in fact schools, and list their contained parks
+SELECT DISTINCT gid, aos_ha_school, numgeom, aos_ha, jsonb_pretty(attributes)
+FROM open_space_areas, jsonb_array_elements(attributes) obj 
+WHERE obj->'is_school' = 'true'
+GROUP BY gid,aos_ha_school,numgeom,aos_ha,attributes;
+--  
+-- Indicator idea: ratio of school to school OS?
 
     
 -- Create a linestring pos table 
