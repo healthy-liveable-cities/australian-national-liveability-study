@@ -46,7 +46,19 @@ UPDATE open_space SET medial_axis_length = ST_Length(ST_ApproximateMedialAxis(ge
 ALTER TABLE open_space ADD COLUMN amal_to_area_ratio double precision; 
 UPDATE open_space SET amal_to_area_ratio = medial_axis_length/area_ha;
 
+-- Take ratio of approximate medial axis length (AMAL) to park area
+ALTER TABLE open_space ADD COLUMN symdiff_convhull_geoms geometry; 
+UPDATE open_space SET symdiff_convhull_geoms = ST_SymDifference(geom,ST_ConvexHull(geom));
 
+-- ALTER TABLE open_space ADD COLUMN area_symdiff_convhull_geoms double precision; 
+-- UPDATE open_space SET area_symdiff_convhull_geoms = ST_Area(symdiff_convhull_geoms)/10000.0;
+
+ALTER TABLE open_space ADD COLUMN num_symdiff_convhull_geoms double precision; 
+UPDATE open_space SET num_symdiff_convhull_geoms = ST_NumGeometries(symdiff_convhull_geoms);
+
+-- ALTER TABLE open_space ADD COLUMN diff_score double precision; 
+-- UPDATE open_space SET diff_score = num_symdiff_convhull_geoms/( "area_symdiff_convhull_geoms" - "area_ha" );
+-- 
 -- Summarise AMAL to Area Ratio
  SELECT min(amal_to_area_ratio), max(amal_to_area_ratio), avg(amal_to_area_ratio), stddev(amal_to_area_ratio) FROM open_space;
 --        min        |       max        |       avg        |      stddev
@@ -130,7 +142,8 @@ UPDATE open_space SET linear_feature = FALSE;
 UPDATE open_space SET linear_feature = TRUE 
 WHERE amal_to_area_ratio > 140 
   AND area_ha > 0.5 
-  AND medial_axis_length > 300;
+  AND medial_axis_length > 300
+  AND num_symdiff_convhull_geoms > 0;
 
 -- So, we have hints
 -- We know that 
@@ -141,18 +154,37 @@ WHERE amal_to_area_ratio > 140
 --     - golf?
 -- A linear feature is fine if its enclose in a non-linear feature (is covered by?)
 -- So the below is okay for inclusion where contained_linear_feature is TRUE
-ALTER TABLE open_space ADD COLUMN contained_linear_feature boolean;
-UPDATE open_space SET contained_linear_feature = FALSE;
-UPDATE open_space o SET contained_linear_feature = TRUE
-FROM (SELECT pos_id,geom FROM open_space WHERE linear_feature = FALSE) nl
-WHERE linear_feature IS TRUE 
- AND ST_Intersects(o.geom,nl.geom)
- AND (st_area(st_intersection(o.geom,nl.geom))/st_area(o.geom)) > .1
- OR (ST_Length(ST_CollectionExtract(ST_Intersection(o.geom,nl.geom), 2)) > 50
-     AND o.pos_id < nl.pos_id 
-     AND ST_Touches(o.geom,nl.geom)
-     AND medial_axis_length < 500);
- 
+
+-- Create 'Acceptable Linear Feature' indicator (alf?)
+ALTER TABLE open_space ADD COLUMN acceptable_linear_feature boolean;
+UPDATE open_space SET acceptable_linear_feature = FALSE WHERE linear_feature = TRUE;
+UPDATE open_space o SET acceptable_linear_feature = TRUE
+FROM (SELECT pos_id,geom FROM open_space WHERE linear_feature = FALSE) nlf
+WHERE o.linear_feature IS TRUE 
+ AND ST_Intersects(o.geom,nlf.geom)
+ AND (st_area(st_intersection(o.geom,nlf.geom))/st_area(o.geom)) > .1
+ OR (ST_Length(ST_CollectionExtract(ST_Intersection(o.geom,nlf.geom), 2)) > 50
+     AND o.pos_id < nlf.pos_id 
+     AND ST_Touches(o.geom,nlf.geom)
+     AND o.medial_axis_length < 500);
+     
+-- a feature identified as linear is acceptable as an OS if it is
+--  large enough to contain an OS of sufficient size (0.4 Ha?) 
+-- (suggests it may be an odd shaped park with a lake; something like that)
+UPDATE open_space o SET acceptable_linear_feature = TRUE
+FROM open_space alt
+WHERE o.linear_feature IS TRUE      
+ AND  o.acceptable_linear_feature IS FALSE    
+ AND  o.geom && alt.geom 
+  AND st_area(st_intersection(o.geom,alt.geom))/10000 > 0.4
+  AND o.pos_id != alt.pos_id
+  AND alt.area_ha < o.area_ha;
+
+
+     
+     
+     
+     
  -- That last line used to be covered by; but i think intersects is more appropriate 
  --  (who are we to say where a park ends?) and solves other problems 
  -- AND ST_CoveredBy(o.geom,nl.geom);
@@ -258,6 +290,9 @@ SELECT cluster_id as gid,
                   "amal_to_area_ratio",
                   "in_school",
                   "is_school",
+                  "area_symdiff_convhull_geoms",
+                  "num_symdiff_convhull_geoms",
+                  "ran_scg",
                   "linear_feature",
                   "contained_linear_feature") d)) || hstore_to_jsonb(tags) )) AS attributes,
     COUNT(1) AS numgeom,
@@ -338,9 +373,6 @@ FROM pos_nodes4 n,
      planet_osm_line l
 WHERE ST_DWithin(n.geom_w_schools ,l.geom,50)
 AND l.highway IS NOT NULL;
-
-
-
 
 ----- OLD CODE; still useful stuff at the end for selecting features using json
 -----  In the below approach, the OS features are aggregated based on results of an OD analysis;
