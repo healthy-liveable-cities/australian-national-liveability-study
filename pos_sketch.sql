@@ -46,95 +46,17 @@ UPDATE open_space SET medial_axis_length = ST_Length(ST_ApproximateMedialAxis(ge
 ALTER TABLE open_space ADD COLUMN amal_to_area_ratio double precision; 
 UPDATE open_space SET amal_to_area_ratio = medial_axis_length/area_ha;
 
--- Take ratio of approximate medial axis length (AMAL) to park area
+-- get geometry of symetric difference of the convex hull of the geometry
 ALTER TABLE open_space ADD COLUMN symdiff_convhull_geoms geometry; 
 UPDATE open_space SET symdiff_convhull_geoms = ST_SymDifference(geom,ST_ConvexHull(geom));
 
--- ALTER TABLE open_space ADD COLUMN area_symdiff_convhull_geoms double precision; 
--- UPDATE open_space SET area_symdiff_convhull_geoms = ST_Area(symdiff_convhull_geoms)/10000.0;
-
+-- get number of symetrically different shards from the convex hull
 ALTER TABLE open_space ADD COLUMN num_symdiff_convhull_geoms double precision; 
 UPDATE open_space SET num_symdiff_convhull_geoms = ST_NumGeometries(symdiff_convhull_geoms);
 
--- ALTER TABLE open_space ADD COLUMN diff_score double precision; 
--- UPDATE open_space SET diff_score = num_symdiff_convhull_geoms/( "area_symdiff_convhull_geoms" - "area_ha" );
--- 
--- Summarise AMAL to Area Ratio
- SELECT min(amal_to_area_ratio), max(amal_to_area_ratio), avg(amal_to_area_ratio), stddev(amal_to_area_ratio) FROM open_space;
---        min        |       max        |       avg        |      stddev
--- ------------------+------------------+------------------+------------------
---  0.26033478028927 | 5066.24050198818 | 365.825404113757 | 511.459010812333
 
-
-SELECT landuse,leisure,sport, COUNT(*),ROUND(avg(area_ha)::numeric,2) AS area_ha_avg,ROUND(avg(medial_axis_length)::numeric,2) AS mal,ROUND(avg(amal_to_area_ratio)::numeric,2) AS amarar_avg,ROUND(stddev(amal_to_area_ratio)::numeric,2) AS amarar_sd FROM open_space WHERE water_feature IS FALSE AND (leisure NOT IN ('track') OR leisure IS NULL) GROUP BY landuse,leisure,sport ORDER BY amarar_avg;
---  landuse |      leisure      |            sport            | count | area_ha_avg |   mal   | amarar_avg | amarar_sd
--- ---------+-------------------+-----------------------------+-------+-------------+---------+------------+-----------
---          | pitch             | softball                    |     6 |        0.13 |    0.17 |       1.35 |      0.02
---          | pitch             | lawn_bowls                  |     1 |        0.14 |    0.25 |       1.79 |
---          | nature_reserve    |                             |     6 |      624.12 | 8103.48 |      20.99 |     19.43
---          | pitch             | bowls                       |    15 |        0.14 |    2.03 |      24.39 |     71.67
---          | sports_centre     | horse_racing                |     1 |       60.34 | 1503.48 |      24.92 |
---          | pitch             | cricket;soccer              |     2 |        2.56 |   66.53 |      26.13 |      5.94
---          | pitch             | shooting                    |     1 |       17.71 |  663.20 |      37.45 |
---          | pitch             | equestrian                  |     5 |        1.72 |   58.57 |      40.21 |     17.82
---          | pitch             | rugby_league                |     3 |        0.94 |   39.75 |      43.02 |      7.71
---          | golf_course       |                             |    10 |       32.15 | 1686.71 |      46.58 |     22.22
---          | golf_course       | golf                        |     1 |       40.63 | 1942.11 |      47.80 |
---          | pitch             | soccer                      |    18 |        0.82 |   37.56 |      51.09 |     19.83
---          | pitch             | cricket;rugby_league        |     1 |        1.79 |   96.78 |      54.19 |
---          | pitch             | cricket                     |    32 |        1.24 |   84.88 |      67.47 |     36.48
---          | pitch             | field_hockey                |     6 |        0.74 |   46.24 |      68.45 |     35.47
---  forest  |                   |                             |    10 |        7.40 |  421.44 |      70.00 |     32.58
---          | pitch             | cricket;australian_football |     1 |        1.60 |  117.21 |      73.47 |
---          | pitch             | australian_football         |    18 |        1.73 |  125.20 |      73.72 |     24.56
---          | recreation_ground |                             |     9 |       16.64 |  660.13 |      88.04 |     88.81
---          | sports_centre     |                             |    35 |        6.54 |  342.61 |      92.03 |     76.09
---          | pitch             | australian_football;cricket |     2 |        1.66 |  173.61 |     105.57 |      6.41
---          | sports_centre     | bmx                         |     1 |        0.58 |   61.54 |     105.65 |
---          | pitch             | multi                       |     1 |        0.40 |   42.54 |     107.50 |
---          | sports_centre     | tennis                      |     5 |        0.97 |  151.15 |     115.79 |     94.09
---          | pitch             | baseball                    |     2 |        1.15 |  150.39 |     131.43 |     18.64
---          | sports_centre     | croquet                     |     1 |        0.26 |   37.66 |     145.30 |
---          | pitch             | beachvolleyball             |     2 |        0.05 |    6.75 |     147.73 |     29.43
---          | dog_park          |                             |     6 |        1.19 |  127.61 |     159.38 |    114.13
---          |                   | motor                       |     1 |        2.76 |  477.25 |     172.72 |
---  grass   | park              |                             |     1 |        0.36 |   64.78 |     181.08 |
---          | sports_centre     | bowling                     |     1 |        0.16 |   31.47 |     200.88 |
---          |                   |                             |   565 |       33.50 | 1026.75 |     217.38 |    215.90
---          | park              |                             |   208 |        2.31 |  321.54 |     224.37 |    134.42
---          | pitch             | basketball                  |    14 |        0.04 |   12.45 |     286.82 |     99.30
---          |                   | sailing                     |     1 |        0.04 |   12.33 |     291.58 |
---  grass   |                   |                             |    48 |        2.74 |  510.05 |     313.22 |    214.19
---          | pitch             |                             |    42 |        0.34 |   33.29 |     319.27 |    261.82
---          | pitch             | netball                     |    62 |        0.05 |   15.17 |     328.95 |     74.86
---          | pitch             | skateboard                  |     6 |        0.06 |   22.71 |     392.76 |    276.54
---  grass   | pitch             | golf                        |     5 |        0.06 |   27.00 |     476.74 |     66.48
---          | pitch             | tennis                      |   193 |        0.03 |   13.35 |     489.79 |     98.12
---          | pitch             | futsal                      |     1 |        0.03 |   14.62 |     499.74 |
---          | pitch             | skateboard;bmx              |     1 |        0.14 |   73.77 |     527.88 |
---          | playground        |                             |    30 |        0.04 |   18.61 |     632.00 |    368.61
---  grass   | miniature_golf    |                             |     1 |        0.04 |   30.97 |     820.27 |
---          | pitch             | long_jump                   |     1 |        0.05 |   90.07 |    1829.57 |
---          | pitch             | cricket_nets                |    17 |        0.01 |   17.84 |    3631.93 |   1812.02
--- (47 rows)
- 
-SELECT water_feature, COUNT(*),ROUND(avg(area_ha)::numeric,2) AS area_ha_avg,ROUND(avg(medial_axis_length)::numeric,2) AS mal,ROUND(avg(amal_to_area_ratio)::numeric,2) AS amarar_avg,ROUND(stddev(amal_to_area_ratio)::numeric,2) AS amarar_sd FROM open_space GROUP BY water_feature ORDER BY amarar_avg;  
---  water_feature | count | area_ha_avg |  mal   | amarar_avg | amarar_sd
--- ---------------+-------+-------------+--------+------------+-----------
---  f             |  1408 |       17.30 | 558.92 |     304.96 |    476.37
---  t             |   431 |        2.33 | 288.61 |     564.65 |    569.08
--- (2 rows)
-
- 
-SELECT leisure = 'track' AS track, COUNT(*),ROUND(avg(area_ha)::numeric,2) AS area_ha_avg,ROUND(avg(medial_axis_length)::numeric,2) AS mal,ROUND(avg(amal_to_area_ratio)::numeric,2) AS amarar_avg,ROUND(stddev(amal_to_area_ratio)::numeric,2) AS amarar_sd FROM open_space GROUP BY track ORDER BY amarar_avg;  
---  track | count | area_ha_avg |  mal   | amarar_avg | amarar_sd
--- -------+-------+-------------+--------+------------+-----------
---        |   990 |       20.34 | 740.20 |     289.48 |    269.27
---  f     |   840 |        6.20 | 203.42 |     449.28 |    683.24
---  t     |     9 |        1.63 | 853.20 |     974.44 |    557.05
--- (3 rows)
-
-
+ALTER TABLE open_space ADD COLUMN roundness double precision; 
+UPDATE open_space SET roundness = ST_Area(geom)/(ST_Area(ST_MinimumBoundingCircle(geom)));
 
 -- Create indicator for linear features informed through EDA of OS topology
 ALTER TABLE open_space ADD COLUMN linear_feature boolean;
@@ -143,7 +65,8 @@ UPDATE open_space SET linear_feature = TRUE
 WHERE amal_to_area_ratio > 140 
   AND area_ha > 0.5 
   AND medial_axis_length > 300
-  AND num_symdiff_convhull_geoms > 0;
+  AND num_symdiff_convhull_geoms > 0
+  AND roundness < 0.25;
 
 -- So, we have hints
 -- We know that 
@@ -176,28 +99,8 @@ FROM open_space alt
 WHERE o.linear_feature IS TRUE      
  AND  o.acceptable_linear_feature IS FALSE    
  AND  o.geom && alt.geom 
-  AND st_area(st_intersection(o.geom,alt.geom))/10000 > 0.4
-  AND o.pos_id != alt.pos_id
-  AND alt.area_ha < o.area_ha;
-
-
-     
-     
-     
-     
- -- That last line used to be covered by; but i think intersects is more appropriate 
- --  (who are we to say where a park ends?) and solves other problems 
- -- AND ST_CoveredBy(o.geom,nl.geom);
- -- BUT this no longer excludes neighbouring lfs .. fuck.
-
-
-
--- A layer of OS with no water or tracks
-CREATE TABLE os_no_water_track AS
-SELECT * FROM open_space WHERE water_feature IS FALSE AND (leisure NOT IN ('track') OR leisure IS NULL);
-
-
-  
+  AND st_area(st_intersection(o.geom,alt.geom))/10000.0 > 0.4
+  AND o.pos_id != alt.pos_id;
  
 -- Create variable for school intersection 
 DROP TABLE schools;
@@ -229,7 +132,7 @@ SELECT  slice(tags,
                     'school:specialty']),
         is_school,
         geom
-FROM schools
+FROM schools;
 
 SELECT is_school,count(*) FROM open_space GROUP BY is_school;
 --  is_school | count
@@ -261,13 +164,16 @@ DROP TABLE IF EXISTS open_space_areas;
 CREATE TABLE open_space_areas AS 
 WITH clusters AS(
     SELECT unnest(ST_ClusterWithin(open_space.geom, .001)) AS gc
-       FROM open_space WHERE in_school IS FALSE AND (linear_feature IS FALSE OR contained_linear_feature IS TRUE)
+       FROM open_space WHERE in_school IS FALSE AND (linear_feature IS FALSE OR acceptable_linear_feature IS TRUE)
     UNION
     SELECT  unnest(ST_ClusterWithin(school_os.geom, .001)) AS gc
        FROM open_space AS school_os WHERE in_school IS TRUE OR is_school IS TRUE
     UNION
     SELECT  linear_os.geom AS gc
-       FROM open_space AS linear_os WHERE linear_feature IS TRUE AND contained_linear_feature IS FALSE
+       FROM open_space AS linear_os WHERE linear_feature IS TRUE AND acceptable_linear_feature IS FALSE
+    UNION
+    SELECT  linear_os.geom AS gc
+       FROM open_space AS linear_os WHERE linear_feature IS TRUE AND acceptable_linear_feature IS TRUE
        )
 , unclustered AS( --unpacking GeomCollections
     SELECT row_number() OVER () AS cluster_id, (ST_DUMP(gc)).geom AS geom 
@@ -290,11 +196,8 @@ SELECT cluster_id as gid,
                   "amal_to_area_ratio",
                   "in_school",
                   "is_school",
-                  "area_symdiff_convhull_geoms",
-                  "num_symdiff_convhull_geoms",
-                  "ran_scg",
                   "linear_feature",
-                  "contained_linear_feature") d)) || hstore_to_jsonb(tags) )) AS attributes,
+                  "acceptable_linear_feature") d)) || hstore_to_jsonb(tags) )) AS attributes,
     COUNT(1) AS numgeom,
     ST_Union(no_school_geom) AS geom,
     ST_Union(geom) AS geom_w_schools
