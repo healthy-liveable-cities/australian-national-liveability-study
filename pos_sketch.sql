@@ -117,7 +117,7 @@ UPDATE open_space SET in_school = TRUE FROM schools WHERE ST_CoveredBy(open_spac
 ALTER TABLE open_space ADD COLUMN is_school boolean; 
 UPDATE open_space SET is_school = FALSE;
 ALTER TABLE open_space ADD COLUMN no_school_geom geometry; 
-UPDATE open_space SET no_school_geom = geom WHERE in_school = FALSE;
+UPDATE open_space SET no_school_geom = geom WHERE is_school = FALSE;
 
 -- Insert school polygons in open space, restricting to relevant de-identified subset of tags (ie. no school names, contact details, etc)
 INSERT INTO open_space (tags,is_school,geom)
@@ -214,7 +214,7 @@ UPDATE open_space_areas SET aos_ha_school = NULL WHERE aos_ha = aos_ha_school;
 
     
 -- Select those AOS which are in fact schools, and list their contained parks
-SELECT DISTINCT gid, aos_ha_school, numgeom, aos_ha, jsonb_pretty(attributes)
+SELECT DISTINCT gid, aos_ha_school, numgeom, aos_ha, jsonb_pretty(attributes) AS attributes
 FROM open_space_areas, jsonb_array_elements(attributes) obj 
 WHERE obj->'is_school' = 'true'
 GROUP BY gid,aos_ha_school,numgeom,aos_ha,attributes;
@@ -224,10 +224,10 @@ GROUP BY gid,aos_ha_school,numgeom,aos_ha,attributes;
     
 -- Create a linestring pos table 
 -- the 'school_bounds' prereq feature un-nests the multipolygons to straight polygons, so we can take their exterior rings
-DROP TABLE pos_line4;
-CREATE TABLE pos_line4 AS 
+DROP TABLE pos_line;
+CREATE TABLE pos_line AS 
 WITH school_bounds AS
-   (SELECT gid, ST_SetSRID(st_astext((ST_Dump(geom_w_schools)).geom),7845) AS geom_w_schools  FROM open_space_areas2)
+   (SELECT gid, ST_SetSRID(st_astext((ST_Dump(geom_w_schools)).geom),7845) AS geom_w_schools  FROM open_space_areas)
 SELECT gid, ST_Length(geom_w_schools)::numeric AS length, geom_w_schools    
 FROM (SELECT gid, ST_ExteriorRing(geom_w_schools) AS geom_w_schools FROM school_bounds) t;
 
@@ -238,7 +238,7 @@ CREATE TABLE pos_nodes AS
  (SELECT gid, 
          length, 
          generate_series(0,1,20/length) AS fraction, 
-         geom_w_schools FROM pos_line4) 
+         geom_w_schools FROM pos_line) 
 SELECT gid,
        row_number() over(PARTITION BY gid) AS node, 
        ST_LineInterpolatePoint(geom_w_schools, fraction)  AS geom_w_schools 
@@ -252,111 +252,48 @@ UPDATE planet_osm_line SET geom = ST_Transform(way,7845);
 
 -- Create table of points within 20m of lines (should be your road network) 
 -- Distinct is used to avoid redundant duplication of points where they are within 20m of multiple roads 
+DROP TABLE IF EXISTS pos_nodes_20m_line;
 CREATE TABLE pos_nodes_20m_line AS 
 SELECT DISTINCT n.* 
-FROM pos_nodes4 n, 
+FROM pos_nodes n, 
      planet_osm_line l
 WHERE ST_DWithin(n.geom_w_schools ,l.geom,20)
 AND l.highway IS NOT NULL;
 
 -- Create table of points within 30m of lines (should be your road network) 
 -- Distinct is used to avoid redundant duplication of points where they are within 20m of multiple roads 
+DROP TABLE IF EXISTS pos_nodes_30m_line;
 CREATE TABLE pos_nodes_30m_line AS 
 SELECT DISTINCT n.* 
-FROM pos_nodes4 n, 
+FROM pos_nodes n, 
      planet_osm_line l
 WHERE ST_DWithin(n.geom_w_schools ,l.geom,30)
 AND l.highway IS NOT NULL;
 
 -- Create table of points within 50m of lines (should be your road network) 
 -- Distinct is used to avoid redundant duplication of points where they are within 20m of multiple roads 
+DROP TABLE IF EXISTS pos_nodes_50m_line;
 CREATE TABLE pos_nodes_50m_line AS 
 SELECT DISTINCT n.* 
-FROM pos_nodes4 n, 
+FROM pos_nodes n, 
      planet_osm_line l
 WHERE ST_DWithin(n.geom_w_schools ,l.geom,50)
 AND l.highway IS NOT NULL;
 
------ OLD CODE; still useful stuff at the end for selecting features using json
------  In the below approach, the OS features are aggregated based on results of an OD analysis;
----------- The strength of this approach is that access to each individual feature is evaluated
----------- The weakness is, where features are overlapping (e.g. a park with an oval and cricket pitch, all nested) 
----------- these will be double counted.  Also, some internal features which would otherwise be accessed via a park
----------- may be inappropriately snapped to network, or not at all.
------  In the above, we create AOS features on whcih to conduct OD analysis
----------- The strength is that where individual features are not accessible to network due to being
----------- contained or otherwise strongly associated with a broader area of open space,
----------- access is measured to the broader area, which retains attributes of its containing feature
----------- allowing it to be queried
-
--- Create open space table 
-CREATE TABLE open_space AS 
-SELECT * FROM planet_osm_polygon p 
-WHERE (p.leisure IS NOT NULL 
-    OR p.natural IS NOT NULL 
-    OR p.sport IS NOT NULL  
-    OR p.landuse IN ('forest','grass','greenfield','meadow','recreation ground','village green')) 
-  AND (p.access IS NULL 
-    OR p.access NOT IN('no','private'));
-
--- Create unique POS id 
-ALTER TABLE open_space ADD COLUMN pos_id SERIAL PRIMARY KEY;         
---Add geometry in spatial reference for project 
-ALTER TABLE open_space ADD COLUMN geom geometry; 
-UPDATE open_space SET geom = ST_Transform(way,7845); 
-
--- Create variable for park size 
-ALTER TABLE open_space ADD COLUMN area_ha double precision; 
-UPDATE open_space SET area_ha = ST_Area(geom)/10000.0;
-
--- Create a linestring pos table 
-CREATE TABLE pos_line AS 
-SELECT pos_id, ST_Length(geom)::numeric AS length, geom    
-FROM (SELECT pos_id, ST_ExteriorRing(geom) AS geom FROM open_space) t;
-
--- Generate a point every 20m along a park outlines: 
-DROP TABLE pos_nodes; 
-CREATE TABLE pos_nodes AS 
- WITH pos AS 
- (SELECT pos_id, 
-         length, 
-         generate_series(0,1,20/length) AS fraction, 
-         geom FROM pos_line) 
-SELECT pos_id,
-       row_number() over(PARTITION BY pos_id) AS node, 
-       ST_LineInterpolatePoint(geom, fraction)  AS geom 
-FROM pos;
-
--- Create table of points within 20m of lines (should be your road network) 
--- Distinct is used to avoid redundant duplication of points where they are within 20m of multiple roads 
-CREATE TABLE pos_nodes_20m_line AS 
-SELECT DISTINCT p.* 
-FROM pos_nodes p, 
-     (SELECT ST_Transform(way,7845) geom FROM planet_osm_line) l 
-WHERE ST_DWithin(p.geom ,l.geom,20);
-
-
--- Create table of points within 50m of lines (should be your road network) 
--- Distinct is used to avoid redundant duplication of points where they are within 50m of multiple roads 
-CREATE TABLE pos_nodes_50m_line AS 
-SELECT DISTINCT p.* 
-FROM pos_nodes p, 
-     (SELECT ST_Transform(way,7845) geom FROM planet_osm_line) l 
-WHERE ST_DWithin(p.geom ,l.geom,50);
 
       
--- Create table of pos OD matrix results
+-- Create table of (hypothetical) pos OD matrix results
 CREATE TABLE pos_od 
 (
 participant_id INT, 
-pos_id INT, 
+aos_gid INT, 
 node INT, 
 distance INT, 
-PRIMARY KEY (participant_id,pos_id) 
+PRIMARY KEY (participant_id,aos_gid) 
 );
 
-INSERT INTO pos_od (participant_id, pos_id, node, distance) 
-SELECT DISTINCT ON (participant_id, pos_id) participant_id, pos_id, node, min(distance) 
+INSERT INTO pos_od (participant_id, aos_gid, node, distance) 
+SELECT DISTINCT ON (participant_id, aos_gid) participant_id, aos_gid, node, min(distance) 
 FROM  ( 
    VALUES 
    (15151, 32, 23, 567), 
@@ -367,32 +304,30 @@ FROM  (
    (15152, 3, 21, 132),  
    (15152, 27, 21, 1332), 
    (15153, 27, 32, 198) 
-   ) v(participant_id, pos_id, node, distance) 
-   GROUP BY participant_id,pos_id,node 
-    ON CONFLICT (participant_id,pos_id) 
+   ) v(participant_id, aos_gid, node, distance) 
+   GROUP BY participant_id,aos_gid,node 
+    ON CONFLICT (participant_id,aos_gid) 
        DO UPDATE 
           SET node = EXCLUDED.node, 
               distance = EXCLUDED.distance 
            WHERE pos_od.distance > EXCLUDED.distance;
       
 -- Associate participants with list of parks 
-DROP TABLE IF EXISTS open_space_areas; 
-CREATE TABLE open_space_areas AS 
+DROP TABLE IF EXISTS od_aos; 
+CREATE TABLE od_aos AS 
 SELECT p.participant_id, 
        jsonb_agg(jsonb_strip_nulls(to_jsonb( 
            (SELECT d FROM 
                (SELECT 
-                  p.distance, 
-                  a.area_ha, 
-                  a.access,  
-                  a.landuse, 
-                  a.leisure, 
-                  a.natural, 
-                  a.sport, 
-                  a.waterway, 
-                  a.wood) d)))) AS attributes 
+                  p.distance      ,
+                  a.gid           ,
+                  a.attributes    ,
+                  a.numgeom       ,
+                  a.aos_ha        ,
+                  a.aos_ha_school  
+                  ) d)))) AS attributes 
 FROM pos_od p 
-LEFT JOIN open_space a ON p.pos_id = a.pos_id 
+LEFT JOIN open_space_areas a ON p.aos_gid = a.gid 
 GROUP BY participant_id;   
 
 -- Select only those items in the list which meet numeric criteria: 
