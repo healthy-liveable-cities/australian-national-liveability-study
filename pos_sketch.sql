@@ -184,6 +184,9 @@ SELECT cluster_id as gid,
                (SELECT 
                   "pos_id",
                   "area_ha",
+                  "medial_axis_length",
+                  "num_symdiff_convhull_geoms",
+                  "roundness",
                   "amenity",                  
                   "access",  
                   "landuse", 
@@ -192,10 +195,9 @@ SELECT cluster_id as gid,
                   "sport", 
                   "waterway", 
                   "wood",
-                  "medial_axis_length",
-                  "amal_to_area_ratio",
                   "in_school",
                   "is_school",
+                  "water_feature",
                   "linear_feature",
                   "acceptable_linear_feature") d)) || hstore_to_jsonb(tags) )) AS attributes,
     COUNT(1) AS numgeom,
@@ -208,16 +210,26 @@ SELECT cluster_id as gid,
 -- Create variable for park size 
 ALTER TABLE open_space_areas ADD COLUMN aos_ha double precision; 
 ALTER TABLE open_space_areas ADD COLUMN aos_ha_school double precision; 
-UPDATE open_space_areas SET aos_ha = ST_Area(geom)/10000.0; 
+-- Calculate total area of OS in Ha and where no OS is present (ie. a school without parks) set this to zero
+UPDATE open_space_areas SET aos_ha = COALESCE(ST_Area(geom)/10000.0,0);
+-- Calculate total area of Schools in Ha
 UPDATE open_space_areas SET aos_ha_school = ST_Area(geom_w_schools)/10000.0; 
-UPDATE open_space_areas SET aos_ha_school = NULL WHERE aos_ha = aos_ha_school;
+-- 
+UPDATE open_space_areas SET aos_ha_school = NULL 
+  WHERE gid IN (SELECT gid 
+                  FROM open_space_areas,jsonb_array_elements(attributes) obj 
+                  WHERE obj->'is_school' = 'false'  AND obj->'in_school' = 'false' );
+
+-- Create variable for School OS percent
+ALTER TABLE open_space_areas ADD COLUMN school_os_percent numeric; 
+UPDATE open_space_areas SET school_os_percent = 100 * aos_ha/(aos_ha + aos_ha_school)::numeric; 
 
     
 -- Select those AOS which are in fact schools, and list their contained parks
-SELECT DISTINCT gid, aos_ha_school, numgeom, aos_ha, jsonb_pretty(attributes) AS attributes
+SELECT DISTINCT gid, aos_ha_school, numgeom, aos_ha, school_os_percent, jsonb_pretty(attributes) AS attributes
 FROM open_space_areas, jsonb_array_elements(attributes) obj 
 WHERE obj->'is_school' = 'true'
-GROUP BY gid,aos_ha_school,numgeom,aos_ha,attributes;
+GROUP BY gid,aos_ha_school,numgeom,aos_ha,school_os_percent,attributes;
 --  
 -- Indicator idea: ratio of school to school OS?
 
@@ -324,11 +336,15 @@ SELECT p.participant_id,
                   a.attributes    ,
                   a.numgeom       ,
                   a.aos_ha        ,
-                  a.aos_ha_school  
+                  a.aos_ha_school ,
+                  school_os_percent
                   ) d)))) AS attributes 
 FROM pos_od p 
 LEFT JOIN open_space_areas a ON p.aos_gid = a.gid 
 GROUP BY participant_id;   
+
+-- select set of AOS and their attributes for a particular participant
+SELECT participant_id, jsonb_pretty(attributes) FROM od_aos WHERE participant_id = 15151;
 
 -- Select only those items in the list which meet numeric criteria: 
 SELECT participant_id, jsonb_agg(obj) AS attributes 
