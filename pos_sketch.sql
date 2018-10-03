@@ -295,7 +295,7 @@ AND l.highway IS NOT NULL;
 
       
 -- Create table of (hypothetical) pos OD matrix results
-CREATE TABLE pos_od 
+CREATE TABLE od_aos 
 (
 participant_id INT, 
 aos_gid INT, 
@@ -304,7 +304,7 @@ distance INT,
 PRIMARY KEY (participant_id,aos_gid) 
 );
 
-INSERT INTO pos_od (participant_id, aos_gid, node, distance) 
+INSERT INTO od_aos (participant_id, aos_gid, node, distance) 
 SELECT DISTINCT ON (participant_id, aos_gid) participant_id, aos_gid, node, min(distance) 
 FROM  ( 
    VALUES 
@@ -322,11 +322,11 @@ FROM  (
        DO UPDATE 
           SET node = EXCLUDED.node, 
               distance = EXCLUDED.distance 
-           WHERE pos_od.distance > EXCLUDED.distance;
+           WHERE od_aos.distance > EXCLUDED.distance;
       
 -- Associate participants with list of parks 
-DROP TABLE IF EXISTS od_aos; 
-CREATE TABLE od_aos AS 
+DROP TABLE IF EXISTS od_aos_full; 
+CREATE TABLE od_aos_full AS 
 SELECT p.participant_id, 
        jsonb_agg(jsonb_strip_nulls(to_jsonb( 
            (SELECT d FROM 
@@ -339,12 +339,12 @@ SELECT p.participant_id,
                   a.aos_ha_school ,
                   school_os_percent
                   ) d)))) AS attributes 
-FROM pos_od p 
+FROM od_aos p 
 LEFT JOIN open_space_areas a ON p.aos_gid = a.gid 
 GROUP BY participant_id;   
 
 -- select set of AOS and their attributes for a particular participant
-SELECT participant_id, jsonb_pretty(attributes) FROM od_aos WHERE participant_id = 15151;
+SELECT participant_id, jsonb_pretty(attributes) FROM od_aos_full WHERE participant_id = 15151;
 
 -- Select only those items in the list which meet numeric criteria: 
 SELECT participant_id, jsonb_agg(obj) AS attributes 

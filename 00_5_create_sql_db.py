@@ -33,6 +33,12 @@ start = time.time()
 script = os.path.basename(sys.argv[0])
 task = 'Create region-specific liveability indicator database users and ArcSDE connection file'
 
+# Create study region folder
+if not os.path.exists(os.path.join(folderPath,'study_region')):
+    os.makedirs(os.path.join(folderPath,'study_region'))
+if not os.path.exists(locale_dir):
+    os.makedirs(locale_dir)    
+
 # INPUT PARAMETERS
 # note: these are in general defined in and loaded from config_ntnl_li_process.py
 
@@ -97,7 +103,7 @@ createUser_ArcSDE = '''
   $do$;
   '''.format(arc_sde_user, db_pwd)  
   
-createPostGIS = '''CREATE EXTENSION postgis;SELECT postgis_full_version();'''
+createPostGIS = '''CREATE EXTENSION postgis; CREATE EXTENSION hstore; SELECT postgis_full_version();'''
   
 ## OUTPUT PROCESS
 
@@ -135,7 +141,7 @@ print('Done.')
 conn.close()  
 
 print('Creating ArcGIS spatial database connection file ... '),
-arcpy.CreateDatabaseConnection_management(out_folder_path = folderPath,
+arcpy.CreateDatabaseConnection_management(out_folder_path = locale_dir,
                                           out_name = db_sde, 
                                           database_platform = "POSTGRESQL", 
                                           instance = db_host, 

@@ -57,6 +57,7 @@ year   = df_parameters.loc['year']['value']
 region = df_studyregion.loc[locale]['region'].encode('utf')
 state  = df_studyregion.loc[locale]['state'].encode('utf')
 
+locale_dir = os.path.join(folderPath,'study_region','{}'.format(locale.lower()))
 
 # Study region boundary
 region_shape = df_studyregion.loc[locale]['region_shape']
@@ -132,8 +133,8 @@ arc_sde_user = df_parameters.loc['arc_sde_user']['value'].encode('utf')
 # Database names -- derived from above parameters; (no need to change!)
 gdb       = '{}.gdb'.format(db)
 db_sde    = '{}.sde'.format(db)
-gdb_path    = os.path.join(folderPath,gdb)
-db_sde_path = os.path.join(folderPath,db_sde)
+gdb_path    = os.path.join(locale_dir,gdb)
+db_sde_path = os.path.join(locale_dir,db_sde)
 dbComment = 'Liveability indicator data for {0} {1}.'.format(locale,year)
 
 
@@ -142,6 +143,9 @@ os.environ['PGPORT']     = db_port
 os.environ['PGUSER']     = db_user
 os.environ['PGPASSWORD'] = db_pwd
 os.environ['PGDATABASE'] = db
+
+osm2pgsql_exe = os.path.join(folderPath,df_parameters.loc['osm2pgsql_exe']['value'].encode('utf'))
+osm2pgsql_style = os.path.join(folderPath,df_parameters.loc['osm2pgsql_style']['value'].encode('utf'))
 
 grant_query = '''GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {0};
                  GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO {0};
