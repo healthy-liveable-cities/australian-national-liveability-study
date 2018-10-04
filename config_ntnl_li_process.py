@@ -146,6 +146,7 @@ os.environ['PGDATABASE'] = db
 
 osm2pgsql_exe = os.path.join(folderPath,df_parameters.loc['osm2pgsql_exe']['value'].encode('utf'))
 osm2pgsql_style = os.path.join(folderPath,df_parameters.loc['osm2pgsql_style']['value'].encode('utf'))
+osm_prefix = df_studyregion.loc[locale]['osm_prefix'].encode('utf')
 
 grant_query = '''GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {0};
                  GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO {0};

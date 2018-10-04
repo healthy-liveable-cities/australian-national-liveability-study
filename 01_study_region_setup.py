@@ -93,9 +93,9 @@ conn.close()
 
 ## The below step projects buffered study region from GDA2020 GA LCC to a WGS84 shape file
 # This buffered study region polygon is used to source OSMnx Pedestrian network
-locale_4326_shp = os.path.join(locale_dir,'{}_{}_2016_10000m_epsg4326.shp'.format(locale.lower(),region.lower()))
+locale_4326_shp = os.path.join(locale_dir,'{}_{}_{}m_epsg4326.shp'.format(locale.lower(),study_region,study_buffer))
 if not os.path.isfile(locale_4326_shp)
-    arcpy.Project_management(in_dataset=os.path.join(folderPath,'{}.gdb/gccsa_2016_10000m'.format(db)), 
+    arcpy.Project_management(in_dataset=os.path.join(folderPath,'{}.gdb/{}_{}m'.format(db,study_region,study_buffer)), 
                          out_dataset=locale_4326_shp, 
                          out_coor_system="GEOGCS['GCS_WGS_1984',DATUM['D_WGS_1984',SPHEROID['WGS_1984',6378137.0,298.257223563]],PRIMEM['Greenwich',0.0],UNIT['Degree',0.0174532925199433]]", 
                          transform_method="'GDA_1994_To_GDA2020_NTv2_CD + GDA_1994_To_WGS_1984'", 
