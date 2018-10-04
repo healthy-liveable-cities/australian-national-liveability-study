@@ -31,7 +31,7 @@ task = 'Prepare Areas of Open Space (AOS)'
 print("Copy OSM excerpt to pgsql")
 command = 'osm2pgsql -U {user} -l -d {db} {osm} --hstore --style {style} --prefix {prefix}'.format(user = db_user, 
                                                                                  db = db,
-                                                                                 osm = osm,
+                                                                                 osm = osm_source,
                                                                                  style = osm2pgsql_style,
                                                                                  prefix = osm_prefix) 
 sp.call(command, shell=True, cwd=osm2pgsql_exe)                           
