@@ -29,7 +29,7 @@ script = os.path.basename(sys.argv[0])
 task = 'Output directions for backing up an sql database'
 datetime = datetime.datetime.today().strftime('%Y%m%d_%H%M')
 print('To back up your sql database, please do the following:')
-print(' 1. Open a command prompt in the directory: {}'.format(folderPath))
+print(' 1. Open a command prompt in the directory: {}'.format(locale_dir))
 print(' 2. Run the following command:')
 print('    pg_dump -U postgres -h localhost -W {db} > {db}_{datetime}.sql'.format(db = db,
                                                                                  datetime = datetime))
