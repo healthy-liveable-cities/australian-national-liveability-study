@@ -103,7 +103,7 @@ createUser_ArcSDE = '''
   $do$;
   '''.format(arc_sde_user, db_pwd)  
   
-createPostGIS = '''CREATE EXTENSION postgis; CREATE EXTENSION hstore; SELECT postgis_full_version();'''
+createPostGIS = '''CREATE EXTENSION postgis; CREATE EXTENSION hstore; SELECT postgis_full_version(); CREATE EXTENSION postgis_sfcgal;'''
   
 ## OUTPUT PROCESS
 

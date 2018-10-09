@@ -8,6 +8,10 @@
 #           -- Preliminary EDA suggests the 30m distance pseudo entry points will be most appropriate to use 
 #              for OD network analysis
 #
+#         This assumes 
+#           -- a study region specific section of OSM has been prepared and is referenced in the setup xlsx file
+#           -- the postgis_sfcgal extension has been created in the active database
+#
 # Author:  Carl Higgs
 # Date:    20180626
 
@@ -26,20 +30,22 @@ start = time.time()
 script = os.path.basename(sys.argv[0])
 task = 'Prepare Areas of Open Space (AOS)'
 
-
-# osm to pgsql
-print("Copy OSM excerpt to pgsql")
-command = 'osm2pgsql -U {user} -l -d {db} {osm} --hstore --style {style} --prefix {prefix}'.format(user = db_user, 
-                                                                                 db = db,
-                                                                                 osm = osm_source,
-                                                                                 style = osm2pgsql_style,
-                                                                                 prefix = osm_prefix) 
-sp.call(command, shell=True, cwd=osm2pgsql_exe)                           
-
- 
 # connect to the PostgreSQL server and ensure privileges are granted for all public tables
 conn = psycopg2.connect(dbname=db, user=db_user, password=db_pwd)
 curs = conn.cursor()  
+
+# import buffered study region OSM excerpt to pgsql, 
+# If its decided that this should only be done if not already exists, uncomment below; however, this may cause complications
+# curs.execute("SELECT EXISTS(SELECT * FROM information_schema.tables WHERE table_name=%s)", ('{}_polygon'.format(osm_prefix),))
+# if curs.fetchone()[0] is False:
+print("Copying OSM excerpt to pgsql..."),
+command = 'osm2pgsql -U {user} -l -d {db} {osm} --hstore --style {style} --prefix {prefix}'.format(user = db_user, 
+                                                                               db = db,
+                                                                               osm = osm_source,
+                                                                               style = osm2pgsql_style,
+                                                                               prefix = osm_prefix) 
+sp.call(command, shell=True, cwd=osm2pgsql_exe)                           
+print("Done.")
 
 aos_setup = ['''
 -- Add geom column to polygon table, appropriately transformed to project spatial reference system
@@ -47,26 +53,58 @@ ALTER TABLE {osm_prefix}_polygon ADD COLUMN geom geometry;
 UPDATE {osm_prefix}_polygon SET geom = ST_Transform(way,7845); 
 '''.format(osm_prefix = osm_prefix),
 '''
+-- Add other columns which are important if they exists, but not important if they don't
+-- --- except that there presence is required for ease of accurate querying.
+ALTER TABLE {osm_prefix}_polygon ADD COLUMN IF NOT EXISTS beach varchar;
+ALTER TABLE {osm_prefix}_polygon ADD COLUMN IF NOT EXISTS river varchar;
+ALTER TABLE {osm_prefix}_polygon ADD COLUMN IF NOT EXISTS water varchar;
+ALTER TABLE {osm_prefix}_polygon ADD COLUMN IF NOT EXISTS waterway varchar;
+ALTER TABLE {osm_prefix}_polygon ADD COLUMN IF NOT EXISTS wetland varchar;
+ALTER TABLE {osm_prefix}_polygon ADD COLUMN IF NOT EXISTS access varchar;
+ALTER TABLE {osm_prefix}_polygon ADD COLUMN IF NOT EXISTS leisure varchar;
+ALTER TABLE {osm_prefix}_polygon ADD COLUMN IF NOT EXISTS "natural" varchar;
+ALTER TABLE {osm_prefix}_polygon ADD COLUMN IF NOT EXISTS sport varchar;
+ALTER TABLE {osm_prefix}_polygon ADD COLUMN IF NOT EXISTS landuse varchar;
+ALTER TABLE {osm_prefix}_polygon ADD COLUMN IF NOT EXISTS playground varchar;
+'''.format(osm_prefix = osm_prefix),
+'''
 -- Create an 'Open Space' table
-DROP TABLE open_space;
+DROP TABLE IF EXISTS open_space;
 CREATE TABLE open_space AS 
 SELECT * FROM {osm_prefix}_polygon p 
 WHERE (p.leisure IS NOT NULL 
     OR p.natural IS NOT NULL 
     OR p.sport IS NOT NULL  
-    OR p.landuse IN ('forest','grass','greenfield','meadow','recreation ground','village green'))
+    OR p.landuse IN ('common','conservation','field','forest','garden','grass','green','leisure','meadow','orchard','park','pitch','pond','recreation ground','sport','trees','village green','water','winter_sports','wood')
+    OR beach IS NOT NULL
+    OR river IS NOT NULL
+    OR water IS NOT NULL 
+    OR waterway IS NOT NULL 
+    OR wetland IS NOT NULL )
   AND (p.access IS NULL 
-    OR p.access NOT IN('no','private'));
+    OR p.access NOT IN('no','private')
+    OR p.landuse NOT IN ('military'));
 '''.format(osm_prefix = osm_prefix),
 '''
 -- Create unique POS id 
 ALTER TABLE open_space ADD COLUMN os_id SERIAL PRIMARY KEY;         
+-- The below line is expensive to run and may be unnecesessary, so is commented out
+--CREATE INDEX open_space_idx ON open_space USING GIST (geom);
 ''',
 '''
  -- Create water feature indicator
 ALTER TABLE open_space ADD COLUMN water_feature boolean;
 UPDATE open_space SET water_feature = FALSE;
-UPDATE open_space SET water_feature = TRUE WHERE "natural" IN ('wetland','water') OR water IS NOT NULL OR waterway IS NOT NULL OR wetland IS NOT NULL OR leisure IN ('swimming_pool','water_park') OR sport = 'swimming';
+UPDATE open_space SET water_feature = TRUE 
+   WHERE "natural" IN ('atoll', 'awash_rock', 'bay', 'beach', 'coastal', 'coastline', 'coastline_old', 'glacier', 'high-water', 'hot_spring', 'island', 'islet', 'lake', 'marsh', 'oasis', 'old_coastline_import', 'peninsula', 'pond', 'river', 'river_terrace', 'riverbank', 'riverbed', 'shoal', 'spring', 'strait', 'stream', 'swamp', 'swimming_pool', 'underwater_rock', 'unprotected_spring', 'unprotected_well', 'water', 'water_park', 'waterfall', 'waterhole', 'waterway', 'wetland')
+      OR beach IS NOT NULL
+      OR river IS NOT NULL
+      OR water IS NOT NULL 
+      OR waterway IS NOT NULL 
+      OR wetland IS NOT NULL 
+      OR landuse IN ('atoll', 'awash_rock', 'bay', 'beach', 'coastal', 'coastline', 'coastline_old', 'glacier', 'high-water', 'hot_spring', 'island', 'islet', 'lake', 'marsh', 'oasis', 'old_coastline_import', 'peninsula', 'pond', 'river', 'river_terrace', 'riverbank', 'riverbed', 'shoal', 'spring', 'strait', 'stream', 'swamp', 'swimming_pool', 'underwater_rock', 'unprotected_spring', 'unprotected_well', 'water', 'water_park', 'waterfall', 'waterhole', 'waterway', 'wetland')
+      OR leisure IN ('atoll', 'awash_rock', 'bay', 'beach', 'coastal', 'coastline', 'coastline_old', 'glacier', 'high-water', 'hot_spring', 'island', 'islet', 'lake', 'marsh', 'oasis', 'old_coastline_import', 'peninsula', 'pond', 'river', 'river_terrace', 'riverbank', 'riverbed', 'shoal', 'spring', 'strait', 'stream', 'swamp', 'swimming_pool', 'underwater_rock', 'unprotected_spring', 'unprotected_well', 'water', 'water_park', 'waterfall', 'waterhole', 'waterway', 'wetland') 
+      OR sport IN ('swimming','surfing','canoe','scuba_diving','rowing','sailing','fishing','water_ski','water_sports','diving','windsurfing','canoeing','kayak');
 ''',
 '''
 -- Create variable for park size 
@@ -74,9 +112,8 @@ ALTER TABLE open_space ADD COLUMN area_ha double precision;
 UPDATE open_space SET area_ha = ST_Area(geom)/10000.0;
 ''',
 '''
--- Create variable for medial axis as a hint of linearity_index
+-- Create variable for medial axis as a hint of linearity
 -- https://postgis.net/2015/10/25/postgis_sfcgal_extension/
-CREATE EXTENSION IF NOT EXISTS postgis_sfcgal; 
 ALTER TABLE open_space ADD COLUMN medial_axis_length double precision; 
 UPDATE open_space SET medial_axis_length = ST_Length(ST_ApproximateMedialAxis(geom));
 ''',
@@ -136,10 +173,10 @@ WHERE o.linear_feature IS TRUE
 ''',
 ''' 
 -- Create variable for school intersection 
-DROP TABLE schools;
+DROP TABLE IF EXISTS schools;
 CREATE TABLE schools AS 
 SELECT * FROM {osm_prefix}_polygon p 
-WHERE p.amenity IN ('school');
+WHERE p.amenity IN ('school','college') OR p.landuse IN ('school');
 ALTER TABLE schools ADD COLUMN is_school boolean; 
 UPDATE schools SET is_school = TRUE;
 '''.format(osm_prefix = osm_prefix),
@@ -157,7 +194,8 @@ UPDATE open_space SET no_school_geom = geom WHERE is_school = FALSE;
 -- Insert school polygons in open space, restricting to relevant de-identified subset of tags (ie. no school names, contact details, etc)
 INSERT INTO open_space (tags,is_school,geom)
 SELECT  slice(tags, 
-              ARRAY['designation'     ,
+              ARRAY['amenity',
+                    'designation'     ,
                     'fee'             ,
                     'grades'          ,
                     'isced'           ,
@@ -168,6 +206,39 @@ SELECT  slice(tags,
         is_school,
         geom
 FROM schools;
+''',
+'''
+-- Remove potentially identifying tags from records
+UPDATE open_space SET tags =  tags - ARRAY['addr:city'         ,        
+                                           'addr:full'         ,        
+                                           'addr:place'        ,     
+                                           'addr:postcode'     ,        
+                                           'addr:province'     ,       
+                                           'addr:street'       ,        
+                                           'website'           ,        
+                                           'wikipedia'         ,        
+                                           'description'       ,
+                                           'old_name'          ,   
+                                           'name:aus'          ,
+                                           'name:en'           ,
+                                           'name:de'           ,
+                                           'name:fr'           ,
+                                           'name:es'           ,
+                                           'name:ru'           ,
+                                           'alt_name'          ,
+                                           'addr:housename'    ,      
+                                           'addr:housenumber'  ,      
+                                           'addr:interpolation',      
+                                           'name'              ,
+                                           'designation'       ,
+                                           'email'             ,
+                                           'phone'             ,
+                                           'ref:capad2014_osm' ,           
+                                           'nswlpi:cadid'      ,
+                                           'wikidata'          ,
+                                           'name:source:url'   ,
+                                           'url']
+;
 ''',
 '''
 -- Create Areas of Open Space (AOS) table
@@ -254,7 +325,7 @@ UPDATE open_space_areas SET school_os_percent = 100 * aos_ha/(aos_ha + aos_ha_sc
 '''
 -- Create a linestring aos table 
 -- the 'school_bounds' prereq feature un-nests the multipolygons to straight polygons, so we can take their exterior rings
-DROP TABLE aos_line;
+DROP TABLE IF EXISTS aos_line;
 CREATE TABLE aos_line AS 
 WITH school_bounds AS
    (SELECT aos_id, ST_SetSRID(st_astext((ST_Dump(geom_w_schools)).geom),7845) AS geom_w_schools  FROM open_space_areas)
@@ -263,7 +334,7 @@ FROM (SELECT aos_id, ST_ExteriorRing(geom_w_schools) AS geom_w_schools FROM scho
 ''',
 '''
 -- Generate a point every 20m along a park outlines: 
-DROP TABLE aos_nodes; 
+DROP TABLE IF EXISTS aos_nodes; 
 CREATE TABLE aos_nodes AS 
  WITH aos AS 
  (SELECT aos_id, 
@@ -276,6 +347,8 @@ SELECT aos_id,
 FROM aos;
 
 CREATE INDEX aos_nodes_idx ON aos_nodes USING GIST (geom_w_schools);
+ALTER TABLE aos_nodes ADD COLUMN aos_entryid varchar; 
+UPDATE aos_nodes SET aos_entryid = aos_id::text || ',' || node::text; 
 ''',
 '''
 -- Preparation of reference line feature to act like roads
@@ -320,13 +393,19 @@ AND l.highway IS NOT NULL;
 for sql in aos_setup:
     start = time.time()
     print("\nExecuting: {}".format(sql))
-    #curs.execute(sql)
-    #conn.commit()
+    curs.execute(sql)
+    conn.commit()
     print("Executed in {} mins".format((time.time()-start)/60))
  
 
-conn.close()
-print(" Done.") 
+ 
+ 
+# pgsql to gdb
+arcpy.env.workspace = db_sde_path
+arcpy.CopyFeatures_management('public.aos_nodes_30m_line', os.path.join(gdb_path,'aos_nodes_30m_line')) 
+ 
+ 
  
 # output to completion log    
 script_running_log(script, task, start, locale)
+conn.close()

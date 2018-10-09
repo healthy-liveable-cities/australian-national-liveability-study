@@ -1,7 +1,6 @@
-# Script:  21_createodmatrix_loop_parallelised_pos_largepark.py
-# Purpose: This script creates OD matrix 
-#          It is intended to find distance from parcel to closest POS (of any size)
-# Input:   requires network dataset
+# Script:  12_od_aos_list_analysis.py
+# Purpose: Calcault distance to nearest AOS within 3.2km, 
+#          or if none within 3.2km then distance to closest
 # Authors: Carl Higgs, Koen Simons
 
 import arcpy, arcinfo
@@ -40,8 +39,8 @@ origin_points   = parcel_dwellings
 origin_pointsID = points_id
 
 ## specify "destinations"
-pos_points   =  'pos_50m_vertices'
-pos_pointsID =  'pos_entryid'
+aos_points   =  'aos_nodes_30m_line'
+aos_pointsID =  'aos_entryid'
 
 hexStart = 0
 
@@ -64,7 +63,7 @@ if pid !='MainProcess':
   result_object = arcpy.MakeODCostMatrixLayer_na(in_network_dataset = in_network_dataset, 
                                                  out_network_analysis_layer = "ODmatrix", 
                                                  impedance_attribute = "Length", 
-                                                 default_number_destinations_to_find = 1,
+                                                 default_cutoff = 3200,
                                                  UTurn_policy = "ALLOW_UTURNS", 
                                                  hierarchy = "NO_HIERARCHY", 
                                                  output_path_shape = "NO_LINES")                                 
@@ -85,58 +84,78 @@ if pid !='MainProcess':
   
   
 # Define query to create table
-# 'pos_list' is a compound variable -- a list of lists with structure like
+# 'aos_list' is a compound variable -- a list of lists with structure like
 # {id, distance, attributes
 createTable     = '''
-  -- DROP TABLE IF EXISTS {0};
-  CREATE TABLE IF NOT EXISTS {0}
-  (gnaf_pid    varchar         ,
-   pos_list    varchar         
-   );
-   '''.format(sqlTableName, origin_pointsID.lower())
+  -- DROP TABLE IF EXISTS {table};
+  CREATE TABLE IF NOT EXISTS {table}
+  (
+  {id} varchar, 
+  aos_id INT, 
+  node INT, 
+  distance INT, 
+  query varchar,
+  PRIMARY KEY ({id},aos_id) 
+  );
+   '''.format(table = sqlTableName, id = origin_pointsID.lower())
 ## LATER index on gnaf_id, query
 
-queryPartA      = '''
-  INSERT INTO {} VALUES
-  '''.format(sqlTableName)
+recInsert      = '''
+  INSERT INTO od_aos ({id}, aos_id, node, query, distance) 
+  SELECT DISTINCT ON ({id}, aos_id) {id}, aos_id, node, query, min(distance) 
+  FROM  ( 
+     VALUES
+  '''.format(id = origin_pointsID.lower())          
+                    
+recUpdate      = '''
+  ) v({id}, aos_id, node, query, distance) 
+   GROUP BY {id},aos_id,node, query 
+    ON CONFLICT ({id},aos_id) 
+       DO UPDATE 
+          SET node = EXCLUDED.node, 
+              query = EXCLUDED.query,
+              distance = EXCLUDED.distance 
+           WHERE od_aos.distance > EXCLUDED.distance;
+  '''.format(id = origin_pointsID.lower())  
 
+threshold = 400
+calculateThreshold = '''
+ALTER TABLE od_aos ADD COLUMN ind_hard int; 
+ALTER TABLE od_aos ADD COLUMN ind_soft double precision; 
+UPDATE od_aos SET ind_hard = (distance < {threshold})::int; 
+UPDATE od_aos SET ind_soft = 1 - 1.0 / (1+exp(-{slope}*(distance-{threshold})/{threshold}::numeric)); 
+'''.format(threshold = threshold, slope = soft_threshold_slope)
+  
 # this is the same log table as used for other destinations.
 #  It is only created if it does not already exist.
 #  However, it probably does.  
 createTable_log     = '''
   -- DROP TABLE IF EXISTS {0};
   CREATE TABLE IF NOT EXISTS {0}
-  (
-  participant_id INT, 
-  aos_gid INT, 
-  node INT, 
-  distance INT, 
-  PRIMARY KEY (participant_id,aos_gid) 
-  );
-    '''.format(log_table)     
+    (hex integer NOT NULL, 
+    parcel_count integer NOT NULL, 
+    dest_name varchar, 
+    status varchar, 
+    mins double precision,
+    PRIMARY KEY(hex,dest_name)
+    );
+    '''.format(log_table)       
   
 queryInsert      = '''
-  INSERT INTO od_aos (participant_id, aos_gid, node, distance) 
-  SELECT DISTINCT ON (participant_id, aos_gid) participant_id, aos_gid, node, min(distance) 
-  FROM  ( 
-     VALUES
+  INSERT INTO {} VALUES
   '''.format(log_table)          
                     
 queryUpdate      = '''
-  ) v(participant_id, aos_gid, node, distance) 
-   GROUP BY participant_id,aos_gid,node 
-    ON CONFLICT (participant_id,aos_gid) 
-       DO UPDATE 
-          SET node = EXCLUDED.node, 
-              distance = EXCLUDED.distance 
-           WHERE od_aos.distance > EXCLUDED.distance;
-  '''
-
+  ON CONFLICT ({0},{4}) 
+  DO UPDATE SET {1}=EXCLUDED.{1},{2}=EXCLUDED.{2},{3}=EXCLUDED.{3}
+  '''.format('hex','parcel_count','status','mins','dest_name')  
+  
+  
 aos_linkage = '''
-  -- Associate participants with list of parks 
+  -- Associate origin IDs with list of parks 
   DROP TABLE IF EXISTS od_aos_full; 
   CREATE TABLE od_aos_full AS 
-  SELECT p.{}, 
+  SELECT p.{id}, 
          jsonb_agg(jsonb_strip_nulls(to_jsonb( 
              (SELECT d FROM 
                  (SELECT 
@@ -149,13 +168,13 @@ aos_linkage = '''
                     school_os_percent
                     ) d)))) AS attributes 
   FROM od_aos p 
-  LEFT JOIN open_space_areas a ON p.aos_gid = a.gid 
-  GROUP BY {};   
-  '''.format(origin_pointsID)
+  LEFT JOIN open_space_areas a ON p.aos_id = a.aos_id 
+  GROUP BY {id};   
+  '''.format(id = origin_pointsID)
   
   
 parcel_count = int(arcpy.GetCount_management(origin_points).getOutput(0))  
-denominator = parcel_count * len(pos_locale)
+denominator = parcel_count
  
 ## Functions defined for this script
 # Define log file write method
@@ -175,11 +194,6 @@ def writeLog(hex = 0, AhexN = 'NULL', Bcode = 'NULL', status = 'NULL', mins= 0, 
     print("ERROR: {}".format(sys.exc_info()))
     raise
 
-
-def unique_values(table, field):
-  data = arcpy.da.TableToNumPyArray(table, [field])
-  return np.unique(data[field])    
-    
 # Worker/Child PROCESS
 def ODMatrixWorkerFunction(hex): 
   # Connect to SQL database 
@@ -207,99 +221,96 @@ def ODMatrixWorkerFunction(hex):
     place = 'before skip empty A hexes'
     # Skip empty A hexes
     if A_pointCount == 0:
-      writeLog(hex,0,"pos","no A points",(time.time()-hexStartTime)/60)
+      writeLog(hex,0,"aos","no A points",(time.time()-hexStartTime)/60)
       return(2)
     
     place = 'before buffer selection'
     buffer = arcpy.SelectLayerByAttribute_management("buffer_layer", where_clause = 'ORIG_FID = {}'.format(hex))
-    
-    # loop over POS scenarios for this study region
-    for query in pos_locale:
-      # ensure only non-processed parcels are processed (ie. in case script has been previously run)
-      curs.execute("SELECT {} FROM {} WHERE query = $${}$$".format(origin_pointsID,sqlTableName,hex,query[0]))
-      processed_points = [x[0] for x in list(curs)]
-      # Only procede with the POS scenario if it has not been previously processed
-      if len(processed_points) < A_pointCount:
-        # if len(processed_points)!=0:
-          # A_selection = arcpy.SelectLayerByAttribute_management(A_selection, selection_type = 'REMOVE_FROM_SELECTION', where_clause = '{0} IN ({1})'.format(origin_pointsID,','.join(processed_points)))
-        arcpy.MakeFeatureLayer_management(pos_points, "pos_pointsLayer", query[0])    
-        
-        # Select and count parks meeting scenario query
-        B_selection = arcpy.SelectLayerByLocation_management('pos_pointsLayer', 'intersect', buffer)
-        B_pointCount = int(arcpy.GetCount_management(B_selection).getOutput(0))
-        
-        # define query and distance as destination code, for use in log file 
-        dest_code = "{} @ {}m".format(query[0],query[1])
-        dest_name = "POS: {}".format(dest_code)
+    query = 'AOS: in 3.2km'
 
-        place = 'before skip empty B hexes'
-        # Skip empty B hexes
-        if B_pointCount != 0:          
-          # If we're still in the loop at this point, it means we have the right hex and buffer combo and both contain at least one valid element
-          # Process OD Matrix Setup
-          # add unprocessed address points
-          arcpy.AddLocations_na(in_network_analysis_layer = outNALayer, 
-              sub_layer                      = originsLayerName, 
-              in_table                       = A_selection, 
-              field_mappings                 = "Name {} #".format(origin_pointsID), 
-              search_tolerance               = "{} Meters".format(tolerance), 
-              search_criteria                = "{} SHAPE;{} NONE".format(network_edges,network_junctions), 
-              append                         = "CLEAR", 
-              snap_to_position_along_network = "NO_SNAP", 
-              exclude_restricted_elements    = "INCLUDE",
-              search_query                   = "{} #;{} #".format(network_edges,network_junctions))
-          place = 'After add A locations'
-          # add in parks
-          arcpy.AddLocations_na(in_network_analysis_layer = outNALayer, 
-            sub_layer                      = destinationsLayerName, 
-            in_table                       = B_selection, 
-            field_mappings                 = "Name {} #".format(pos_pointsID), 
+    # ensure only non-processed parcels are processed (ie. in case script has been previously run)
+    curs.execute("SELECT DISTINCT({id}) FROM {table}".format(id = origin_pointsID,
+                                                             table = sqlTableName))
+    processed_points = [x[0] for x in list(curs)]
+    # Only procede with the POS scenario if it has not been previously processed
+    if len(processed_points) < A_pointCount:
+      arcpy.MakeFeatureLayer_management(aos_points, "aos_pointsLayer")    
+      
+      # Select and count parks meeting scenario query
+      B_selection = arcpy.SelectLayerByLocation_management('aos_pointsLayer', 'intersect', buffer)
+      B_pointCount = int(arcpy.GetCount_management(B_selection).getOutput(0))
+      
+      # define query and distance as destination code, for use in log file 
+      dest_name = query
+
+      place = 'before skip empty B hexes'
+      # Skip empty B hexes
+      if B_pointCount != 0:          
+        # If we're still in the loop at this point, it means we have the right hex and buffer combo and both contain at least one valid element
+        # Process OD Matrix Setup
+        # add unprocessed address points
+        arcpy.AddLocations_na(in_network_analysis_layer = outNALayer, 
+            sub_layer                      = originsLayerName, 
+            in_table                       = A_selection, 
+            field_mappings                 = "Name {} #".format(origin_pointsID), 
             search_tolerance               = "{} Meters".format(tolerance), 
             search_criteria                = "{} SHAPE;{} NONE".format(network_edges,network_junctions), 
             append                         = "CLEAR", 
             snap_to_position_along_network = "NO_SNAP", 
             exclude_restricted_elements    = "INCLUDE",
-            search_query                   = "{} #;{} #".format(network_edges,network_junctions))    
-          place = 'After add B locations'
-          # Process: Solve
-          result = arcpy.Solve_na(outNALayer, terminate_on_solve_error = "CONTINUE")
-          if result[1] == u'false':
-            writeLog(hex,A_pointCount,dest_name,"no solution",(time.time()-hexStartTime)/60)
-          if result[1] == u'true':
-            place = 'After solve'
-            # Extract lines layer, export to SQL database
-            outputLines = arcpy.da.SearchCursor(ODLinesSubLayer, fields)
-            curs = conn.cursor()
-            count = 0
-            chunkedLines = list()
-            place = 'before outputLine loop'
-            for outputLine in outputLines :
-              count += 1
-              ID_A      = outputLine[0].split('-')[0].encode('utf-8').strip(' ')
-              ID_B      = outputLine[0].split('-')[1].encode('utf-8').strip(' ')
-              distance  = int(round(outputLine[1]))
-              threshold = query[1]
-              ind_hard  = int(distance < threshold)
-              ind_soft = 1 - 1.0 / (1+np.exp(-soft_threshold_slope*(distance-threshold)/threshold))
-              place = "before chunk append"
-              chunkedLines.append("('{ID_A}','{ID_B}',$${query}$$,{distance},{threshold},{ind_hard},{ind_soft})".format(ID_A      = ID_A,
-                                                                                                                      ID_B      = ID_B,
-                                                                                                                      query     = query[0],
-                                                                                                                      distance  = distance,
-                                                                                                                      threshold = threshold,
-                                                                                                                      ind_hard  = ind_hard,
-                                                                                                                      ind_soft  = ind_soft
-                                                                                                                      ))
-              if(count % sqlChunkify == 0):
-                curs.execute(queryPartA + ','.join(rowOfChunk for rowOfChunk in chunkedLines)+' ON CONFLICT DO NOTHING')
-                conn.commit()
-                chunkedLines = list()
-            if(count % sqlChunkify != 0):
-              curs.execute(queryPartA + ','.join(rowOfChunk for rowOfChunk in chunkedLines)+' ON CONFLICT DO NOTHING')
+            search_query                   = "{} #;{} #".format(network_edges,network_junctions))
+        place = 'After add A locations'
+        # add in parks
+        arcpy.AddLocations_na(in_network_analysis_layer = outNALayer, 
+          sub_layer                      = destinationsLayerName, 
+          in_table                       = B_selection, 
+          field_mappings                 = "Name {} #".format(aos_pointsID), 
+          search_tolerance               = "{} Meters".format(tolerance), 
+          search_criteria                = "{} SHAPE;{} NONE".format(network_edges,network_junctions), 
+          append                         = "CLEAR", 
+          snap_to_position_along_network = "NO_SNAP", 
+          exclude_restricted_elements    = "INCLUDE",
+          search_query                   = "{} #;{} #".format(network_edges,network_junctions))    
+        place = 'After add B locations'
+        # Process: Solve
+        result = arcpy.Solve_na(outNALayer, terminate_on_solve_error = "CONTINUE")
+        if result[1] == u'false':
+          writeLog(hex,A_pointCount,dest_name,"no solution",(time.time()-hexStartTime)/60)
+        if result[1] == u'true':
+          place = 'After solve'
+          # Extract lines layer, export to SQL database
+          outputLines = arcpy.da.SearchCursor(ODLinesSubLayer, fields)
+          curs = conn.cursor()
+          count = 0
+          chunkedLines = list()
+          place = 'before outputLine loop'
+          for outputLine in outputLines :
+            count += 1
+            od_pair = outputLine[0].split('-')
+            pid = od_pair[0].encode('utf-8').strip(' ')
+            aos_pair = od_pair[1].split(',')
+            aos = int(aos_pair[0])
+            node = int(aos_pair[1])
+            distance = int(round(outputLine[1]))
+            place = "before chunk append"
+            chunkedLines.append("('{pid}',{aos},{node},$${query}$$,{distance})".format(pid = pid,
+                                                                                     aos = aos,
+                                                                                     node = node,
+                                                                                     query     = query,
+                                                                                     distance  = distance,
+                                                                                         ))
+            if(count % sqlChunkify == 0):
+              curs.execute(recInsert + ','.join(rowOfChunk for rowOfChunk in chunkedLines)+recUpdate)
               conn.commit()
-            
-            writeLog(hex,A_pointCount,dest_name,"Solved",(time.time()-hexStartTime)/60)
-    curs.execute("SELECT COUNT(*) FROM {}".format(sqlTableName))
+              chunkedLines = list()
+          if(count % sqlChunkify != 0):
+            curs.execute(recInsert + ','.join(rowOfChunk for rowOfChunk in chunkedLines)+recUpdate)
+            conn.commit()
+          
+          ### TO DO --- ADD in distance to closest if no results within 3.2km
+          writeLog(hex,A_pointCount,dest_name,"Solved",(time.time()-hexStartTime)/60)
+    curs.execute("SELECT COUNT(DISTINCT({id})) FROM {table}".format(id = origin_pointsID.lower(),
+                                                                    table = sqlTableName))
     numerator = list(curs)
     numerator = int(numerator[0][0])
     progressor(numerator,denominator,start,"{}/{}; last hex processed: {}, at {}".format(numerator,denominator,hex,time.strftime("%Y%m%d-%H%M%S"))) 
@@ -349,8 +360,11 @@ if __name__ == '__main__':
   iteration_list = np.asarray([x[0] for x in hex_list])
   pool.map(ODMatrixWorkerFunction, iteration_list, chunksize=1)
   	
-    
-  curs.execute(primary_key)
+  ## Perhaps add columns for hard and soft thresholds based on 400m at this point?
+  #  then, join linkage  
+  curs.execute(calculateThreshold)
+  conn.commit()
+  curs.execute(aos_linkage)
   conn.commit()
   
   # output to completion log    
