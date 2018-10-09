@@ -33,7 +33,6 @@ import sys
 import time
 import pandas
 import subprocess as sp
-import psycopg2
 
 # Load settings from ind_study_region_matrix.xlsx
 xls = pandas.ExcelFile(os.path.join(sys.path[0],'ind_study_region_matrix.xlsx'))
@@ -327,36 +326,6 @@ dest_codes = df_destinations.code.tolist()   # domain is an optional grouping ca
 dest_domains = df_destinations.domain.tolist()   # domain is an optional grouping category for destinations / indicators
 dest_cutoffs = df_destinations.cutoff.tolist()   # cut off distance within which to evaluate presence
 dest_counts = df_destinations.counts.tolist()   # cut off distance within which to evaluate counts
-
-# Initialise postgresql connection
-# connect to the PostgreSQL server and ensure privileges are granted for all public tables
-conn = psycopg2.connect(dbname=db, user=db_user, password=db_pwd)
-curs = conn.cursor()  
-
-# Define script logging to study region database function
-def script_running_log(script = '', task = '', start = '', prefix = ''):
-  date_time = time.strftime("%Y%m%d-%H%M%S")
-  duration = (time.time() - start)/60
-  
-  log_table = '''
-       -- If log table doesn't exist, its created
-       CREATE TABLE IF NOT EXISTS script_running_log AS
-       (
-       script varchar,
-       task varchar,
-       datetime_completed varchar,
-       duration_mins numeric
-       );
-       -- Insert completed script details
-       INSERT INTO open_space VALUES ($${}$$,$${}$$,$${}$$,{});
-       '''.format(script,task,date_time,duration)
-  try:
-    curs.execute(log_table)
-    print("Processing complete (Task: {}); duration: {:04.2f} minutes".format(task,duration))
-  except:
-    print("Error withoutput to script running log...")
-    raise
-
 
 # specify that the above modules and all variables below are imported on 'from config.py import *'
 __all__ = [x for x in dir() if x not in ['__file__','__all__', '__builtins__', '__doc__', '__name__', '__package__']]

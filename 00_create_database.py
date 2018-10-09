@@ -23,7 +23,6 @@ import time
 import getpass
 import arcpy
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
-from script_running_log import script_running_log
 
 # Import custom variables for National Liveability indicator process
 from config_ntnl_li_process import *
@@ -103,45 +102,53 @@ createUser_ArcSDE = '''
   $do$;
   '''.format(arc_sde_user, db_pwd)  
   
-createPostGIS = '''CREATE EXTENSION postgis; CREATE EXTENSION hstore; SELECT postgis_full_version(); CREATE EXTENSION postgis_sfcgal;'''
+createPostGIS = '''CREATE EXTENSION IF NOT EXISTS postgis; 
+                   CREATE EXTENSION IF NOT EXISTS hstore; 
+                   SELECT postgis_full_version(); 
+                   CREATE EXTENSION IF NOT EXISTS postgis_sfcgal;'''
   
 ## OUTPUT PROCESS
 
 print("Connecting to default database to action queries.")
 conn = psycopg2.connect(dbname=admin_db, user=admin_user_name, password=admin_pwd)
 conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
-cur = conn.cursor()
+curs = conn.cursor()
 
-print('Creating database {}... '.format(db)),
-cur.execute(createDB) 
+print('Creating database if not exists {}... '.format(db)),
+curs.execute("SELECT COUNT(*) = 0 FROM pg_catalog.pg_database WHERE datname = '{}'".format(db))
+not_exists_row = curs.fetchone()
+not_exists = not_exists_row[0]
+if not_exists:
+  curs.execute(createDB) 
 print('Done.')
 
 print('Adding comment "{}"... '.format(dbComment)),
-cur.execute(commentDB)
+curs.execute(commentDB)
 print('Done.')
 
 
 print('Creating user {}  if not exists... '.format(db_user)),
-cur.execute(createUser)
+curs.execute(createUser)
 print('Done.')
 
 print('Creating ArcSDE user {} if not exists... '.format(arc_sde_user)),
-cur.execute(createUser_ArcSDE)
+curs.execute(createUser_ArcSDE)
 print('Done.')  
 conn.close()  
 
 print("Connecting to {}.".format(db))
 conn = psycopg2.connect(dbname=db, user=admin_user_name, password=admin_pwd)
 conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
-cur = conn.cursor()
+curs = conn.cursor()
 
 print('Creating PostGIS extension ... '),
-cur.execute(createPostGIS)
+curs.execute(createPostGIS)
 print('Done.')
 conn.close()  
 
-print('Creating ArcGIS spatial database connection file ... '),
-arcpy.CreateDatabaseConnection_management(out_folder_path = locale_dir,
+if not os.path.isfile(os.path.join(locale_dir,db_sde)):
+  print('Creating ArcGIS spatial database connection file ... '),
+  arcpy.CreateDatabaseConnection_management(out_folder_path = locale_dir,
                                           out_name = db_sde, 
                                           database_platform = "POSTGRESQL", 
                                           instance = db_host, 
@@ -150,8 +157,10 @@ arcpy.CreateDatabaseConnection_management(out_folder_path = locale_dir,
                                           password = db_pwd, 
                                           save_user_pass = "SAVE_USERNAME", 
                                           database = db)
-print('Done.')
-conn.close()
+  print('Done.')
 
-# output to completion log					
+
+# output to completion log		
+from script_running_log import script_running_log			
 script_running_log(script, task, start, locale)
+conn.close()

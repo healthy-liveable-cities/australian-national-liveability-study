@@ -1,28 +1,42 @@
-# Script:  ntnl_li_vars.py
-# Purpose: an externally curated compilation of local variables defined using config.ini
+# Script:  script_running_log.py
+# Purpose: log completion to sql
 # Author:  Carl Higgs
-# Date:    09/03/2017
+# Date:    20181009
 
+# Note: This script assumes the specified postgresql database has already been created.
+import os
+import sys
+import time
+import psycopg2
+# Import custom variables for National Liveability indicator process
+from config_ntnl_li_process import db,db_user,db_pwd
+
+# Define script logging to study region database function
 def script_running_log(script = '', task = '', start = '', prefix = ''):
-  import time 
-  import os
-  import sys
-  
+  # Initialise postgresql connection
+  conn = psycopg2.connect(dbname=db, user=db_user, password=db_pwd)
+  curs = conn.cursor()  
   date_time = time.strftime("%Y%m%d-%H%M%S")
   duration = (time.time() - start)/60
-  output = os.path.join(sys.path[0],'script_running_log_{}.csv'.format(prefix))
   
-  if not os.path.isfile(output):
-      try:
-        with open(output, "w") as outfile:
-          outfile.write('script,task,datetime_completed,duration_mins\n')
-        print("Created script running log: {}".format(output))
-      except:
-        print("note: script running log does not already exist, but attempt to initiate failed.")  
+  log_table = '''
+       -- If log table doesn't exist, its created
+       CREATE TABLE IF NOT EXISTS script_log
+       (
+       script varchar,
+       task varchar,
+       datetime_completed varchar,
+       duration_mins numeric
+       );
+       -- Insert completed script details
+       INSERT INTO script_log VALUES ($${}$$,$${}$$,$${}$$,{});
+       '''.format(script,task,date_time,duration)
   try:
-    with open(output, "a") as outfile:
-        outfile.write('{},{},{},{}\n'.format(script,task,date_time,duration))
-        print("Processing complete (Task: {}); duration: {:04.2f} minutes".format(task,duration))
+    curs.execute(log_table)
+    conn.commit()
+    print('''Processing completed at {}\n- Task: {}\n- Duration: {:04.2f} minutes'''.format(date_time,task,duration))
   except:
-    print("note: unable to output to script_running_log.csv")
+    print("Error withoutput to script running log.  Has the database for this study region been created?")
     raise
+  finally:
+    conn.close()
