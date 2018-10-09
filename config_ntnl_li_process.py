@@ -314,7 +314,7 @@ combined_dest_template = os.path.join(folderPath,
 outCombinedFeature = 'study_destinations'
 
 # array / list of destinations 
-# IMPORTANT -- These must be specified in the config_destinations.csv file
+# IMPORTANT -- These are specified in the 'destinations' worksheet of the ind_study_region_matrix.xlsx file
 #               - specify: destination, domain, cutoff and count distances as required
 #
 #           -- If new destinations are added, they should be appended to end of list 
@@ -322,10 +322,9 @@ outCombinedFeature = 'study_destinations'
 #
 # The table 'dest_type' will be created in Postgresql to keep track of destinations
 
-## Read in the externally defined csv file
 df_destinations = df_destinations.replace(pandas.np.nan, 'NULL', regex=True)
 
-## Retrieve defined variables from destinations csv
+## Retrieve defined variables from destinations table
 destination_list = df_destinations.destination.tolist() # the destinations 
 dest_codes = df_destinations.code.tolist()   # domain is an optional grouping category for destinations / indicators
 dest_domains = df_destinations.domain.tolist()   # domain is an optional grouping category for destinations / indicators
