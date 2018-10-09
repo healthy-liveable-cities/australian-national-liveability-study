@@ -1,9 +1,3 @@
-# Script:  00_4_setup_config_ntnl_li_process.py
-# Directions to set up liveability indicator calculation for a project and study region
-# Version: 20180907
-# Author:  Carl Higgs
-
-statement = '''
 All scripts within the process folder draw on the sources, parameters and modules
 specified in the file ind_study_region_matrix.xlsx to source and output 
 resources. It is the best definition of where resources are sourced from and 
@@ -27,4 +21,6 @@ overrides are required.
 The file which draws on the project, study region, destination and local settings 
 specificied in the ind_study_region_matrix.xlsx file and implements these across 
 scripts is config_ntnl_li_process.py
-'''
+
+Carl Higgs
+1 October 2018

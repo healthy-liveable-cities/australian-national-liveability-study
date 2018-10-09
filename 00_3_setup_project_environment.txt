@@ -4,12 +4,11 @@ You have set things up for GDA2020 use as per the pdf file:
 ./ntnl_li_2018_template/admin/Updating software for GDA2020.pdf
 
 The above file covers the following
-     You have postgresql installed w/ PostGIS extension.
+     You have postgresql installed w/ PostGIS extension (version 2.4, at time of writing).
        -- Get from: https://www.enterprisedb.com/downloads/postgres-postgresql-downloads
        -- Scripts were written with PostgreSQL 9.6.1, so recommend using this version
-       -- Carl has downloaded the latest PostGIS bundle (2.4) 
        
-     You have ArcGIS 16 installed
+     You have ArcGIS 10.6 installed
      
      You have Python 2.7 installed.  
        -- Specifically, use the 64-bit version with ArcGIS 10.6.x
@@ -45,7 +44,7 @@ I recommend that you run the scripts from Notepad++ (npp).  To do this:
  
 Data sources should be pre-processed as GDA2020 GA LLC using the NTv2 transformation in ArcGIS or QGIS --- the latter may be more reliable (e.g. in ArcGIS the correct transformation options for some GDA94 projected files don't automatically  get identified, but in such cases I noticed they were in QGIS -- example is the trial 2018 Vic Open GNAF data from JA.
 
-So --- tranform files to correct CRS first; exception is road network --- this is assumed to be in GCS GDA 94 and the correct transformation is set up to be run in the scripts to get this to GDA2020 GA LLC.
+So --- tranform files to correct CRS first.
 
 Carl Higgs
 20180531
