@@ -53,11 +53,9 @@ locale = '_'.join(sp.check_output(["git", "status"],cwd=sys.path[0],shell=True).
 
 if len(sys.argv) == 2:
   locale = '{studyregion}'.format(studyregion = sys.argv[1])
-  if locale == 'branch':
-    locale = '_'.join(sp.check_output(["git", "status"],cwd=sys.path[0],shell=True).split('\n')[0].split(' ')[2].split('_')[1:-1])
 else:
-  locale = 'testing'
-  print("Note: locale has not been specified or is mis-specified; it is now assumed that things are being tested.")
+  print("Note: locale has not been specified; attempting to use current git respository branch to glean study region...")
+  locale = '_'.join(sp.check_output(["git", "status"],cwd=sys.path[0],shell=True).split('\n')[0].split(' ')[2].split('_')[1:-1])
 print("\nProcessing script {} for locale {}...\n".format(sys.argv[0],locale))
 
 # More study region details
