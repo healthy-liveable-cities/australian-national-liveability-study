@@ -354,7 +354,7 @@ def script_running_log(script = '', task = '', start = '', prefix = ''):
     curs.execute(log_table)
     print("Processing complete (Task: {}); duration: {:04.2f} minutes".format(task,duration))
   except:
-    print("note: unable to output to script_running_log.csv")
+    print("Error withoutput to script running log...")
     raise
 
 
