@@ -156,11 +156,12 @@ aos_linkage = '''
   DROP TABLE IF EXISTS od_aos_full; 
   CREATE TABLE od_aos_full AS 
   SELECT p.{id}, 
+         COUNT(a.aos_id) AS aos_count,
          jsonb_agg(jsonb_strip_nulls(to_jsonb( 
              (SELECT d FROM 
                  (SELECT 
                     p.distance      ,
-                    a.gid           ,
+                    a.aos_id           ,
                     a.attributes    ,
                     a.numgeom       ,
                     a.aos_ha        ,
