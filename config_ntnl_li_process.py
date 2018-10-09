@@ -68,10 +68,10 @@ state  = df_studyregion.loc[locale]['state'].encode('utf')
 locale_dir = os.path.join(folderPath,'study_region','{}'.format(locale.lower()))
 
 # Study region boundary
-region_shape = df_studyregion.loc[locale]['region_shape']
+region_shape = os.path.join(folderPath,df_studyregion.loc[locale]['region_shape'])
 
 # SQL Query to select study region
-region_where_clause = df_studyregion.loc[locale]['region_shape'].encode('utf')
+region_where_clause = df_studyregion.loc[locale]['region_where_clause'].encode('utf')
 
 # db suffix
 suffix = df_studyregion.loc[locale]['suffix']
