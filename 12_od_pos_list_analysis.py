@@ -63,7 +63,7 @@ if pid !='MainProcess':
   result_object = arcpy.MakeODCostMatrixLayer_na(in_network_dataset = in_network_dataset, 
                                                  out_network_analysis_layer = "ODmatrix", 
                                                  impedance_attribute = "Length", 
-                                                 default_cutoff = 3200,
+                                                 default_cutoff = aos_threshold,
                                                  UTurn_policy = "ALLOW_UTURNS", 
                                                  hierarchy = "NO_HIERARCHY", 
                                                  output_path_shape = "NO_LINES")                                 

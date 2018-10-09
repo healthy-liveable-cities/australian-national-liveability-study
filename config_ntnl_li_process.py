@@ -281,6 +281,8 @@ if type(df_studyregion.loc[locale]['pos_source']) is unicode:
   else:
     pos_inclusion = "*"
 
+aos_threshold = df_parameters.loc['aos_threshold']['value']
+    
 # Destinations - locate destinations.gdb within dest_dir (ie. 'D:\ntnl_li_2018\data\destinations\' or whereever your ntnl_li_2018 folder is located)
 # Destinations data directory
 dest_dir = os.path.join(folderPath,df_parameters.loc['dest_dir']['value'].encode('utf'))
