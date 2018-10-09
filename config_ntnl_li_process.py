@@ -41,6 +41,8 @@ df_studyregion = pandas.read_excel(xls, 'study_regions',index_col=1)
 df_inds = pandas.read_excel(xls, 'ind_study_region_matrix')
 df_destinations = pandas.read_excel(xls, 'destinations')
 
+year   = df_parameters.loc['year']['value']
+
 # The main directory for data
 folderPath = df_parameters.loc['folderPath']['value']
 
@@ -48,13 +50,18 @@ folderPath = df_parameters.loc['folderPath']['value']
 # if current branch is master, the scripts will fail (locale = '')
 # if current branch is 'li_studyregion_2016', locale will be set as 'studyregion'
 locale = '_'.join(sp.check_output(["git", "status"],cwd=sys.path[0],shell=True).split('\n')[0].split(' ')[2].split('_')[1:-1])
-if locale=='':
-  # this implies the user is on the master branch of the script repository
-  locale = 'testing'
 
+if len(sys.argv) == 2:
+  locale = '{studyregion}'.format(studyregion = sys.argv[1])
+  if locale == 'branch':
+    locale = '_'.join(sp.check_output(["git", "status"],cwd=sys.path[0],shell=True).split('\n')[0].split(' ')[2].split('_')[1:-1])
+else:
+  locale = 'testing'
+  print("Note: locale has not been specified or is mis-specified; it is now assumed that things are being tested.")
+print("\nProcessing script {} for locale {}...\n".format(sys.argv[0],locale))
 
 # More study region details
-year   = df_parameters.loc['year']['value']
+
 region = df_studyregion.loc[locale]['region'].encode('utf')
 state  = df_studyregion.loc[locale]['state'].encode('utf')
 
