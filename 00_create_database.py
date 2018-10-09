@@ -3,7 +3,7 @@
 # Authors: Carl Higgs, Koen Simons
 # Context: Used to create database and related settings for creation of liveability indicators
 #
-### Successful completion will look like the following:
+### Successful completion will look something like the following:
 ## Please enter default PostgreSQL database details to procede with new database creation, or close terminal to abort.
 ## Database: postgres
 ## Username: postgres
