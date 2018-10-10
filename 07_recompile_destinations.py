@@ -63,7 +63,7 @@ print("Commencing task: {} at {}".format(task,time.strftime("%Y%m%d-%H%M%S")))
 datasets = arcpy.ListDatasets(feature_type='feature')
 
 # Initialise empty destination count array (we fill this in below)
-dest_count = numpy.empty(len(destination_list), dtype=int)
+dest_count = [0]*len(destination_list)
 # we'll add a name field to the combined field list we create containing class of destination
 max_name_length = len(max(destination_list, key=len))+3
 
