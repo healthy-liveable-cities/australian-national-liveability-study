@@ -323,7 +323,7 @@ UPDATE open_space_areas SET aos_ha_water = COALESCE(ST_Area(geom_water)/10000.0,
 '''
 -- Create variable for Water percent
 ALTER TABLE open_space_areas ADD COLUMN water_percent numeric; 
-UPDATE open_space_areas SET water_percent = 100 * aos_ha_water/aos_ha::numeric; 
+UPDATE open_space_areas SET water_percent = 100 * aos_ha_water/aos_ha::numeric WHERE aos_ha > 0; 
 ''',
 '''
 -- Calculate total area of Schools in Ha
