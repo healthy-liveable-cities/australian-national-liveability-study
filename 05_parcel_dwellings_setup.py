@@ -57,18 +57,21 @@ def renameSkinny(is_geo, in_obj, out_obj, keep_fields_list=[''], rename_fields_l
           return out_obj
 
 # OUTPUT PROCESS
-### RE-do within postgis? hmm... maybe not 
-### In pre-process step make sure crs is GDA2020 GA LLC
+# make sure input source is a list; mostly it won't be, but in some instances (e.g. where a study region is split
+# across state boundaries) it will and so these multiple sources will need to be extracted and joined.
+points = points.split(',')
 
-arcpy.MakeFeatureLayer_management(points, 'feature') 
-print("Select parcels within the inclusion region ({})... ".format(study_region))
-selection = arcpy.SelectLayerByLocation_management(in_layer='feature', 
+for feature in points:  
+  print("Processing point source {}...".format(feature))
+  arcpy.MakeFeatureLayer_management(os.path.join(folderPath,feature), 'feature') 
+  print("  - Select parcels within the inclusion region ({})... ".format(study_region))
+  selection = arcpy.SelectLayerByLocation_management(in_layer='feature', 
                                        overlap_type='intersect',
 									   select_features=study_region)
 									   
-print("Done.\nJoin (ie. restrict) study inclusion region-defined parcel address points to meshblocks with dwellings... ")
+  print("Done.\n  - Join (ie. restrict) study inclusion region-defined parcel address points to meshblocks with dwellings... ")
 								   
-arcpy.SpatialJoin_analysis(target_features   = selection, 
+  arcpy.SpatialJoin_analysis(target_features   = selection, 
                            join_features     = 'mb_dwellings', 
                            out_feature_class = scratch_points, 
                            join_operation="JOIN_ONE_TO_ONE", 
@@ -76,20 +79,20 @@ arcpy.SpatialJoin_analysis(target_features   = selection,
                            field_mapping="""{0} "{0}" true true false 15 Text 0 0 ,First,#,{1},{0},-1,-1;{2} "{2}" true true false 11 Text 0 0 ,First,#,{3},{2},-1,-1""".format(points_id,selection,meshblock_id,'mb_dwellings'),
                            match_option="INTERSECT")
 		
-print("Done.\nDissolve on XY coordinates, including count of collapsed doppels... ")
-# This can potentially remove a large number of redundant points, where they exist overlapping one another, and so have otherwise identical environmental exposure measurements.  ie. this data is redundant; instead, a field is added with a point count where overlaps were identified. 
-arcpy.AddXY_management(scratch_points)
+  print("Done.\n  - Dissolve on XY coordinates, including count of collapsed doppels... ")
+  # This can potentially remove a large number of redundant points, where they exist overlapping one another, and so have otherwise identical environmental exposure measurements.  ie. this data is redundant; instead, a field is added with a point count where overlaps were identified. 
+  arcpy.AddXY_management(scratch_points)
 
-arcpy.Dissolve_management(scratch_points, 
+  arcpy.Dissolve_management(scratch_points, 
                           scratch_doppel, 
 						  dissolve_field="POINT_X;POINT_Y", 
 						  statistics_fields="{} FIRST;{} FIRST;OBJECTID COUNT".format(points_id,meshblock_id), 
 						  multi_part="SINGLE_PART")
 
-print("Done.\nSpatially associate each parcel w/ a hex ... ")
-arcpy.Delete_management(scratch_points)								   
+  print("Done.\n  - Spatially associate each parcel w/ a hex ... ")
+  arcpy.Delete_management(scratch_points)								   
 
-arcpy.SpatialJoin_analysis(target_features   = scratch_doppel, 
+  arcpy.SpatialJoin_analysis(target_features   = scratch_doppel, 
                            join_features     = hex_grid, 
                            out_feature_class = scratch_points, 
                            join_operation="JOIN_ONE_TO_ONE", 
@@ -97,31 +100,33 @@ arcpy.SpatialJoin_analysis(target_features   = scratch_doppel,
                            field_mapping= """{0} "{0}" true true false 15 Text 0 0 ,First,#,{1},{2},-1,-1; {3} "{3}" true true false 11 Text 0 0 ,First,#,{1},{4},-1,-1;{5} "{5}" true true false 4 Long 0 0 ,First,#,{6},{5},-1,-1;{7} "{7}" true true false 4 Long 0 0 ,First,#,{1},{7},-1,-1;{8} "{8}" true true false 8 Double 0 0 ,First,#,{1},{8},-1,-1;{9} "{9}" true true false 8 Double 0 0 ,First,#,{1},{9},-1,-1""".format(points_id,scratch_doppel,'FIRST_'+points_id,meshblock_id,'FIRST_'+meshblock_id,'Input_FID',hex_grid,'COUNT_OBJECTID','POINT_X','POINT_Y'), 
                            match_option="INTERSECT")     
 
-print("Done.\nAssociate parcel with overlaying hex (as the join provides input_fid, but not OBJECTID which is used as hex identifier... ")
+  print("Done.\n  - Associate parcel with overlaying hex (as the join provides input_fid, but not OBJECTID which is used as hex identifier... ")
                            
-arcpy.AlterField_management (hex_grid, "OBJECTID",new_field_alias="HEX_ID")                        
-arcpy.MakeFeatureLayer_management(scratch_points, 'points')
-arcpy.MakeFeatureLayer_management(hex_grid, 'hex_grid')
+  arcpy.AlterField_management (hex_grid, "OBJECTID",new_field_alias="HEX_ID")                        
+  arcpy.MakeFeatureLayer_management(scratch_points, 'points')
+  arcpy.MakeFeatureLayer_management(hex_grid, 'hex_grid')
                            
-arcpy.AddJoin_management(in_layer_or_view = 'points', 
+  arcpy.AddJoin_management(in_layer_or_view = 'points', 
                          in_field         = 'Input_FID',
                          join_table       = 'hex_grid',
                          join_field       = 'Input_FID',
                          join_type        = "KEEP_ALL")     
 
-print("Done.\nRename ID fields to original identifiers and export meshblock parcel dwellings feature to geodatabase... ")
+  print("Done.\n  - Rename ID fields to original identifiers and export/append meshblock parcel dwellings feature to geodatabase... ")
 
-oldfields = ['scratch_points.OBJECTID', 'scratch_points.Shape',  'scratch_points.{}'.format(points_id), 'scratch_points.{}'.format(meshblock_id), 'scratch_points.COUNT_OBJECTID', 'scratch_points.POINT_X', 'scratch_points.POINT_Y', '{}.OBJECTID'.format(hex_grid)] 
-newfields = ['OBJECTID','Shape','{}'.format(points_id),'{}'.format(meshblock_id),'COUNT_OBJECTID','POINT_X','POINT_Y','HEX_ID']				 
-renameSkinny(is_geo = True, 
+  oldfields = ['scratch_points.OBJECTID', 'scratch_points.Shape',  'scratch_points.{}'.format(points_id), 'scratch_points.{}'.format(meshblock_id), 'scratch_points.COUNT_OBJECTID', 'scratch_points.POINT_X', 'scratch_points.POINT_Y', '{}.OBJECTID'.format(hex_grid)] 
+  newfields = ['OBJECTID','Shape','{}'.format(points_id),'{}'.format(meshblock_id),'COUNT_OBJECTID','POINT_X','POINT_Y','HEX_ID']				 
+  renameSkinny(is_geo = True, 
              in_obj = 'points', 
              out_obj = 'tempFull', 
              keep_fields_list = oldfields, 
              rename_fields_list = newfields,
              where_clause = '')
-print("Done.")	 
-
-arcpy.CopyFeatures_management('tempFull', parcel_dwellings)    
+  print("Done.")	 
+  if not arcpy.Exists("roadbuffer"):
+    arcpy.CopyFeatures_management('tempFull', parcel_dwellings)    
+  else:
+    arcpy.Append_management('tempFull', parcel_dwellings)   
 
 
 # gdb to pgsql
