@@ -93,8 +93,13 @@ createTable     = '''
   {id} varchar, 
   aos_id INT, 
   node INT, 
-  distance INT, 
   query varchar,
+  distance INT,
+  numgeom INT,
+  aos_ha numeric,
+  aos_ha_school numeric,
+  school_os_percent numeric,
+  attributes jsonb,  
   PRIMARY KEY ({id},aos_id) 
   );
    '''.format(table = sqlTableName, id = origin_pointsID.lower())
@@ -103,19 +108,20 @@ createTable     = '''
 recInsert      = '''
   WITH 
   pre AS 
-  (SELECT DISTINCT ON (gnaf_pid, aos_id) gnaf_pid, aos_id, node, min(distance) AS distance
+  (SELECT DISTINCT ON (gnaf_pid, aos_id) gnaf_pid, aos_id, node, query, min(distance) AS distance
    FROM  
    (VALUES 
   '''.format(id = origin_pointsID.lower())          
  
 threshold = 400 
 recUpdate      = '''
-  ) v({id}, aos_id, node, distance) 
-       GROUP BY {id},aos_id,node)
-  INSERT INTO od_aos_test ({id}, aos_id, node, distance, numgeom, aos_ha, aos_ha_school, school_os_percent, attributes) 
+  ) v({id}, aos_id, node, query, distance) 
+       GROUP BY {id},aos_id,node,query)
+  INSERT INTO {table} ({id}, aos_id, node, query, distance, numgeom, aos_ha, aos_ha_school, school_os_percent, attributes) 
      SELECT pre.{id}, 
             pre.aos_id, 
-            pre.node, 
+            pre.node,
+            query,            
             distance,
             numgeom,
             aos_ha,
@@ -128,8 +134,9 @@ recUpdate      = '''
          DO UPDATE 
             SET node = EXCLUDED.node, 
                 distance = EXCLUDED.distance 
-             WHERE od_aos_test.distance > EXCLUDED.distance;
+             WHERE {table}.distance > EXCLUDED.distance;
   '''.format(id = origin_pointsID.lower(),
+             table = sqlTableName,     
              threshold = threshold,
              slope = soft_threshold_slope)  
 
@@ -204,6 +211,7 @@ def writeLog(hex = 0, AhexN = 'NULL', Bcode = 'NULL', status = 'NULL', mins= 0, 
 
 # Worker/Child PROCESS
 def ODMatrixWorkerFunction(hex): 
+  # print(hex)
   # Connect to SQL database 
   try:
     conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
@@ -224,22 +232,27 @@ def ODMatrixWorkerFunction(hex):
   try:
     place = 'Select ids using antijoin with results to find todo parcels within hex'
     # ensure only non-processed parcels are processed (ie. in case script has been previously run)
-    curs.execute('''SELECT {id} FROM parcel_dwellings a 
-                    WHERE NOT EXISTS 
-                      (SELECT DISTINCT({id}) FROM {table} b WHERE a.{id} = b.{id}) 
-                      AND hex_id = {hex};'''.format(id = origin_pointsID,
-                                                 table = sqlTableName,
-                                                 hex = hex))
+    antijoin = '''SELECT {id} FROM parcel_dwellings a 
+      WHERE NOT EXISTS 
+        (SELECT DISTINCT({id}) FROM {table} b WHERE a.{id} = b.{id}) 
+        AND hex_id = {hex};'''.format(id = origin_pointsID,
+                                      table = sqlTableName,
+                                      hex = hex)
+    # print(antijoin)
+    curs.execute(antijoin)
+    place = 'after antijoin'
     to_do_points = [x[0] for x in list(curs)]
-
+    # print(to_do_points)
     A_selection = arcpy.SelectLayerByAttribute_management("origin_pointsLayer", 
-                    where_clause = "hex_id = {} AND {id} IN ('{id_list}')".format(hex,
-                                                                                  id_list = "','".join(to_do_points)))   
+                    where_clause = "hex_id = {hex} AND {id} IN ('{id_list}')".format(hex = hex,
+                                                                                     id = origin_pointsID,
+                                                                                     id_list = "','".join(to_do_points)))   
     # Only procede with the POS scenario if it has not been previously processed
-    if len(to_do_points) > 0:   
+    if len(to_do_points) > 0: 
+      A_pointCount = int(arcpy.GetCount_management(A_selection).getOutput(0))    
       place = 'before buffer selection'
       buffer = arcpy.SelectLayerByAttribute_management("buffer_layer", where_clause = 'ORIG_FID = {}'.format(hex))
-      query = 'AOS: in {aos_threshold}m'.format(aos_threshold)
+      query = 'AOS: in {aos_threshold}m'.format(aos_threshold = aos_threshold)
       arcpy.MakeFeatureLayer_management(aos_points, "aos_pointsLayer")  
       
       # Select and count parks meeting scenario query
@@ -362,7 +375,7 @@ if __name__ == '__main__':
     
   # Task name is now defined
   task = 'Create OD cost matrix for parcel points to closest POS (any size)'  # Do stuff
-  print("Commencing task ({}): {} at {}".format(db,task,time.strftime("%Y%m%d-%H%M%S")))
+  print("Commencing task ({}):\n{} at {}".format(db,task,time.strftime("%Y%m%d-%H%M%S")))
 
   # Divide work by hexes
   # Note: if a restricted list of hexes are wished to be processed, just supply a subset of hex_list including only the relevant hex id numbers.

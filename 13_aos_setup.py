@@ -312,7 +312,8 @@ CREATE INDEX idx_aos_jsb ON open_space_areas USING GIN (attributes);
 ''' 
 -- Create variable for park size 
 ALTER TABLE open_space_areas ADD COLUMN aos_ha double precision; 
-ALTER TABLE open_space_areas ADD COLUMN aos_ha_school double precision; 
+-- note aos_ha_total includes school area
+ALTER TABLE open_space_areas ADD COLUMN aos_ha_total double precision; 
 ALTER TABLE open_space_areas ADD COLUMN aos_ha_water double precision; 
 ''',
 '''
@@ -321,23 +322,20 @@ UPDATE open_space_areas SET aos_ha = COALESCE(ST_Area(geom)/10000.0,0);
 UPDATE open_space_areas SET aos_ha_water = COALESCE(ST_Area(geom_water)/10000.0,0);
 ''',
 '''
--- Create variable for Water percent
-ALTER TABLE open_space_areas ADD COLUMN water_percent numeric; 
-UPDATE open_space_areas SET water_percent = 100 * aos_ha_water/aos_ha::numeric WHERE aos_ha > 0; 
-''',
-'''
--- Calculate total area of Schools in Ha
-UPDATE open_space_areas SET aos_ha_school = ST_Area(geom_w_schools)/10000.0; 
--- no school area where there is OS in a school and the AOS is not a school
-UPDATE open_space_areas SET aos_ha_school = NULL 
-  WHERE aos_id IN (SELECT aos_id 
-                  FROM open_space_areas,jsonb_array_elements(attributes) obj 
-                  WHERE obj->'is_school' = 'false'  AND obj->'in_school' = 'false' );
+-- Calculate total area of OS in Ha, including schools
+UPDATE open_space_areas SET aos_ha_total = ST_Area(geom_w_schools)/10000.0; 
 ''',
 '''
 -- Create variable for School OS percent
 ALTER TABLE open_space_areas ADD COLUMN school_os_percent numeric; 
-UPDATE open_space_areas SET school_os_percent = 100 * aos_ha/(aos_ha + aos_ha_school)::numeric; 
+UPDATE open_space_areas SET school_os_percent = 0; 
+UPDATE open_space_areas SET school_os_percent = 100 * aos_ha/aos_ha_total::numeric WHERE aos_ha_total > 0; 
+''',
+'''
+-- Create variable for Water percent
+ALTER TABLE open_space_areas ADD COLUMN water_percent numeric; 
+UPDATE open_space_areas SET water_percent = 0; 
+UPDATE open_space_areas SET water_percent = 100 * aos_ha_water/aos_ha_total::numeric WHERE aos_ha > 0; 
 ''',
 '''
 -- Create a linestring aos table 
