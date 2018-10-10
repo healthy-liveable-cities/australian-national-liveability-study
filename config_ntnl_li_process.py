@@ -215,7 +215,7 @@ parcel_dwellings = 'parcel_dwellings'
 # roads
 # Define network data name structures
 road_data = df_parameters.loc['road_data']['value'].encode('utf')  # the folder where road data is kept
-network_source = os.path.join(locale_dir,'osm_gccsa10km_{}_pedestrian_20180628'.format(locale.lower()))
+network_source = os.path.join(locale_dir,df_studyregion.loc[locale]['network_folder'].encode('utf'))
 network_source_feature_dataset = df_parameters.loc['network_source_feature_dataset']['value'].encode('utf')
 network_edges = df_parameters.loc['network_edges']['value'].encode('utf')
 network_junctions = df_parameters.loc['network_junctions']['value'].encode('utf')
