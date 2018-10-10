@@ -97,7 +97,9 @@ createTable     = '''
   distance INT,
   numgeom INT,
   aos_ha numeric,
-  aos_ha_school numeric,
+  aos_ha_total numeric,
+  aos_ha_water numeric,
+  water_percent numeric, 
   school_os_percent numeric,
   attributes jsonb,  
   PRIMARY KEY ({id},aos_id) 
@@ -117,7 +119,7 @@ threshold = 400
 recUpdate      = '''
   ) v({id}, aos_id, node, query, distance) 
        GROUP BY {id},aos_id,node,query)
-  INSERT INTO {table} ({id}, aos_id, node, query, distance, numgeom, aos_ha, aos_ha_school, school_os_percent, attributes) 
+  INSERT INTO {table} ({id}, aos_id, node, query, distance, numgeom, aos_ha, aos_ha_total, aos_ha_water, water_percent, school_os_percent, attributes) 
      SELECT pre.{id}, 
             pre.aos_id, 
             pre.node,
@@ -125,7 +127,9 @@ recUpdate      = '''
             distance,
             numgeom,
             aos_ha,
-            aos_ha_school,
+            aos_ha_total,
+            aos_ha_water, 
+            water_percent,
             school_os_percent,
             attributes
      FROM pre 
@@ -178,7 +182,9 @@ aos_linkage = '''
                     attributes,
                     numgeom   ,
                     aos_ha    ,
-                    aos_ha_school ,
+                    aos_ha_total ,
+                    aos_ha_water, 
+                    water_percent,
                     school_os_percent
                     ) d)))) AS attributes 
   FROM od_aos 

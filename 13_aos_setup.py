@@ -328,8 +328,7 @@ UPDATE open_space_areas SET aos_ha_total = ST_Area(geom_w_schools)/10000.0;
 '''
 -- Create variable for School OS percent
 ALTER TABLE open_space_areas ADD COLUMN school_os_percent numeric; 
-UPDATE open_space_areas SET school_os_percent = 0; 
-UPDATE open_space_areas SET school_os_percent = 100 * aos_ha/aos_ha_total::numeric WHERE aos_ha_total > 0; 
+UPDATE open_space_areas SET school_os_percent = 100 * aos_ha/aos_ha_total::numeric WHERE aos_ha!=aos_ha_total AND aos_ha_total > 0; 
 ''',
 '''
 -- Create variable for Water percent
@@ -417,10 +416,9 @@ for sql in aos_setup:
  
 # pgsql to gdb
 arcpy.env.workspace = db_sde_path
+arcpy.env.overwriteOutput = True 
 arcpy.CopyFeatures_management('public.aos_nodes_30m_line', os.path.join(gdb_path,'aos_nodes_30m_line')) 
- 
- 
- 
+  
 # output to completion log    
 script_running_log(script, task, start, locale)
 conn.close()
