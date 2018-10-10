@@ -203,6 +203,7 @@ abs_suburb = os.path.join(folderPath,
 # Note that the process assumes we have already transformed points to the project's spatial reference
 # Point data locations (e.g. GNAF address point features)
 points = df_studyregion.loc[locale]['points'].encode('utf')
+points = points.split(',')
 points_id = df_parameters.loc['points_id']['value'].encode('utf')
 points_srid = df_parameters.loc['points_srid']['value']
 

@@ -57,9 +57,8 @@ def renameSkinny(is_geo, in_obj, out_obj, keep_fields_list=[''], rename_fields_l
           return out_obj
 
 # OUTPUT PROCESS
-# make sure input source is a list; mostly it won't be, but in some instances (e.g. where a study region is split
-# across state boundaries) it will and so these multiple sources will need to be extracted and joined.
-points = points.split(',')
+# Note that feature point sources always are a list (often of one source, but formatting as a list
+# easily allows for contexts of multiple point data sources; e.g. cities across state boundaries)
 
 for feature in points:  
   print("Processing point source {}...".format(feature))
@@ -69,7 +68,7 @@ for feature in points:
                                        overlap_type='intersect',
 									   select_features=study_region)
 									   
-  print("Done.\n  - Join (ie. restrict) study inclusion region-defined parcel address points to meshblocks with dwellings... ")
+  print("Done.\n  - Join (ie. restrict) study inclusion region-defined parcel address points to meshblocks with dwellings... "),
 								   
   arcpy.SpatialJoin_analysis(target_features   = selection, 
                            join_features     = 'mb_dwellings', 
@@ -79,7 +78,7 @@ for feature in points:
                            field_mapping="""{0} "{0}" true true false 15 Text 0 0 ,First,#,{1},{0},-1,-1;{2} "{2}" true true false 11 Text 0 0 ,First,#,{3},{2},-1,-1""".format(points_id,selection,meshblock_id,'mb_dwellings'),
                            match_option="INTERSECT")
 		
-  print("Done.\n  - Dissolve on XY coordinates, including count of collapsed doppels... ")
+  print("Done.\n  - Dissolve on XY coordinates, including count of collapsed doppels... "),
   # This can potentially remove a large number of redundant points, where they exist overlapping one another, and so have otherwise identical environmental exposure measurements.  ie. this data is redundant; instead, a field is added with a point count where overlaps were identified. 
   arcpy.AddXY_management(scratch_points)
 
@@ -100,7 +99,7 @@ for feature in points:
                            field_mapping= """{0} "{0}" true true false 15 Text 0 0 ,First,#,{1},{2},-1,-1; {3} "{3}" true true false 11 Text 0 0 ,First,#,{1},{4},-1,-1;{5} "{5}" true true false 4 Long 0 0 ,First,#,{6},{5},-1,-1;{7} "{7}" true true false 4 Long 0 0 ,First,#,{1},{7},-1,-1;{8} "{8}" true true false 8 Double 0 0 ,First,#,{1},{8},-1,-1;{9} "{9}" true true false 8 Double 0 0 ,First,#,{1},{9},-1,-1""".format(points_id,scratch_doppel,'FIRST_'+points_id,meshblock_id,'FIRST_'+meshblock_id,'Input_FID',hex_grid,'COUNT_OBJECTID','POINT_X','POINT_Y'), 
                            match_option="INTERSECT")     
 
-  print("Done.\n  - Associate parcel with overlaying hex (as the join provides input_fid, but not OBJECTID which is used as hex identifier... ")
+  print("Done.\n  - Associate parcel with overlaying hex (as the join provides input_fid, but not OBJECTID which is used as hex identifier... "),
                            
   arcpy.AlterField_management (hex_grid, "OBJECTID",new_field_alias="HEX_ID")                        
   arcpy.MakeFeatureLayer_management(scratch_points, 'points')
@@ -123,10 +122,10 @@ for feature in points:
              rename_fields_list = newfields,
              where_clause = '')
   print("Done.")	 
-  if not arcpy.Exists("roadbuffer"):
+  if not arcpy.Exists(parcel_dwellings):
     arcpy.CopyFeatures_management('tempFull', parcel_dwellings)    
   else:
-    arcpy.Append_management('tempFull', parcel_dwellings)   
+    arcpy.Append_management('tempFull', parcel_dwellings,schema_type = "NO_TEST")   
 
 
 # gdb to pgsql
