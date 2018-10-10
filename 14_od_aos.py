@@ -233,7 +233,8 @@ def ODMatrixWorkerFunction(hex):
     to_do_points = [x[0] for x in list(curs)]
 
     A_selection = arcpy.SelectLayerByAttribute_management("origin_pointsLayer", 
-                    where_clause = 'hex_id = {} AND {id} IN ({id_list})'.format(hex,id_list = ','.join(test)))   
+                    where_clause = "hex_id = {} AND {id} IN ('{id_list}')".format(hex,
+                                                                                  id_list = "','".join(to_do_points)))   
     # Only procede with the POS scenario if it has not been previously processed
     if len(to_do_points) > 0:   
       place = 'before buffer selection'
