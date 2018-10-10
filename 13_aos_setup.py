@@ -92,6 +92,11 @@ ALTER TABLE open_space ADD COLUMN os_id SERIAL PRIMARY KEY;
 --CREATE INDEX open_space_idx ON open_space USING GIST (geom);
 ''',
 '''
+-- Create variable for park size 
+ALTER TABLE open_space ADD COLUMN area_ha double precision; 
+UPDATE open_space SET area_ha = ST_Area(geom)/10000.0;
+''',
+'''
  -- Create water feature indicator
 ALTER TABLE open_space ADD COLUMN water_feature boolean;
 UPDATE open_space SET water_feature = FALSE;
@@ -107,9 +112,9 @@ UPDATE open_space SET water_feature = TRUE
       OR sport IN ('swimming','surfing','canoe','scuba_diving','rowing','sailing','fishing','water_ski','water_sports','diving','windsurfing','canoeing','kayak');
 ''',
 '''
--- Create variable for park size 
-ALTER TABLE open_space ADD COLUMN area_ha double precision; 
-UPDATE open_space SET area_ha = ST_Area(geom)/10000.0;
+-- Create variable for AOS area excluding water
+ALTER TABLE open_space ADD COLUMN water_geom geometry; 
+UPDATE open_space SET water_geom = geom WHERE water_feature = TRUE;
 ''',
 '''
 -- Create variable for medial axis as a hint of linearity
@@ -294,6 +299,7 @@ SELECT cluster_id as aos_id,
                   "acceptable_linear_feature") d)) || hstore_to_jsonb(tags) )) AS attributes,
     COUNT(1) AS numgeom,
     ST_Union(no_school_geom) AS geom,
+    ST_Union(water_geom) AS geom_water,
     ST_Union(geom) AS geom_w_schools
     FROM open_space
     INNER JOIN unclustered USING(geom)
@@ -307,10 +313,17 @@ CREATE INDEX idx_aos_jsb ON open_space_areas USING GIN (attributes);
 -- Create variable for park size 
 ALTER TABLE open_space_areas ADD COLUMN aos_ha double precision; 
 ALTER TABLE open_space_areas ADD COLUMN aos_ha_school double precision; 
+ALTER TABLE open_space_areas ADD COLUMN aos_ha_water double precision; 
 ''',
 '''
 -- Calculate total area of OS in Ha and where no OS is present (ie. a school without parks) set this to zero
 UPDATE open_space_areas SET aos_ha = COALESCE(ST_Area(geom)/10000.0,0);
+UPDATE open_space_areas SET aos_ha_water = COALESCE(ST_Area(geom_water)/10000.0,0);
+''',
+'''
+-- Create variable for Water percent
+ALTER TABLE open_space_areas ADD COLUMN water_percent numeric; 
+UPDATE open_space_areas SET water_percent = 100 * aos_ha_water/aos_ha::numeric; 
 ''',
 '''
 -- Calculate total area of Schools in Ha

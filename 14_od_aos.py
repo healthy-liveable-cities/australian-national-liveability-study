@@ -101,31 +101,38 @@ createTable     = '''
 ## LATER index on gnaf_id, query
 
 recInsert      = '''
-  INSERT INTO od_aos ({id}, aos_id, node, query, distance) 
-  SELECT DISTINCT ON ({id}, aos_id) {id}, aos_id, node, query, min(distance) 
-  FROM  ( 
-     VALUES
+  WITH 
+  pre AS 
+  (SELECT DISTINCT ON (gnaf_pid, aos_id) gnaf_pid, aos_id, node, min(distance) AS distance
+   FROM  
+   (VALUES 
   '''.format(id = origin_pointsID.lower())          
-                    
+ 
+threshold = 400 
 recUpdate      = '''
-  ) v({id}, aos_id, node, query, distance) 
-   GROUP BY {id},aos_id,node, query 
-    ON CONFLICT ({id},aos_id) 
-       DO UPDATE 
-          SET node = EXCLUDED.node, 
-              query = EXCLUDED.query,
-              distance = EXCLUDED.distance 
-           WHERE od_aos.distance > EXCLUDED.distance;
-  '''.format(id = origin_pointsID.lower())  
+  ) v({id}, aos_id, node, distance) 
+       GROUP BY {id},aos_id,node)
+  INSERT INTO od_aos_test ({id}, aos_id, node, distance, numgeom, aos_ha, aos_ha_school, school_os_percent, attributes) 
+     SELECT pre.{id}, 
+            pre.aos_id, 
+            pre.node, 
+            distance,
+            numgeom,
+            aos_ha,
+            aos_ha_school,
+            school_os_percent,
+            attributes
+     FROM pre 
+     LEFT JOIN open_space_areas a ON pre.aos_id = a.aos_id
+      ON CONFLICT ({id},aos_id) 
+         DO UPDATE 
+            SET node = EXCLUDED.node, 
+                distance = EXCLUDED.distance 
+             WHERE od_aos_test.distance > EXCLUDED.distance;
+  '''.format(id = origin_pointsID.lower(),
+             threshold = threshold,
+             slope = soft_threshold_slope)  
 
-threshold = 400
-calculateThreshold = '''
-ALTER TABLE od_aos ADD COLUMN ind_hard int; 
-ALTER TABLE od_aos ADD COLUMN ind_soft double precision; 
-UPDATE od_aos SET ind_hard = (distance < {threshold})::int; 
-UPDATE od_aos SET ind_soft = 1 - 1.0 / (1+exp(-{slope}*(distance-{threshold})/{threshold}::numeric)); 
-'''.format(threshold = threshold, slope = soft_threshold_slope)
-  
 # this is the same log table as used for other destinations.
 #  It is only created if it does not already exist.
 #  However, it probably does.  
@@ -155,27 +162,27 @@ aos_linkage = '''
   -- Associate origin IDs with list of parks 
   DROP TABLE IF EXISTS od_aos_full; 
   CREATE TABLE od_aos_full AS 
-  SELECT p.{id}, 
-         COUNT(a.aos_id) AS aos_count,
+  SELECT {id}, 
          jsonb_agg(jsonb_strip_nulls(to_jsonb( 
              (SELECT d FROM 
                  (SELECT 
-                    p.distance      ,
-                    a.aos_id           ,
-                    a.attributes    ,
-                    a.numgeom       ,
-                    a.aos_ha        ,
-                    a.aos_ha_school ,
+                    distance,
+                    aos_id  ,
+                    attributes,
+                    numgeom   ,
+                    aos_ha    ,
+                    aos_ha_school ,
                     school_os_percent
                     ) d)))) AS attributes 
-  FROM od_aos p 
-  LEFT JOIN open_space_areas a ON p.aos_id = a.aos_id 
+  FROM od_aos 
   GROUP BY {id};   
   '''.format(id = origin_pointsID)
   
   
 parcel_count = int(arcpy.GetCount_management(origin_points).getOutput(0))  
 denominator = parcel_count
+ 
+arcpy.MakeFeatureLayer_management(origin_points,"origin_pointsLayer") 
  
 ## Functions defined for this script
 # Define log file write method
@@ -215,27 +222,24 @@ def ODMatrixWorkerFunction(hex):
     return(1)
     
   try:
-    arcpy.MakeFeatureLayer_management (origin_points, "origin_pointsLayer")
-    place = 'before A_selection'
-    A_selection = arcpy.SelectLayerByAttribute_management("origin_pointsLayer", where_clause = 'hex_id = {}'.format(hex))   
-    A_pointCount = int(arcpy.GetCount_management(A_selection).getOutput(0))
-    place = 'before skip empty A hexes'
-    # Skip empty A hexes
-    if A_pointCount == 0:
-      writeLog(hex,0,"aos","no A points",(time.time()-hexStartTime)/60)
-      return(2)
-    
-    place = 'before buffer selection'
-    buffer = arcpy.SelectLayerByAttribute_management("buffer_layer", where_clause = 'ORIG_FID = {}'.format(hex))
-    query = 'AOS: in 3.2km'
-
+    place = 'Select ids using antijoin with results to find todo parcels within hex'
     # ensure only non-processed parcels are processed (ie. in case script has been previously run)
-    curs.execute("SELECT DISTINCT({id}) FROM {table}".format(id = origin_pointsID,
-                                                             table = sqlTableName))
-    processed_points = [x[0] for x in list(curs)]
+    curs.execute('''SELECT {id} FROM parcel_dwellings a 
+                    WHERE NOT EXISTS 
+                      (SELECT DISTINCT({id}) FROM {table} b WHERE a.{id} = b.{id}) 
+                      AND hex_id = {hex};'''.format(id = origin_pointsID,
+                                                 table = sqlTableName,
+                                                 hex = hex))
+    to_do_points = [x[0] for x in list(curs)]
+
+    A_selection = arcpy.SelectLayerByAttribute_management("origin_pointsLayer", 
+                    where_clause = 'hex_id = {} AND {id} IN ({id_list})'.format(hex,id_list = ','.join(test)))   
     # Only procede with the POS scenario if it has not been previously processed
-    if len(processed_points) < A_pointCount:
-      arcpy.MakeFeatureLayer_management(aos_points, "aos_pointsLayer")    
+    if len(to_do_points) > 0:   
+      place = 'before buffer selection'
+      buffer = arcpy.SelectLayerByAttribute_management("buffer_layer", where_clause = 'ORIG_FID = {}'.format(hex))
+      query = 'AOS: in {aos_threshold}m'.format(aos_threshold)
+      arcpy.MakeFeatureLayer_management(aos_points, "aos_pointsLayer")  
       
       # Select and count parks meeting scenario query
       B_selection = arcpy.SelectLayerByLocation_management('aos_pointsLayer', 'intersect', buffer)
@@ -246,7 +250,7 @@ def ODMatrixWorkerFunction(hex):
 
       place = 'before skip empty B hexes'
       # Skip empty B hexes
-      if B_pointCount != 0:          
+      if B_pointCount > 0:          
         # If we're still in the loop at this point, it means we have the right hex and buffer combo and both contain at least one valid element
         # Process OD Matrix Setup
         # add unprocessed address points
@@ -327,6 +331,9 @@ def ODMatrixWorkerFunction(hex):
 
 
 # get list of hexes over which to iterate
+# Note that all hexes within hex parcels have at least one parcel; 
+# so, its redundant to later check whether there are parcels in hex.
+# A priori, we know there are as that's the basis for the table.
 curs.execute("SELECT hex FROM hex_parcels;")
 hex_list = list(curs)    
 
@@ -363,8 +370,6 @@ if __name__ == '__main__':
   	
   ## Perhaps add columns for hard and soft thresholds based on 400m at this point?
   #  then, join linkage  
-  curs.execute(calculateThreshold)
-  conn.commit()
   curs.execute(aos_linkage)
   conn.commit()
   
