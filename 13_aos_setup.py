@@ -300,6 +300,10 @@ SELECT cluster_id as aos_id,
     GROUP BY cluster_id;   
 ''',
 ''' 
+CREATE UNIQUE INDEX aos_idx ON open_space_areas (aos_id);  
+CREATE INDEX idx_aos_jsb ON open_space_areas USING GIN (attributes);
+''',
+''' 
 -- Create variable for park size 
 ALTER TABLE open_space_areas ADD COLUMN aos_ha double precision; 
 ALTER TABLE open_space_areas ADD COLUMN aos_ha_school double precision; 

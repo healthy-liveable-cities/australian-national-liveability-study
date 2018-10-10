@@ -207,6 +207,9 @@ SELECT cluster_id as gid,
     INNER JOIN unclustered USING(geom)
     GROUP BY cluster_id;   
   
+CREATE UNIQUE INDEX aos_idx ON open_space_areas (aos_id);  
+CREATE INDEX idx_aos_jsb ON open_space_areas USING GIN (attributes);
+  
 -- Create variable for park size 
 ALTER TABLE open_space_areas ADD COLUMN aos_ha double precision; 
 ALTER TABLE open_space_areas ADD COLUMN aos_ha_school double precision; 
@@ -295,39 +298,57 @@ AND l.highway IS NOT NULL;
 
       
 -- Create table of (hypothetical) pos OD matrix results
-CREATE TABLE od_aos 
+DROP TABLE IF EXISTS od_aos_test;
+CREATE TABLE od_aos_test 
 (
-participant_id INT, 
-aos_gid INT, 
+gnaf_pid INT, 
+aos_id INT, 
 node INT, 
-distance INT, 
-PRIMARY KEY (participant_id,aos_gid) 
+distance INT,
+ind_hard INT,
+ind_soft numeric,
+aos_ha numeric,
+numgeom INT,
+attributes jsonb, 
+PRIMARY KEY (gnaf_pid,aos_id) 
 );
 
-INSERT INTO od_aos (participant_id, aos_gid, node, distance) 
-SELECT DISTINCT ON (participant_id, aos_gid) participant_id, aos_gid, node, min(distance) 
-FROM  ( 
-   VALUES 
-   (15151, 32, 23, 567), 
-   (15151, 32, 1, 530), 
-   (15151, 32, 3, 600), 
-   (15151, 27, 9, 34), 
-   (15152, 27, 13, 11), 
-   (15152, 3, 21, 132),  
-   (15152, 27, 21, 1332), 
-   (15153, 27, 32, 198) 
-   ) v(participant_id, aos_gid, node, distance) 
-   GROUP BY participant_id,aos_gid,node 
-    ON CONFLICT (participant_id,aos_gid) 
+WITH 
+pre AS 
+(SELECT DISTINCT ON (gnaf_pid, aos_id) gnaf_pid, aos_id, node, min(distance) AS distance
+ FROM  
+ (VALUES (15151, 32, 23, 567), 
+         (15151, 32, 1, 530), 
+         (15151, 32, 3, 600), 
+         (15151, 27, 9, 34), 
+         (15152, 27, 13, 11), 
+         (15152, 3, 21, 132),  
+         (15152, 27, 21, 1332), 
+         (15153, 27, 32, 198) 
+     ) v(gnaf_pid, aos_id, node, distance) 
+     GROUP BY gnaf_pid,aos_id,node)
+INSERT INTO od_aos_test (gnaf_pid, aos_id, node, distance, ind_hard,ind_soft,aos_ha,numgeom,attributes) 
+   SELECT pre.gnaf_pid, 
+          pre.aos_id, 
+          pre.node, 
+          distance,
+          (distance < 400)::int AS ind_hard,
+          1 - 1.0 / (1+exp(-5*(distance-400)/400::numeric)) AS ind_soft,
+          aos_ha,
+          numgeom,
+          attributes
+   FROM pre 
+   LEFT JOIN open_space_areas a ON pre.aos_id = a.aos_id
+    ON CONFLICT (gnaf_pid,aos_id) 
        DO UPDATE 
           SET node = EXCLUDED.node, 
               distance = EXCLUDED.distance 
-           WHERE od_aos.distance > EXCLUDED.distance;
+           WHERE od_aos_test.distance > EXCLUDED.distance;
       
 -- Associate participants with list of parks 
-DROP TABLE IF EXISTS od_aos_full; 
-CREATE TABLE od_aos_full AS 
-SELECT p.participant_id, 
+DROP TABLE IF EXISTS od_aos_test_full; 
+CREATE TABLE od_aos_test_full AS 
+SELECT p.gnaf_pid, 
        jsonb_agg(jsonb_strip_nulls(to_jsonb( 
            (SELECT d FROM 
                (SELECT 
@@ -339,42 +360,42 @@ SELECT p.participant_id,
                   a.aos_ha_school ,
                   school_os_percent
                   ) d)))) AS attributes 
-FROM od_aos p 
+FROM od_aos_test p 
 LEFT JOIN open_space_areas a ON p.aos_gid = a.gid 
-GROUP BY participant_id;   
+GROUP BY gnaf_pid;   
 
 -- select set of AOS and their attributes for a particular participant
-SELECT participant_id, jsonb_pretty(attributes) FROM od_aos_full WHERE participant_id = 15151;
+SELECT gnaf_pid, jsonb_pretty(attributes) FROM od_aos_test_full WHERE gnaf_pid = 15151;
 
 -- Select only those items in the list which meet numeric criteria: 
-SELECT participant_id, jsonb_agg(obj) AS attributes 
+SELECT gnaf_pid, jsonb_agg(obj) AS attributes 
 FROM open_space_areas, jsonb_array_elements(attributes) obj 
 WHERE obj->'area_ha' > '0.5' 
-GROUP BY participant_id; 
+GROUP BY gnaf_pid; 
   
 -- Select count for each participant matching criteria 
-SELECT participant_id, jsonb_array_length(jsonb_agg(obj)) AS count 
+SELECT gnaf_pid, jsonb_array_length(jsonb_agg(obj)) AS count 
 FROM open_space_areas, jsonb_array_elements(attributes) obj 
 WHERE obj->'area_ha' > '0.5'  
-GROUP BY participant_id; 
+GROUP BY gnaf_pid; 
    
 -- Select only those items in the list which meet multiple criteria 
-SELECT participant_id, jsonb_agg(obj) AS attributes 
+SELECT gnaf_pid, jsonb_agg(obj) AS attributes 
 FROM open_space_areas, jsonb_array_elements(attributes) obj 
 WHERE obj->'area_ha' > '0.2'  AND obj->'distance' < '100'  
-GROUP BY participant_id; 
+GROUP BY gnaf_pid; 
 
 -- Select count and return attributes for each participant matching multiple criteria
 -- (mixed numeric and qualitative)
-SELECT participant_id, 
+SELECT gnaf_pid, 
        jsonb_array_length(jsonb_agg(obj)) AS count, 
        jsonb_agg(obj) AS attributes 
 FROM open_space_areas, jsonb_array_elements(attributes) obj 
 WHERE obj->  'leisure' = '"park"' AND obj->'distance' < '100' 
-GROUP BY participant_id; 
+GROUP BY gnaf_pid; 
 
 -- return attributes in a non-json form, without grouping or filtering 
-SELECT participant_id, 
+SELECT gnaf_pid, 
        obj->'area_ha' AS area_ha,     
        obj->'distance' AS distance,    
        obj->'leisure' AS leisure 
