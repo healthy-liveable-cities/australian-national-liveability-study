@@ -41,6 +41,8 @@ df_studyregion = pandas.read_excel(xls, 'study_regions',index_col=1)
 df_inds = pandas.read_excel(xls, 'ind_study_region_matrix')
 df_destinations = pandas.read_excel(xls, 'destinations')
 
+responsible = df_studyregion['responsible']
+
 year   = df_parameters.loc['year']['value']
 
 # The main directory for data
@@ -55,7 +57,8 @@ if len(sys.argv) == 2:
   locale = '{studyregion}'.format(studyregion = sys.argv[1])
 else:
   print("Note: locale has not been specified; attempting to use current git respository branch to glean study region...")
-  locale = '_'.join(sp.check_output(["git", "status"],cwd=sys.path[0],shell=True).split('\n')[0].split(' ')[2].split('_')[1:-1])
+  if locale == '':
+    locale = 'testing'
 print("\nProcessing script {} for locale {}...\n".format(sys.argv[0],locale))
 
 # More study region details
