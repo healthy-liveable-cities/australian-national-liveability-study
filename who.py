@@ -17,3 +17,4 @@ df_studyregion = pandas.read_excel(xls, 'study_regions',index_col=1)
 responsible = df_studyregion['responsible']
 print(df_about.iloc[0].reset_index()['index'].to_string(index=False).encode('utf'))
 print(responsible.reset_index().sort_values(by=['responsible','locale']).to_string(index=False))
+
