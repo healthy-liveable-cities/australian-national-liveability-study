@@ -24,7 +24,7 @@ db_port   = '{}'.format(df_parameters.loc['db_port']['value'])
 db_user   = df_parameters.loc['db_user']['value'].encode('utf')
 db_pwd    = df_parameters.loc['db_pwd']['value'].encode('utf')
 
-locales = responsible[responsible == sys.argv[1]].index.values.tolist()
+locales = responsible[responsible == sys.argv[1]].sort_values().index.values.tolist()
 for locale in locales:
   print('\nScripts processed for {}:'.format(locale))
   db = 'li_{}_{}'.format(locale,year)
