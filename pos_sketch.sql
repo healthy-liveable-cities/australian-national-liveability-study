@@ -298,17 +298,17 @@ AND l.highway IS NOT NULL;
 
       
 -- Create table of (hypothetical) pos OD matrix results
-DROP TABLE IF EXISTS od_aos_test;
-CREATE TABLE od_aos_test 
+DROP TABLE IF EXISTS od_aos;
+CREATE TABLE od_aos 
 (
 gnaf_pid INT, 
 aos_id INT, 
 node INT, 
 distance INT,
-ind_hard INT,
-ind_soft numeric,
-aos_ha numeric,
 numgeom INT,
+aos_ha numeric,
+aos_ha_school numeric,
+school_os_percent numeric,
 attributes jsonb, 
 PRIMARY KEY (gnaf_pid,aos_id) 
 );
@@ -327,15 +327,15 @@ pre AS
          (15153, 27, 32, 198) 
      ) v(gnaf_pid, aos_id, node, distance) 
      GROUP BY gnaf_pid,aos_id,node)
-INSERT INTO od_aos_test (gnaf_pid, aos_id, node, distance, ind_hard,ind_soft,aos_ha,numgeom,attributes) 
+INSERT INTO od_aos (gnaf_pid, aos_id, node, distance, numgeom,aos_ha,aos_ha_school,school_os_percent,attributes) 
    SELECT pre.gnaf_pid, 
           pre.aos_id, 
           pre.node, 
           distance,
-          (distance < 400)::int AS ind_hard,
-          1 - 1.0 / (1+exp(-5*(distance-400)/400::numeric)) AS ind_soft,
-          aos_ha,
           numgeom,
+          aos_ha,
+          aos_ha_school,
+          school_os_percent,
           attributes
    FROM pre 
    LEFT JOIN open_space_areas a ON pre.aos_id = a.aos_id
@@ -343,29 +343,28 @@ INSERT INTO od_aos_test (gnaf_pid, aos_id, node, distance, ind_hard,ind_soft,aos
        DO UPDATE 
           SET node = EXCLUDED.node, 
               distance = EXCLUDED.distance 
-           WHERE od_aos_test.distance > EXCLUDED.distance;
+           WHERE od_aos.distance > EXCLUDED.distance;
       
 -- Associate participants with list of parks 
-DROP TABLE IF EXISTS od_aos_test_full; 
-CREATE TABLE od_aos_test_full AS 
-SELECT p.gnaf_pid, 
+DROP TABLE IF EXISTS od_aos_full; 
+CREATE TABLE od_aos_full AS 
+SELECT gnaf_pid, 
        jsonb_agg(jsonb_strip_nulls(to_jsonb( 
            (SELECT d FROM 
                (SELECT 
-                  p.distance      ,
-                  a.gid           ,
-                  a.attributes    ,
-                  a.numgeom       ,
-                  a.aos_ha        ,
-                  a.aos_ha_school ,
+                  distance      ,
+                  aos_id  ,
+                  attributes    ,
+                  numgeom       ,
+                  aos_ha        ,
+                  aos_ha_school ,
                   school_os_percent
                   ) d)))) AS attributes 
-FROM od_aos_test p 
-LEFT JOIN open_space_areas a ON p.aos_gid = a.gid 
+FROM od_aos 
 GROUP BY gnaf_pid;   
 
 -- select set of AOS and their attributes for a particular participant
-SELECT gnaf_pid, jsonb_pretty(attributes) FROM od_aos_test_full WHERE gnaf_pid = 15151;
+SELECT gnaf_pid, jsonb_pretty(attributes) FROM od_aos_full WHERE gnaf_pid = 15151;
 
 -- Select only those items in the list which meet numeric criteria: 
 SELECT gnaf_pid, jsonb_agg(obj) AS attributes 
