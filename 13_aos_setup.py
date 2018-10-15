@@ -47,6 +47,24 @@ command = 'osm2pgsql -U {user} -l -d {db} {osm} --hstore --style {style} --prefi
 sp.call(command, shell=True, cwd=osm2pgsql_exe)                           
 print("Done.")
 
+# Define tags for which presence of values is suggestive of some kind of open space 
+# These are defined in the ind_study_region_matrix worksheet 'open_space_defs' under the 'possible_os_tags' column.
+possible_os_tags = '\n'.join(['ALTER TABLE {}_polygon ADD COLUMN IF NOT EXISTS {} varchar;'.format(osm_prefix,x.encode('utf')) for x in df_aos["possible_os_tags"].dropna().tolist()])
+
+os_landuse = "'{}'".format("','".join([x.encode('utf') for x in df_aos["os_landuse"].dropna().tolist()]))
+
+specific_inclusion_criteria = '\nAND '.join(['({})'.format(x.encode('utf')) for x in df_aos["specific_inclusion_criteria"].dropna().tolist()])
+
+water_features = ','.join(["'{}'".format(x.encode('utf')) for x in df_aos["water_tags_for_natural_landuse_leisure"].dropna().tolist()])
+water_sports = ','.join(["'{}'".format(x.encode('utf')) for x in df_aos["water_sports"].dropna().tolist()])
+
+
+identifying_tags = ','.join(["'{}'".format(x.encode('utf')) for x in df_aos["identifying_tags_to_exclude_other_than_%name%"].dropna().tolist()])
+exclude_tags_like_name = '''(SELECT array_agg(tags) from (SELECT DISTINCT(skeys(tags)) tags FROM open_space) t WHERE tags ILIKE '%name%')'''
+
+os_add_as_tags = ',\n'.join(['"{}"'.format(x.encode('utf')) for x in df_aos["os_add_as_tags"].dropna().tolist()])
+
+
 aos_setup = ['''
 -- Add geom column to polygon table, appropriately transformed to project spatial reference system
 ALTER TABLE {osm_prefix}_polygon ADD COLUMN geom geometry; 
@@ -55,18 +73,7 @@ UPDATE {osm_prefix}_polygon SET geom = ST_Transform(way,7845);
 '''
 -- Add other columns which are important if they exists, but not important if they don't
 -- --- except that there presence is required for ease of accurate querying.
-ALTER TABLE {osm_prefix}_polygon ADD COLUMN IF NOT EXISTS beach varchar;
-ALTER TABLE {osm_prefix}_polygon ADD COLUMN IF NOT EXISTS river varchar;
-ALTER TABLE {osm_prefix}_polygon ADD COLUMN IF NOT EXISTS water varchar;
-ALTER TABLE {osm_prefix}_polygon ADD COLUMN IF NOT EXISTS waterway varchar;
-ALTER TABLE {osm_prefix}_polygon ADD COLUMN IF NOT EXISTS wetland varchar;
-ALTER TABLE {osm_prefix}_polygon ADD COLUMN IF NOT EXISTS access varchar;
-ALTER TABLE {osm_prefix}_polygon ADD COLUMN IF NOT EXISTS leisure varchar;
-ALTER TABLE {osm_prefix}_polygon ADD COLUMN IF NOT EXISTS "natural" varchar;
-ALTER TABLE {osm_prefix}_polygon ADD COLUMN IF NOT EXISTS sport varchar;
-ALTER TABLE {osm_prefix}_polygon ADD COLUMN IF NOT EXISTS landuse varchar;
-ALTER TABLE {osm_prefix}_polygon ADD COLUMN IF NOT EXISTS playground varchar;
-'''.format(osm_prefix = osm_prefix),
+{}'''.format(possible_os_tags),
 '''
 -- Create an 'Open Space' table
 DROP TABLE IF EXISTS open_space;
@@ -75,16 +82,16 @@ SELECT * FROM {osm_prefix}_polygon p
 WHERE (p.leisure IS NOT NULL 
     OR p.natural IS NOT NULL 
     OR p.sport IS NOT NULL  
-    OR p.landuse IN ('common','conservation','field','forest','garden','grass','green','leisure','meadow','orchard','park','pitch','pond','recreation ground','sport','trees','village green','water','winter_sports','wood')
+    OR p.landuse IN ({os_landuse})
     OR beach IS NOT NULL
     OR river IS NOT NULL
     OR water IS NOT NULL 
     OR waterway IS NOT NULL 
     OR wetland IS NOT NULL )
-  AND (p.access IS NULL 
-    OR p.access NOT IN('no','private')
-    OR p.landuse NOT IN ('military'));
-'''.format(osm_prefix = osm_prefix),
+  AND (specific_inclusion_criteria);
+'''.format(osm_prefix = osm_prefix, 
+           os_landuse = os_landuse,
+           specific_inclusion_criteria = specific_inclusion_criteria),
 '''
 -- Create unique POS id 
 ALTER TABLE open_space ADD COLUMN os_id SERIAL PRIMARY KEY;         
@@ -101,16 +108,17 @@ UPDATE open_space SET area_ha = ST_Area(geom)/10000.0;
 ALTER TABLE open_space ADD COLUMN water_feature boolean;
 UPDATE open_space SET water_feature = FALSE;
 UPDATE open_space SET water_feature = TRUE 
-   WHERE "natural" IN ('atoll', 'awash_rock', 'bay', 'beach', 'coastal', 'coastline', 'coastline_old', 'glacier', 'high-water', 'hot_spring', 'island', 'islet', 'lake', 'marsh', 'oasis', 'old_coastline_import', 'peninsula', 'pond', 'river', 'river_terrace', 'riverbank', 'riverbed', 'shoal', 'spring', 'strait', 'stream', 'swamp', 'swimming_pool', 'underwater_rock', 'unprotected_spring', 'unprotected_well', 'water', 'water_park', 'waterfall', 'waterhole', 'waterway', 'wetland')
+   WHERE "natural" IN ({water_features})
       OR beach IS NOT NULL
       OR river IS NOT NULL
       OR water IS NOT NULL 
       OR waterway IS NOT NULL 
       OR wetland IS NOT NULL 
-      OR landuse IN ('atoll', 'awash_rock', 'bay', 'beach', 'coastal', 'coastline', 'coastline_old', 'glacier', 'high-water', 'hot_spring', 'island', 'islet', 'lake', 'marsh', 'oasis', 'old_coastline_import', 'peninsula', 'pond', 'river', 'river_terrace', 'riverbank', 'riverbed', 'shoal', 'spring', 'strait', 'stream', 'swamp', 'swimming_pool', 'underwater_rock', 'unprotected_spring', 'unprotected_well', 'water', 'water_park', 'waterfall', 'waterhole', 'waterway', 'wetland')
-      OR leisure IN ('atoll', 'awash_rock', 'bay', 'beach', 'coastal', 'coastline', 'coastline_old', 'glacier', 'high-water', 'hot_spring', 'island', 'islet', 'lake', 'marsh', 'oasis', 'old_coastline_import', 'peninsula', 'pond', 'river', 'river_terrace', 'riverbank', 'riverbed', 'shoal', 'spring', 'strait', 'stream', 'swamp', 'swimming_pool', 'underwater_rock', 'unprotected_spring', 'unprotected_well', 'water', 'water_park', 'waterfall', 'waterhole', 'waterway', 'wetland') 
-      OR sport IN ('swimming','surfing','canoe','scuba_diving','rowing','sailing','fishing','water_ski','water_sports','diving','windsurfing','canoeing','kayak');
-''',
+      OR landuse IN ({water_features})
+      OR leisure IN ({water_features}) 
+      OR sport IN ({water_sports});
+'''.format(water_features = water_features,
+           water_sports = water_sports),
 '''
 -- Create variable for AOS area excluding water
 ALTER TABLE open_space ADD COLUMN water_geom geometry; 
@@ -151,7 +159,7 @@ WHERE amal_to_area_ratio > 140
   AND medial_axis_length > 300
   AND num_symdiff_convhull_geoms > 0
   AND roundness < 0.25;
-''',
+'''.format(linear_feature_criteria),
 '''
 -- Create 'Acceptable Linear Feature' indicator (alf?)
 ALTER TABLE open_space ADD COLUMN acceptable_linear_feature boolean;
@@ -214,37 +222,10 @@ FROM schools;
 ''',
 '''
 -- Remove potentially identifying tags from records
-UPDATE open_space SET tags =  tags - ARRAY['addr:city'         ,        
-                                           'addr:full'         ,        
-                                           'addr:place'        ,     
-                                           'addr:postcode'     ,        
-                                           'addr:province'     ,       
-                                           'addr:street'       ,        
-                                           'website'           ,        
-                                           'wikipedia'         ,        
-                                           'description'       ,
-                                           'old_name'          ,   
-                                           'name:aus'          ,
-                                           'name:en'           ,
-                                           'name:de'           ,
-                                           'name:fr'           ,
-                                           'name:es'           ,
-                                           'name:ru'           ,
-                                           'alt_name'          ,
-                                           'addr:housename'    ,      
-                                           'addr:housenumber'  ,      
-                                           'addr:interpolation',      
-                                           'name'              ,
-                                           'designation'       ,
-                                           'email'             ,
-                                           'phone'             ,
-                                           'ref:capad2014_osm' ,           
-                                           'nswlpi:cadid'      ,
-                                           'wikidata'          ,
-                                           'name:source:url'   ,
-                                           'url']
+UPDATE open_space SET tags =  tags - {exclude_tags_like_name} - ARRAY[{identifying_tags}]
 ;
-''',
+'''.format(exclude_tags_like_name = exclude_tags_like_name,
+           identifying_tags = identifying_tags),
 '''
 -- Create Areas of Open Space (AOS) table
 -- this includes schools and contains indicators to differentiate schools, and parks within schools
@@ -277,26 +258,7 @@ WITH clusters AS(
        FROM clusters)
 SELECT cluster_id as aos_id, 
        jsonb_agg(jsonb_strip_nulls(to_jsonb( 
-           (SELECT d FROM 
-               (SELECT 
-                  "os_id",
-                  "area_ha",
-                  "medial_axis_length",
-                  "num_symdiff_convhull_geoms",
-                  "roundness",
-                  "amenity",                  
-                  "access",  
-                  "landuse", 
-                  "leisure", 
-                  "natural", 
-                  "sport", 
-                  "waterway", 
-                  "wood",
-                  "in_school",
-                  "is_school",
-                  "water_feature",
-                  "linear_feature",
-                  "acceptable_linear_feature") d)) || hstore_to_jsonb(tags) )) AS attributes,
+           (SELECT d FROM (SELECT {os_add_as_tags}) d)) || hstore_to_jsonb(tags) )) AS attributes,
     COUNT(1) AS numgeom,
     ST_Union(no_school_geom) AS geom,
     ST_Union(water_geom) AS geom_water,
@@ -304,7 +266,7 @@ SELECT cluster_id as aos_id,
     FROM open_space
     INNER JOIN unclustered USING(geom)
     GROUP BY cluster_id;   
-''',
+'''.format(os_add_as_tags = os_add_as_tags),
 ''' 
 CREATE UNIQUE INDEX aos_idx ON open_space_areas (aos_id);  
 CREATE INDEX idx_aos_jsb ON open_space_areas USING GIN (attributes);
