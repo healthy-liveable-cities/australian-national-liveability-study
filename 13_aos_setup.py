@@ -47,6 +47,27 @@ command = 'osm2pgsql -U {user} -l -d {db} {osm} --hstore --style {style} --prefi
 sp.call(command, shell=True, cwd=osm2pgsql_exe)                           
 print("Done.")
 
+# Copy the network edges from gdb to postgis
+command = (
+        ' ogr2ogr -overwrite -progress -f "PostgreSQL" ' 
+        ' PG:"host={host} port=5432 dbname={db}'
+        ' user={user} password = {pwd}" '
+        ' {gdb} "{feature}" '
+        ' -lco geometry_name="geom"'.format(host = db_host,
+                                     db = db,
+                                     user = db_user,
+                                     pwd = db_pwd,
+                                     gdb = gdb_path,
+                                     feature = 'edges') 
+        )
+print(command)
+sp.call(command, shell=True)
+
+# connect to the PostgreSQL server and ensure privileges are granted for all public tables
+curs.execute(grant_query)
+conn.commit()
+
+
 # Define tags for which presence of values is suggestive of some kind of open space 
 # These are defined in the ind_study_region_matrix worksheet 'open_space_defs' under the 'possible_os_tags' column.
 possible_os_tags = '\n'.join(['ALTER TABLE {}_polygon ADD COLUMN IF NOT EXISTS "{}" varchar;'.format(osm_prefix,x.encode('utf')) for x in df_aos["possible_os_tags"].dropna().tolist()])

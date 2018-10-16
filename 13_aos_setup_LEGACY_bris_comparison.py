@@ -71,25 +71,25 @@ curs = conn.cursor()
 ##sp.call(command, shell=True, cwd=osm2pgsql_exe)                           
 ##print("Done.")
 
-#  Copy the network edges from gdb to postgis
-# command = (
-#         ' ogr2ogr -overwrite -progress -f "PostgreSQL" ' 
-#         ' PG:"host={host} port=5432 dbname={db}'
-#         ' user={user} password = {pwd}" '
-#         ' {gdb} "{feature}" '
-#         ' -lco geometry_name="geom"'.format(host = db_host,
-#                                      db = db,
-#                                      user = db_user,
-#                                      pwd = db_pwd,
-#                                      gdb = gdb_path,
-#                                      feature = 'edges') 
-#         )
-# print(command)
-# sp.call(command, shell=True)
-# 
-# # connect to the PostgreSQL server and ensure privileges are granted for all public tables
-# curs.execute(grant_query)
-# conn.commit()
+# Copy the network edges from gdb to postgis
+command = (
+        ' ogr2ogr -overwrite -progress -f "PostgreSQL" ' 
+        ' PG:"host={host} port=5432 dbname={db}'
+        ' user={user} password = {pwd}" '
+        ' {gdb} "{feature}" '
+        ' -lco geometry_name="geom"'.format(host = db_host,
+                                     db = db,
+                                     user = db_user,
+                                     pwd = db_pwd,
+                                     gdb = gdb_path,
+                                     feature = 'edges') 
+        )
+print(command)
+sp.call(command, shell=True)
+
+# connect to the PostgreSQL server and ensure privileges are granted for all public tables
+curs.execute(grant_query)
+conn.commit()
 
 
 # Define tags for which presence of values is suggestive of some kind of open space 
@@ -303,7 +303,7 @@ WITH clusters AS(
        FROM clusters)
 SELECT cluster_id as aos_id, 
        jsonb_agg(jsonb_strip_nulls(to_jsonb( 
-           (SELECT d FROM (SELECT {os_add_as_tags}) d)) || hstore_to_jsonb(tags) )) AS attributes,
+           (SELECT d FROM (SELECT {os_add_as_tags}) d)) )) AS attributes,
     COUNT(1) AS numgeom,
     ST_Union(no_school_geom) AS geom,
     ST_Union(water_geom) AS geom_water,
@@ -403,36 +403,36 @@ WHERE ST_DWithin(n.geom_w_schools ,l.geom,50)
 '''.format(osm_prefix = osm_prefix)
 ]
 
-# for sql in aos_setup:
-#     start = time.time()
-#     print("\nExecuting: {}".format(sql))
-#     curs.execute(sql)
-#     conn.commit()
-#     print("Executed in {} mins".format((time.time()-start)/60))
+for sql in aos_setup:
+     start = time.time()
+     print("\nExecuting: {}".format(sql))
+     curs.execute(sql)
+     conn.commit()
+     print("Executed in {} mins".format((time.time()-start)/60))
  
 # pgsql to gdb
 # # connect to the PostgreSQL server and ensure privileges are granted for all public tables
 curs.execute(grant_query)
 conn.commit()
-# arcpy.env.workspace = db_sde_path
-# arcpy.env.overwriteOutput = True 
-# arcpy.CopyFeatures_management('public.aos_nodes_30m_line', os.path.join(gdb_path,'aos_nodes_30m_line')) 
+arcpy.env.workspace = db_sde_path
+arcpy.env.overwriteOutput = True 
+arcpy.CopyFeatures_management('public.aos_nodes_30m_line', os.path.join(gdb_path,'aos_nodes_30m_line')) 
   
-#Copy the AOS 30m nodes from postgis to postgis
-command = (
-        ' ogr2ogr -overwrite -progress -f "FileGDB" ' 
-        ' {gdb} PG:"host={host} port=5432 dbname={db}'
-        ' user={user} password = {pwd}" '
-        ' {table} '
-        ' -lco geometry_name="geom"'.format(host = db_host,
-                                     db = db,
-                                     user = db_user,
-                                     pwd = db_pwd,
-                                     gdb = gdb_path,
-                                     table = 'aos_nodes_30m_line') 
-        )
-print(command)
-sp.call(command, shell=True)
+##Copy the AOS 30m nodes from postgis to postgis
+#command = (
+#        ' ogr2ogr -overwrite -progress -f "FileGDB" ' 
+#        ' {gdb} PG:"host={host} port=5432 dbname={db}'
+#        ' user={user} password = {pwd}" '
+#        ' {table} '
+#        ' -lco geometry_name="geom"'.format(host = db_host,
+#                                     db = db,
+#                                     user = db_user,
+#                                     pwd = db_pwd,
+#                                     gdb = 'li_bris_2016.gdb',
+#                                     table = 'aos_nodes_30m_line') 
+#        )
+#print(command)
+#sp.call(command, shell=True, cwd = 'D:/ntnl_li_2018_template/data/study_region/bris/')
  
  
 # output to completion log    
