@@ -124,7 +124,7 @@ create_study_region_tables = '''
   FROM 
   {region}_{year} a, 
   main_sos_2016_aust b ;
-'''.format(region = region.lower(), year = year.lower())
+'''.format(region = region.lower(), year = year)
   
 # create sa1 area linkage corresponding to later SA1 aggregate tables
 create_area_sa1 = '''  

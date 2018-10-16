@@ -49,7 +49,7 @@ print("Done.")
 
 # Define tags for which presence of values is suggestive of some kind of open space 
 # These are defined in the ind_study_region_matrix worksheet 'open_space_defs' under the 'possible_os_tags' column.
-possible_os_tags = '\n'.join(['ALTER TABLE {}_polygon ADD COLUMN IF NOT EXISTS {} varchar;'.format(osm_prefix,x.encode('utf')) for x in df_aos["possible_os_tags"].dropna().tolist()])
+possible_os_tags = '\n'.join(['ALTER TABLE {}_polygon ADD COLUMN IF NOT EXISTS "{}" varchar;'.format(osm_prefix,x.encode('utf')) for x in df_aos["possible_os_tags"].dropna().tolist()])
 
 os_landuse = "'{}'".format("','".join([x.encode('utf') for x in df_aos["os_landuse"].dropna().tolist()]))
 
@@ -89,7 +89,7 @@ WHERE (p.leisure IS NOT NULL
     OR water IS NOT NULL 
     OR waterway IS NOT NULL 
     OR wetland IS NOT NULL )
-  AND (specific_inclusion_criteria);
+  AND ({specific_inclusion_criteria});
 '''.format(osm_prefix = osm_prefix, 
            os_landuse = os_landuse,
            specific_inclusion_criteria = specific_inclusion_criteria),
