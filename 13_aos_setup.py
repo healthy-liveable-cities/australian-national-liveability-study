@@ -58,6 +58,7 @@ specific_inclusion_criteria = '\nAND '.join(['({})'.format(x.encode('utf')) for 
 water_features = ','.join(["'{}'".format(x.encode('utf')) for x in df_aos["water_tags_for_natural_landuse_leisure"].dropna().tolist()])
 water_sports = ','.join(["'{}'".format(x.encode('utf')) for x in df_aos["water_sports"].dropna().tolist()])
 
+linear_feature_criteria = '\nAND '.join(['({})'.format(x.encode('utf')) for x in df_aos["linear_feature_criteria_AND"].dropna().tolist()])
 
 identifying_tags = ','.join(["'{}'".format(x.encode('utf')) for x in df_aos["identifying_tags_to_exclude_other_than_%name%"].dropna().tolist()])
 exclude_tags_like_name = '''(SELECT array_agg(tags) from (SELECT DISTINCT(skeys(tags)) tags FROM open_space) t WHERE tags ILIKE '%name%')'''
@@ -154,11 +155,7 @@ UPDATE open_space SET roundness = ST_Area(geom)/(ST_Area(ST_MinimumBoundingCircl
 ALTER TABLE open_space ADD COLUMN linear_feature boolean;
 UPDATE open_space SET linear_feature = FALSE;
 UPDATE open_space SET linear_feature = TRUE 
-WHERE amal_to_area_ratio > 140 
-  AND area_ha > 0.5 
-  AND medial_axis_length > 300
-  AND num_symdiff_convhull_geoms > 0
-  AND roundness < 0.25;
+WHERE {linear_feature_criteria};
 '''.format(linear_feature_criteria),
 '''
 -- Create 'Acceptable Linear Feature' indicator (alf?)
