@@ -102,6 +102,9 @@ units_full = df_parameters.loc['units_full']['value'].encode('utf')
 study_buffer = df_parameters.loc['study_buffer']['value']
 buffered_study_region = '{0}_{1}{2}'.format(study_region,study_buffer,units)
 
+# Number of processors to use in when multiprocessing
+nWorkers = df_parameters.loc['multiprocessing']['value']
+
 # hexagon diagonal length and buffer distance (metres)
 #   -- hexagon sides will be half the length of this value
 #   -- hexagon area is 3/2 * sqrt(3) * (hex_diag/2)^2

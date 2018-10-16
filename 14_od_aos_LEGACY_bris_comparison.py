@@ -21,6 +21,7 @@ from config_ntnl_li_process import *
 db = 'li_bris_2016'
 gdb_path = 'D:/ntnl_li_2018_template/data/study_region/bris/li_bris_2016.gdb'
 db_sde_path = 'D:/ntnl_li_2018_template/data/study_region/bris/li_bris_2016.sde'
+hex_grid_buffer = 'gccsa_2016_hex_3000m_diag_3000m_buffer'
 
 
 # simple timer for log file
@@ -382,7 +383,8 @@ if __name__ == '__main__':
   writeLog(create='create')  
   
   # Setup a pool of workers/child processes and split log output
-  nWorkers = 4  
+  # (now set as parameter in ind_study_region_matrix xlsx file)
+  # nWorkers = 4  
   pool = multiprocessing.Pool(nWorkers)
     
   # Task name is now defined

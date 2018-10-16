@@ -309,7 +309,8 @@ if __name__ == '__main__':
   
   print("Setup a pool of workers/child processes and split log output..."),
   # Parallel processing setting
-  nWorkers = 7    
+  # (now set as parameter in ind_study_region_matrix xlsx file)
+  # nWorkers = 7  
   pool = multiprocessing.Pool(processes=nWorkers)
   print(" Done.")
 

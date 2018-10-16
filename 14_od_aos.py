@@ -375,8 +375,9 @@ if __name__ == '__main__':
   # initiate log file
   writeLog(create='create')  
   
-  # Setup a pool of workers/child processes and split log output
-  nWorkers = 4  
+  # Setup a pool of workers/child processes and split log output 
+  # (now set as parameter in ind_study_region_matrix xlsx file)
+  # nWorkers = 4  
   pool = multiprocessing.Pool(nWorkers)
     
   # Task name is now defined
