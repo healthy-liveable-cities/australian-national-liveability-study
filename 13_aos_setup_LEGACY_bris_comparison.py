@@ -108,8 +108,8 @@ SELECT * FROM {osm_prefix}_polygon p
 WHERE (p.leisure IS NOT NULL 
     OR p.natural IS NOT NULL 
     OR p.sport IS NOT NULL  
-    OR p.bounary IN ({os_landuse})
-    OR p.landuse IN ({os_boundary})
+    OR p.landuse IN ({os_landuse})
+    OR p.boundary IN ({os_boundary})
     OR beach IS NOT NULL
     OR river IS NOT NULL
     OR water IS NOT NULL 
