@@ -89,7 +89,7 @@ WHERE (p.leisure IS NOT NULL
     OR water IS NOT NULL 
     OR waterway IS NOT NULL 
     OR wetland IS NOT NULL )
-  AND ({specific_inclusion_criteria});
+  AND {specific_inclusion_criteria};
 '''.format(osm_prefix = osm_prefix, 
            os_landuse = os_landuse,
            specific_inclusion_criteria = specific_inclusion_criteria),
