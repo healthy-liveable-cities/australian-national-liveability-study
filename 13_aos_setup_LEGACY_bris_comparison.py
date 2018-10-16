@@ -71,6 +71,27 @@ curs = conn.cursor()
 ##sp.call(command, shell=True, cwd=osm2pgsql_exe)                           
 ##print("Done.")
 
+#  Copy the network edges from gdb to postgis
+# command = (
+#         ' ogr2ogr -overwrite -progress -f "PostgreSQL" ' 
+#         ' PG:"host={host} port=5432 dbname={db}'
+#         ' user={user} password = {pwd}" '
+#         ' {gdb} "{feature}" '
+#         ' -lco geometry_name="geom"'.format(host = db_host,
+#                                      db = db,
+#                                      user = db_user,
+#                                      pwd = db_pwd,
+#                                      gdb = gdb_path,
+#                                      feature = 'edges') 
+#         )
+# print(command)
+# sp.call(command, shell=True)
+# 
+# # connect to the PostgreSQL server and ensure privileges are granted for all public tables
+# curs.execute(grant_query)
+# conn.commit()
+
+
 # Define tags for which presence of values is suggestive of some kind of open space 
 # These are defined in the ind_study_region_matrix worksheet 'open_space_defs' under the 'possible_os_tags' column.
 possible_os_tags = '\n'.join(['ALTER TABLE {}_polygon ADD COLUMN IF NOT EXISTS "{}" varchar;'.format(osm_prefix,x.encode('utf')) for x in df_aos["possible_os_tags"].dropna().tolist()])
@@ -351,20 +372,14 @@ ALTER TABLE aos_nodes ADD COLUMN aos_entryid varchar;
 UPDATE aos_nodes SET aos_entryid = aos_id::text || ',' || node::text; 
 ''',
 '''
--- Preparation of reference line feature to act like roads
-ALTER TABLE {osm_prefix}_line ADD COLUMN geom geometry; 
-UPDATE {osm_prefix}_line SET geom = ST_Transform(way,7845); 
-'''.format(osm_prefix = osm_prefix),
-'''
 -- Create table of points within 20m of lines (should be your road network) 
 -- Distinct is used to avoid redundant duplication of points where they are within 20m of multiple roads 
 DROP TABLE IF EXISTS aos_nodes_20m_line;
 CREATE TABLE aos_nodes_20m_line AS 
 SELECT DISTINCT n.* 
 FROM aos_nodes n, 
-     {osm_prefix}_line l
-WHERE ST_DWithin(n.geom_w_schools ,l.geom,20)
-AND l.highway IS NOT NULL;
+     edges l
+WHERE ST_DWithin(n.geom_w_schools ,l.geom,20);
 '''.format(osm_prefix = osm_prefix),
 '''
 -- Create table of points within 30m of lines (should be your road network) 
@@ -373,9 +388,8 @@ DROP TABLE IF EXISTS aos_nodes_30m_line;
 CREATE TABLE aos_nodes_30m_line AS 
 SELECT DISTINCT n.* 
 FROM aos_nodes n, 
-     {osm_prefix}_line l
+     edges l
 WHERE ST_DWithin(n.geom_w_schools ,l.geom,30)
-AND l.highway IS NOT NULL;
 '''.format(osm_prefix = osm_prefix),
 '''
 -- Create table of points within 50m of lines (should be your road network) 
@@ -384,27 +398,43 @@ DROP TABLE IF EXISTS aos_nodes_50m_line;
 CREATE TABLE aos_nodes_50m_line AS 
 SELECT DISTINCT n.* 
 FROM aos_nodes n, 
-     {osm_prefix}_line l
+     edges l
 WHERE ST_DWithin(n.geom_w_schools ,l.geom,50)
-AND l.highway IS NOT NULL;
 '''.format(osm_prefix = osm_prefix)
 ]
 
-for sql in aos_setup:
-    start = time.time()
-    print("\nExecuting: {}".format(sql))
-    curs.execute(sql)
-    conn.commit()
-    print("Executed in {} mins".format((time.time()-start)/60))
- 
-
- 
+# for sql in aos_setup:
+#     start = time.time()
+#     print("\nExecuting: {}".format(sql))
+#     curs.execute(sql)
+#     conn.commit()
+#     print("Executed in {} mins".format((time.time()-start)/60))
  
 # pgsql to gdb
-arcpy.env.workspace = db_sde_path
-arcpy.env.overwriteOutput = True 
-arcpy.CopyFeatures_management('public.aos_nodes_30m_line', os.path.join(gdb_path,'aos_nodes_30m_line')) 
+# # connect to the PostgreSQL server and ensure privileges are granted for all public tables
+curs.execute(grant_query)
+conn.commit()
+# arcpy.env.workspace = db_sde_path
+# arcpy.env.overwriteOutput = True 
+# arcpy.CopyFeatures_management('public.aos_nodes_30m_line', os.path.join(gdb_path,'aos_nodes_30m_line')) 
   
+#Copy the AOS 30m nodes from postgis to postgis
+command = (
+        ' ogr2ogr -overwrite -progress -f "FileGDB" ' 
+        ' {gdb} PG:"host={host} port=5432 dbname={db}'
+        ' user={user} password = {pwd}" '
+        ' {table} '
+        ' -lco geometry_name="geom"'.format(host = db_host,
+                                     db = db,
+                                     user = db_user,
+                                     pwd = db_pwd,
+                                     gdb = gdb_path,
+                                     table = 'aos_nodes_30m_line') 
+        )
+print(command)
+sp.call(command, shell=True)
+ 
+ 
 # output to completion log    
 script_running_log(script, task, start, locale)
 conn.close()

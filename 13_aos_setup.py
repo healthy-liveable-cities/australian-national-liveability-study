@@ -52,6 +52,8 @@ print("Done.")
 possible_os_tags = '\n'.join(['ALTER TABLE {}_polygon ADD COLUMN IF NOT EXISTS "{}" varchar;'.format(osm_prefix,x.encode('utf')) for x in df_aos["possible_os_tags"].dropna().tolist()])
 
 os_landuse = "'{}'".format("','".join([x.encode('utf') for x in df_aos["os_landuse"].dropna().tolist()]))
+os_boundary = "'{}'".format("','".join([x.encode('utf') for x in df_aos["os_boundary"].dropna().tolist()]))
+
 
 specific_inclusion_criteria = '\nAND '.join(['({})'.format(x.encode('utf')) for x in df_aos["specific_inclusion_criteria"].dropna().tolist()])
 
@@ -84,6 +86,7 @@ WHERE (p.leisure IS NOT NULL
     OR p.natural IS NOT NULL 
     OR p.sport IS NOT NULL  
     OR p.landuse IN ({os_landuse})
+    OR p.boundary IN ({os_boundary})
     OR beach IS NOT NULL
     OR river IS NOT NULL
     OR water IS NOT NULL 
@@ -92,6 +95,7 @@ WHERE (p.leisure IS NOT NULL
   AND {specific_inclusion_criteria};
 '''.format(osm_prefix = osm_prefix, 
            os_landuse = os_landuse,
+           os_boundary = os_boundary,
            specific_inclusion_criteria = specific_inclusion_criteria),
 '''
 -- Create unique POS id 
