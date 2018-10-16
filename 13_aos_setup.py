@@ -156,7 +156,7 @@ ALTER TABLE open_space ADD COLUMN linear_feature boolean;
 UPDATE open_space SET linear_feature = FALSE;
 UPDATE open_space SET linear_feature = TRUE 
 WHERE {linear_feature_criteria};
-'''.format(linear_feature_criteria),
+'''.format(linear_feature_criteria=linear_feature_criteria),
 '''
 -- Create 'Acceptable Linear Feature' indicator (alf?)
 ALTER TABLE open_space ADD COLUMN acceptable_linear_feature boolean;
