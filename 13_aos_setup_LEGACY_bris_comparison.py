@@ -36,17 +36,17 @@ task = 'Prepare Areas of Open Space (AOS)'
 # I ran the following at command prompt before running this script:
 ## shp2pgsql -s 4326 -W "LATIN1" D:\ntnl_li_2018_template\data\destinations\pos\bris\osm_bris_10km_raw_20180517.shp | psql -h localhost -d li_bris_2016 -U postgres
 # AND THEN, in psql to make the table treated equivalently to regular script
-## ALTER TABLE osm_bris_10km_raw_20180517 RENAME TO osm_bris_10km_raw_20180517_polygon;
-# and then added in an hstore tags column; in regular analysis this provides additional information, but this wasn't present in source file
-## ALTER TABLE osm_bris_10km_raw_20180517_polygon ADD COLUMN tags hstore;
-# and also renamed 'geom' to 'way' to make way for later creation of geom as the epsg 7845 projected geometry
-## ALTER TABLE osm_bris_10km_raw_20180517_polygon RENAME COLUMN geom TO way;
-# and then also made sure privileges were granted
-## GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO arc_sde;
-## GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO arc_sde;
-## GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO python;
-## GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO python;
-## ALTER TABLE osm_bris_10km_raw_20180517_polygon OWNER TO python;
+# ALTER TABLE osm_bris_10km_raw_20180517 RENAME TO osm_bris_10km_raw_20180517_polygon;
+#-- and then added in an hstore tags column; in regular analysis this provides additional information, but this wasn't present in source file
+# ALTER TABLE osm_bris_10km_raw_20180517_polygon ADD COLUMN tags hstore;
+#-- and also renamed 'geom' to 'way' to make way for later creation of geom as the epsg 7845 projected geometry
+# ALTER TABLE osm_bris_10km_raw_20180517_polygon RENAME COLUMN geom TO way;
+#-- and then also made sure privileges were granted
+#-- GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO arc_sde;
+#-- GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO arc_sde;
+#-- GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO python;
+#-- GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO python;
+#-- ALTER TABLE osm_bris_10km_raw_20180517_polygon OWNER TO python;
 
 osm_prefix = 'osm_bris_10km_raw_20180517'
 db = 'li_bris_2016'
@@ -113,11 +113,6 @@ os_add_as_tags = ',\n'.join(['"{}"'.format(x.encode('utf')) for x in df_aos["os_
 
 
 aos_setup = ['''
--- Add geom column to polygon table, appropriately transformed to project spatial reference system
-ALTER TABLE {osm_prefix}_polygon ADD COLUMN geom geometry; 
-UPDATE {osm_prefix}_polygon SET geom = ST_Transform(way,7845); 
-'''.format(osm_prefix = osm_prefix),
-'''
 -- Add other columns which are important if they exists, but not important if they don't
 -- --- except that there presence is required for ease of accurate querying.
 {}'''.format(possible_os_tags),
@@ -141,6 +136,12 @@ WHERE (p.leisure IS NOT NULL
            os_landuse = os_landuse,
            os_boundary = os_boundary,
            specific_inclusion_criteria = specific_inclusion_criteria),
+'''
+-- CREATE SOME BRISBANE TEST SITE SPECIFIC MODIFICATIONS FOR EQUIVALENCES
+-- multipolygon to polygon
+UPDATE open_space set geom = (ST_DUMP(geom)).geom::geometry(Polygon,7845)
+;
+''',
 '''
 -- Create unique POS id 
 ALTER TABLE open_space ADD COLUMN os_id SERIAL PRIMARY KEY;         
@@ -409,9 +410,9 @@ for sql in aos_setup:
      curs.execute(sql)
      conn.commit()
      print("Executed in {} mins".format((time.time()-start)/60))
- 
-# pgsql to gdb
-# # connect to the PostgreSQL server and ensure privileges are granted for all public tables
+#  
+# # pgsql to gdb
+# # # connect to the PostgreSQL server and ensure privileges are granted for all public tables
 curs.execute(grant_query)
 conn.commit()
 arcpy.env.workspace = db_sde_path
