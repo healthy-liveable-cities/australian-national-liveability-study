@@ -246,10 +246,10 @@ create_mb_excluded_no_irsd = '''
 create_mb_no_dwellings = '''  
   DROP TABLE IF EXISTS mb_no_dwellings;
   CREATE TABLE mb_no_dwellings AS
-  SELECT meshblocks.* FROM meshblocks, gccsa_2016
+  SELECT meshblocks.* FROM meshblocks, {study_region}
   WHERE mb_code_20 NOT IN (SELECT mb_code_2016 FROM mb_dwellings)
-  AND ST_Intersects(meshblocks.geom,gccsa_2016.geom);
-  '''
+  AND ST_Intersects(meshblocks.geom,{study_region}.geom);
+  '''.format(study_region = study_region)
 
 # create excluded Mesh Block table
 create_area_no_irsd = '''  
