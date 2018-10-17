@@ -34,19 +34,65 @@ task = 'Prepare Areas of Open Space (AOS)'
 conn = psycopg2.connect(dbname=db, user=db_user, password=db_pwd)
 curs = conn.cursor()  
 
+print("Copy the school destinations from gdb to postgis..."),
+command = (
+        ' ogr2ogr -overwrite -progress -f "PostgreSQL" ' 
+        ' PG:"host={host} port=5432 dbname={db}'
+        ' user={user} password = {pwd}" '
+        ' {gdb} "{feature}" '
+        ' -lco geometry_name="geom"'.format(host = db_host,
+                                     db = db,
+                                     user = db_user,
+                                     pwd = db_pwd,
+                                     gdb = os.path.join(folderPath,dest_dir,src_destinations),
+                                     feature = school_destinations) 
+        )
+print(command)
+sp.call(command, shell=True)
+print("Done (although, if it didn't work you can use the printed command above to do it manually)")
+
+
 
 aos_setup = [''' 
--- Create table for school polygons
-DROP TABLE IF EXISTS schools;
-CREATE TABLE schools AS 
+-- Create table for OSM school polygons
+DROP TABLE IF EXISTS osm_schools;
+CREATE TABLE osm_schools AS 
 SELECT * FROM {osm_prefix}_polygon p 
 WHERE p.amenity IN ('school','college') OR p.landuse IN ('school');
-ALTER TABLE schools ADD COLUMN area_ha double precision; 
-UPDATE schools SET area_ha = ST_Area(geom)/10000.0;
-ALTER TABLE schools ADD COLUMN is_school boolean; 
-UPDATE schools SET is_school = TRUE;
-'''.format(osm_prefix = osm_prefix)
+'''.format(osm_prefix = osm_prefix),
+'''
+ALTER TABLE osm_schools ADD COLUMN area_ha double precision; 
+UPDATE osm_schools SET area_ha = ST_Area(geom)/10000.0;
+ALTER TABLE osm_schools ADD COLUMN is_school boolean; 
+UPDATE osm_schools SET is_school = TRUE;
+''',
+'''
+ALTER TABLE osm_schools ADD COLUMN ext_school_id int; 
+ALTER TABLE osm_schools ADD COLUMN ext_school_dist int; 
+''',
+'''
+UPDATE osm_schools o 
+   SET ext_school_id = {school_id}::int, ext_school_dist = 0
+  FROM {ext_schools} s
+ WHERE ST_Intersects(s.geom, o.geom);
+'''.format(ext_schools =  os.path.basename(school_destinations),
+           school_id = school_id.lower()),
+'''
+UPDATE osm_schools o 
+   SET ext_school_id = {school_id}::int, ext_school_dist = dist::int
+  FROM (SELECT DISTINCT ON ({school_id}) 
+          {school_id}, 
+           s.osm_id, 
+           ST_Distance(s.geom, o.geom)  as dist
+        FROM {ext_schools} AS o , osm_schools AS s  
+        WHERE ST_DWithin(s.geom, o.geom, 500) 
+        ORDER BY {school_id}, s.osm_id, ST_Distance(s.geom, o.geom)) t
+ WHERE o.osm_id = t.osm_id 
+   AND o.ext_school_dist IS NULL;
+'''.format(ext_schools =  os.path.basename(school_destinations),
+           school_id = school_id.lower())
 ]
+
 
 for sql in aos_setup:
     start = time.time()
