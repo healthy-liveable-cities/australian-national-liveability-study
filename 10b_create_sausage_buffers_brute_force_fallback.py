@@ -46,10 +46,6 @@ arcpy.env.overwriteOutput = True
 points   = parcel_dwellings
 # denominator = int(arcpy.GetCount_management(points).getOutput(0))
 
-# Specify number of processors to use
-# e.g. our computers have 8 cores, so to focus on getting one script done 7 cores should be safe
-nWorkers = 1
-
 # Output databases
 sausage_buffer_table = "sausagebuffer_{}".format(distance)
 nh_sausagebuffer_summary = "nh{}m".format(distance)
@@ -230,7 +226,7 @@ curs.execute("SELECT COUNT(*) FROM {} ".format(sausage_buffer_table))
 subsequent_point_count = int(list(curs)[0][0])
       
 if processed_point_count == subsequent_point_count:
-  print("There has been no change in point count. We'll have to look closer or give up.")
+  print("It looks like this script has done as much as it can; either its fully completed successfully, or its at an impasse.  If you look closer at the data are there still problems? Or is all resolved? Hopefully the latter.  Otherwise, evaluate whether these omissions have a clear explanation from the data or whether you think there is an issue with the process itself.")
 
 if processed_point_count < subsequent_point_count:  
   print("It looks like we have processed an additional {} points; great!".format(subsequent_point_count-processed_point_count))
