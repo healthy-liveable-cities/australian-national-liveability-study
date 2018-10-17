@@ -60,6 +60,8 @@ queryInsert      = '''
   INSERT INTO {} VALUES
   '''.format(log_table)
 
+
+  
 queryUpdate      = '''
   ON CONFLICT ({0}) 
   DO UPDATE SET {1}=EXCLUDED.{1},{2}=EXCLUDED.{2},{3}=EXCLUDED.{3},{4}=EXCLUDED.{4} 
@@ -68,6 +70,11 @@ queryUpdate      = '''
 queryInsertSausage = '''
   INSERT INTO {} VALUES
   '''.format(sausage_buffer_table)  
+  
+sbUpdate      = '''
+  ON CONFLICT ({id}) 
+  DO UPDATE SET hex=EXCLUDED.hex,geom=EXCLUDED.geom 
+  '''.format(id = points_id)    
   
 # Define log file write method
 def writeLog(hex = 0,parcel_count = 0,status = 'NULL',mins = 0, create = log_table):
@@ -108,7 +115,15 @@ engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_
 
 # Create summary table of parcel id and area
 print("Creating summary table of points with no sausage (are they mostly non-urban?)... "),  
-curs.execute("DROP TABLE IF EXISTS no_sausage; CREATE TABLE no_sausage AS SELECT * FROM parcel_dwellings WHERE {0} NOT IN (SELECT {0} FROM {1});".format(points_id,sausage_buffer_table))
+antijoin = '''
+  DROP TABLE IF EXISTS no_sausage;
+  CREATE TABLE no_sausage AS 
+  SELECT * FROM parcel_dwellings a 
+  WHERE NOT EXISTS 
+  (SELECT DISTINCT({id}) FROM {table} b WHERE a.{id} = b.{id});
+  '''.format(id = points_id,
+             table = sausage_buffer_table)
+curs.execute(antijoin)
 conn.commit()    
 print("Done.")                                                                 
                                                                  
@@ -208,11 +223,19 @@ for point in point_id_list:
       place = "insert to postgis "
       with arcpy.da.SearchCursor("tempLayer",['Facilities.Name','Shape@WKT']) as cursor:
         for row in cursor:
+          print(row)
           id =  row[0].encode('utf-8')
           wkt = row[1].encode('utf-8').replace(' NAN','').replace(' M ','')
           curs.execute("SELECT hex_id FROM parcel_dwellings WHERE gnaf_pid = '{}'".format(id))
           hex = curs.fetchall()[0][0]
-          curs.execute(queryInsertSausage + "( '{0}',{1},ST_Buffer(ST_SnapToGrid(ST_GeometryFromText('{2}', {3}),{5}),{4}));".format(id,hex,wkt,srid,line_buffer,snap_to_grid))
+          curs.execute("{insert} ( '{id}',{hex},ST_Buffer(ST_SnapToGrid(ST_GeometryFromText('{wkt}', {srid}),{snap}),{buffer})) {conflict};".format(insert = queryInsertSausage,
+                                                                                                                                                    id = id,
+                                                                                                                                                    hex = hex,
+                                                                                                                                                    wkt = wkt,
+                                                                                                                                                    srid = srid,
+                                                                                                                                                    buffer = line_buffer,
+                                                                                                                                                    snap = snap_to_grid,
+                                                                                                                                                    conflict = sbUpdate))
           place = "after curs.execute insert sausage buffer" 
           conn.commit()
           place = "after conn.commit for insert sausage buffer" 
