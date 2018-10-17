@@ -220,7 +220,6 @@ for point in point_id_list:
           place = "after curs.execute insert sausage buffer" 
           conn.commit()
           place = "after conn.commit for insert sausage buffer" 
-          row_count+=1  
       count += 1   
       success_count+=1
       progressor(count,valid_pointCount,start,"{} / {} points processed, with {} successes and {} failures.".format(count,valid_pointCount,success_count,failure_count))
