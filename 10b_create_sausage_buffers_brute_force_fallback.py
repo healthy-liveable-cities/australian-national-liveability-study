@@ -48,7 +48,7 @@ points   = parcel_dwellings
 
 # Specify number of processors to use
 # e.g. our computers have 8 cores, so to focus on getting one script done 7 cores should be safe
-nWorkers = 7
+nWorkers = 1
 
 # Output databases
 sausage_buffer_table = "sausagebuffer_{}".format(distance)
