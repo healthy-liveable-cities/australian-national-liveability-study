@@ -90,7 +90,16 @@ SELECT * FROM suburb_summary('Holmview');
 SELECT * FROM suburb_summary('Merryvale'); 
 SELECT * FROM suburb_summary('Veresdale Scrub'); 
 SELECT * FROM suburb_summary('Vernor'); 
-    
+  
+
+CREATE INDEX aos_geom_idx ON open_space_areas USING GIST (geom_w_schools);  
+DROP TABLE IF EXISTS old_pos_entry_not_near5m_os;
+CREATE TABLE old_pos_entry_not_near5m_os AS 
+SELECT DISTINCT(p.pos_id), ST_Union(p.geom)
+ FROM pos_50m_vertices p LEFT JOIN open_space_areas o 
+   ON ST_DWithin(p.geom,o.geom_w_schools,5)
+   WHERE aos_id IS NULL
+   GROUP BY p.pos_id;
     
 -- PREVIOUS SKETCH NOTES (prior to 15 October 2018
 
