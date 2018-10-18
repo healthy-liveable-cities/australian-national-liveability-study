@@ -102,9 +102,15 @@ if curs.fetchone()[0] is False:
   
 print("Fetch list of processed parcels, if any... "), 
 # Checks id numbers from sausage buffers against
-curs.execute("SELECT {id} FROM {nh_geom} WHERE {id} NOT IN (SELECT {id} FROM {sc_table});".format(id = points_id.lower(),
-   nh_geom  = sausage_buffer_table,
-   sc_table = street_connectivity_table))
+'''SELECT {id} 
+   FROM {nh_geom} nh 
+   LEFT JOIN {sc_table} sc 
+          ON nh.{id} = sc.{id}
+   WHERE sc.{id} IS NULL;
+'''.format(id = points_id.lower(),
+           nh_geom  = sausage_buffer_table,
+           sc_table = street_connectivity_table)
+curs.execute(antijoin)
 point_id_list = [x[0] for x in  list(curs)]
 print("Done.")
 
