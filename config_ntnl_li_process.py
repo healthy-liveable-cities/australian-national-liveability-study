@@ -234,7 +234,9 @@ network_transform_method = df_parameters.loc['network_transform_method']['value'
 network_in_coor_system   = df_parameters.loc['network_in_coor_system']['value'].encode('utf')
 
 # Intersections with 3plus ways
-intersections = os.path.join(folderPath,'roads/GDA2020_GA_LCC_3plus_way_intersections.gdb/intersections_2018_{}_gccsa10km'.format(locale.lower()))
+clean_intersections_gpkg = df_parameters.loc['clean_intersections_gpkg']['value'].encode('utf')
+clean_intersections_locale = df_studyregion.loc[locale]['clean_intersections_locale'].encode('utf')
+# intersections = os.path.join(folderPath,'roads/GDA2020_GA_LCC_3plus_way_intersections.gdb/intersections_2018_{}_gccsa10km'.format(locale.lower()))
 
 # Derived network data variables - no need to change, assuming the above works
 network_source_feature = '{}'.format(network_source_feature_dataset)

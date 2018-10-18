@@ -110,8 +110,11 @@ UPDATE open_space SET water_geom = geom WHERE water_feature = TRUE;
 '''
 -- Create variable for medial axis as a hint of linearity
 -- https://postgis.net/2015/10/25/postgis_sfcgal_extension/
+-- BUT as per the following link, a work around is needed to make this work reliably
+-- hence conversion and backconversion of geom to ewkt (bizarre!!)
+-- https://github.com/Oslandia/SFCGAL/issues/133
 ALTER TABLE open_space ADD COLUMN medial_axis_length double precision; 
-UPDATE open_space SET medial_axis_length = ST_Length(ST_ApproximateMedialAxis(geom));
+UPDATE open_space SET medial_axis_length = ST_Length(ST_ApproximateMedialAxis(ST_GeomFromEWKT(ST_AsEWKT(geom))));
 ''',
 '''
 -- Take ratio of approximate medial axis length (AMAL) to park area
@@ -176,7 +179,10 @@ UPDATE open_space SET no_school_geom = geom WHERE is_school = FALSE;
 '''
 -- Insert school polygons in open space, restricting to relevant de-identified subset of tags (ie. no school names, contact details, etc)
 INSERT INTO open_space (tags,is_school,geom)
-SELECT  slice(tags, 
+SELECT  studyregion_id,
+        area_ha,
+        school_tags,
+        slice(tags, 
               ARRAY['amenity',
                     'designation'     ,
                     'fee'             ,
@@ -188,7 +194,7 @@ SELECT  slice(tags,
                     'school:specialty']),
         is_school,
         geom
-FROM schools;
+FROM school_polys;
 ''',
 '''
 -- Remove potentially identifying tags from records

@@ -26,10 +26,11 @@ task = "Calculate StreetConnectivity (3 plus leg intersections per  km2)"
 # INPUT PARAMETERS
 
 # output tables
-intersections_table = "intersections_3plus"
+intersections_table = "clean_intersections"
 sausage_buffer_table = "sausagebuffer_{}".format(distance)
 nh_sausagebuffer_summary = "nh{}m".format(distance)
 street_connectivity_table = "sc_nh{}m".format(distance)
+
 
 #  Size of tuple chunk sent to postgresql 
 sqlChunkify = 1000
@@ -69,19 +70,26 @@ conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()
 
 # Check if intersections table exists, and if not import intersections
-curs.execute("select exists(select * from information_schema.tables where table_name=%s)", ('intersections_3plus',))
+curs.execute("select exists(select * from information_schema.tables where table_name=%s)", (intersections_table,))
 if curs.fetchone()[0] is False:
-  print("Copying intersections from gdb to postgis... ")
-  command = ' ogr2ogr -overwrite -progress -f "PostgreSQL" ' \
-         + ' PG:"host={host} port=5432 dbname={db}'.format(host = db_host,db = db) \
-         + ' user={user} password = {pwd}" '.format(user = db_user,pwd = db_pwd) \
-         + ' {gdb} "{feature}" '.format(gdb = os.path.dirname(intersections),feature = os.path.basename(intersections)) \
-         + ' -lco geometry_name="geom"' \
-         + ' -nln "intersections_3plus" '
-  sp.call(command, shell=True)
-  curs.execute(grant_query)
-  conn.commit()
-  print("Done.")
+  print("Copy cleaned intersections from gpkg to postgis..."),
+  command = (
+          ' ogr2ogr -overwrite -progress -f "PostgreSQL" ' 
+          ' PG:"host={host} port=5432 dbname={db}'
+          ' user={user} password = {pwd}" '
+          ' {gpkg} "{feature}" '
+          ' -nln {intersections} '
+          ' -lco geometry_name="geom"'.format(host = db_host,
+                                       db = db,
+                                       user = db_user,
+                                       pwd = db_pwd,
+                                       gpkg = os.path.basename(clean_intersections_gpkg),
+                                       feature = clean_intersections_locale,
+                                       intersections = intersections_table) 
+          )
+  print(command)
+  sp.call(command, shell=True,cwd=os.path.dirname(os.path.join(folderPath,clean_intersections_gpkg)))
+  print("Done (although, if it didn't work you can use the printed command above to do it manually)")
 
 # Now calculate street connectivity (three way intersections w/ in nh1600m/area in  km2)
 curs.execute("select exists(select * from information_schema.tables where table_name=%s)", (street_connectivity_table,))
