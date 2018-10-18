@@ -1,8 +1,9 @@
-CREATE TABLE school_check AS 
-SELECT DISTINCT(a.acara_scho), 
-      a.geom,
-      o.osm_id,
-      min(o.ext_school_dist) FROM all_schools2018 a LEFT JOIN osm_schools o ON a.acara_scho = o.ext_school_id,gccsa_2018_10000m s WHERE ST_Intersects(a.geom,s.geom) GROUP BY a.acara_scho,a.geom,o.osm_id;
+-- Create table for OSM school polygons
+DROP TABLE IF EXISTS osm_schools;
+CREATE TABLE osm_schools AS 
+SELECT * FROM osm_20181001_polygon p 
+WHERE p.amenity IN ('school','college','university') 
+   OR p.landuse IN ('school','college','university');
 
 ALTER TABLE osm_schools ADD COLUMN school_tags jsonb;       
 ALTER TABLE osm_schools ADD COLUMN school_count int;       
@@ -34,11 +35,7 @@ FROM (-- here we aggregate and count the sets of school tags associated with sch
             schools.*, 
             osm.osm_id,
             osm.school_tags
-            FROM (SELECT a.*, o.matched_school FROM all_schools2018 a 
-                  LEFT JOIN 
-                  (SELECT (jsonb_array_elements(school_tags)->>'acara_scho') AS matched_school FROM osm_schools) o 
-                  ON a.acara_scho::text = o.matched_school,gccsa_2018_10000m s 
-                  WHERE ST_Intersects(a.geom,s.geom) AND matched_school IS NULL) schools,
+            FROM all_schools2018 schools,
                   osm_schools osm
       WHERE ST_DWithin(schools.geom, ST_ExteriorRing(osm.geom), 150) OR ST_Intersects(schools.geom, osm.geom)
       ORDER BY acara_scho,ST_Distance(schools.geom, ST_ExteriorRing(osm.geom))) t
@@ -73,7 +70,7 @@ SELECT jsonb_agg(to_jsonb(t) - ) FROM
 -- List of schools tagged thus far
 SELECT (jsonb_array_elements(school_tags)->>'acara_scho') AS schools FROM osm_schools; 
  
-
+-- OLDER NOTES
                   
 -- CREATE TABLE school_test AS    
 -- SELECT DISTINCT ON (acara_scho)
@@ -116,3 +113,11 @@ UPDATE osm_schools o
         WHERE ST_DWithin(s.geom, o.geom, 500) 
         ORDER BY acara_scho, s.osm_id, ST_Distance(s.geom, o.geom)) t
  WHERE o.osm_id = t.osm_id AND o.ext_school_dist IS NULL;
+ 
+ 
+ 
+CREATE TABLE school_check AS 
+SELECT DISTINCT(a.acara_scho), 
+      a.geom,
+      o.osm_id,
+      min(o.ext_school_dist) FROM all_schools2018 a LEFT JOIN osm_schools o ON a.acara_scho = o.ext_school_id,gccsa_2018_10000m s WHERE ST_Intersects(a.geom,s.geom) GROUP BY a.acara_scho,a.geom,o.osm_id;
