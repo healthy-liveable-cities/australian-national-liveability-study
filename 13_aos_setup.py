@@ -34,43 +34,9 @@ task = 'Prepare Areas of Open Space (AOS)'
 conn = psycopg2.connect(dbname=db, user=db_user, password=db_pwd)
 curs = conn.cursor()  
 
-# import buffered study region OSM excerpt to pgsql, 
-# If its decided that this should only be done if not already exists, uncomment below; however, this may cause complications
-# curs.execute("SELECT EXISTS(SELECT * FROM information_schema.tables WHERE table_name=%s)", ('{}_polygon'.format(osm_prefix),))
-# if curs.fetchone()[0] is False:
-print("Copying OSM excerpt to pgsql..."),
-command = 'osm2pgsql -U {user} -l -d {db} {osm} --hstore --style {style} --prefix {prefix}'.format(user = db_user, 
-                                                                               db = db,
-                                                                               osm = osm_source,
-                                                                               style = osm2pgsql_style,
-                                                                               prefix = osm_prefix) 
-sp.call(command, shell=True, cwd=osm2pgsql_exe)                           
-print("Done.")
-
-# Copy the network edges from gdb to postgis
-command = (
-        ' ogr2ogr -overwrite -progress -f "PostgreSQL" ' 
-        ' PG:"host={host} port=5432 dbname={db}'
-        ' user={user} password = {pwd}" '
-        ' {gdb} "{feature}" '
-        ' -lco geometry_name="geom"'.format(host = db_host,
-                                     db = db,
-                                     user = db_user,
-                                     pwd = db_pwd,
-                                     gdb = gdb_path,
-                                     feature = 'edges') 
-        )
-print(command)
-sp.call(command, shell=True)
-
-# connect to the PostgreSQL server and ensure privileges are granted for all public tables
-curs.execute(grant_query)
-conn.commit()
-
 
 # Define tags for which presence of values is suggestive of some kind of open space 
 # These are defined in the ind_study_region_matrix worksheet 'open_space_defs' under the 'possible_os_tags' column.
-possible_os_tags = '\n'.join(['ALTER TABLE {}_polygon ADD COLUMN IF NOT EXISTS "{}" varchar;'.format(osm_prefix,x.encode('utf')) for x in df_aos["possible_os_tags"].dropna().tolist()])
 
 os_landuse = "'{}'".format("','".join([x.encode('utf') for x in df_aos["os_landuse"].dropna().tolist()]))
 os_boundary = "'{}'".format("','".join([x.encode('utf') for x in df_aos["os_boundary"].dropna().tolist()]))
@@ -90,15 +56,6 @@ os_add_as_tags = ',\n'.join(['"{}"'.format(x.encode('utf')) for x in df_aos["os_
 
 
 aos_setup = ['''
--- Add geom column to polygon table, appropriately transformed to project spatial reference system
-ALTER TABLE {osm_prefix}_polygon ADD COLUMN geom geometry; 
-UPDATE {osm_prefix}_polygon SET geom = ST_Transform(way,7845); 
-'''.format(osm_prefix = osm_prefix),
-'''
--- Add other columns which are important if they exists, but not important if they don't
--- --- except that there presence is required for ease of accurate querying.
-{}'''.format(possible_os_tags),
-'''
 -- Create an 'Open Space' table
 DROP TABLE IF EXISTS open_space;
 CREATE TABLE open_space AS 
@@ -206,15 +163,6 @@ WHERE o.linear_feature IS TRUE
   AND st_area(st_intersection(o.geom,alt.geom))/10000.0 > 0.4
   AND o.os_id != alt.os_id;
 ''',
-''' 
--- Create variable for school intersection 
-DROP TABLE IF EXISTS schools;
-CREATE TABLE schools AS 
-SELECT * FROM {osm_prefix}_polygon p 
-WHERE p.amenity IN ('school','college') OR p.landuse IN ('school');
-ALTER TABLE schools ADD COLUMN is_school boolean; 
-UPDATE schools SET is_school = TRUE;
-'''.format(osm_prefix = osm_prefix),
 '''
 -- Set up OS for distinction based on location within a school
 ALTER TABLE open_space ADD COLUMN in_school boolean; 

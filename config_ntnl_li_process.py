@@ -339,6 +339,10 @@ dest_domains = df_destinations.domain.tolist()   # domain is an optional groupin
 dest_cutoffs = df_destinations.cutoff.tolist()   # cut off distance within which to evaluate presence
 dest_counts = df_destinations.counts.tolist()   # cut off distance within which to evaluate counts
 
+school_destinations = df_parameters.loc['school_destinations']['value']
+school_id = df_parameters.loc['school_id']['value']
+school_id_type = df_parameters.loc['school_id_type']['value']
+
 # specify that the above modules and all variables below are imported on 'from config.py import *'
 __all__ = [x for x in dir() if x not in ['__file__','__all__', '__builtins__', '__doc__', '__name__', '__package__']]
  
