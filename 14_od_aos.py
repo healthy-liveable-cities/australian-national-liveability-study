@@ -63,6 +63,7 @@ engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_
                                                                  db   = db))
 curs.execute("SELECT sum(parcel_count) FROM hex_parcels;")
 total_parcels = int(list(curs)[0][0])
+
 # get pid name
 pid = multiprocessing.current_process().name
 # create initial OD cost matrix layer on worker processors
