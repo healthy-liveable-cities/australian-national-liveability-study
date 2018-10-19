@@ -232,32 +232,21 @@ def ODMatrixWorkerFunction(hex):
   # Worker Task is hex-specific by definition/parallel
   #     Skip if hex was finished in previous run
   hexStartTime = time.time()
-  if hex < hexStart:
+  if hex[0] < hexStart:
     return(1)
     
   try:
-    place = 'Select ids using antijoin with results to find todo parcels within hex'
-    # ensure only non-processed parcels are processed (ie. in case script has been previously run)
-    antijoin = '''SELECT {id} FROM parcel_dwellings a 
-      WHERE NOT EXISTS 
-        (SELECT DISTINCT({id}) FROM {table} b WHERE a.{id} = b.{id}) 
-        AND hex_id = {hex};'''.format(id = origin_pointsID,
-                                      table = sqlTableName,
-                                      hex = hex)
-    # print(antijoin)
-    curs.execute(antijoin)
-    place = 'after antijoin'
-    to_do_points = [x[0] for x in list(curs)]
-    # print(to_do_points)
+    to_do_points = hex[1]  
+    A_pointCount = len(to_do_points)
     A_selection = arcpy.SelectLayerByAttribute_management("origin_pointsLayer", 
-                    where_clause = "hex_id = {hex} AND {id} IN ('{id_list}')".format(hex = hex,
+                    where_clause = "hex_id = {hex} AND {id} IN ('{id_list}')".format(hex = hex[0],
                                                                                      id = origin_pointsID,
                                                                                      id_list = "','".join(to_do_points)))   
     # Only procede with the POS scenario if it has not been previously processed
     if len(to_do_points) > 0: 
       A_pointCount = int(arcpy.GetCount_management(A_selection).getOutput(0))    
       place = 'before buffer selection'
-      buffer = arcpy.SelectLayerByAttribute_management("buffer_layer", where_clause = 'ORIG_FID = {}'.format(hex))
+      buffer = arcpy.SelectLayerByAttribute_management("buffer_layer", where_clause = 'ORIG_FID = {}'.format(hex[0]))
       query = 'AOS: in {aos_threshold}m'.format(aos_threshold = aos_threshold)
       arcpy.MakeFeatureLayer_management(aos_points, "aos_pointsLayer")  
       
@@ -299,8 +288,9 @@ def ODMatrixWorkerFunction(hex):
         place = 'After add B locations'
         # Process: Solve
         result = arcpy.Solve_na(outNALayer, terminate_on_solve_error = "CONTINUE")
-        if result[1] == u'false':
-          writeLog(hex,A_pointCount,dest_name,"no solution",(time.time()-hexStartTime)/60)
+        ## Comented the following out, as this may not be strictly true in current script form
+        ## if result[1] == u'false':
+        ##   writeLog(hex[0],A_pointCount,dest_name,"no solution",(time.time()-hexStartTime)/60)
         if result[1] == u'true':
           place = 'After solve'
           # Extract lines layer, export to SQL database
@@ -333,12 +323,12 @@ def ODMatrixWorkerFunction(hex):
             conn.commit()
           
           ### TO DO --- ADD in distance to closest if no results within 3.2km
-          writeLog(hex,A_pointCount,dest_name,"Solved",(time.time()-hexStartTime)/60)
-    curs.execute("SELECT COUNT(DISTINCT({id})) FROM {table}".format(id = origin_pointsID.lower(),
-                                                                    table = sqlTableName))
-    numerator = list(curs)
-    numerator = int(numerator[0][0])
-    progressor(numerator,denominator,start,"{}/{}; last hex processed: {}, at {}".format(numerator,denominator,hex,time.strftime("%Y%m%d-%H%M%S"))) 
+        writeLog(hex[0],A_pointCount,dest_name,"Solved",(time.time()-hexStartTime)/60)
+    curs.execute("UPDATE {progress_table} SET progress = old.progress+{count}".format(progress_table = od_aos_progress,
+                                                                                      count = count))
+    curs.execute("SELECT progress from {progress_table}".format(progress_table = od_aos_progress))
+    progress = int(list(curs)[0][0])
+    progressor(progress,total_parcels,start,"{}/{}; last hex processed: {}, at {}".format(progress,total_parcels,hex[0],time.strftime("%Y%m%d-%H%M%S"))) 
   except:
     print('''Error: {}
              Place: {}
@@ -347,15 +337,6 @@ def ODMatrixWorkerFunction(hex):
   finally:
     arcpy.CheckInExtension('Network')
     conn.close()
-
-
-
-# get list of hexes over which to iterate
-# Note that all hexes within hex parcels have at least one parcel; 
-# so, its redundant to later check whether there are parcels in hex.
-# A priori, we know there are as that's the basis for the table.
-curs.execute("SELECT hex FROM hex_parcels;")
-hex_list = list(curs)    
 
 # MAIN PROCESS
 if __name__ == '__main__':
@@ -375,24 +356,50 @@ if __name__ == '__main__':
   # initiate log file
   writeLog(create='create')  
   
-  # Setup a pool of workers/child processes and split log output 
-  # (now set as parameter in ind_study_region_matrix xlsx file)
-  # nWorkers = 4  
-  pool = multiprocessing.Pool(nWorkers)
-    
   # Task name is now defined
   task = 'Create OD cost matrix for parcel points to closest POS (any size)'  # Do stuff
   print("Commencing task ({}):\n{} at {}".format(db,task,time.strftime("%Y%m%d-%H%M%S")))
-
   # Divide work by hexes
-  # Note: if a restricted list of hexes are wished to be processed, just supply a subset of hex_list including only the relevant hex id numbers.
-  iteration_list = np.asarray([x[0] for x in hex_list])
-  pool.map(ODMatrixWorkerFunction, iteration_list, chunksize=1)
+  antijoin = '''
+    SELECT p.hex_id, 
+           jsonb_agg(jsonb_strip_nulls(to_jsonb(p.{id}))) AS incomplete
+    FROM parcel_dwellings p
+    WHERE NOT EXISTS 
+    (SELECT 1 FROM od_aos s WHERE s.{id} = p.{id})
+    GROUP BY p.hex_id;
+  '''.format(id = points_id.lower())
+  print("List unprocessed parcels for each hex (query: {} )".format(antijoin)),
+  incompletions = pandas.read_sql_query(antijoin,
+                                    con=engine)
+  print("Done.")
+
+  # Calculated the sum total of parcels that need to be processed, and determine the number already processed
+  to_process = incompletions["incomplete"].str.len().sum()
+  processed = total_parcels - to_process
+  od_aos_progress_table = '''
+    DROP TABLE IF EXISTS od_aos_progress;
+    CREATE TABLE IF NOT EXISTS od_aos_progress 
+       (processed int);
+    INSERT INTO od_aos_progress (processed) VALUES {}
+    '''.format(processed)
+  print("Create a table for tracking progress (query: {})".format(od_aos_progress_table)), 
+  curs.execute(od_aos_progress_table)
+  print("Done.")
+
+  to_do_list = incompletions.apply(tuple, axis=1).tolist()
+  to_do_list = [[int(x[0]),[p.encode('utf8') for p in x[1]]] for x in to_do_list]
+  # iteration_list = np.asarray(to_do_list)
+  # Setup a pool of workers/child processes and split log output
+  # (now set as parameter in ind_study_region_matrix xlsx file)
+  # nWorkers = 4
+  print("Commence multiprocessing...")  
+  pool = multiprocessing.Pool(nWorkers)
+  pool.map(ODMatrixWorkerFunction, to_do_list, chunksize=1)
   	
-  ## Perhaps add columns for hard and soft thresholds based on 400m at this point?
-  #  then, join linkage  
+  print("Aggregate for each parcel address their list of open spaces..."),
   curs.execute(aos_linkage)
   conn.commit()
+  print("Done.")
   
   # output to completion log    
   script_running_log(script, task, start, locale)
