@@ -337,6 +337,7 @@ def ODMatrixWorkerFunction(hex):
         writeLog(hex[0],A_pointCount,dest_name,"Solved",(time.time()-hexStartTime)/60)
     curs.execute("UPDATE {progress_table} SET processed = processed+{count}".format(progress_table = progress_table,
                                                                                       count = A_pointCount))
+    conn.commit()
     curs.execute("SELECT processed from {progress_table}".format(progress_table = progress_table))
     progress = int(list(curs)[0][0])
     progressor(progress,total_parcels,start,"{}/{}; last hex processed: {}, at {}".format(progress,total_parcels,hex[0],time.strftime("%Y%m%d-%H%M%S"))) 
