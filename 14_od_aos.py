@@ -63,6 +63,7 @@ engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_
                                                                  db   = db))
 curs.execute("SELECT sum(parcel_count) FROM hex_parcels;")
 total_parcels = int(list(curs)[0][0])
+progress_table = 'od_aos_progress'
 
 # get pid name
 pid = multiprocessing.current_process().name
@@ -245,6 +246,7 @@ def ODMatrixWorkerFunction(hex):
     return(1)
     
   try:
+    count = 0
     to_do_points = hex[1]  
     A_pointCount = len(to_do_points)
     A_selection = arcpy.SelectLayerByAttribute_management("origin_pointsLayer", 
@@ -305,7 +307,7 @@ def ODMatrixWorkerFunction(hex):
           # Extract lines layer, export to SQL database
           outputLines = arcpy.da.SearchCursor(ODLinesSubLayer, fields)
           curs = conn.cursor()
-          count = 0
+
           chunkedLines = list()
           place = 'before outputLine loop'
           for outputLine in outputLines :
@@ -333,9 +335,9 @@ def ODMatrixWorkerFunction(hex):
           
           ### TO DO --- ADD in distance to closest if no results within 3.2km
         writeLog(hex[0],A_pointCount,dest_name,"Solved",(time.time()-hexStartTime)/60)
-    curs.execute("UPDATE {progress_table} SET progress = old.progress+{count}".format(progress_table = od_aos_progress,
-                                                                                      count = count))
-    curs.execute("SELECT progress from {progress_table}".format(progress_table = od_aos_progress))
+    curs.execute("UPDATE {progress_table} SET processed = processed+{count}".format(progress_table = progress_table,
+                                                                                      count = A_pointCount))
+    curs.execute("SELECT processed from {progress_table}".format(progress_table = progress_table))
     progress = int(list(curs)[0][0])
     progressor(progress,total_parcels,start,"{}/{}; last hex processed: {}, at {}".format(progress,total_parcels,hex[0],time.strftime("%Y%m%d-%H%M%S"))) 
   except:
@@ -377,7 +379,7 @@ if __name__ == '__main__':
     (SELECT 1 FROM od_aos s WHERE s.{id} = p.{id})
     GROUP BY p.hex_id;
   '''.format(id = points_id.lower())
-  print("List unprocessed parcels for each hex (query: {} )".format(antijoin)),
+  print("List unprocessed parcels for each hex... "),
   incompletions = pandas.read_sql_query(antijoin,
                                     con=engine)
   print("Done.")
@@ -389,10 +391,12 @@ if __name__ == '__main__':
     DROP TABLE IF EXISTS od_aos_progress;
     CREATE TABLE IF NOT EXISTS od_aos_progress 
        (processed int);
-    INSERT INTO od_aos_progress (processed) VALUES {}
-    '''.format(processed)
-  print("Create a table for tracking progress (query: {})".format(od_aos_progress_table)), 
+    '''
+  print("Create a table for tracking progress... "), 
   curs.execute(od_aos_progress_table)
+  conn.commit()
+  curs.execute('''INSERT INTO od_aos_progress (processed) VALUES ({})'''.format(processed))
+  conn.commit()
   print("Done.")
 
   to_do_list = incompletions.apply(tuple, axis=1).tolist()
