@@ -170,7 +170,7 @@ WHERE o.linear_feature IS TRUE
 -- Set up OS for distinction based on location within a school
 ALTER TABLE open_space ADD COLUMN in_school boolean; 
 UPDATE open_space SET in_school = FALSE;
-UPDATE open_space SET in_school = TRUE FROM schools WHERE ST_CoveredBy(open_space.geom,schools.geom);
+UPDATE open_space SET in_school = TRUE FROM school_polys WHERE ST_CoveredBy(open_space.geom,school_polys.geom);
 ALTER TABLE open_space ADD COLUMN is_school boolean; 
 UPDATE open_space SET is_school = FALSE;
 ALTER TABLE open_space ADD COLUMN no_school_geom geometry; 
@@ -178,9 +178,9 @@ UPDATE open_space SET no_school_geom = geom WHERE is_school = FALSE;
 ''',
 '''
 -- Insert school polygons in open space, restricting to relevant de-identified subset of tags (ie. no school names, contact details, etc)
-INSERT INTO open_space (tags,is_school,geom)
-SELECT  studyregion_id,
-        area_ha,
+ALTER TABLE open_space ADD COLUMN school_tags jsonb; 
+INSERT INTO open_space (area_ha,school_tags,tags,is_school,geom)
+SELECT  area_ha,
         school_tags,
         slice(tags, 
               ARRAY['amenity',
@@ -303,20 +303,14 @@ ALTER TABLE aos_nodes ADD COLUMN aos_entryid varchar;
 UPDATE aos_nodes SET aos_entryid = aos_id::text || ',' || node::text; 
 ''',
 '''
--- Preparation of reference line feature to act like roads
-ALTER TABLE {osm_prefix}_line ADD COLUMN geom geometry; 
-UPDATE {osm_prefix}_line SET geom = ST_Transform(way,7845); 
-'''.format(osm_prefix = osm_prefix),
-'''
 -- Create table of points within 20m of lines (should be your road network) 
 -- Distinct is used to avoid redundant duplication of points where they are within 20m of multiple roads 
 DROP TABLE IF EXISTS aos_nodes_20m_line;
 CREATE TABLE aos_nodes_20m_line AS 
 SELECT DISTINCT n.* 
 FROM aos_nodes n, 
-     {osm_prefix}_line l
-WHERE ST_DWithin(n.geom_w_schools ,l.geom,20)
-AND l.highway IS NOT NULL;
+     edges l
+WHERE ST_DWithin(n.geom_w_schools ,l.geom,20);
 '''.format(osm_prefix = osm_prefix),
 '''
 -- Create table of points within 30m of lines (should be your road network) 
@@ -325,9 +319,8 @@ DROP TABLE IF EXISTS aos_nodes_30m_line;
 CREATE TABLE aos_nodes_30m_line AS 
 SELECT DISTINCT n.* 
 FROM aos_nodes n, 
-     {osm_prefix}_line l
-WHERE ST_DWithin(n.geom_w_schools ,l.geom,30)
-AND l.highway IS NOT NULL;
+     edges l
+WHERE ST_DWithin(n.geom_w_schools ,l.geom,30);
 '''.format(osm_prefix = osm_prefix),
 '''
 -- Create table of points within 50m of lines (should be your road network) 
@@ -336,9 +329,8 @@ DROP TABLE IF EXISTS aos_nodes_50m_line;
 CREATE TABLE aos_nodes_50m_line AS 
 SELECT DISTINCT n.* 
 FROM aos_nodes n, 
-     {osm_prefix}_line l
-WHERE ST_DWithin(n.geom_w_schools ,l.geom,50)
-AND l.highway IS NOT NULL;
+     edges l
+WHERE ST_DWithin(n.geom_w_schools ,l.geom,50);
 '''.format(osm_prefix = osm_prefix)
 ]
 

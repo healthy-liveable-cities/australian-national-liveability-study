@@ -9,6 +9,7 @@ import time
 import multiprocessing
 import sys
 import psycopg2 
+from sqlalchemy import create_engine
 import numpy as np
 from progressor import progressor
 
@@ -55,6 +56,13 @@ sqlChunkify = 500
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()
 
+# get list of hexes over which to iterate
+engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_user,
+                                                                 pwd  = db_pwd,
+                                                                 host = db_host,
+                                                                 db   = db))
+curs.execute("SELECT sum(parcel_count) FROM hex_parcels;")
+total_parcels = int(list(curs)[0][0])
 # get pid name
 pid = multiprocessing.current_process().name
 # create initial OD cost matrix layer on worker processors
