@@ -372,6 +372,8 @@ if __name__ == '__main__':
   print("Commencing task ({}):\n{} at {}".format(db,task,time.strftime("%Y%m%d-%H%M%S")))
   # Divide work by hexes
   antijoin = '''
+    DROP TABLE IF EXISTS od_aos_hex_todo;
+    CREATE TABLE od_aos_hex_todo AS
     SELECT p.hex_id, 
            jsonb_agg(jsonb_strip_nulls(to_jsonb(p.{id}))) AS incomplete
     FROM parcel_dwellings p

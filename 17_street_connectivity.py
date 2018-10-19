@@ -102,11 +102,12 @@ if curs.fetchone()[0] is False:
   
 print("Fetch list of processed parcels, if any... "), 
 # Checks id numbers from sausage buffers against
-'''SELECT {id} 
+antijoin = '''
+   SELECT {id} 
    FROM {nh_geom} nh 
-   LEFT JOIN {sc_table} sc 
-          ON nh.{id} = sc.{id}
-   WHERE sc.{id} IS NULL;
+   WHERE NOT EXISTS
+   (SELECT 1 FROM {sc_table} sc 
+    WHERE sc.{id} = nh.{id});
 '''.format(id = points_id.lower(),
            nh_geom  = sausage_buffer_table,
            sc_table = street_connectivity_table)
