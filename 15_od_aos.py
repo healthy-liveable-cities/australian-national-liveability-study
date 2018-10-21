@@ -101,18 +101,8 @@ createTable     = '''
   CREATE TABLE IF NOT EXISTS {table}
   (
   {id} varchar, 
-  aos_id INT, 
-  node INT, 
-  query varchar,
-  distance INT,
-  numgeom INT,
-  aos_ha numeric,
-  aos_ha_total numeric,
-  aos_ha_water numeric,
-  water_percent numeric, 
-  school_os_percent numeric,
   attributes jsonb,  
-  PRIMARY KEY ({id},aos_id) 
+  PRIMARY KEY ({id}) 
   );
    '''.format(table = sqlTableName, id = origin_pointsID.lower())
 ## LATER index on gnaf_id, query
@@ -120,20 +110,18 @@ createTable     = '''
 recInsert      = '''
   WITH 
   pre AS 
-  (SELECT DISTINCT ON (gnaf_pid, aos_id) gnaf_pid, aos_id, node, query, min(distance) AS distance
+  (SELECT DISTINCT ON (gnaf_pid, aos_id) gnaf_pid, aos_id, min(distance) AS distance
    FROM  
    (VALUES 
   '''.format(id = origin_pointsID.lower())          
  
 threshold = 400 
 recUpdate      = '''
-  ) v({id}, aos_id, node, query, distance) 
-       GROUP BY {id},aos_id,node,query)
-  INSERT INTO {table} ({id}, aos_id, node, query, distance, numgeom, aos_ha, aos_ha_total, aos_ha_water, water_percent, school_os_percent, attributes) 
-     SELECT pre.{id}, 
-            pre.aos_id, 
-            pre.node,
-            query,            
+  ) v({id}, aos_id, distance) 
+       GROUP BY {id},aos_id),
+  post AS
+     (SELECT pre.{id}, 
+            pre.aos_id,           
             distance,
             numgeom,
             aos_ha,
@@ -143,12 +131,25 @@ recUpdate      = '''
             school_os_percent,
             attributes
      FROM pre 
-     LEFT JOIN open_space_areas a ON pre.aos_id = a.aos_id
-      ON CONFLICT ({id},aos_id) 
-         DO UPDATE 
-            SET node = EXCLUDED.node, 
-                distance = EXCLUDED.distance 
-             WHERE {table}.distance > EXCLUDED.distance;
+     LEFT JOIN open_space_areas a ON pre.aos_id = a.aos_id)
+  INSERT INTO {table} ({id}, attributes) 
+  SELECT {id}, 
+         jsonb_agg(jsonb_strip_nulls(to_jsonb( 
+             (SELECT d FROM 
+                 (SELECT 
+                    distance,
+                    aos_id  ,
+                    numgeom   ,
+                    aos_ha    ,
+                    aos_ha_total ,
+                    aos_ha_water, 
+                    water_percent,
+                    school_os_percent,
+                    attributes
+                    ) d)))) AS attributes 
+  FROM post 
+  GROUP BY {id} 
+  ON CONFLICT ({id}) DO NOTHING;
   '''.format(id = origin_pointsID.lower(),
              table = sqlTableName,     
              threshold = threshold,
@@ -177,29 +178,6 @@ queryUpdate      = '''
   ON CONFLICT ({0},{4}) 
   DO UPDATE SET {1}=EXCLUDED.{1},{2}=EXCLUDED.{2},{3}=EXCLUDED.{3}
   '''.format('hex','parcel_count','status','mins','dest_name')  
-  
-  
-aos_linkage = '''
-  -- Associate origin IDs with list of parks 
-  DROP TABLE IF EXISTS od_aos_full; 
-  CREATE TABLE od_aos_full AS 
-  SELECT {id}, 
-         jsonb_agg(jsonb_strip_nulls(to_jsonb( 
-             (SELECT d FROM 
-                 (SELECT 
-                    distance,
-                    aos_id  ,
-                    attributes,
-                    numgeom   ,
-                    aos_ha    ,
-                    aos_ha_total ,
-                    aos_ha_water, 
-                    water_percent,
-                    school_os_percent
-                    ) d)))) AS attributes 
-  FROM od_aos 
-  GROUP BY {id};   
-  '''.format(id = origin_pointsID)
   
   
 parcel_count = int(arcpy.GetCount_management(origin_points).getOutput(0))  
@@ -316,22 +294,13 @@ def ODMatrixWorkerFunction(hex):
             pid = od_pair[0].encode('utf-8').strip(' ')
             aos_pair = od_pair[1].split(',')
             aos = int(aos_pair[0])
-            node = int(aos_pair[1])
             distance = int(round(outputLine[1]))
             place = "before chunk append"
-            chunkedLines.append("('{pid}',{aos},{node},$${query}$$,{distance})".format(pid = pid,
-                                                                                     aos = aos,
-                                                                                     node = node,
-                                                                                     query     = query,
-                                                                                     distance  = distance,
-                                                                                         ))
-            if(count % sqlChunkify == 0):
-              curs.execute(recInsert + ','.join(rowOfChunk for rowOfChunk in chunkedLines)+recUpdate)
-              conn.commit()
-              chunkedLines = list()
-          if(count % sqlChunkify != 0):
-            curs.execute(recInsert + ','.join(rowOfChunk for rowOfChunk in chunkedLines)+recUpdate)
-            conn.commit()
+            chunkedLines.append("('{pid}',{aos},{distance})".format(pid = pid,
+                                                                     aos = aos,
+                                                                     distance  = distance))
+          curs.execute(recInsert + ','.join(rowOfChunk for rowOfChunk in chunkedLines)+recUpdate)
+          conn.commit()
           
           ### TO DO --- ADD in distance to closest if no results within 3.2km
         writeLog(hex[0],A_pointCount,dest_name,"Solved",(time.time()-hexStartTime)/60)
@@ -410,11 +379,6 @@ if __name__ == '__main__':
   print("Commence multiprocessing...")  
   pool = multiprocessing.Pool(nWorkers)
   pool.map(ODMatrixWorkerFunction, to_do_list, chunksize=1)
-  	
-  print("Aggregate for each parcel address their list of open spaces..."),
-  curs.execute(aos_linkage)
-  conn.commit()
-  print("Done.")
   
   # output to completion log    
   script_running_log(script, task, start, locale)
