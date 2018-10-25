@@ -9,6 +9,7 @@ import time
 import multiprocessing
 import sys
 import psycopg2 
+from sqlalchemy import create_engine
 import numpy as np
 from progressor import progressor
 
@@ -55,6 +56,15 @@ sqlChunkify = 500
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()
 
+# get list of hexes over which to iterate
+engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_user,
+                                                                 pwd  = db_pwd,
+                                                                 host = db_host,
+                                                                 db   = db))
+curs.execute("SELECT sum(parcel_count) FROM hex_parcels;")
+total_parcels = int(list(curs)[0][0])
+progress_table = 'od_aos_progress'
+
 # get pid name
 pid = multiprocessing.current_process().name
 # create initial OD cost matrix layer on worker processors
@@ -91,18 +101,8 @@ createTable     = '''
   CREATE TABLE IF NOT EXISTS {table}
   (
   {id} varchar, 
-  aos_id INT, 
-  node INT, 
-  query varchar,
-  distance INT,
-  numgeom INT,
-  aos_ha numeric,
-  aos_ha_total numeric,
-  aos_ha_water numeric,
-  water_percent numeric, 
-  school_os_percent numeric,
   attributes jsonb,  
-  PRIMARY KEY ({id},aos_id) 
+  PRIMARY KEY ({id}) 
   );
    '''.format(table = sqlTableName, id = origin_pointsID.lower())
 ## LATER index on gnaf_id, query
@@ -110,20 +110,18 @@ createTable     = '''
 recInsert      = '''
   WITH 
   pre AS 
-  (SELECT DISTINCT ON (gnaf_pid, aos_id) gnaf_pid, aos_id, node, query, min(distance) AS distance
+  (SELECT DISTINCT ON (gnaf_pid, aos_id) gnaf_pid, aos_id, min(distance) AS distance
    FROM  
    (VALUES 
   '''.format(id = origin_pointsID.lower())          
  
 threshold = 400 
 recUpdate      = '''
-  ) v({id}, aos_id, node, query, distance) 
-       GROUP BY {id},aos_id,node,query)
-  INSERT INTO {table} ({id}, aos_id, node, query, distance, numgeom, aos_ha, aos_ha_total, aos_ha_water, water_percent, school_os_percent, attributes) 
-     SELECT pre.{id}, 
-            pre.aos_id, 
-            pre.node,
-            query,            
+  ) v({id}, aos_id, distance) 
+       GROUP BY {id},aos_id),
+  post AS
+     (SELECT pre.{id}, 
+            pre.aos_id,           
             distance,
             numgeom,
             aos_ha,
@@ -133,12 +131,25 @@ recUpdate      = '''
             school_os_percent,
             attributes
      FROM pre 
-     LEFT JOIN open_space_areas a ON pre.aos_id = a.aos_id
-      ON CONFLICT ({id},aos_id) 
-         DO UPDATE 
-            SET node = EXCLUDED.node, 
-                distance = EXCLUDED.distance 
-             WHERE {table}.distance > EXCLUDED.distance;
+     LEFT JOIN open_space_areas a ON pre.aos_id = a.aos_id)
+  INSERT INTO {table} ({id}, attributes) 
+  SELECT {id}, 
+         jsonb_agg(jsonb_strip_nulls(to_jsonb( 
+             (SELECT d FROM 
+                 (SELECT 
+                    distance,
+                    aos_id  ,
+                    numgeom   ,
+                    aos_ha    ,
+                    aos_ha_total ,
+                    aos_ha_water, 
+                    water_percent,
+                    school_os_percent,
+                    attributes
+                    ) d)))) AS attributes 
+  FROM post 
+  GROUP BY {id} 
+  ON CONFLICT ({id}) DO NOTHING;
   '''.format(id = origin_pointsID.lower(),
              table = sqlTableName,     
              threshold = threshold,
@@ -167,29 +178,6 @@ queryUpdate      = '''
   ON CONFLICT ({0},{4}) 
   DO UPDATE SET {1}=EXCLUDED.{1},{2}=EXCLUDED.{2},{3}=EXCLUDED.{3}
   '''.format('hex','parcel_count','status','mins','dest_name')  
-  
-  
-aos_linkage = '''
-  -- Associate origin IDs with list of parks 
-  DROP TABLE IF EXISTS od_aos_full; 
-  CREATE TABLE od_aos_full AS 
-  SELECT {id}, 
-         jsonb_agg(jsonb_strip_nulls(to_jsonb( 
-             (SELECT d FROM 
-                 (SELECT 
-                    distance,
-                    aos_id  ,
-                    attributes,
-                    numgeom   ,
-                    aos_ha    ,
-                    aos_ha_total ,
-                    aos_ha_water, 
-                    water_percent,
-                    school_os_percent
-                    ) d)))) AS attributes 
-  FROM od_aos 
-  GROUP BY {id};   
-  '''.format(id = origin_pointsID)
   
   
 parcel_count = int(arcpy.GetCount_management(origin_points).getOutput(0))  
@@ -232,32 +220,22 @@ def ODMatrixWorkerFunction(hex):
   # Worker Task is hex-specific by definition/parallel
   #     Skip if hex was finished in previous run
   hexStartTime = time.time()
-  if hex < hexStart:
+  if hex[0] < hexStart:
     return(1)
     
   try:
-    place = 'Select ids using antijoin with results to find todo parcels within hex'
-    # ensure only non-processed parcels are processed (ie. in case script has been previously run)
-    antijoin = '''SELECT {id} FROM parcel_dwellings a 
-      WHERE NOT EXISTS 
-        (SELECT DISTINCT({id}) FROM {table} b WHERE a.{id} = b.{id}) 
-        AND hex_id = {hex};'''.format(id = origin_pointsID,
-                                      table = sqlTableName,
-                                      hex = hex)
-    # print(antijoin)
-    curs.execute(antijoin)
-    place = 'after antijoin'
-    to_do_points = [x[0] for x in list(curs)]
-    # print(to_do_points)
+    count = 0
+    to_do_points = hex[1]  
+    A_pointCount = len(to_do_points)
     A_selection = arcpy.SelectLayerByAttribute_management("origin_pointsLayer", 
-                    where_clause = "hex_id = {hex} AND {id} IN ('{id_list}')".format(hex = hex,
+                    where_clause = "hex_id = {hex} AND {id} IN ('{id_list}')".format(hex = hex[0],
                                                                                      id = origin_pointsID,
                                                                                      id_list = "','".join(to_do_points)))   
     # Only procede with the POS scenario if it has not been previously processed
     if len(to_do_points) > 0: 
       A_pointCount = int(arcpy.GetCount_management(A_selection).getOutput(0))    
       place = 'before buffer selection'
-      buffer = arcpy.SelectLayerByAttribute_management("buffer_layer", where_clause = 'ORIG_FID = {}'.format(hex))
+      buffer = arcpy.SelectLayerByAttribute_management("buffer_layer", where_clause = 'ORIG_FID = {}'.format(hex[0]))
       query = 'AOS: in {aos_threshold}m'.format(aos_threshold = aos_threshold)
       arcpy.MakeFeatureLayer_management(aos_points, "aos_pointsLayer")  
       
@@ -299,14 +277,15 @@ def ODMatrixWorkerFunction(hex):
         place = 'After add B locations'
         # Process: Solve
         result = arcpy.Solve_na(outNALayer, terminate_on_solve_error = "CONTINUE")
-        if result[1] == u'false':
-          writeLog(hex,A_pointCount,dest_name,"no solution",(time.time()-hexStartTime)/60)
+        ## Comented the following out, as this may not be strictly true in current script form
+        ## if result[1] == u'false':
+        ##   writeLog(hex[0],A_pointCount,dest_name,"no solution",(time.time()-hexStartTime)/60)
         if result[1] == u'true':
           place = 'After solve'
           # Extract lines layer, export to SQL database
           outputLines = arcpy.da.SearchCursor(ODLinesSubLayer, fields)
           curs = conn.cursor()
-          count = 0
+
           chunkedLines = list()
           place = 'before outputLine loop'
           for outputLine in outputLines :
@@ -315,30 +294,22 @@ def ODMatrixWorkerFunction(hex):
             pid = od_pair[0].encode('utf-8').strip(' ')
             aos_pair = od_pair[1].split(',')
             aos = int(aos_pair[0])
-            node = int(aos_pair[1])
             distance = int(round(outputLine[1]))
             place = "before chunk append"
-            chunkedLines.append("('{pid}',{aos},{node},$${query}$$,{distance})".format(pid = pid,
-                                                                                     aos = aos,
-                                                                                     node = node,
-                                                                                     query     = query,
-                                                                                     distance  = distance,
-                                                                                         ))
-            if(count % sqlChunkify == 0):
-              curs.execute(recInsert + ','.join(rowOfChunk for rowOfChunk in chunkedLines)+recUpdate)
-              conn.commit()
-              chunkedLines = list()
-          if(count % sqlChunkify != 0):
-            curs.execute(recInsert + ','.join(rowOfChunk for rowOfChunk in chunkedLines)+recUpdate)
-            conn.commit()
+            chunkedLines.append("('{pid}',{aos},{distance})".format(pid = pid,
+                                                                     aos = aos,
+                                                                     distance  = distance))
+          curs.execute(recInsert + ','.join(rowOfChunk for rowOfChunk in chunkedLines)+recUpdate)
+          conn.commit()
           
           ### TO DO --- ADD in distance to closest if no results within 3.2km
-          writeLog(hex,A_pointCount,dest_name,"Solved",(time.time()-hexStartTime)/60)
-    curs.execute("SELECT COUNT(DISTINCT({id})) FROM {table}".format(id = origin_pointsID.lower(),
-                                                                    table = sqlTableName))
-    numerator = list(curs)
-    numerator = int(numerator[0][0])
-    progressor(numerator,denominator,start,"{}/{}; last hex processed: {}, at {}".format(numerator,denominator,hex,time.strftime("%Y%m%d-%H%M%S"))) 
+        writeLog(hex[0],A_pointCount,dest_name,"Solved",(time.time()-hexStartTime)/60)
+    curs.execute("UPDATE {progress_table} SET processed = processed+{count}".format(progress_table = progress_table,
+                                                                                      count = A_pointCount))
+    conn.commit()
+    curs.execute("SELECT processed from {progress_table}".format(progress_table = progress_table))
+    progress = int(list(curs)[0][0])
+    progressor(progress,total_parcels,start,"{}/{}; last hex processed: {}, at {}".format(progress,total_parcels,hex[0],time.strftime("%Y%m%d-%H%M%S"))) 
   except:
     print('''Error: {}
              Place: {}
@@ -347,15 +318,6 @@ def ODMatrixWorkerFunction(hex):
   finally:
     arcpy.CheckInExtension('Network')
     conn.close()
-
-
-
-# get list of hexes over which to iterate
-# Note that all hexes within hex parcels have at least one parcel; 
-# so, its redundant to later check whether there are parcels in hex.
-# A priori, we know there are as that's the basis for the table.
-curs.execute("SELECT hex FROM hex_parcels;")
-hex_list = list(curs)    
 
 # MAIN PROCESS
 if __name__ == '__main__':
@@ -375,24 +337,48 @@ if __name__ == '__main__':
   # initiate log file
   writeLog(create='create')  
   
-  # Setup a pool of workers/child processes and split log output 
-  # (now set as parameter in ind_study_region_matrix xlsx file)
-  # nWorkers = 4  
-  pool = multiprocessing.Pool(nWorkers)
-    
   # Task name is now defined
   task = 'Create OD cost matrix for parcel points to closest POS (any size)'  # Do stuff
   print("Commencing task ({}):\n{} at {}".format(db,task,time.strftime("%Y%m%d-%H%M%S")))
-
   # Divide work by hexes
-  # Note: if a restricted list of hexes are wished to be processed, just supply a subset of hex_list including only the relevant hex id numbers.
-  iteration_list = np.asarray([x[0] for x in hex_list])
-  pool.map(ODMatrixWorkerFunction, iteration_list, chunksize=1)
-  	
-  ## Perhaps add columns for hard and soft thresholds based on 400m at this point?
-  #  then, join linkage  
-  curs.execute(aos_linkage)
+  antijoin = '''
+    SELECT p.hex_id, 
+           jsonb_agg(jsonb_strip_nulls(to_jsonb(p.{id}))) AS incomplete
+    FROM parcel_dwellings p
+    WHERE NOT EXISTS 
+    (SELECT 1 FROM od_aos s WHERE s.{id} = p.{id})
+    GROUP BY p.hex_id;
+  '''.format(id = points_id.lower())
+  print("List unprocessed parcels for each hex... "),
+
+  incompletions = pandas.read_sql_query(antijoin,
+                                    con=engine)
+  print("Done.")
+
+  # Calculated the sum total of parcels that need to be processed, and determine the number already processed
+  to_process = incompletions["incomplete"].str.len().sum()
+  processed = total_parcels - to_process
+  od_aos_progress_table = '''
+    DROP TABLE IF EXISTS od_aos_progress;
+    CREATE TABLE IF NOT EXISTS od_aos_progress 
+       (processed int);
+    '''
+  print("Create a table for tracking progress... "), 
+  curs.execute(od_aos_progress_table)
   conn.commit()
+  curs.execute('''INSERT INTO od_aos_progress (processed) VALUES ({})'''.format(processed))
+  conn.commit()
+  print("Done.")
+
+  to_do_list = incompletions.apply(tuple, axis=1).tolist()
+  to_do_list = [[int(x[0]),[p.encode('utf8') for p in x[1]]] for x in to_do_list]
+  # iteration_list = np.asarray(to_do_list)
+  # Setup a pool of workers/child processes and split log output
+  # (now set as parameter in ind_study_region_matrix xlsx file)
+  # nWorkers = 4
+  print("Commence multiprocessing...")  
+  pool = multiprocessing.Pool(nWorkers)
+  pool.map(ODMatrixWorkerFunction, to_do_list, chunksize=1)
   
   # output to completion log    
   script_running_log(script, task, start, locale)

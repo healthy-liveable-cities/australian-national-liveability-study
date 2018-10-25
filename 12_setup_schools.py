@@ -55,42 +55,98 @@ print("Done (although, if it didn't work you can use the printed command above t
 
 aos_setup = [''' 
 -- Create table for OSM school polygons
-DROP TABLE IF EXISTS osm_schools;
-CREATE TABLE osm_schools AS 
+DROP TABLE IF EXISTS school_polys;
+CREATE TABLE school_polys AS 
 SELECT * FROM {osm_prefix}_polygon p 
-WHERE p.amenity IN ('school','college') OR p.landuse IN ('school');
+WHERE p.amenity IN ('school','college','university') 
+   OR p.landuse IN ('school','college','university');
 '''.format(osm_prefix = osm_prefix),
 '''
-ALTER TABLE osm_schools ADD COLUMN area_ha double precision; 
-UPDATE osm_schools SET area_ha = ST_Area(geom)/10000.0;
-ALTER TABLE osm_schools ADD COLUMN is_school boolean; 
-UPDATE osm_schools SET is_school = TRUE;
+ALTER TABLE school_polys ADD COLUMN school_tags jsonb;       
+ALTER TABLE school_polys ADD COLUMN school_count int;       
+UPDATE school_polys o SET school_count = 0;
 ''',
 '''
-ALTER TABLE osm_schools ADD COLUMN ext_school_id int; 
-ALTER TABLE osm_schools ADD COLUMN ext_school_dist int; 
-''',
-'''
-UPDATE osm_schools o 
-   SET ext_school_id = {school_id}::int, ext_school_dist = 0
-  FROM {ext_schools} s
- WHERE ST_Intersects(s.geom, o.geom);
+UPDATE school_polys t1 
+   SET school_tags = jsonb(t2.school_tags), school_count = t1.school_count + t2.school_count
+FROM (-- here we aggregate and count the sets of school tags associated with school polygons
+      -- by virtue of those being for their associated schools their closest match within 100m.
+      -- School points more than 100m from a polygon will remain unmatched.
+      -- The basis for an allowed distance of 100m is that some points may be located at the driveway
+      -- from which a school is accessed --- for some schools, this may be several hundred metres 
+      -- from a road.
+      -- We haven't restricted it to polygons with null as it may be that 
+      -- previously associated polgon-school groupings (by virtue of intersection, 0 distance)
+      -- may have a further school point coincidentally (mis?)geocoded outside the bounds of the 
+      -- OSM school polygon.  If there is no better matchin school polygon, it may be best to assume 
+      -- that the point should best be associated with the other schools.
+      SELECT osm_id,
+             count(*) AS school_count,
+             jsonb_agg(to_jsonb(t) - 'osm_id'::text  - 'matched_school'::text  - 'school_tags'::text)  AS school_tags
+      FROM (SELECT DISTINCT ON ({school_id})
+            CASE 
+              WHEN ST_Intersects(schools.geom, osm.geom) THEN 0
+              ELSE ST_Distance(schools.geom, ST_ExteriorRing(osm.geom))::int  
+            END AS dist,
+            schools.*, 
+            osm.osm_id,
+            osm.school_tags
+            FROM (SELECT a.*, o.matched_school FROM {ext_schools} a 
+                  LEFT JOIN 
+                  (SELECT (jsonb_array_elements(school_tags)->>'{school_id}') AS matched_school FROM school_polys) o 
+                  ON a.{school_id}::text = o.matched_school,{studyregion} s 
+                  WHERE ST_Intersects(a.geom,s.geom) AND matched_school IS NULL) schools,
+                  school_polys osm
+      WHERE ST_DWithin(schools.geom, ST_ExteriorRing(osm.geom), 150) OR ST_Intersects(schools.geom, osm.geom)
+      ORDER BY {school_id},ST_Distance(schools.geom, ST_ExteriorRing(osm.geom))) t
+      GROUP BY osm_id) t2
+ WHERE t1.osm_id = t2.osm_id;
 '''.format(ext_schools =  os.path.basename(school_destinations),
-           school_id = school_id.lower()),
+           school_id = school_id.lower(),
+           studyregion = buffered_study_region),
 '''
-UPDATE osm_schools o 
-   SET ext_school_id = {school_id}::int, ext_school_dist = dist::int
-  FROM (SELECT DISTINCT ON ({school_id}) 
-          {school_id}, 
-           s.osm_id, 
-           ST_Distance(s.geom, o.geom)  as dist
-        FROM {ext_schools} AS o , osm_schools AS s  
-        WHERE ST_DWithin(s.geom, o.geom, 500) 
-        ORDER BY {school_id}, s.osm_id, ST_Distance(s.geom, o.geom)) t
- WHERE o.osm_id = t.osm_id 
-   AND o.ext_school_dist IS NULL;
+-- Insert pseudo polygons for school points missing an OSM polygon match
+-- Assumption is, these are genuine schools with more or less accurate geocoding
+-- however they are not yet represented in OSM.  So these allow for access to them to
+-- be evaluted in same way as those other existing polygons.
+INSERT INTO school_polys (school_tags,school_count,geom)
+SELECT jsonb_agg(to_jsonb(t) - 'geom'::text) AS school_tags,
+       count(*) AS school_count,
+       (ST_DUMP(ST_UNION(ST_Buffer(t.geom,20)))).geom AS geom 
+ FROM
+(SELECT a.* 
+ FROM {ext_schools} a
+ LEFT JOIN 
+ (SELECT (jsonb_array_elements(school_tags)->>'{school_id}') AS matched_school FROM school_polys) o
+      ON a.{school_id}::text = o.matched_school,
+ {studyregion} s 
+ WHERE ST_Intersects(a.geom,s.geom)
+   AND o.matched_school IS NULL) t 
+GROUP BY geom;
 '''.format(ext_schools =  os.path.basename(school_destinations),
-           school_id = school_id.lower())
+           school_id = school_id.lower(),
+           studyregion = buffered_study_region),
+'''
+-- if you check school matches now, there should be no points unaccounted for 
+-- ie. all acara IDs are in the school_polys table
+DROP TABLE IF EXISTS school_matches;    
+CREATE TABLE school_matches AS 
+SELECT a.*, o.matched_school FROM {ext_schools} a 
+                  LEFT JOIN 
+                  (SELECT (jsonb_array_elements(school_tags)->>'{school_id}') AS matched_school FROM school_polys) o 
+                  ON a.{school_id}::text = o.matched_school,{studyregion} s 
+                  WHERE ST_Intersects(a.geom,s.geom);
+'''.format(ext_schools =  os.path.basename(school_destinations),
+           school_id = school_id.lower(),
+           studyregion = buffered_study_region),
+'''
+-- Add in new region specific serial and summary info 
+ALTER TABLE school_polys ADD column studyregion_id serial;
+ALTER TABLE school_polys ADD COLUMN area_ha double precision; 
+UPDATE school_polys SET area_ha = ST_Area(geom)/10000.0;
+ALTER TABLE school_polys ADD COLUMN is_school boolean; 
+UPDATE school_polys SET is_school = TRUE;
+'''
 ]
 
 
