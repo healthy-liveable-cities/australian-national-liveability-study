@@ -46,10 +46,6 @@ arcpy.env.workspace = gdb_path
 points   = parcel_dwellings
 denominator = int(arcpy.GetCount_management(points).getOutput(0))
 
-# Specify number of processors to use
-# e.g. our computers have 8 cores, so to focus on getting one script done 7 cores should be safe
-nWorkers = 7
-
 # Output databases
 sausage_buffer_table = "sausagebuffer_{}".format(distance)
 nh_sausagebuffer_summary = "nh{}m".format(distance)
@@ -60,7 +56,7 @@ hexStart    = 0
 objectFloor = 0
 
 # point chunk size (for looping within polygon)
-group_by = 200
+group_by = 1000
 
 ## Log file details (including header row)
 log_table = 'log_hex_sausage_buffer'
@@ -217,12 +213,28 @@ def CreateSausageBufferFunction(hex):
   # make sure Network Analyst licence is 'checked out'
   arcpy.CheckOutExtension('Network')
   
+  # list of OIDs to iterate over
+  antijoin = '''
+    SELECT p.{id}
+    FROM parcel_dwellings p
+    WHERE hex_id = {hex}
+    AND NOT EXISTS 
+    (SELECT 1 FROM {table} s WHERE s.{id} = p.{id});
+  '''.format(id = points_id.lower(), hex  = hex, table = sausage_buffer_table)
+  curs.execute(antijoin)
+  point_id_list = [x[0] for x in  list(curs)]
+  valid_pointCount = len(point_id_list) 
   # Prepare to loop over points within polygons
-  arcpy.MakeFeatureLayer_management(points, "selection_{}".format(pid), where_clause = '"HEX_ID" = {}'.format(hex))
+  where_clause = '''"HEX_ID" = {hex} AND "{id}" in ('{id_list}')'''.format(hex = hex, 
+                                                                   id  = points_id,
+                                                                   id_list = "','".join(point_id_list))
+  arcpy.MakeFeatureLayer_management(points, 
+                                    "selection_{}".format(pid), 
+                                    where_clause = where_clause)
   pointCount = int(arcpy.GetCount_management("selection_{}".format(pid)).getOutput(0))
   
   if pointCount == 0:
-    # print('No parcels within hex {}; Skipping.'.format(hex))
+    # print('No unprocessed parcels within hex {}; Skipping.'.format(hex))
     return(2)
     
   if hex==hexStart:
@@ -232,11 +244,6 @@ def CreateSausageBufferFunction(hex):
   else:
     count = 1          
     current_floor = 0    
-  
-  # list of OIDs to iterate over
-  curs.execute("SELECT {id} FROM parcel_dwellings WHERE hex_id = {hex} AND {id} NOT IN (SELECT {id} FROM {sc_table} WHERE hex = {hex});".format(id = points_id.lower(), hex  = hex, sc_table = sausage_buffer_table))
-  point_id_list = [x[0] for x in  list(curs)]
-  valid_pointCount = len(point_id_list)
 
   if valid_pointCount == 0:
     return(3)  
@@ -252,7 +259,8 @@ def CreateSausageBufferFunction(hex):
       if current_floor > 0:
         current_floor +=1
       
-      chunkSQL = ''' "{}" in ({})'''.format(points_id,"'"+"','".join(point_id_list[current_floor:current_max+1])+"'")
+      chunkSQL = ''' "{id}" in ('{id_list}')'''.format(id = points_id,
+                                                       id_list = "','".join(point_id_list[current_floor:current_max+1]))
       place = "after defining chunkSQL"
 
       chunk_group = arcpy.SelectLayerByAttribute_management("selection_{}".format(pid), where_clause = chunkSQL)
@@ -355,15 +363,18 @@ if __name__ == '__main__':
   curs.execute(createTable_sausageBuffer)
   conn.commit()
   
-  # Make a list of unique hex ID numbers to iterate over and evalute progress against
-  hex_list = unique_values(points, 'HEX_ID')
-  
   # fetch list of successfully processed buffers, if any
-  curs.execute("SELECT hex FROM {} WHERE status = 'COMPLETED'".format(log_table))
-  completed_hexes = list(curs)
-  
+  unprocessed_hexes = '''
+    SELECT DISTINCT(hex_id)
+    FROM parcel_dwellings p
+    WHERE NOT EXISTS 
+    (SELECT 1 FROM {table} s WHERE s.{id} = p.{id});
+  '''.format(table = sausage_buffer_table,
+             id = points_id.lower())
+  curs.execute(unprocessed_hexes)
+
   # compile list of remaining hexes to process
-  remaining_hex_list = [x for x in hex_list if x not in completed_hexes]
+  remaining_hex_list = [int(x[0]) for x in list(curs)]
   
   # Setup a pool of workers/child processes and split log output
   pool = multiprocessing.Pool(nWorkers)
