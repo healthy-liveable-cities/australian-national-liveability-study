@@ -1,7 +1,7 @@
 # Script:  12_od_aos_list_analysis.py
 # Purpose: Calcault distance to nearest AOS within 3.2km, 
 #          or if none within 3.2km then distance to closest
-# Authors: Carl Higgs, Koen Simons
+# Authors: Carl Higgs
 
 import arcpy, arcinfo
 import os
