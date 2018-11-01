@@ -106,33 +106,36 @@ for layer in pos_layers:
   conn.commit()
 
   pos_setup = ['''
+    ALTER TABLE {} RENAME COLUMN objectid = aos_id;
+    '''.format(layer = layer),
+    '''
     -- Create a linestring pos table 
     DROP TABLE IF EXISTS {pos}_line;
     CREATE TABLE {pos}_line AS 
     WITH pos_bounds AS
-      (SELECT objectid, ST_SetSRID(st_astext((ST_Dump(geom)).geom),7845) AS geom  FROM {layer})
-    SELECT objectid, ST_Length(geom)::numeric AS length, geom    
-    FROM (SELECT objectid, ST_ExteriorRing(geom) AS geom FROM pos_bounds) t;
+      (SELECT aos_id, ST_SetSRID(st_astext((ST_Dump(geom)).geom),7845) AS geom  FROM {layer})
+    SELECT aos_id, ST_Length(geom)::numeric AS length, geom    
+    FROM (SELECT aos_id, ST_ExteriorRing(geom) AS geom FROM pos_bounds) t;
     '''.format(pos = pos,layer = layer),
     '''
     -- Generate a point every 20m along a park outlines: 
     DROP TABLE IF EXISTS {pos}_nodes; 
     CREATE TABLE {pos}_nodes AS 
      WITH pos AS 
-     (SELECT objectid, 
+     (SELECT aos_id, 
              length, 
              generate_series(0,1,20/length) AS fraction, 
              geom FROM {pos}_line) 
-    SELECT objectid,
-           row_number() over(PARTITION BY objectid) AS node, 
+    SELECT aos_id,
+           row_number() over(PARTITION BY aos_id) AS node, 
            ST_LineInterpolatePoint(geom, fraction)  AS geom 
     FROM pos;
     CREATE INDEX {pos}_nodes_idx ON {pos}_nodes USING GIST (geom);
-    ALTER TABLE {pos}_nodes ADD COLUMN pos_entryid varchar; 
-    UPDATE {pos}_nodes SET pos_entryid = objectid::text || ',' || node::text; 
+    ALTER TABLE {pos}_nodes ADD COLUMN aos_entryid varchar; 
+    UPDATE {pos}_nodes SET aos_entryid = aos_id::text || ',' || node::text; 
     '''.format(pos = pos),
     '''
-    -- Create table of points within 30m of lines (should be your road network) 
+    -- Create table of points within 30m of OSM network
     -- Distinct is used to avoid redundant duplication of points where they are within 20m of multiple roads 
     DROP TABLE IF EXISTS {pos}_nodes_30m_osm;
     CREATE TABLE {pos}_nodes_30m_osm AS 
@@ -142,7 +145,7 @@ for layer in pos_layers:
     WHERE ST_DWithin(n.geom ,l.geom,30);
     '''.format(pos = pos),
     '''
-    -- Create table of points within 30m of lines (should be your road network) 
+    -- Create table of points within 30m of VicMap network
     -- Distinct is used to avoid redundant duplication of points where they are within 20m of multiple roads 
     DROP TABLE IF EXISTS {pos}_nodes_30m_vicmap;
     CREATE TABLE {pos}_nodes_30m_vicmap AS 
@@ -158,7 +161,36 @@ for layer in pos_layers:
         curs.execute(sql)
         conn.commit()
         print("Executed in {} mins".format((time.time()-start)/60))
+    # pgsql to gdb
+    arcpy.CopyFeatures_management('public.{pos}_nodes_30m_osm'.format(pos = pos), 
+                                   os.path.join(gdb_path,'{pos}_nodes_30m_osm'.format(pos = pos))) 
+    arcpy.CopyFeatures_management('public.{pos}_nodes_30m_vicmap'.format(pos = pos), 
+                                   os.path.join(gdb_path,'{pos}_nodes_30m_vicmap'.format(pos = pos))) 
   
+## additional queries for already processed osm to make sure all features have like names
+additiona_osm_queries = ['''
+-- Create table of points within 30m of lines (should be your road network) 
+-- Note - this is identical to feature created in 13_aos_setup.py as aos_nodes_30m_line 
+DROP TABLE IF EXISTS pos_nodes_30m_osm;
+CREATE TABLE {pos}_nodes_30m_osm AS 
+SELECT * FROM aos_nodes_30m_line;
+'''.format(pos = pos),
+'''
+-- Create table of points within 30m of lines (should be your road network) 
+-- Distinct is used to avoid redundant duplication of points where they are within 20m of multiple roads 
+DROP TABLE IF EXISTS {pos}_nodes_30m_vicmap;
+CREATE TABLE {pos}_nodes_30m_vicmap AS 
+SELECT DISTINCT n.* 
+FROM aos_nodes n, 
+     edges_vicmap l
+WHERE ST_DWithin(n.geom_w_schools ,l.geom,30);
+''']
+for sql in additiona_osm_queries:
+    start = time.time()
+    print("\nExecuting: {}".format(sql))
+    curs.execute(sql)
+    conn.commit()
+    print("Executed in {} mins".format((time.time()-start)/60))  
 # output to completion log    
 script_running_log(script, task, start, locale)
 conn.close()
