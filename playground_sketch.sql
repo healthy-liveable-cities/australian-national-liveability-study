@@ -1,4 +1,6 @@
-
+-- First, we make sure that all the fields we want to query exist (we know most of these will
+-- but for completeness we're just double checking).  
+-- This means we can query fields without risk of error due to non-existance.
 ALTER TABLE osm_20181001_polygon ADD COLUMN IF NOT EXISTS "access"      varchar;
 ALTER TABLE osm_20181001_point   ADD COLUMN IF NOT EXISTS "access"      varchar;
 ALTER TABLE osm_20181001_polygon ADD COLUMN IF NOT EXISTS "description" varchar;
@@ -12,9 +14,12 @@ ALTER TABLE osm_20181001_point   ADD COLUMN IF NOT EXISTS "name"        varchar;
 ALTER TABLE osm_20181001_polygon ADD COLUMN IF NOT EXISTS "playground"  varchar;
 ALTER TABLE osm_20181001_point   ADD COLUMN IF NOT EXISTS "playground"  varchar;
 
-
-ALTER TABLE osm_20181001_point   ADD COLUMN IF NOT EXISTS "geom"  geometry;
-UPDATE osm_20181001_point SET geom = ST_Transform(way,7845);
+---- We make sure the point table geom
+-- I've commented this out as the OSM set up script should do this
+--ALTER TABLE osm_20181001_point   ADD COLUMN IF NOT EXISTS "geom"  geometry;
+--UPDATE osm_20181001_point SET geom = ST_Transform(way,7845);
+--ALTER TABLE osm_20181001_polygon   ADD COLUMN IF NOT EXISTS "geom"  geometry;
+--UPDATE osm_20181001_point SET geom = ST_Transform(way,7845);
 
 DROP TABLE IF EXISTS playgrounds;
 CREATE TABLE playgrounds AS
