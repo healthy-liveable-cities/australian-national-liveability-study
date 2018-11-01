@@ -61,6 +61,12 @@ aos_setup = ['''
 -- Add geom column to polygon table, appropriately transformed to project spatial reference system
 ALTER TABLE {osm_prefix}_polygon ADD COLUMN geom geometry; 
 UPDATE {osm_prefix}_polygon SET geom = ST_Transform(way,7845); 
+ALTER TABLE {osm_prefix}_point ADD COLUMN geom geometry; 
+UPDATE {osm_prefix}_point SET geom = ST_Transform(way,7845); 
+ALTER TABLE {osm_prefix}_line ADD COLUMN geom geometry; 
+UPDATE {osm_prefix}_line SET geom = ST_Transform(way,7845); 
+ALTER TABLE {osm_prefix}_roads ADD COLUMN geom geometry; 
+UPDATE {osm_prefix}_roads SET geom = ST_Transform(way,7845); 
 '''.format(osm_prefix = osm_prefix),
 '''
 -- Add other columns which are important if they exists, but not important if they don't

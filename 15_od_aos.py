@@ -47,10 +47,7 @@ hexStart = 0
 
 # SQL Settings
 sqlTableName  = "od_aos"
-log_table    = "log_od_distances"
-queryPartA = "INSERT INTO {} VALUES ".format(sqlTableName)
-
-sqlChunkify = 500
+sqlChunkify = 1000
         
 # initiate postgresql connection
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
@@ -90,119 +87,51 @@ if pid !='MainProcess':
   ODLinesSubLayer = arcpy.mapping.ListLayers(outNALayer, linesLayerName)[0]
   fields = ['Name', 'Total_Length']
   
-  arcpy.MakeFeatureLayer_management(hex_grid_buffer, "buffer_layer")                
-  
-  
-# Define query to create table
-# 'aos_list' is a compound variable -- a list of lists with structure like
-# {id, distance, attributes
-createTable     = '''
-  -- DROP TABLE IF EXISTS {table};
-  CREATE TABLE IF NOT EXISTS {table}
-  (
-  {id} varchar, 
-  attributes jsonb,  
-  PRIMARY KEY ({id}) 
-  );
-   '''.format(table = sqlTableName, id = origin_pointsID.lower())
-## LATER index on gnaf_id, query
+  arcpy.MakeFeatureLayer_management(hex_grid, "hex_layer")     
+  arcpy.MakeFeatureLayer_management(aos_points, "aos_pointsLayer")    
 
+  
+# Establish preliminary SQL step to filter down Origin-Destination combinations 
+# by minimum distance to an entry node
 recInsert      = '''
-  WITH 
-  pre AS 
-  (SELECT DISTINCT ON (gnaf_pid, aos_id) gnaf_pid, aos_id, min(distance) AS distance
+  INSERT INTO {table} ({id}, aos_id, node, distance)  
+  SELECT DISTINCT ON (gnaf_pid, aos_id) gnaf_pid, aos_id, node, min(distance) AS distance
    FROM  
    (VALUES 
-  '''.format(id = origin_pointsID.lower())          
- 
-threshold = 400 
-recUpdate      = '''
-  ) v({id}, aos_id, distance) 
-       GROUP BY {id},aos_id),
-  post AS
-     (SELECT pre.{id}, 
-            pre.aos_id,           
-            distance,
-            numgeom,
-            aos_ha,
-            aos_ha_total,
-            aos_ha_water, 
-            water_percent,
-            school_os_percent,
-            attributes
-     FROM pre 
-     LEFT JOIN open_space_areas a ON pre.aos_id = a.aos_id)
-  INSERT INTO {table} ({id}, attributes) 
-  SELECT {id}, 
-         jsonb_agg(jsonb_strip_nulls(to_jsonb( 
-             (SELECT d FROM 
-                 (SELECT 
-                    distance,
-                    aos_id  ,
-                    numgeom   ,
-                    aos_ha    ,
-                    aos_ha_total ,
-                    aos_ha_water, 
-                    water_percent,
-                    school_os_percent,
-                    attributes
-                    ) d)))) AS attributes 
-  FROM post 
-  GROUP BY {id} 
-  ON CONFLICT ({id}) DO NOTHING;
   '''.format(id = origin_pointsID.lower(),
-             table = sqlTableName,     
-             threshold = threshold,
-             slope = soft_threshold_slope)  
+             table = sqlTableName)          
 
-# this is the same log table as used for other destinations.
-#  It is only created if it does not already exist.
-#  However, it probably does.  
-createTable_log     = '''
-  -- DROP TABLE IF EXISTS {0};
-  CREATE TABLE IF NOT EXISTS {0}
-    (hex integer NOT NULL, 
-    parcel_count integer NOT NULL, 
-    dest_name varchar, 
-    status varchar, 
-    mins double precision,
-    PRIMARY KEY(hex,dest_name)
-    );
-    '''.format(log_table)       
-  
-queryInsert      = '''
-  INSERT INTO {} VALUES
-  '''.format(log_table)          
-                    
-queryUpdate      = '''
-  ON CONFLICT ({0},{4}) 
-  DO UPDATE SET {1}=EXCLUDED.{1},{2}=EXCLUDED.{2},{3}=EXCLUDED.{3}
-  '''.format('hex','parcel_count','status','mins','dest_name')  
-  
-  
+# Aggregate the minimum distance OD combinations into a list
+# node is retained for verification purposes; 
+# ie. we can visually evaluate that the distance to dest checks out  
+# Optionally, other attributes could be joined using a 'post' clause with a left join
+# and aggregated at this point (see earlier code versions).
+# However, it is probably more optimal to keep AOS attributes seperate.
+# If making a query re: a specific AOS subset, the AOS IDs for the relevant 
+# subset could first be identified; then the OD AOS results could be checked
+# to return only those Addresses with subset AOS IDs recorded within the 
+# required distance
+recUpdate      = '''
+  ) v({id}, aos_id, node, distance) 
+  GROUP BY {id},aos_id, node
+  ON CONFLICT ({id}, aos_id) 
+    DO UPDATE
+      SET node = EXCLUDED.node, 
+          distance = EXCLUDED.distance 
+       WHERE od_aos.distance > EXCLUDED.distance;
+  '''.format(id = origin_pointsID.lower())  
+ 
 parcel_count = int(arcpy.GetCount_management(origin_points).getOutput(0))  
 denominator = parcel_count
  
 arcpy.MakeFeatureLayer_management(origin_points,"origin_pointsLayer") 
  
-## Functions defined for this script
-# Define log file write method
-def writeLog(hex = 0, AhexN = 'NULL', Bcode = 'NULL', status = 'NULL', mins= 0, create = log_table):
-  try:
-    if create == 'create':
-      curs.execute(createTable_log)
-      conn.commit()
-      
-    else:
-      moment = time.strftime("%Y%m%d-%H%M%S")
-  
-      # write to sql table
-      curs.execute("{0} ({1},{2},$${3}$$,$${4}$$,{5}) {6}".format(queryInsert,hex, AhexN, Bcode,status, mins, queryUpdate))
-      conn.commit()  
-  except:
-    print("ERROR: {}".format(sys.exc_info()))
-    raise
-
+## Functions defined for this script    
+def chunks(l, n):
+    """Yield successive n-sized chunks from l."""
+    for i in range(0, len(l), n):
+        yield l[i:i + n]
+        
 # Worker/Child PROCESS
 def ODMatrixWorkerFunction(hex): 
   # print(hex)
@@ -224,32 +153,57 @@ def ODMatrixWorkerFunction(hex):
     return(1)
     
   try:
-    count = 0
+   count = 0
+    place = 'At the beginning...'
     to_do_points = hex[1]  
     A_pointCount = len(to_do_points)
-    A_selection = arcpy.SelectLayerByAttribute_management("origin_pointsLayer", 
-                    where_clause = "hex_id = {hex} AND {id} IN ('{id_list}')".format(hex = hex[0],
-                                                                                     id = origin_pointsID,
-                                                                                     id_list = "','".join(to_do_points)))   
-    # Only procede with the POS scenario if it has not been previously processed
-    if len(to_do_points) > 0: 
-      A_pointCount = int(arcpy.GetCount_management(A_selection).getOutput(0))    
-      place = 'before buffer selection'
-      buffer = arcpy.SelectLayerByAttribute_management("buffer_layer", where_clause = 'ORIG_FID = {}'.format(hex[0]))
-      query = 'AOS: in {aos_threshold}m'.format(aos_threshold = aos_threshold)
-      arcpy.MakeFeatureLayer_management(aos_points, "aos_pointsLayer")  
-      
-      # Select and count parks meeting scenario query
-      B_selection = arcpy.SelectLayerByLocation_management('aos_pointsLayer', 'intersect', buffer)
-      B_pointCount = int(arcpy.GetCount_management(B_selection).getOutput(0))
-      
-      # define query and distance as destination code, for use in log file 
-      dest_name = query
-
-      place = 'before skip empty B hexes'
-      # Skip empty B hexes
-      if B_pointCount > 0:          
-        # If we're still in the loop at this point, it means we have the right hex and buffer combo and both contain at least one valid element
+    # process ids in groups of 500 or fewer
+    place = 'before hex selection'
+    hex_selection = arcpy.SelectLayerByAttribute_management("hex_layer", where_clause = 'OBJECTID = {}'.format(hex[0]))
+    # Evaluate intersection of points with AOS
+    evaluate_os_intersection = '''
+    INSERT INTO od_aos ({id}, aos_id,distance)
+    SELECT {id}, 
+            aos_id,
+            0
+    FROM parcel_dwellings p, open_space_areas o
+    WHERE hex_id = {hex} 
+    AND ST_Intersects(p.geom,o.geom)
+    ON CONFLICT ({id}, aos_id) 
+      DO UPDATE
+         SET distance = 0 
+         WHERE od_aos.distance > EXCLUDED.distance;;
+      '''.format(id = points_id.lower(),
+                hex = hex[0])
+    curs.execute(evaluate_os_intersection)
+    conn.commit()
+    
+    # Select and count parks meeting scenario query
+    # Note that selection of nodes within 3200 meters euclidian distance of the hex 
+    # containing the currently selected parcel is sufficient to guarantee the most optimistic
+    # route for an edge case given we have accounted for intersection
+    # -- ie. a straight line distance of 3200m for a parcel on edge of hex
+    B_selection = arcpy.SelectLayerByLocation_management('aos_pointsLayer', 'WITHIN_A_DISTANCE', hex_selection, '3200 Meters')
+    B_pointCount = int(arcpy.GetCount_management(B_selection).getOutput(0))
+    place = 'before skip empty B hexes'
+    # Insert nulls then skip if there are no AOS within 3200m of the current hex
+    # In theory, this should not occur; these should be filtered out in parcel identification on creation
+    # The insertion of nulls assist
+    # if B_pointCount == 0:
+      # INSERTION OF NULLS SEEMS REDUNDANT
+      # update_aos = '''INSERT INTO od_aos (gnaf_pid) VALUES {};
+      # '''.format(','.join(['''('{}')'''.format(id) for id in to_do_points]))
+      # place = "before no B point execute sql, hex = {}".format(hex[0])
+      # curs.execute(update_aos)
+      # place = "before no B point commit, hex = {}".format(hex[0])
+      # conn.commit()
+    if B_pointCount > 0:  
+      for chunk in chunks(to_do_points,sqlChunkify):
+        A_selection = arcpy.SelectLayerByAttribute_management("origin_pointsLayer", 
+                        where_clause = "hex_id = {hex} AND {id} IN ('{id_list}')".format(hex = hex[0],
+                                                                                         id = origin_pointsID,
+                                                                                         id_list = "','".join(chunk)))   
+        A_pointCount = int(arcpy.GetCount_management(A_selection).getOutput(0))    
         # Process OD Matrix Setup
         # add unprocessed address points
         arcpy.AddLocations_na(in_network_analysis_layer = outNALayer, 
@@ -277,33 +231,34 @@ def ODMatrixWorkerFunction(hex):
         place = 'After add B locations'
         # Process: Solve
         result = arcpy.Solve_na(outNALayer, terminate_on_solve_error = "CONTINUE")
-        ## Comented the following out, as this may not be strictly true in current script form
-        ## if result[1] == u'false':
-        ##   writeLog(hex[0],A_pointCount,dest_name,"no solution",(time.time()-hexStartTime)/60)
         if result[1] == u'true':
           place = 'After solve'
           # Extract lines layer, export to SQL database
           outputLines = arcpy.da.SearchCursor(ODLinesSubLayer, fields)
           curs = conn.cursor()
-
+        
           chunkedLines = list()
           place = 'before outputLine loop'
-          for outputLine in outputLines :
+          for outputLine in outputLines:
             count += 1
             od_pair = outputLine[0].split('-')
             pid = od_pair[0].encode('utf-8').strip(' ')
             aos_pair = od_pair[1].split(',')
             aos = int(aos_pair[0])
+            node = int(aos_pair[1])
             distance = int(round(outputLine[1]))
-            place = "before chunk append"
-            chunkedLines.append("('{pid}',{aos},{distance})".format(pid = pid,
+            place = "before chunk append, gnaf = {}".format(pid)
+            chunkedLines.append("('{pid}',{aos},{node},{distance})".format(pid = pid,
                                                                      aos = aos,
+                                                                     node = node,
                                                                      distance  = distance))
+          place = "before execute sql, gnaf = {}".format(pid)
           curs.execute(recInsert + ','.join(rowOfChunk for rowOfChunk in chunkedLines)+recUpdate)
+          place = "before commit, gnaf = {}".format(pid)
           conn.commit()
-          
-          ### TO DO --- ADD in distance to closest if no results within 3.2km
-        writeLog(hex[0],A_pointCount,dest_name,"Solved",(time.time()-hexStartTime)/60)
+        if arcpy.Exists(result):  
+          arcpy.Delete_management(result)   
+      
     curs.execute("UPDATE {progress_table} SET processed = processed+{count}".format(progress_table = progress_table,
                                                                                       count = A_pointCount))
     conn.commit()
@@ -321,26 +276,47 @@ def ODMatrixWorkerFunction(hex):
 
 # MAIN PROCESS
 if __name__ == '__main__':
-  try:
-    conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
-    curs = conn.cursor()
-    
-    # create OD matrix table (Closest POS)
-    curs.execute(createTable)
-    conn.commit()
-    
-  except:
-    print("SQL connection error")
-    print(sys.exc_info())
-    raise
-    
-  # initiate log file
-  writeLog(create='create')  
-  
+  # simple timer for log file
+  start = time.time()
+  script = os.path.basename(sys.argv[0])
+  task = 'Create OD cost matrix for parcel points to closest POS (any size)'  # Do stuff  
   # Task name is now defined
-  task = 'Create OD cost matrix for parcel points to closest POS (any size)'  # Do stuff
   print("Commencing task ({}):\n{} at {}".format(db,task,time.strftime("%Y%m%d-%H%M%S")))
-  # Divide work by hexes
+  
+  # connect to sql
+  conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
+  curs = conn.cursor()
+    
+  print("Create Area of Open Space (AOS) within 3200m list table"),
+  createTable     = '''
+  -- DROP TABLE IF EXISTS {table};
+  CREATE TABLE IF NOT EXISTS {table}
+  (
+  {id} varchar, 
+  aos_id int,  
+  node int,  
+  distance int,
+  PRIMARY KEY ({id}, aos_id) 
+  );
+  '''.format(table = sqlTableName, id = origin_pointsID.lower())
+  curs.execute(createTable)
+  conn.commit()
+  print("Done.")
+  ## LATER index on gnaf_id, query
+
+  print("Create a table for tracking progress... "), 
+  od_aos_progress_table = '''
+    DROP TABLE IF EXISTS od_aos_progress;
+    CREATE TABLE IF NOT EXISTS od_aos_progress 
+       (processed int);
+    '''
+  curs.execute(od_aos_progress_table)
+  conn.commit()
+  print("Done.")
+  
+  
+  print("Divide work by hexes for multiprocessing, only for parcels not already processed... "),
+
   antijoin = '''
     SELECT p.hex_id, 
            jsonb_agg(jsonb_strip_nulls(to_jsonb(p.{id}))) AS incomplete
@@ -349,36 +325,40 @@ if __name__ == '__main__':
     (SELECT 1 FROM od_aos s WHERE s.{id} = p.{id})
     GROUP BY p.hex_id;
   '''.format(id = points_id.lower())
-  print("List unprocessed parcels for each hex... "),
-
   incompletions = pandas.read_sql_query(antijoin,
                                     con=engine)
+  to_do_list = incompletions.apply(tuple, axis=1).tolist()
+  to_do_list = [[int(x[0]),[p.encode('utf8') for p in x[1]]] for x in to_do_list]
   print("Done.")
 
-  # Calculated the sum total of parcels that need to be processed, and determine the number already processed
+  print("Calculate the sum total of parcels that need to be processed, and determine the number already processed"),
   to_process = incompletions["incomplete"].str.len().sum()
   processed = total_parcels - to_process
-  od_aos_progress_table = '''
-    DROP TABLE IF EXISTS od_aos_progress;
-    CREATE TABLE IF NOT EXISTS od_aos_progress 
-       (processed int);
-    '''
-  print("Create a table for tracking progress... "), 
-  curs.execute(od_aos_progress_table)
-  conn.commit()
   curs.execute('''INSERT INTO od_aos_progress (processed) VALUES ({})'''.format(processed))
   conn.commit()
   print("Done.")
 
-  to_do_list = incompletions.apply(tuple, axis=1).tolist()
-  to_do_list = [[int(x[0]),[p.encode('utf8') for p in x[1]]] for x in to_do_list]
-  # iteration_list = np.asarray(to_do_list)
-  # Setup a pool of workers/child processes and split log output
-  # (now set as parameter in ind_study_region_matrix xlsx file)
-  # nWorkers = 4
   print("Commence multiprocessing...")  
   pool = multiprocessing.Pool(nWorkers)
   pool.map(ODMatrixWorkerFunction, to_do_list, chunksize=1)
+  
+  print("Create json-ified table, with nested list of AOS within 3200m grouped by address")
+  json_table = '''CREATE TABLE od_aos_jsonb AS
+                  SELECT {id}, 
+                          jsonb_agg(jsonb_strip_nulls(to_jsonb( 
+                              (SELECT d FROM 
+                                  (SELECT 
+                                     aos_id,
+                                     distance
+                                     ) d)))) AS attributes 
+                   FROM od_aos 
+                   GROUP BY {id}'''.format(id = points_id.lower())
+  curs.execute(json_table)
+  conn.commit()
+  print("Create indices on attributes")
+  curs.execute('''CREATE INDEX idx_od_aos_aos_id ON od_aos_jsonb ((attributes->'aos_id'));''')
+  curs.execute('''CREATE INDEX idx_od_aos_distance ON od_aos_jsonb ((attributes->'distance'));''')
+  conn.commit()
   
   # output to completion log    
   script_running_log(script, task, start, locale)
