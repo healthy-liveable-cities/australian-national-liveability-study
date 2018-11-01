@@ -28,6 +28,7 @@ command = 'osm2pgsql -U {user} -l -d {db} {osm} --hstore --style {style} --prefi
                                                                                osm = osm_source,
                                                                                style = osm2pgsql_style,
                                                                                prefix = osm_prefix) 
+print(command)
 sp.call(command, shell=True, cwd=osm2pgsql_exe)                           
 print("Done.")
 
