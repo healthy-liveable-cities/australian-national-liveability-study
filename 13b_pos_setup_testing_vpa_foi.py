@@ -36,32 +36,35 @@ pos_layers = ['melb_foi','melb_vpa']
 network_gdb_source = 'D:/ntnl_li_2018_template/data/study_region/melb/VicMapRds_Oct2018_Pedestrian.gdb'
 network_source_feature_dataset = 'pedestrian_vicmap'
 
-print("Creating feature dataset to hold network..."),
-if not arcpy.Exists("pedestrian_vicmap"):
-  arcpy.CreateFeatureDataset_management(gdb_path,
-                                      network_source_feature_dataset, 
-                                      spatial_reference = SpatialReference)
-  for feature in ['edges_vicmap','nodes_vicmap']:
-    print("Copy {} to feature dataset {}...".format(feature,os.path.join(gdb_path,network_source_feature_dataset))),
-    arcpy.Copy_management(os.path.join(network_gdb_source,feature), os.path.join(gdb_path,network_source_feature_dataset,feature))
-    print(" Done.")
-    
-  arcpy.CheckOutExtension('Network')
-  # # The below process assumes a network dataset template has been created
-  # # This was achieved for the current OSMnx schema with the below code
-  # arcpy.CreateTemplateFromNetworkDataset_na(network_dataset="D:/ntnl_li_2018_template/data/li_melb_2016_osmnx.gdb/PedestrianRoads/PedestrianRoads_ND", 
-                                            # output_network_dataset_template="D:/ntnl_li_2018_template/data/roads/osmnx_nd_template.xml")
-  # NOTE: for the vicmap test, i modified the template replacing the word "PedestrianRoads" with "pedestrian_vicmap"
-  # I think this should work, as otherwise all data is the same format-wise (roads are 'edges', intersections are 'nodes', projection is same, extent is same)
-  print("Creating network dataset from template..."),                                          
-  arcpy.CreateNetworkDatasetFromTemplate_na(os.path.join(folderPath,'study_region/melb/osmnx_nd_template_vicmap.xml'), 
-                                            network_source_feature_dataset)
+arcpy.CheckOutExtension('Network')
+if arcpy.Exists("pedestrian_vicmap"):
+  arcpy.Delete_management("pedestrian_vicmap")
+  
+print("Creating feature dataset to hold network...")
+arcpy.CreateFeatureDataset_management(gdb_path,
+                                    network_source_feature_dataset, 
+                                    spatial_reference = SpatialReference)
+for feature in ['edges_vicmap','nodes_vicmap']:
+  print("Copy {} to feature dataset {}...".format(feature,os.path.join(gdb_path,network_source_feature_dataset))),
+  arcpy.Copy_management(os.path.join(network_gdb_source,feature), os.path.join(gdb_path,network_source_feature_dataset,feature))
   print(" Done.")
-                        
-  print("Build network..."),                  
-  arcpy.BuildNetwork_na(os.path.join(network_source_feature_dataset,'{}_ND'.format(network_source_feature_dataset)))
-  print(" Done.")
-  arcpy.CheckInExtension('Network')  
+  
+
+# # The below process assumes a network dataset template has been created
+# # This was achieved for the current OSMnx schema with the below code
+# arcpy.CreateTemplateFromNetworkDataset_na(network_dataset="D:/ntnl_li_2018_template/data/li_melb_2016_osmnx.gdb/PedestrianRoads/PedestrianRoads_ND", 
+                                          # output_network_dataset_template="D:/ntnl_li_2018_template/data/roads/osmnx_nd_template.xml")
+# NOTE: for the vicmap test, i modified the template replacing the word "PedestrianRoads" with "pedestrian_vicmap"
+# I think this should work, as otherwise all data is the same format-wise (roads are 'edges', intersections are 'nodes', projection is same, extent is same)
+print("Creating network dataset from template..."),                                          
+arcpy.CreateNetworkDatasetFromTemplate_na(os.path.join(folderPath,'study_region/melb/osmnx_nd_template_vicmap.xml'), 
+                                          network_source_feature_dataset)
+print(" Done.")
+                      
+print("Build network..."),                  
+arcpy.BuildNetwork_na(os.path.join(network_source_feature_dataset,'{}_ND'.format(network_source_feature_dataset)))
+print(" Done.")
+arcpy.CheckInExtension('Network')  
 
 print("Copy the network edges from gdb to postgis..."),
 command = (
