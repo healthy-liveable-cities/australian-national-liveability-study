@@ -363,7 +363,17 @@ SELECT DISTINCT n.*
 FROM aos_nodes n, 
      edges l
 WHERE ST_DWithin(n.geom_w_schools ,l.geom,50);
-'''.format(osm_prefix = osm_prefix)
+'''.format(osm_prefix = osm_prefix),
+'''
+-- Create subset data for public_open_space_areas
+DROP TABLE IF EXISTS public_open_space_areas;
+CREATE TABLE public_open_space_areas AS
+SELECT pos.* FROM  open_space_areas pos
+WHERE EXISTS (SELECT 1 FROM open_space_areas o,
+                            jsonb_array_elements(attributes) obj
+              WHERE obj->'public_access' = 'true'
+              AND  pos.aos_id = o.aos_id);
+'''
 ]
 
 for sql in aos_setup:
