@@ -52,6 +52,12 @@ linear_feature_criteria = '\n '.join(['{}'.format(x.encode('utf')) for x in df_a
 identifying_tags = ','.join(["'{}'".format(x.encode('utf')) for x in df_aos["identifying_tags_to_exclude_other_than_%name%"].dropna().tolist()])
 exclude_tags_like_name = '''(SELECT array_agg(tags) from (SELECT DISTINCT(skeys(tags)) tags FROM open_space) t WHERE tags ILIKE '%name%')'''
 
+not_public_space = '({})'.format(','.join(df_aos["public_not_in"].dropna().tolist()))
+
+public_space = '\n'.join(df_aos['public_field'].dropna().apply(lambda x:'AND ("{var}" IS NULL OR "{var}" NOT IN {list})'.format(var = x,list = not_public_space)).tolist())
+# JSONB version of the query
+# public_space = '\n'.join(df_aos['public_field'].dropna().apply(lambda x:"AND (obj -> '{var}' IS NULL OR obj ->> '{var}' NOT IN {list})".format(var = x,list = not_public_space)).tolist())
+    
 os_add_as_tags = ',\n'.join(['"{}"'.format(x.encode('utf')) for x in df_aos["os_add_as_tags"].dropna().tolist()])
 
 
@@ -216,6 +222,18 @@ UPDATE open_space SET tags =  tags - {exclude_tags_like_name} - ARRAY[{identifyi
 ;
 '''.format(exclude_tags_like_name = exclude_tags_like_name,
            identifying_tags = identifying_tags),
+'''
+-- Create variable to indicate public access
+ALTER TABLE open_space ADD COLUMN IF NOT EXISTS public_access boolean; 
+UPDATE open_space SET public_access = FALSE;
+UPDATE open_space SET public_access = TRUE 
+ WHERE is_school = FALSE
+ {and_public_space_criteria}
+ -- NOTE: the following criteria are for Melbourne test purposes but may not be appropriate nationally
+ AND (amenity IS NULL OR amenity NOT IN ('swimming_pool','swimming'))
+ AND (leisure IS NULL OR leisure NOT IN ('swimming_pool','swimming'))
+ AND (sport IS NULL OR sport NOT IN ('swimming_pool','swimming'));
+'''.format(and_public_space_criteria = public_space),
 '''
 -- Create Areas of Open Space (AOS) table
 -- this includes schools and contains indicators to differentiate schools, and parks within schools
