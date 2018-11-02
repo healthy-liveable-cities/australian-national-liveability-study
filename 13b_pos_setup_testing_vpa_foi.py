@@ -166,7 +166,7 @@ for layer in pos_layers:
     print("Executed in {} mins".format((time.time()-start)/60))
     
   # pgsql to gdb
-  print("Copying nodes for {} from postgis to gdb".format(pos)),
+  print("Copying nodes for {} from postgis to gdb... ".format(pos)),
   curs.execute(grant_query)
   conn.commit()
   arcpy.CopyFeatures_management('public.{pos}_nodes_30m_osm'.format(pos = pos), 
@@ -202,7 +202,7 @@ for sql in additiona_osm_queries:
     print("Executed in {} mins".format((time.time()-start)/60))  
     
 # pgsql to gdb
-print("Copying nodes for OSM from postgis to gdb"),
+print("Copying nodes for OSM from postgis to gdb... "),
 curs.execute(grant_query)
 conn.commit()
 arcpy.CopyFeatures_management('public.osm_nodes_30m_osm', 
