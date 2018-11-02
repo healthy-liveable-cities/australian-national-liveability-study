@@ -383,14 +383,16 @@ for sql in aos_setup:
     conn.commit()
     print("Executed in {} mins".format((time.time()-start)/60))
  
-
- 
  
 # pgsql to gdb
+print("Copy nodes to ArcGIS gdb... "),
+curs.execute(grant_query)
+conn.commit()
 arcpy.env.workspace = db_sde_path
 arcpy.env.overwriteOutput = True 
 arcpy.CopyFeatures_management('public.aos_nodes_30m_line', os.path.join(gdb_path,'aos_nodes_30m_line')) 
-  
+print("Done.")
+
 # output to completion log    
 script_running_log(script, task, start, locale)
 conn.close()
