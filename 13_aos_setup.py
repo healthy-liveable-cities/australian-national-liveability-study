@@ -47,7 +47,7 @@ specific_inclusion_criteria = '\nAND '.join(['({})'.format(x.encode('utf')) for 
 water_features = ','.join(["'{}'".format(x.encode('utf')) for x in df_aos["water_tags_for_natural_landuse_leisure"].dropna().tolist()])
 water_sports = ','.join(["'{}'".format(x.encode('utf')) for x in df_aos["water_sports"].dropna().tolist()])
 
-linear_feature_criteria = '\nAND '.join(['({})'.format(x.encode('utf')) for x in df_aos["linear_feature_criteria_AND"].dropna().tolist()])
+linear_feature_criteria = '\n '.join(['{}'.format(x.encode('utf')) for x in df_aos["linear_feature_criteria"].dropna().tolist()])
 
 identifying_tags = ','.join(["'{}'".format(x.encode('utf')) for x in df_aos["identifying_tags_to_exclude_other_than_%name%"].dropna().tolist()])
 exclude_tags_like_name = '''(SELECT array_agg(tags) from (SELECT DISTINCT(skeys(tags)) tags FROM open_space) t WHERE tags ILIKE '%name%')'''
@@ -132,6 +132,14 @@ ALTER TABLE open_space ADD COLUMN num_symdiff_convhull_geoms double precision;
 UPDATE open_space SET num_symdiff_convhull_geoms = ST_NumGeometries(symdiff_convhull_geoms);
 ''',
 '''
+ALTER TABLE open_space ADD COLUMN min_bounding_circle_area double precision; 
+UPDATE open_space SET min_bounding_circle_area = ST_Area(ST_MinimumBoundingCircle(geom));
+''',
+'''
+ALTER TABLE open_space ADD COLUMN min_bounding_circle_diameter double precision; 
+UPDATE open_space SET min_bounding_circle_diameter = 2*sqrt(min_bounding_circle_area / pi());
+''',
+'''
 ALTER TABLE open_space ADD COLUMN roundness double precision; 
 UPDATE open_space SET roundness = ST_Area(geom)/(ST_Area(ST_MinimumBoundingCircle(geom)));
 ''',
@@ -148,20 +156,26 @@ ALTER TABLE open_space ADD COLUMN acceptable_linear_feature boolean;
 UPDATE open_space SET acceptable_linear_feature = FALSE WHERE linear_feature = TRUE;
 UPDATE open_space o SET acceptable_linear_feature = TRUE
 FROM (SELECT os_id,geom FROM open_space WHERE linear_feature = FALSE) nlf
-WHERE o.linear_feature IS TRUE 
- AND ST_Intersects(o.geom,nlf.geom)
- AND (st_area(st_intersection(o.geom,nlf.geom))/st_area(o.geom)) > .1
+WHERE o.linear_feature IS TRUE  
+ AND (ST_Within(o.geom,nlf.geom)
+ OR  (o.min_bounding_circle_diameter < 800
+      AND (ST_Intersects(o.geom,nlf.geom)
+          AND
+         (st_area(st_intersection(o.geom,nlf.geom))/st_area(o.geom)) > .1)
  OR (ST_Length(ST_CollectionExtract(ST_Intersection(o.geom,nlf.geom), 2)) > 50
      AND o.os_id < nlf.os_id 
      AND ST_Touches(o.geom,nlf.geom)
-     AND o.medial_axis_length < 500);     
+     AND o.medial_axis_length < 500)));     
 -- a feature identified as linear is acceptable as an OS if it is
 --  large enough to contain an OS of sufficient size (0.4 Ha?) 
 -- (suggests it may be an odd shaped park with a lake; something like that)
+-- Still, if it is really big its acceptability should be constrained
+-- hence limit of min bounding circle diameter
 UPDATE open_space o SET acceptable_linear_feature = TRUE
 FROM open_space alt
 WHERE o.linear_feature IS TRUE      
  AND  o.acceptable_linear_feature IS FALSE    
+ AND o.min_bounding_circle_diameter < 800
  AND  o.geom && alt.geom 
   AND st_area(st_intersection(o.geom,alt.geom))/10000.0 > 0.4
   AND o.os_id != alt.os_id;
