@@ -140,7 +140,7 @@ for layer in pos_layers:
   FROM {pos}_nodes n, 
        edges l
   WHERE ST_DWithin(n.geom ,l.geom,30);
-  '''.format(pos = pos),
+  '''.format(pos = pos, layer = layer),
   '''
   -- Create table of points within 30m of VicMap network
   -- Distinct is used to avoid redundant duplication of points where they are within 20m of multiple roads 
@@ -169,11 +169,10 @@ for layer in pos_layers:
 additiona_osm_queries = ['''
 -- Create table of points within 30m of lines (should be your road network) 
 -- Note - this is identical to feature created in 13_aos_setup.py as aos_nodes_30m_line 
-DROP TABLE IF EXISTS pos_nodes_30m_osm;
+DROP TABLE IF EXISTS osm_nodes_30m_osm;
 CREATE TABLE osm_nodes_30m_osm AS 
 SELECT * 
-  FROM aos_nodes_30m_line
- WHERE aos_id IN;
+  FROM aos_nodes_30m_line ;
 ''',
 '''
 -- Create table of points within 30m of lines (should be your road network) 

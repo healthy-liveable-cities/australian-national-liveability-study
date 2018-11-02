@@ -67,9 +67,8 @@ else:
     print("Network: {} ({})".format(network_abbrev,in_network_dataset))
     print("POS source: {} ({})".format(pos_abbrev,aos_points))
     print("Output OD matrix: {}".format(sqlTableName))
-    task = 'OD matrix - distance from parcel to closest POS of any size using {} network and {} pos source'.format(network_abbrev,pos_abbrev)
-   
-sys.exit("Done")   
+    task = 'POS in 3200m OD analysis using {} network and {} pos source'.format(network_abbrev,pos_abbrev)
+     
 # ArcGIS environment settings
 arcpy.env.workspace = gdb_path  
 # create project specific folder in temp dir for scratch.gdb, if not exists
