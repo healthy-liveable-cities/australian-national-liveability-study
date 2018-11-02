@@ -167,6 +167,8 @@ for layer in pos_layers:
     
   # pgsql to gdb
   print("Copying nodes for {} from postgis to gdb".format(pos)),
+  curs.execute(grant_query)
+  conn.commit()
   arcpy.CopyFeatures_management('public.{pos}_nodes_30m_osm'.format(pos = pos), 
                                  os.path.join(gdb_path,'{pos}_nodes_30m_osm'.format(pos = pos))) 
   arcpy.CopyFeatures_management('public.{pos}_nodes_30m_vicmap'.format(pos = pos), 
@@ -201,6 +203,8 @@ for sql in additiona_osm_queries:
     
 # pgsql to gdb
 print("Copying nodes for OSM from postgis to gdb"),
+curs.execute(grant_query)
+conn.commit()
 arcpy.CopyFeatures_management('public.osm_nodes_30m_osm', 
                                os.path.join(gdb_path,'osm_nodes_30m_osm')) 
 arcpy.CopyFeatures_management('public.osm_nodes_30m_vicmap', 
