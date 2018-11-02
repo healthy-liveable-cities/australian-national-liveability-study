@@ -27,7 +27,7 @@ from config_ntnl_li_process import *
 # simple timer for log file
 start = time.time()
 script = os.path.basename(sys.argv[0])
-task = 'OD matrix - distance from parcel to closest POS of any size'
+
 
 exit_message = '''
     Please specify a locale, network and public open space data source to run this script. 
@@ -67,6 +67,7 @@ else:
     print("Network: {} ({})".format(network_abbrev,in_network_dataset))
     print("POS source: {} ({})".format(pos_abbrev,aos_points))
     print("Output OD matrix: {}".format(sqlTableName))
+    task = 'OD matrix - distance from parcel to closest POS of any size using {} network and {} pos source'.format(network_abbrev,pos_abbrev)
    
 sys.exit("Done")   
 # ArcGIS environment settings
@@ -320,11 +321,6 @@ def ODMatrixWorkerFunction(hex):
 
 # MAIN PROCESS
 if __name__ == '__main__':
-  # simple timer for log file
-  start = time.time()
-  script = os.path.basename(sys.argv[0])
-  task = 'Create OD cost matrix for parcel points to closest POS (any size)'  # Do stuff  
-  # Task name is now defined
   print("Commencing task ({}):\n{} at {}".format(db,task,time.strftime("%Y%m%d-%H%M%S")))
     
   # INPUT PARAMETERS
