@@ -101,11 +101,6 @@ start = time.time()
 script = os.path.basename(sys.argv[0])
 task = 'Compile a table comparing indicator results using various network and pos source combinations'
 
-
-linear_feature_criteria = '\n '.join(['{}'.format(x.encode('utf')) for x in df_aos["linear_feature_criteria"].dropna().tolist()])
-
-
-
 aos_restricted_pos = '''
 DROP TABLE IF EXISTS aos_restricted_pos;
 CREATE TABLE aos_restricted_pos AS
