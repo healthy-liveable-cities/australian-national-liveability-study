@@ -26,8 +26,11 @@ arcpy.env.workspace = gdb_path
 arcpy.env.overwriteOutput = True 
 SpatialReference = arcpy.SpatialReference(SpatialRef)
 
-pos_source = 'D:/ntnl_li_2018_template/data/destinations/pos_20181031.gdb'
-pos_layers = ['melb_foi_20181030','melb_vpa_20181025']
+pos_source = 'D:/ntnl_li_2018_template/data/destinations/pos_2018.gdb'
+# note that these names are important; 
+# the suffix (chunk after '_') is used to name features
+# pertaining to that datasource
+pos_layers = ['melb_foi','melb_vpa']
 
 ## Using GDA2020 edges and nodes derived by Bec as pedestrian network from VicMap data 20181101
 network_gdb_source = 'D:/ntnl_li_2018_template/data/study_region/melb/VicMapRds_Oct2018_Pedestrian.gdb'
