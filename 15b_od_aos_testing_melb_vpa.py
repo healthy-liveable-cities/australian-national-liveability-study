@@ -36,6 +36,7 @@ exit_message = '''
     python script locale network pos_source_abbreviation
     
     Examples of code to run are:
+    python 15_od_aos_testing_melb_vpa.py melb osm osm
     python 15_od_aos_testing_melb_vpa.py melb osm foi
     python 15_od_aos_testing_melb_vpa.py melb osm vpa
     python 15_od_aos_testing_melb_vpa.py melb vicmap foi
