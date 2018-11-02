@@ -318,12 +318,12 @@ def ODMatrixWorkerFunction(hex):
 
 # MAIN PROCESS
 if __name__ == '__main__':
+  task = 'POS in 3200m OD analysis using {} network and {} pos source'.format(network_abbrev,pos_abbrev)
   print("Commencing task ({}):\n{} at {}".format(db,task,time.strftime("%Y%m%d-%H%M%S")))
   print("Locale: {}".format(locale))
   print("Network: {} ({})".format(network_abbrev,in_network_dataset))
   print("POS source: {} ({})".format(pos_abbrev,aos_points))
   print("Output OD matrix: {}".format(sqlTableName))
-  task = 'POS in 3200m OD analysis using {} network and {} pos source'.format(network_abbrev,pos_abbrev)
     
   # INPUT PARAMETERS
   # connect to sql
