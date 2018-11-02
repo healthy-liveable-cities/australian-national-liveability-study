@@ -160,10 +160,12 @@ for layer in pos_layers:
     print("Executed in {} mins".format((time.time()-start)/60))
     
   # pgsql to gdb
+  print("Copying nodes for {} from postgis to gdb".format(pos)),
   arcpy.CopyFeatures_management('public.{pos}_nodes_30m_osm'.format(pos = pos), 
                                  os.path.join(gdb_path,'{pos}_nodes_30m_osm'.format(pos = pos))) 
   arcpy.CopyFeatures_management('public.{pos}_nodes_30m_vicmap'.format(pos = pos), 
                                  os.path.join(gdb_path,'{pos}_nodes_30m_vicmap'.format(pos = pos))) 
+  print("Done.")
   
 ## additional queries for already processed osm to make sure all features have like names
 additiona_osm_queries = ['''
@@ -190,6 +192,14 @@ for sql in additiona_osm_queries:
     curs.execute(sql)
     conn.commit()
     print("Executed in {} mins".format((time.time()-start)/60))  
+    
+# pgsql to gdb
+print("Copying nodes for OSM from postgis to gdb"),
+arcpy.CopyFeatures_management('public.osm_nodes_30m_osm', 
+                               os.path.join(gdb_path,'osm_nodes_30m_osm')) 
+arcpy.CopyFeatures_management('public.osm_nodes_30m_vicmap', 
+                               os.path.join(gdb_path,'osm_nodes_30m_vicmap')) 
+print("Done")
 # output to completion log    
 script_running_log(script, task, start, locale)
 conn.close()

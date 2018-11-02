@@ -28,47 +28,44 @@ from config_ntnl_li_process import *
 start = time.time()
 script = os.path.basename(sys.argv[0])
 
+# first, check if the script was appropriately run
+if __name__ == '__main__':
+    exit_message = '''
+        Please specify a locale, network and public open space data source to run this script. 
+        
+        The required format is:
+        python script locale network pos_source_abbreviation
+        
+        Examples of code to run are:
+        python 15_od_aos_testing_melb_vpa.py melb osm osm
+        python 15_od_aos_testing_melb_vpa.py melb osm foi
+        python 15_od_aos_testing_melb_vpa.py melb osm vpa
+        python 15_od_aos_testing_melb_vpa.py melb vicmap foi
+        python 15_od_aos_testing_melb_vpa.py melb vicmap vpa
+        python 15_od_aos_testing_melb_vpa.py melb vicmap osm
+        
+        Note:
+          - the osm network with osm pos is not required to be run, 
+            since this is dealt with by running script 15 (15_od_aos.py)
+          - it is assumed that earlier scripts have been run and all data is where it is expected to be
+          
+        Good luck!
+        '''  
+    if len(sys.argv) < 4:
+        sys.exit(exit_message)
+    elif sys.argv[2] not in ['osm','vicmap']:
+        sys.exit(exit_message)
+    elif sys.argv[3] not in ['osm','foi','vpa']:
+        sys.exit(exit_message)
 
-exit_message = '''
-    Please specify a locale, network and public open space data source to run this script. 
+network_abbrev = sys.argv[2]
+pos_abbrev = sys.argv[3]
+in_network_dataset = {'osm':'PedestrianRoads\\PedestrianRoads_ND',
+            'vicmap':'pedestrian_vicmap\\pedestrian_vicmap_ND'}[network_abbrev]
+aos_points = '{pos}_nodes_30m_{network}'.format(network = network_abbrev,
+                                                pos = pos_abbrev)
+sqlTableName  = "od_aos_{network}_{pos}".format(network = network_abbrev,pos = pos_abbrev)
     
-    The required format is:
-    python script locale network pos_source_abbreviation
-    
-    Examples of code to run are:
-    python 15_od_aos_testing_melb_vpa.py melb osm osm
-    python 15_od_aos_testing_melb_vpa.py melb osm foi
-    python 15_od_aos_testing_melb_vpa.py melb osm vpa
-    python 15_od_aos_testing_melb_vpa.py melb vicmap foi
-    python 15_od_aos_testing_melb_vpa.py melb vicmap vpa
-    python 15_od_aos_testing_melb_vpa.py melb vicmap osm
-    
-    Note:
-      - the osm network with osm pos is not required to be run, 
-        since this is dealt with by running script 15 (15_od_aos.py)
-      - it is assumed that earlier scripts have been run and all data is where it is expected to be
-      
-    Good luck!
-    '''  
-if len(sys.argv) < 4:
-    sys.exit(exit_message)
-elif sys.argv[2] not in ['osm','vicmap']:
-    sys.exit(exit_message)
-elif sys.argv[3] not in ['osm','foi','vpa']:
-    sys.exit(exit_message)
-else: 
-    network_abbrev = sys.argv[2]
-    pos_abbrev = sys.argv[3]
-    in_network_dataset = {'osm':'PedestrianRoads\\PedestrianRoads_ND',
-                'vicmap':'pedestrian_vicmap\\pedestrian_vicmap_ND'}[network_abbrev]
-    aos_points = '{pos}_nodes_30m_{network}'.format(network = network_abbrev,
-                                                    pos = pos_abbrev)
-    sqlTableName  = "od_aos_{network}_{pos}".format(network = network_abbrev,pos = pos_abbrev)
-    print("Locale: {}".format(locale))
-    print("Network: {} ({})".format(network_abbrev,in_network_dataset))
-    print("POS source: {} ({})".format(pos_abbrev,aos_points))
-    print("Output OD matrix: {}".format(sqlTableName))
-    task = 'POS in 3200m OD analysis using {} network and {} pos source'.format(network_abbrev,pos_abbrev)
      
 # ArcGIS environment settings
 arcpy.env.workspace = gdb_path  
@@ -322,6 +319,11 @@ def ODMatrixWorkerFunction(hex):
 # MAIN PROCESS
 if __name__ == '__main__':
   print("Commencing task ({}):\n{} at {}".format(db,task,time.strftime("%Y%m%d-%H%M%S")))
+  print("Locale: {}".format(locale))
+  print("Network: {} ({})".format(network_abbrev,in_network_dataset))
+  print("POS source: {} ({})".format(pos_abbrev,aos_points))
+  print("Output OD matrix: {}".format(sqlTableName))
+  task = 'POS in 3200m OD analysis using {} network and {} pos source'.format(network_abbrev,pos_abbrev)
     
   # INPUT PARAMETERS
   # connect to sql
