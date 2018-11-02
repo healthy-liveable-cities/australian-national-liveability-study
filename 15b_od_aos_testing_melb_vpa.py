@@ -19,8 +19,6 @@ from sqlalchemy import create_engine
 import numpy as np
 from progressor import progressor
 
-from script_running_log import script_running_log
-
 # Import custom variables for National Liveability indicator process
 from config_ntnl_li_process import *
 
@@ -318,6 +316,7 @@ def ODMatrixWorkerFunction(hex):
 
 # MAIN PROCESS
 if __name__ == '__main__':
+  from script_running_log import script_running_log
   task = 'POS in 3200m OD analysis using {} network and {} pos source'.format(network_abbrev,pos_abbrev)
   print("Commencing task ({}):\n{} at {}".format(db,task,time.strftime("%Y%m%d-%H%M%S")))
   print("Locale: {}".format(locale))
