@@ -85,7 +85,7 @@ aos_pointsID =  'aos_entryid'
 hexStart = 0
 
 # SQL Settings
-sqlChunkify = 600
+sqlChunkify = 1000
         
 # initiate postgresql connection
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
@@ -358,6 +358,31 @@ if __name__ == '__main__':
   
   
   print("Divide work by hexes for multiprocessing, only for parcels not already processed... "),
+  ## create a script completion log table; this will be useful in future
+  ## NOT IMPLIMENTED; 
+  #script_completion = '''
+  #CREATE TABLE IF NOT EXISTS script_completion AS
+  #SELECT gnaf_pid,hex_id FROM parcel_dwellings;
+  #CREATE INDEX idx_script_completion ON script_completion ({id});
+  #ALTER TABLE script_completion ADD COLUMN IF NOT EXISTS s_15b_{network}_{pos} boolean;
+  # -- this line is to just resolve the previous back log of processed parcels
+  #UPDATE TABLE script_completion s
+  #         SET s_15b_{network}_{pos} = TRUE 
+  #       WHERE EXISTS (SELECT 1 FROM {table} s WHERE s.{id} = p.{id} GROUP BY p.{id});
+  #'''.format(id = origin_pointsID.lower(),network = network_abbrev, pos = pos_abbrev,table = sqlTableName)
+  #curs.execute(script_completion)
+  #conn.commit()  
+  # Idea would be, when iterating over results, once an id not matching previously processed is encountered or the loop is finished,
+  # the previously processed ID is acknowledged to have its batch of processing complete
+  # so, 
+  # '''UPDATE TABLE script_completion SET s_15b_{network}_{pos} = TRUE WHERE {id} = {pid}'''
+  # The above would go about on lines 294 (still processing) and 299 (processing done, last id)
+  # Then this table naturally becomes the below Antijoin with no join required --
+  # Just 
+  # '''SELECT hex_id, jsonb_agg(jsonb_strip_nulls(to_jsonb(p.{id}))) AS incomplete 
+  #      FROM script_completion
+  #     WHERE s_15b_{network}_{pos} IS NOT TRUE;
+  # '''
   
   antijoin = '''
     SELECT p.hex_id, 
@@ -380,6 +405,8 @@ if __name__ == '__main__':
   curs.execute('''INSERT INTO {table}_progress (processed) VALUES ({processed})'''.format(table = sqlTableName, processed = processed))
   conn.commit()
   print("Done.")
+  
+  progressor(progress,total_parcels,start,"{}/{} at {}".format(processed,total_parcels,time.strftime("%Y%m%d-%H%M%S"))) 
   
   print("Commence multiprocessing...")  
   pool = multiprocessing.Pool(nWorkers)
