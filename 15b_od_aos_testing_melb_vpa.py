@@ -85,7 +85,7 @@ aos_pointsID =  'aos_entryid'
 hexStart = 0
 
 # SQL Settings
-sqlChunkify = 1000
+sqlChunkify = 600
         
 # initiate postgresql connection
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
