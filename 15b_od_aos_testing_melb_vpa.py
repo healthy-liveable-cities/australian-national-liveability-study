@@ -405,10 +405,8 @@ if __name__ == '__main__':
   curs.execute('''INSERT INTO {table}_progress (processed) VALUES ({processed})'''.format(table = sqlTableName, processed = processed))
   conn.commit()
   print("Done.")
-  
-  progressor(progress,total_parcels,start,"{}/{} at {}".format(processed,total_parcels,time.strftime("%Y%m%d-%H%M%S"))) 
-  
   print("Commence multiprocessing...")  
+  progressor(processed,total_parcels,start,"{}/{} at {}".format(processed,total_parcels,time.strftime("%Y%m%d-%H%M%S")))  
   pool = multiprocessing.Pool(nWorkers)
   pool.map(ODMatrixWorkerFunction, to_do_list, chunksize=1)
   
