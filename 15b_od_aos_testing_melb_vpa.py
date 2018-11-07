@@ -104,6 +104,8 @@ progress_table = '{table}_progress'.format(table = sqlTableName)
 pid = multiprocessing.current_process().name
 # create initial OD cost matrix layer on worker processors
 if pid !='MainProcess':
+  curs.execute("SET work_mem = '120MB';")
+  conn.commit()
   # Make OD cost matrix layer
   result_object = arcpy.MakeODCostMatrixLayer_na(in_network_dataset = in_network_dataset, 
                                                  out_network_analysis_layer = "ODmatrix", 
