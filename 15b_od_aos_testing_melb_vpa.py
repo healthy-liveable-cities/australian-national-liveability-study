@@ -412,8 +412,9 @@ if __name__ == '__main__':
   pool = multiprocessing.Pool(nWorkers)
   pool.map(ODMatrixWorkerFunction, to_do_list, chunksize=1)
   
-  print("/nCreate json-ified table, with nested list of AOS within 3200m grouped by address")
-  json_table = '''SET work_mem = '512MB';
+  print("/nClean up and create json-ified table, with nested list of AOS within 3200m grouped by address")
+  json_table = '''DROP TABLE IF EXISTS {table}_progress;
+                  SET work_mem = '512MB';
                   -- we disable hashagg option here as it takes too much of a toll on memory; leads to out of memory error
                   SET enable_hashagg = off;
                   CREATE TABLE {table}_jsonb AS
