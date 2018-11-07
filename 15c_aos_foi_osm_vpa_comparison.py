@@ -184,7 +184,7 @@ for network in ['vicmap','osm']:
     
     if table_exists:
       if pos in ['foi','vpa']:
-        print("  - updating access indicator to any POS within 400m ({network}_{pos}_any)... ".format(network = network,pos = pos)),
+        print("    - updating access indicator to any POS within 400m ({network}_{pos}_any)... ".format(network = network,pos = pos)),
         any_update = '''
         UPDATE pos_400m_any ind
            SET {network}_{pos}_any = 1
@@ -204,7 +204,7 @@ for network in ['vicmap','osm']:
         # print(any_update)
         curs.execute(any_update)
         print("Done")
-        print("  - updating access indicator for POS >= 1 Ha within 400m ({network}_{pos}_gr1ha)... ".format(network = network,pos = pos)),
+        print("    - updating access indicator for POS >= 1 Ha within 400m ({network}_{pos}_gr1ha)... ".format(network = network,pos = pos)),
         large_update = '''
         UPDATE pos_400m_gr1ha ind
            SET {network}_{pos}_gr1ha = 1
@@ -224,7 +224,7 @@ for network in ['vicmap','osm']:
               '''.format(id = points_id.lower(),table = table,network = network,pos = pos,os_source = os_dict[pos])
         curs.execute(large_update)
         print("Done")
-        print("  - updating access indicator for POS >= 1 Ha or a sport within 400m ({network}_{pos}_gr1ha)... ".format(network = network,pos = pos)),
+        print("    - updating access indicator for POS >= 1 Ha or a sport within 400m ({network}_{pos}_gr1ha)... ".format(network = network,pos = pos)),
         large_sport_update = '''
         UPDATE pos_400m_gr1ha_sp ind
            SET {network}_{pos}_gr1ha_sp = 1
@@ -247,7 +247,7 @@ for network in ['vicmap','osm']:
         curs.execute(large_sport_update)
         print("Done")
       if pos == 'osm':
-        print("  - updating access indicator to any POS within 400m ({network}_{pos}_any)... ".format(network = network,pos = pos)),
+        print("    - updating access indicator to any POS within 400m ({network}_{pos}_any)... ".format(network = network,pos = pos)),
         any_update = '''
         UPDATE pos_400m_any ind
            SET {network}_{pos}_any = 1
@@ -265,7 +265,7 @@ for network in ['vicmap','osm']:
               '''.format(id = points_id.lower(),table = table,network = network,pos = pos,os_source = os_dict[pos])
         #curs.execute(any_update)
         print("Done")
-        print("  - updating access indicator for POS >= 1 Ha within 400m ({network}_{pos}_gr1ha)... ".format(network = network,pos = pos)),
+        print("    - updating access indicator for POS >= 1 Ha within 400m ({network}_{pos}_gr1ha)... ".format(network = network,pos = pos)),
         large_update = '''
         UPDATE pos_400m_gr1ha ind
            SET {network}_{pos}_gr1ha = 1
@@ -284,7 +284,7 @@ for network in ['vicmap','osm']:
               '''.format(id = points_id.lower(),table = table,network = network,pos = pos)
         #curs.execute(large_update)
         print("Done")
-        print("  - updating access indicator for POS >= 1 Ha or with a sport within 400m ({network}_{pos}_gr1ha_sp)... ".format(network = network,pos = pos))
+        print("    - updating access indicator for POS >= 1 Ha or with a sport within 400m ({network}_{pos}_gr1ha_sp)... ".format(network = network,pos = pos))
         large_sport_update = '''
         UPDATE pos_400m_gr1ha_sp ind
            SET {network}_{pos}_gr1ha_sp = 1
