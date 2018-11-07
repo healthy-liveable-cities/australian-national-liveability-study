@@ -263,7 +263,7 @@ for network in ['vicmap','osm']:
             WHERE pos.aos_id IS NOT NULL
               AND ind.{id} = o.{id});
               '''.format(id = points_id.lower(),table = table,network = network,pos = pos,os_source = os_dict[pos])
-        curs.execute(any_update)
+        #curs.execute(any_update)
         print("Done")
         print("  - updating access indicator for POS >= 1 Ha within 400m ({network}_{pos}_gr1ha)... ".format(network = network,pos = pos)),
         large_update = '''
@@ -282,9 +282,9 @@ for network in ['vicmap','osm']:
               AND pos.aos_ha >= 1
               AND ind.{id} = o.{id});
               '''.format(id = points_id.lower(),table = table,network = network,pos = pos)
-        curs.execute(large_update)
+        #curs.execute(large_update)
         print("Done")
-        print("  - updating access indicator for POS >= 1 Ha within 400m ({network}_{pos}_gr1ha)... ".format(network = network,pos = pos))
+        print("  - updating access indicator for POS >= 1 Ha or with a sport within 400m ({network}_{pos}_gr1ha_sp)... ".format(network = network,pos = pos))
         large_sport_update = '''
         UPDATE pos_400m_gr1ha_sp ind
            SET {network}_{pos}_gr1ha_sp = 1
@@ -302,8 +302,7 @@ for network in ['vicmap','osm']:
                    AND  (aos_ha >= 1
                          OR
                          obj->'sport' IS NOT NULL)
-                   AND  prepos.aos_id = osa.aos_id
-                   GROUP BY aos_id) pos;
+                   GROUP BY aos_id) pos
                ON o.aos_id = pos.aos_id
             WHERE pos.aos_id IS NOT NULL
               AND ind.{id} = o.{id});
