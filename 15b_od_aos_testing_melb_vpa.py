@@ -410,8 +410,11 @@ if __name__ == '__main__':
   pool = multiprocessing.Pool(nWorkers)
   pool.map(ODMatrixWorkerFunction, to_do_list, chunksize=1)
   
-  print("Create json-ified table, with nested list of AOS within 3200m grouped by address")
-  json_table = '''CREATE TABLE {table}_jsonb AS
+  print("/nCreate json-ified table, with nested list of AOS within 3200m grouped by address")
+  json_table = '''SET work_mem = '512MB';
+                  -- we disable hashagg option here as it takes too much of a toll on memory; leads to out of memory error
+                  SET enable_hashagg = off;
+                  CREATE TABLE {table}_jsonb AS
                   SELECT {id}, 
                           jsonb_agg(jsonb_strip_nulls(to_jsonb( 
                               (SELECT d FROM 
@@ -422,8 +425,10 @@ if __name__ == '__main__':
                    FROM {table} 
                    GROUP BY {id}'''.format(id = points_id.lower(),
                                            table = sqlTableName)
+  print(json_table)
   curs.execute(json_table)
   conn.commit()
+  print("Done")
   print("Create indices on attributes")
   curs.execute('''CREATE INDEX idx_{table}_aos_id ON {table}_jsonb ((attributes->'aos_id'));'''.format(table = sqlTableName))
   curs.execute('''CREATE INDEX idx_{table}_distance ON {table}_jsonb ((attributes->'distance'));'''.format(table = sqlTableName))

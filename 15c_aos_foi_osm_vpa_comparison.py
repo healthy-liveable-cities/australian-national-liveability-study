@@ -101,40 +101,40 @@ start = time.time()
 script = os.path.basename(sys.argv[0])
 task = 'Compile a table comparing indicator results using various network and pos source combinations'
 
-aos_restricted_pos = '''
-DROP TABLE IF EXISTS aos_restricted_pos;
-CREATE TABLE aos_restricted_pos AS
-SELECT aos_id, jsonb_agg(obj) attributes FROM  open_space_areas o, 
-     jsonb_array_elements(attributes) obj
-WHERE obj->'is_school' = 'false'
-  AND (obj -> 'leisure' IS NULL OR obj ->> 'leisure' NOT IN ('golf_course', 'nature_reserve','racetrack'))
-  AND (obj -> 'landuse' IS NULL OR obj ->> 'landuse' NOT IN ( 'landfill','cemetary'))
-  AND (obj -> 'natural' IS NULL OR obj ->> 'natural' NOT IN ('forest', 'water','grassland', 'heath', 'scrub', 'wetland'))
-  AND (obj -> 'sport'   IS NULL OR obj ->> 'sport'   NOT IN ('golf','horse_racing','equestrian','motor','karting','motocross'))
-  AND (obj -> 'amenity' IS NULL OR obj ->> 'amenity' NOT IN ('grave_yard'))
-  AND (obj ->'recreation_ground' IS NULL  OR obj->>'recreation_ground' != 'showground')
-  AND (obj ->'water_feature' = 'false')
-  GROUP BY aos_id;
-'''
-
-('aged_care','animal_boarding','allotments','animal_boarding','bank','bar','biergarten','boatyard','carpark','childcare','casino','church','club','club_house','college','conference_centre','embassy','fast_food','garden_centre','grave_yard','hospital','gym','kindergarten','monastery','motel','nursing home','parking','parking_space','prison','retirement','retirement_home','retirement_village','school','scout_hut','university')
-
-
 pos_400m_comparison = '''
-gnaf_pid
-osm_foi_any
-osm_osm_any
-osm_vpa_any
-osm_foi_gr1ha
-osm_osm_gr1ha
-osm_vpa_gr1ha
-vicmap_foi_any
-vicmap_osm_any
-vicmap_vpa_any
-vicmap_foi_gr1ha
-vicmap_osm_gr1ha
-vicmap_vpa_gr1ha
+CREATE TABLE IF NOT EXISTS pos_400m_comparison AS 
+SELECT gnaf_pid,
+0::int AS osm_foi_any     ,
+0::int AS osm_osm_any     ,
+0::int AS osm_vpa_any     ,
+0::int AS osm_foi_gr1ha   ,
+0::int AS osm_osm_gr1ha   ,
+0::int AS osm_vpa_gr1ha   ,
+0::int AS vicmap_foi_any  ,
+0::int AS vicmap_osm_any  ,
+0::int AS vicmap_vpa_any  ,
+0::int AS vicmap_foi_gr1ha,
+0::int AS vicmap_osm_gr1ha,
+0::int AS vicmap_vpa_gr1ha
+FROM parcel_dwellings;
+CREATE INDEX idx_pos_400m_comparison ON pos_400m_comparison (gnaf_pid);
 '''
+
+
+UPDATE pos_400m_comparison ind
+   SET osm_osm_gr1ha = 1
+WHERE EXISTS 
+(SELECT 1 
+ FROM (SELECT gnaf_pid,
+             (obj->>'aos_id')::int AS aos_id
+       FROM od_aos_osm_osm_jsonb, 
+            jsonb_array_elements(attributes) obj
+       WHERE obj->'distance'<'400' ) o
+LEFT JOIN public_open_space_areas pos  
+       ON o.aos_id = pos.aos_id
+    WHERE pos.aos_id IS NOT NULL
+      AND pos.aos_ha > 1.5
+      AND ind.gnaf_pid = o.gnaf_pid);
 
   
 # output to completion log    
