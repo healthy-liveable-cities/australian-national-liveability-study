@@ -425,8 +425,9 @@ if __name__ == '__main__':
                                      aos_id,
                                      distance
                                      ) d)))) AS attributes 
-                   FROM {table} 
-                   GROUP BY {id}'''.format(id = points_id.lower(),
+                  FROM {table} 
+                  GROUP BY {id};
+                  SET enable_hashagg = on;'''.format(id = points_id.lower(),
                                            table = sqlTableName)
   print(json_table)
   curs.execute(json_table)
