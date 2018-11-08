@@ -157,11 +157,11 @@ conn.commit()
 print("Done.")
 
 
-os_dict = {"osm":"open_space_areas",
+os_dict = {"osm":"aos_public_osm",
            "foi":"melb_foi_20181030",
            "vpa":"melb_vpa_20181025"}
 
-public_dict = {"osm":"open_space_areas",
+public_dict = {"osm":"aos_public_osm",
            "foi":"melb_foi_20181030",
            "vpa":"melb_vpa_20181025"}           
 
@@ -276,12 +276,12 @@ for network in ['vicmap','osm']:
                FROM {table}, 
                     jsonb_array_elements(attributes) obj
                WHERE obj->'distance'<'400' ) o
-        LEFT JOIN public_open_space_areas pos  
+        LEFT JOIN {os_source} pos  
                ON o.aos_id = pos.aos_id
             WHERE pos.aos_id IS NOT NULL
               AND pos.aos_ha >= 1
               AND ind.{id} = o.{id});
-              '''.format(id = points_id.lower(),table = table,network = network,pos = pos)
+              '''.format(id = points_id.lower(),table = table,network = network,pos = pos,os_source = os_dict[pos])
         #curs.execute(large_update)
         print("Done")
         print("    - updating access indicator for POS >= 1 Ha or with a sport within 400m ({network}_{pos}_gr1ha_sp)... ".format(network = network,pos = pos))
@@ -296,17 +296,16 @@ for network in ['vicmap','osm']:
                     jsonb_array_elements(attributes) obj
                WHERE obj->'distance'<'400' ) o
         LEFT JOIN (SELECT aos_id
-                   FROM open_space_areas osa,
+                   FROM {os_source},
                         jsonb_array_elements(attributes) obj
-                   WHERE obj->'public_access' = 'true'
-                   AND  (aos_ha >= 1
+                   WHERE (aos_ha >= 1
                          OR
                          obj->'sport' IS NOT NULL)
                    GROUP BY aos_id) pos
                ON o.aos_id = pos.aos_id
             WHERE pos.aos_id IS NOT NULL
               AND ind.{id} = o.{id});
-              '''.format(id = points_id.lower(),table = table,network = network,pos = pos)
+              '''.format(id = points_id.lower(),table = table,network = network,pos = pos,os_source = os_dict[pos])
         curs.execute(large_sport_update)
         print("Done")    
 

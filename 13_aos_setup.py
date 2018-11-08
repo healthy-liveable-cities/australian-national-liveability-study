@@ -366,8 +366,8 @@ WHERE ST_DWithin(n.geom_w_schools ,l.geom,50);
 '''.format(osm_prefix = osm_prefix),
 '''
 -- Create subset data for public_open_space_areas
-DROP TABLE IF EXISTS public_open_space_areas;
-CREATE TABLE public_open_space_areas AS
+DROP TABLE IF EXISTS aos_public_osm;
+CREATE TABLE aos_public_osm AS
 SELECT pos.* FROM  open_space_areas pos
 WHERE EXISTS (SELECT 1 FROM open_space_areas o,
                             jsonb_array_elements(attributes) obj
