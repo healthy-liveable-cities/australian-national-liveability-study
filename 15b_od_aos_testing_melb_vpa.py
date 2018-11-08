@@ -49,22 +49,31 @@ if __name__ == '__main__':
           
         Good luck!
         '''  
-    if len(sys.argv) < 4:
+    if len(sys.argv) < 5:
         sys.exit(exit_message)
     elif sys.argv[2] not in ['osm','vicmap']:
         sys.exit(exit_message)
     elif sys.argv[3] not in ['osm','foi','vpa']:
         sys.exit(exit_message)
+    elif sys.argv[4] not in ['any','gr1ha','gr1ha_sp']:
+        sys.exit(exit_message)
 
+# establish parameters specific to this analysis as per given arguments        
 network_abbrev = sys.argv[2]
 pos_abbrev = sys.argv[3]
-in_network_dataset = {'osm':'PedestrianRoads\\PedestrianRoads_ND',
-            'vicmap':'pedestrian_vicmap\\pedestrian_vicmap_ND'}[network_abbrev]
-aos_points = '{pos}_nodes_30m_{network}'.format(network = network_abbrev,
-                                                pos = pos_abbrev)
-sqlTableName  = "od_aos_{network}_{pos}".format(network = network_abbrev,pos = pos_abbrev)
-    
-     
+ind_abbrev = sys.argv[4]
+
+pos_suffix = ind_abbrev
+if ind_abbrev == 'any':
+  pos_suffix == ''
+
+analysis_dict = {"any":"any POS in distance <= 400 m",
+                 "gr1ha":"POS >= 1 Ha  in distance <= 400 m",
+                 "gr1ha_sp":"POS >= 1 Ha or with a sport in distance <= 400 m"}
+
+this_analysis = analysis_dict[ind_abbrev]      
+this_ind = '{network}_{pos}_{ind_abbrev}'.format(network = network,pos = pos,ind_abbrev = ind_abbrev)
+   
 # ArcGIS environment settings
 arcpy.env.workspace = gdb_path  
 # create project specific folder in temp dir for scratch.gdb, if not exists
@@ -75,13 +84,19 @@ arcpy.env.scratchWorkspace = os.path.join(temp,db)
 arcpy.env.qualifiedFieldNames = False  
 arcpy.env.overwriteOutput = True 
 
-# Specify geodatabase with feature classes of "origins"
+# Specify features of interest and key attributes
 origin_points   = parcel_dwellings
 origin_pointsID = points_id
-
-## specify "destinations" (done above)
+aos_points = '{pos}_nodes_30m_{network}'.format(network = network_abbrev,
+                                                pos = pos_abbrev)
 aos_pointsID =  'aos_entryid'
+in_network_dataset = {'osm':'PedestrianRoads\\PedestrianRoads_ND',
+                      'vicmap':'pedestrian_vicmap\\pedestrian_vicmap_ND'}[network_abbrev]
 
+# table containing the results of this analysis (amongst, potentially, others)                      
+table  = "pos_400m_{ind_abbrev}".format(ind_abbrev = ind_abbrev)
+  
+                      
 hexStart = 0
 
 # SQL Settings
@@ -98,14 +113,12 @@ engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_
                                                                  db   = db))
 curs.execute("SELECT sum(parcel_count) FROM hex_parcels;")
 total_parcels = int(list(curs)[0][0])
-progress_table = '{table}_progress'.format(table = sqlTableName)
+progress_table = '{table}_progress'.format(table = table)
 
 # get pid name
 pid = multiprocessing.current_process().name
 # create initial OD cost matrix layer on worker processors
 if pid !='MainProcess':
-  curs.execute("SET work_mem = '120MB';")
-  conn.commit()
   # Make OD cost matrix layer
   result_object = arcpy.MakeODCostMatrixLayer_na(in_network_dataset = in_network_dataset, 
                                                  out_network_analysis_layer = "ODmatrix", 
@@ -139,7 +152,7 @@ recInsert      = '''
    FROM  
    (VALUES 
   '''.format(id = origin_pointsID.lower(),
-             table = sqlTableName)          
+             table = table)          
 
 # Aggregate the minimum distance OD combinations into a list
 # node is retained for verification purposes; 
@@ -160,7 +173,7 @@ recUpdate      = '''
           distance = EXCLUDED.distance 
        WHERE {table}.distance > EXCLUDED.distance;
   '''.format(id = origin_pointsID.lower(),
-             table = sqlTableName)  
+             table = table)  
  
 parcel_count = int(arcpy.GetCount_management(origin_points).getOutput(0))  
 denominator = parcel_count
@@ -216,7 +229,7 @@ def ODMatrixWorkerFunction(hex):
          WHERE {table}.distance > EXCLUDED.distance;;
       '''.format(id = points_id.lower(),
                 hex = hex[0],
-                table = sqlTableName)
+                table = table)
     curs.execute(evaluate_os_intersection)
     conn.commit()
     
@@ -234,7 +247,7 @@ def ODMatrixWorkerFunction(hex):
     # if B_pointCount == 0:
       # INSERTION OF NULLS SEEMS REDUNDANT
       # update_aos = '''INSERT INTO {table} (gnaf_pid) VALUES {};
-      # '''.format(','.join(['''('{}')'''.format(id) for id in to_do_points]), table = sqlTableName)
+      # '''.format(','.join(['''('{}')'''.format(id) for id in to_do_points]), table = table)
       # place = "before no B point execute sql, hex = {}".format(hex[0])
       # curs.execute(update_aos)
       # place = "before no B point commit, hex = {}".format(hex[0])
@@ -324,77 +337,55 @@ if __name__ == '__main__':
   print("Locale: {}".format(locale))
   print("Network: {} ({})".format(network_abbrev,in_network_dataset))
   print("POS source: {} ({})".format(pos_abbrev,aos_points))
-  print("Output OD matrix: {}".format(sqlTableName))
+  print("Output OD matrix: {}".format(table))
     
   # INPUT PARAMETERS
   # connect to sql
   conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
   curs = conn.cursor()
     
-  print("Create Area of Open Space (AOS) within 3200m list table"),
-  createTable     = '''
-  -- DROP TABLE IF EXISTS {table};
-  CREATE TABLE IF NOT EXISTS {table}
-  (
-  {id} varchar, 
-  aos_id int,  
-  node int,  
-  distance int,
-  PRIMARY KEY ({id}, aos_id) 
-  );
-  '''.format(table = sqlTableName, id = origin_pointsID.lower())
-  curs.execute(createTable)
+    
+  print("Creating indicator table {table} for {this_analysis}".format(table = table,
+                                                                      this_analysis = this_analysis)),
+  ind_table = '''
+  CREATE TABLE IF NOT EXISTS {table} AS 
+  SELECT {id},
+  0::int AS osm_foi_any     ,
+  0::int AS osm_osm_any     ,
+  0::int AS osm_vpa_any     ,
+  0::int AS vicmap_foi_any  ,
+  0::int AS vicmap_osm_any  ,
+  0::int AS vicmap_vpa_any  ,
+  geom
+  FROM parcel_dwellings;
+  CREATE INDEX IF NOT EXISTS idx_{table} ON {table} ({id});
+  '''.format(id = points_id.lower(), table = table)
+  curs.execute(ind_table)
   conn.commit()
   print("Done.")
-  ## LATER index on gnaf_id, query
   
   print("Create a table for tracking progress... "), 
   od_aos_progress_table = '''
     DROP TABLE IF EXISTS {table}_progress;
     CREATE TABLE IF NOT EXISTS {table}_progress 
        (processed int);
-    '''.format(table = sqlTableName)
+    '''.format(table = table)
   curs.execute(od_aos_progress_table)
   conn.commit()
   print("Done.")
   
   
   print("Divide work by hexes for multiprocessing, only for parcels not already processed... "),
-  ## create a script completion log table; this will be useful in future
-  ## NOT IMPLIMENTED; 
-  #script_completion = '''
-  #CREATE TABLE IF NOT EXISTS script_completion AS
-  #SELECT gnaf_pid,hex_id FROM parcel_dwellings;
-  #CREATE INDEX idx_script_completion ON script_completion ({id});
-  #ALTER TABLE script_completion ADD COLUMN IF NOT EXISTS s_15b_{network}_{pos} boolean;
-  # -- this line is to just resolve the previous back log of processed parcels
-  #UPDATE TABLE script_completion s
-  #         SET s_15b_{network}_{pos} = TRUE 
-  #       WHERE EXISTS (SELECT 1 FROM {table} s WHERE s.{id} = p.{id} GROUP BY p.{id});
-  #'''.format(id = origin_pointsID.lower(),network = network_abbrev, pos = pos_abbrev,table = sqlTableName)
-  #curs.execute(script_completion)
-  #conn.commit()  
-  # Idea would be, when iterating over results, once an id not matching previously processed is encountered or the loop is finished,
-  # the previously processed ID is acknowledged to have its batch of processing complete
-  # so, 
-  # '''UPDATE TABLE script_completion SET s_15b_{network}_{pos} = TRUE WHERE {id} = {pid}'''
-  # The above would go about on lines 294 (still processing) and 299 (processing done, last id)
-  # Then this table naturally becomes the below Antijoin with no join required --
-  # Just 
-  # '''SELECT hex_id, jsonb_agg(jsonb_strip_nulls(to_jsonb(p.{id}))) AS incomplete 
-  #      FROM script_completion
-  #     WHERE s_15b_{network}_{pos} IS NOT TRUE;
-  # '''
-  
   antijoin = '''
     SELECT p.hex_id, 
            jsonb_agg(jsonb_strip_nulls(to_jsonb(p.{id}))) AS incomplete
     FROM parcel_dwellings p
-    WHERE NOT EXISTS 
-    (SELECT 1 FROM {table} s WHERE s.{id} = p.{id})
+    WHERE EXISTS 
+    (SELECT 1 FROM {table} s WHERE {this_ind} IS NULL {ind s.{id} = p.{id})
     GROUP BY p.hex_id;
   '''.format(id = points_id.lower(),
-             table = sqlTableName)
+             table = table,
+             this_ind = this_ind)
   incompletions = pandas.read_sql_query(antijoin,
                                     con=engine)
   to_do_list = incompletions.apply(tuple, axis=1).tolist()
@@ -404,39 +395,13 @@ if __name__ == '__main__':
   print("Calculate the sum total of parcels that need to be processed, and determine the number already processed"),
   to_process = incompletions["incomplete"].str.len().sum()
   processed = total_parcels - to_process
-  curs.execute('''INSERT INTO {table}_progress (processed) VALUES ({processed})'''.format(table = sqlTableName, processed = processed))
+  curs.execute('''INSERT INTO {table}_progress (processed) VALUES ({processed})'''.format(table = table, processed = processed))
   conn.commit()
   print("Done.")
   print("Commence multiprocessing...")  
   progressor(processed,total_parcels,start,"{}/{} at {}".format(processed,total_parcels,time.strftime("%Y%m%d-%H%M%S")))  
   pool = multiprocessing.Pool(nWorkers)
   pool.map(ODMatrixWorkerFunction, to_do_list, chunksize=1)
-  
-  print("/nClean up and create json-ified table, with nested list of AOS within 3200m grouped by address")
-  json_table = '''DROP TABLE IF EXISTS {table}_progress;
-                  SET work_mem = '512MB';
-                  -- we disable hashagg option here as it takes too much of a toll on memory; leads to out of memory error
-                  SET enable_hashagg = off;
-                  CREATE TABLE {table}_jsonb AS
-                  SELECT {id}, 
-                          jsonb_agg(jsonb_strip_nulls(to_jsonb( 
-                              (SELECT d FROM 
-                                  (SELECT 
-                                     aos_id,
-                                     distance
-                                     ) d)))) AS attributes 
-                  FROM {table} 
-                  GROUP BY {id};
-                  SET enable_hashagg = on;'''.format(id = points_id.lower(),
-                                           table = sqlTableName)
-  print(json_table)
-  curs.execute(json_table)
-  conn.commit()
-  print("Done")
-  print("Create indices on attributes")
-  curs.execute('''CREATE INDEX idx_{table}_aos_id ON {table}_jsonb ((attributes->'aos_id'));'''.format(table = sqlTableName))
-  curs.execute('''CREATE INDEX idx_{table}_distance ON {table}_jsonb ((attributes->'distance'));'''.format(table = sqlTableName))
-  conn.commit()
   
   # output to completion log    
   script_running_log(script, task, start, locale)

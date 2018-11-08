@@ -158,12 +158,12 @@ print("Done.")
 
 
 os_dict = {"osm":"aos_public_osm",
-           "foi":"melb_foi_20181030",
-           "vpa":"melb_vpa_20181025"}
+           "foi":"melb_foi",
+           "vpa":"melb_vpa"}
 
 public_dict = {"osm":"aos_public_osm",
-           "foi":"melb_foi_20181030",
-           "vpa":"melb_vpa_20181025"}           
+           "foi":"melb_foi",
+           "vpa":"melb_vpa"}           
 
 for network in ['vicmap','osm']:
   for pos in ['foi','osm','vpa']:

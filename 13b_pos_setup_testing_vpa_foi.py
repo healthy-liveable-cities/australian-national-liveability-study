@@ -162,23 +162,23 @@ for layer in pos_layers:
     '''.format(pos = pos,layer = layer,osm_prefix = osm_prefix),
     '''
     DROP TABLE IF EXISTS ;
-    CREATE TABLE public_aos_{pos} AS
+    CREATE TABLE aos_public_{pos} AS
     SELECT * 
-      FROM public_aos_osm
+      FROM {layer}
      WHERE public = 1
     '''.format(pos = pos),
     '''
     DROP TABLE IF EXISTS ;
-    CREATE TABLE public_aos_{pos}_gr1ha AS
+    CREATE TABLE aos_public_{pos}_gr1ha AS
     SELECT * 
-      FROM public_aos_{pos}
+      FROM aos_public_{pos}
      WHERE pos.aos_ha >= 1
     '''.format(pos = pos),
     '''
     DROP TABLE IF EXISTS ;
-    CREATE TABLE public_aos_{pos}_gr1ha_sp AS
+    CREATE TABLE aos_public_{pos}_gr1ha_sp AS
     SELECT * 
-      FROM public_aos_{pos}
+      FROM aos_public_{pos}
      WHERE pos.aos_ha >= 1
         OR sports = 1
     '''.format(pos = pos),
@@ -189,7 +189,7 @@ for layer in pos_layers:
     SELECT * 
       FROM {pos}_nodes_30m_osm o
      WHERE EXISTS (SELECT 1 
-                   FROM public_aos_{pos}_gr1ha p
+                   FROM aos_public_{pos}_gr1ha p
                    WHERE o.aos_id = p.aos_id);
     '''.format(pos = pos),
     '''
@@ -199,7 +199,7 @@ for layer in pos_layers:
     SELECT * 
       FROM {pos}_nodes_30m_osm o
      WHERE EXISTS (SELECT 1 
-                   FROM public_aos_{pos}_gr1ha_sp p
+                   FROM aos_public_{pos}_gr1ha_sp p
                    WHERE o.aos_id = p.aos_id);
     '''.format(pos = pos),
     '''
@@ -209,7 +209,7 @@ for layer in pos_layers:
     SELECT * 
       FROM {pos}_nodes_30m_vicmap o
      WHERE EXISTS (SELECT 1 
-                   FROM public_aos_{pos}_gr1ha p
+                   FROM aos_public_{pos}_gr1ha p
                    WHERE o.aos_id = p.aos_id);
     ''',
     '''
@@ -219,7 +219,7 @@ for layer in pos_layers:
     SELECT * 
       FROM {pos}_nodes_30m_vicmap o
      WHERE EXISTS (SELECT 1 
-                   FROM public_aos_{pos}_gr1ha_sp p
+                   FROM aos_public_{pos}_gr1ha_sp p
                    WHERE o.aos_id = p.aos_id);
     '''.format(pos = pos)
     ]
@@ -235,17 +235,17 @@ for layer in pos_layers:
     pos = 'osm'
     # addedums specifically for OSM
     pos_setup = ['''
-    DROP TABLE IF EXISTS public_aos_osm_gr1ha;
-    CREATE TABLE public_aos_osm_gr1ha AS
+    DROP TABLE IF EXISTS aos_public_osm_gr1ha;
+    CREATE TABLE aos_public_osm_gr1ha AS
     SELECT * 
-      FROM public_aos_osm
+      FROM aos_public_osm
      WHERE pos.aos_ha >= 1
     ''',
     '''
-    DROP TABLE IF EXISTS public_aos_osm_gr1ha_sp;
-    CREATE TABLE public_aos_osm_gr1ha_sp AS
+    DROP TABLE IF EXISTS aos_public_osm_gr1ha_sp;
+    CREATE TABLE aos_public_osm_gr1ha_sp AS
     SELECT * 
-      FROM public_aos_osm
+      FROM aos_public_osm
      WHERE pos.aos_ha >= 1
         OR (sport IS NOT NULL 
             AND 
@@ -276,7 +276,7 @@ for layer in pos_layers:
     SELECT * 
       FROM osm_nodes_30m_osm o
      WHERE EXISTS (SELECT 1 
-                   FROM public_aos_osm_gr1ha p
+                   FROM aos_public_osm_gr1ha p
                    WHERE o.aos_id = p.aos_id);
     ''',
     '''
@@ -286,7 +286,7 @@ for layer in pos_layers:
     SELECT * 
       FROM osm_nodes_30m_osm o
      WHERE EXISTS (SELECT 1 
-                   FROM public_aos_osm_gr1ha_sp p
+                   FROM aos_public_osm_gr1ha_sp p
                    WHERE o.aos_id = p.aos_id);
     ''',
     '''
@@ -296,7 +296,7 @@ for layer in pos_layers:
     SELECT * 
       FROM osm_nodes_30m_vicmap o
      WHERE EXISTS (SELECT 1 
-                   FROM public_aos_osm_gr1ha p
+                   FROM aos_public_osm_gr1ha p
                    WHERE o.aos_id = p.aos_id);
     ''',
     '''
@@ -306,7 +306,7 @@ for layer in pos_layers:
     SELECT * 
       FROM osm_nodes_30m_vicmap o
      WHERE EXISTS (SELECT 1 
-                   FROM public_aos_osm_gr1ha_sp p
+                   FROM aos_public_osm_gr1ha_sp p
                    WHERE o.aos_id = p.aos_id);
     '''
     ]
