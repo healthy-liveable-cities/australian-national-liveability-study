@@ -161,25 +161,25 @@ for layer in pos_layers:
     WHERE ST_DWithin(n.geom ,l.geom,30);
     '''.format(pos = pos,layer = layer,osm_prefix = osm_prefix),
     '''
-    DROP TABLE IF EXISTS ;
+    DROP TABLE IF EXISTS aos_public_{pos};
     CREATE TABLE aos_public_{pos} AS
     SELECT * 
       FROM {layer}
      WHERE public = 1
-    '''.format(pos = pos),
+    '''.format(pos = pos,layer = layer),
     '''
-    DROP TABLE IF EXISTS ;
+    DROP TABLE IF EXISTS aos_public_{pos}_gr1ha;
     CREATE TABLE aos_public_{pos}_gr1ha AS
     SELECT * 
       FROM aos_public_{pos}
-     WHERE pos.aos_ha >= 1
+     WHERE aos_ha >= 1
     '''.format(pos = pos),
     '''
-    DROP TABLE IF EXISTS ;
+    DROP TABLE IF EXISTS aos_public_{pos}_gr1ha_sp;
     CREATE TABLE aos_public_{pos}_gr1ha_sp AS
     SELECT * 
       FROM aos_public_{pos}
-     WHERE pos.aos_ha >= 1
+     WHERE aos_ha >= 1
         OR sports = 1
     '''.format(pos = pos),
     '''
@@ -239,14 +239,14 @@ for layer in pos_layers:
     CREATE TABLE aos_public_osm_gr1ha AS
     SELECT * 
       FROM aos_public_osm
-     WHERE pos.aos_ha >= 1
+     WHERE aos_ha >= 1
     ''',
     '''
     DROP TABLE IF EXISTS aos_public_osm_gr1ha_sp;
     CREATE TABLE aos_public_osm_gr1ha_sp AS
     SELECT * 
       FROM aos_public_osm
-     WHERE pos.aos_ha >= 1
+     WHERE aos_ha >= 1
         OR (sport IS NOT NULL 
             AND 
             sport != "?")

@@ -74,6 +74,7 @@ analysis_dict = {"any":"any POS in distance <= 400 m",
 this_analysis = analysis_dict[ind_abbrev]      
 this_ind = '{network}_{pos}_{ind_abbrev}'.format(network = network,pos = pos,ind_abbrev = ind_abbrev)
    
+
 # ArcGIS environment settings
 arcpy.env.workspace = gdb_path  
 # create project specific folder in temp dir for scratch.gdb, if not exists
@@ -87,13 +88,15 @@ arcpy.env.overwriteOutput = True
 # Specify features of interest and key attributes
 origin_points   = parcel_dwellings
 origin_pointsID = points_id
-aos_points = '{pos}_nodes_30m_{network}'.format(network = network_abbrev,
-                                                pos = pos_abbrev)
+
+aos_points = "{pos_abbrev}_nodes_30m_{network}{pos_suffix}".format(pos_abbrev = pos_abbrev,pos_suffix = pos_suffix)   
 aos_pointsID =  'aos_entryid'
+
 in_network_dataset = {'osm':'PedestrianRoads\\PedestrianRoads_ND',
                       'vicmap':'pedestrian_vicmap\\pedestrian_vicmap_ND'}[network_abbrev]
 
-# table containing the results of this analysis (amongst, potentially, others)                      
+# table to contain the results of analyses of this type (combinations of network and pos)                   
+aos_threshold = 400
 table  = "pos_400m_{ind_abbrev}".format(ind_abbrev = ind_abbrev)
   
                       
@@ -119,11 +122,12 @@ progress_table = '{table}_progress'.format(table = table)
 pid = multiprocessing.current_process().name
 # create initial OD cost matrix layer on worker processors
 if pid !='MainProcess':
-  # Make OD cost matrix layer
+  # Make OD cost matrix layer --- Note: this is only to closest, so limit of 1 destination
   result_object = arcpy.MakeODCostMatrixLayer_na(in_network_dataset = in_network_dataset, 
                                                  out_network_analysis_layer = "ODmatrix", 
                                                  impedance_attribute = "Length", 
                                                  default_cutoff = aos_threshold,
+                                                 default_number_destinations_to_find = 1,
                                                  UTurn_policy = "ALLOW_UTURNS", 
                                                  hierarchy = "NO_HIERARCHY", 
                                                  output_path_shape = "NO_LINES")                                 
@@ -138,8 +142,8 @@ if pid !='MainProcess':
   
   # you may have to do this later in the script - but try now....
   ODLinesSubLayer = arcpy.mapping.ListLayers(outNALayer, linesLayerName)[0]
-  fields = ['Name', 'Total_Length']
-  
+  #fields = ['Name', 'Total_Length']  
+  fields = ['Name']  
   arcpy.MakeFeatureLayer_management(hex_grid, "hex_layer")     
   arcpy.MakeFeatureLayer_management(aos_points, "aos_pointsLayer")    
 
@@ -147,10 +151,9 @@ if pid !='MainProcess':
 # Establish preliminary SQL step to filter down Origin-Destination combinations 
 # by minimum distance to an entry node
 recInsert      = '''
-  INSERT INTO {table} ({id}, aos_id, node, distance)  
-  SELECT DISTINCT ON (gnaf_pid, aos_id) gnaf_pid, aos_id, node, min(distance) AS distance
-   FROM  
-   (VALUES 
+  UPDATE {table} 
+     SET {this_ind} = 1
+    WHERE {id} IN 
   '''.format(id = origin_pointsID.lower(),
              table = table)          
 
@@ -215,23 +218,46 @@ def ODMatrixWorkerFunction(hex):
     place = 'before hex selection'
     hex_selection = arcpy.SelectLayerByAttribute_management("hex_layer", where_clause = 'OBJECTID = {}'.format(hex[0]))
     # Evaluate intersection of points with AOS
-    evaluate_os_intersection = '''
-    INSERT INTO {table} ({id}, aos_id,distance)
-    SELECT {id}, 
-            aos_id,
-            0
-    FROM parcel_dwellings p, open_space_areas o
-    WHERE hex_id = {hex} 
-    AND ST_Intersects(p.geom,o.geom)
-    ON CONFLICT ({id}, aos_id) 
-      DO UPDATE
-         SET distance = 0 
-         WHERE {table}.distance > EXCLUDED.distance;;
+    evalulate_intersections = '''
+    DROP TABLE IF EXISTS CREATE TABLE aos_temp_hex_{hex};
+    CREATE TABLE aos_temp_hex_{hex} AS
+    SELECT p.{id}
+    FROM parcel_dwellings p
+    WHERE EXISTS 
+    (SELECT 1 
+       FROM parcel_dwellings p, 
+            {os_source} o 
+      WHERE hex_id = {hex} 
+        AND ST_Intersects(p.geom,o.geom)
+        AND t.{id} = p.{id});
+    SELECT * FROM aos_temp_hex_{hex};
+    '''.format(id = points_id.lower(),
+               table = table,
+               this_ind = this_ind,
+               hex = hex[0])
+    intersections = pandas.read_sql_query(evalulate_intersections,con=engine)
+    intersection_list = incompletions.tolist()
+    intersection_list = [p.encode(x) for x in intersection_list]
+    if len(intersection_list) > 0:
+      evaluate_os_intersection = '''
+      UPDATE {table} o SET this_ind = 1 
+      WHERE EXISTS (SELECT 1 
+                      FROM parcel_dwellings p, 
+                           {os_source} o 
+                     WHERE hex_id = {hex} 
+                       AND ST_Intersects(p.geom,o.geom)
+                       AND t.{id} = p.{id});
       '''.format(id = points_id.lower(),
-                hex = hex[0],
-                table = table)
-    curs.execute(evaluate_os_intersection)
-    conn.commit()
+                  hex = hex[0],
+                  table = table)
+      curs.execute(evaluate_os_intersection)
+      conn.commit()
+      curs.execute("DROP TABLE aos_temp_hex_{hex}".format(hex=hex[0])
+    
+    A_selection = arcpy.SelectLayerByAttribute_management("origin_pointsLayer", 
+                        where_clause = "hex_id = {hex} AND {id} IN ('{id_list}')".format(hex = hex[0],
+                                                                                         id = origin_pointsID,
+                                                                                         id_list = to_do_points)) 
     
     # Select and count parks meeting scenario query
     # Note that selection of nodes within 3200 meters euclidian distance of the hex 
@@ -286,18 +312,28 @@ def ODMatrixWorkerFunction(hex):
         place = 'After add B locations'
         # Process: Solve
         result = arcpy.Solve_na(outNALayer, terminate_on_solve_error = "CONTINUE")
+        count = 0
         if result[1] == u'true':
           place = 'After solve'
           # Extract lines layer, export to SQL database
           outputLines = arcpy.da.SearchCursor(ODLinesSubLayer, fields)
           curs = conn.cursor()
         
-          chunkedLines = list()
           place = 'before outputLine loop'
+          ids_with_pos = [x[0].split('-')[0].encode('utf-8').strip(' ') for x in outputLines]
+          count += len(ids_with_pos)
+          query = '''UPDATE {table} SET {this_ind} = 1 WHERE {id} IN ({ids})'''.format(table = table,
+                                                                                    id = points_id.lower(),
+          curs.execute(query)
+          conn.commit()
+        else:
+          ids_without_pos = []
           for outputLine in outputLines:
             count += 1
             od_pair = outputLine[0].split('-')
-            pid = od_pair[0].encode('utf-8').strip(' ')
+            id = od_pair[0].encode('utf-8').strip(' ')
+            ids_with_pos.append(id)
+          
             aos_pair = od_pair[1].split(',')
             aos = int(aos_pair[0])
             node = int(aos_pair[1])
