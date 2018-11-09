@@ -301,7 +301,6 @@ def ODMatrixWorkerFunction(hex):
                         where_clause = '''hex_id = {hex} AND {id} NOT IN ('{id_list}')'''.format(hex = hex[0],
                                                                                          id = origin_pointsID,
                                                                                          id_list = "','".join(ids_intersecting_pos))) 
-      A_pointCount = int(arcpy.GetCount_management(A_selection).getOutput(0))    
       # Process OD Matrix Setup
       place = "add unprocessed address points"
       # print(place)
