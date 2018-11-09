@@ -213,9 +213,9 @@ def ODMatrixWorkerFunction(hex):
    WHERE EXISTS (SELECT 1 
                    FROM  {region}_2018_hex_3000m_diag_3000m_buffer h, 
                           {os_source} p 
-                  WHERE h.objectid = {hex} 
+                  WHERE h.orig_fid = {hex} 
                     AND ST_Intersects(h.geom,p.geom) 
-               GROUP BY h.objectid);
+               GROUP BY h.orig_fid);
   '''.format(region = region,hex = hex[0],os_source = os_source)
   curs.execute(hex_buffer_intersects)
   buffer_intersects = list(curs)
