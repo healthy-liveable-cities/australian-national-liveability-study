@@ -214,9 +214,9 @@ def ODMatrixWorkerFunction(hex):
     place = 'At the beginning...'
     to_do_points = hex[1]  
     A_pointCount = len(to_do_points)
-    # process ids in groups of 500 or fewer
     place = 'before hex selection'
     hex_selection = arcpy.SelectLayerByAttribute_management("hex_layer", where_clause = 'OBJECTID = {}'.format(hex[0]))
+    
     # Evaluate intersection of points with AOS
     evalulate_intersections = '''
     DROP TABLE IF EXISTS CREATE TABLE aos_temp_hex_{hex};
@@ -236,9 +236,11 @@ def ODMatrixWorkerFunction(hex):
                this_ind = this_ind,
                hex = hex[0])
     intersections = pandas.read_sql_query(evalulate_intersections,con=engine)
-    intersection_list = incompletions.tolist()
-    intersection_list = [p.encode(x) for x in intersection_list]
-    if len(intersection_list) > 0:
+    ids_with_pos = incompletions.tolist()
+    ids_with_pos = [x.encode('utf8') for x in ids_with_pos]
+
+    if len(ids_with_pos) > 0:
+      # record positive scores for indicator for intersections
       evaluate_os_intersection = '''
       UPDATE {table} o SET this_ind = 1 
       WHERE EXISTS (SELECT 1 
@@ -252,7 +254,9 @@ def ODMatrixWorkerFunction(hex):
                   table = table)
       curs.execute(evaluate_os_intersection)
       conn.commit()
-      curs.execute("DROP TABLE aos_temp_hex_{hex}".format(hex=hex[0])
+      curs.execute("DROP TABLE aos_temp_hex_{hex}".format(hex=hex[0]))
+      # remove intersection points from to do list
+      to_do_points = [x for x in to_do_points if x not in ids_with_pos]
     
     A_selection = arcpy.SelectLayerByAttribute_management("origin_pointsLayer", 
                         where_clause = "hex_id = {hex} AND {id} IN ('{id_list}')".format(hex = hex[0],
@@ -267,19 +271,14 @@ def ODMatrixWorkerFunction(hex):
     B_selection = arcpy.SelectLayerByLocation_management('aos_pointsLayer', 'WITHIN_A_DISTANCE', hex_selection, '3200 Meters')
     B_pointCount = int(arcpy.GetCount_management(B_selection).getOutput(0))
     place = 'before skip empty B hexes'
-    # Insert nulls then skip if there are no AOS within 3200m of the current hex
-    # In theory, this should not occur; these should be filtered out in parcel identification on creation
-    # The insertion of nulls assist
-    # if B_pointCount == 0:
-      # INSERTION OF NULLS SEEMS REDUNDANT
-      # update_aos = '''INSERT INTO {table} (gnaf_pid) VALUES {};
-      # '''.format(','.join(['''('{}')'''.format(id) for id in to_do_points]), table = table)
-      # place = "before no B point execute sql, hex = {}".format(hex[0])
-      # curs.execute(update_aos)
-      # place = "before no B point commit, hex = {}".format(hex[0])
-      # conn.commit()
+    if B_pointCount==0:
+      query = '''UPDATE {table} SET {this_ind} = 0 WHERE {id} IN ({ids})'''.format(table = table,
+                                                                                       id = points_id.lower(),
+                                                                                       ids = to_do_list)
+      curs.execute(query)
+      conn.commit()
+      
     if B_pointCount > 0:  
-      for chunk in chunks(to_do_points,sqlChunkify):
         A_selection = arcpy.SelectLayerByAttribute_management("origin_pointsLayer", 
                         where_clause = "hex_id = {hex} AND {id} IN ('{id_list}')".format(hex = hex[0],
                                                                                          id = origin_pointsID,
@@ -312,7 +311,7 @@ def ODMatrixWorkerFunction(hex):
         place = 'After add B locations'
         # Process: Solve
         result = arcpy.Solve_na(outNALayer, terminate_on_solve_error = "CONTINUE")
-        count = 0
+
         if result[1] == u'true':
           place = 'After solve'
           # Extract lines layer, export to SQL database
@@ -320,36 +319,17 @@ def ODMatrixWorkerFunction(hex):
           curs = conn.cursor()
         
           place = 'before outputLine loop'
-          ids_with_pos = [x[0].split('-')[0].encode('utf-8').strip(' ') for x in outputLines]
-          count += len(ids_with_pos)
+          [ids_with_pos.append(x[0].split('-')[0].encode('utf-8').strip(' ')) for x in outputLines]
           query = '''UPDATE {table} SET {this_ind} = 1 WHERE {id} IN ({ids})'''.format(table = table,
-                                                                                    id = points_id.lower(),
+                                                                                       id = points_id.lower(),
+                                                                                       ids = to_do_list)
           curs.execute(query)
-          conn.commit()
-        else:
-          ids_without_pos = []
-          for outputLine in outputLines:
-            count += 1
-            od_pair = outputLine[0].split('-')
-            id = od_pair[0].encode('utf-8').strip(' ')
-            ids_with_pos.append(id)
-          
-            aos_pair = od_pair[1].split(',')
-            aos = int(aos_pair[0])
-            node = int(aos_pair[1])
-            distance = int(round(outputLine[1]))
-            place = "before chunk append, gnaf = {}".format(pid)
-            chunkedLines.append("('{pid}',{aos},{node},{distance})".format(pid = pid,
-                                                                     aos = aos,
-                                                                     node = node,
-                                                                     distance  = distance))
-          place = "before execute sql, gnaf = {}".format(pid)
-          curs.execute(recInsert + ','.join(rowOfChunk for rowOfChunk in chunkedLines)+recUpdate)
-          place = "before commit, gnaf = {}".format(pid)
           conn.commit()
         if arcpy.Exists(result):  
           arcpy.Delete_management(result)   
-      
+    
+    ids_without_pos = [x for x in to_do_list if x not in ids_with_pos]
+    
     curs.execute("UPDATE {progress_table} SET processed = processed+{count}".format(progress_table = progress_table,
                                                                                       count = A_pointCount))
     conn.commit()
