@@ -450,7 +450,7 @@ if __name__ == '__main__':
   print("Commence multiprocessing...")  
   start = time.time()
   progressor(processed,total_parcels,start,"{}/{} at {}".format(processed,total_parcels,time.strftime("%Y%m%d-%H%M%S")))  
-  # nWorkers = 1
+  nWorkers = 7
   pool = multiprocessing.Pool(nWorkers)
   pool.map(ODMatrixWorkerFunction, to_do_list, chunksize=1)
   
