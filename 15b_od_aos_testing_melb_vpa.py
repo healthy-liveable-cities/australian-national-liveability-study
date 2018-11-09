@@ -350,7 +350,7 @@ def ODMatrixWorkerFunction(hex):
         ids_with_pos = ids_intersecting_pos+ids_near_pos
         ids_without_pos = list(set(to_do_points) - set(ids_with_pos))
       else:
-        ids_without_pos = list(set(to_do_points) - set(intersecting_pos))
+        ids_without_pos = list(set(to_do_points) - set(ids_intersecting_pos))
       
       place = "delete result if exists"
       # print(place)
