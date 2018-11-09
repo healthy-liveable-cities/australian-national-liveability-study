@@ -32,20 +32,33 @@ if __name__ == '__main__':
         Please specify a locale, network and public open space data source to run this script. 
         
         The required format is:
-        python script locale network pos_source_abbreviation
+        python script [locale] [network] [pos] [analysis] 
         
-        Examples of code to run are:
-        python 15_od_aos_testing_melb_vpa.py melb osm osm
-        python 15_od_aos_testing_melb_vpa.py melb osm foi
-        python 15_od_aos_testing_melb_vpa.py melb osm vpa
-        python 15_od_aos_testing_melb_vpa.py melb vicmap foi
-        python 15_od_aos_testing_melb_vpa.py melb vicmap vpa
-        python 15_od_aos_testing_melb_vpa.py melb vicmap osm
+        Examples of code to run expressed in this format are:
+        python 15_od_aos_testing_melb_vpa.py melb osm osm    any
+        python 15_od_aos_testing_melb_vpa.py melb osm foi    any
+        python 15_od_aos_testing_melb_vpa.py melb osm vpa    any
+        python 15_od_aos_testing_melb_vpa.py melb vicmap foi any
+        python 15_od_aos_testing_melb_vpa.py melb vicmap vpa any
+        python 15_od_aos_testing_melb_vpa.py melb vicmap osm any
+
+        python 15_od_aos_testing_melb_vpa.py melb osm osm    gr1ha
+        python 15_od_aos_testing_melb_vpa.py melb osm foi    gr1ha
+        python 15_od_aos_testing_melb_vpa.py melb osm vpa    gr1ha
+        python 15_od_aos_testing_melb_vpa.py melb vicmap foi gr1ha
+        python 15_od_aos_testing_melb_vpa.py melb vicmap vpa gr1ha
+        python 15_od_aos_testing_melb_vpa.py melb vicmap osm gr1ha
+
+        python 15_od_aos_testing_melb_vpa.py melb osm osm    gr1ha_sp
+        python 15_od_aos_testing_melb_vpa.py melb osm foi    gr1ha_sp
+        python 15_od_aos_testing_melb_vpa.py melb osm vpa    gr1ha_sp
+        python 15_od_aos_testing_melb_vpa.py melb vicmap foi gr1ha_sp
+        python 15_od_aos_testing_melb_vpa.py melb vicmap vpa gr1ha_sp
+        python 15_od_aos_testing_melb_vpa.py melb vicmap osm gr1ha_sp     
         
         Note:
-          - the osm network with osm pos is not required to be run, 
-            since this is dealt with by running script 15 (15_od_aos.py)
           - it is assumed that earlier scripts have been run and all data is where it is expected to be
+          - Specifically, requires scripts 0,1,2,3,4,5,6,11,12,13 and 13b to have been run
           
         Good luck!
         '''  
@@ -59,21 +72,22 @@ if __name__ == '__main__':
         sys.exit(exit_message)
 
 # establish parameters specific to this analysis as per given arguments        
-network_abbrev = sys.argv[2]
-pos_abbrev = sys.argv[3]
-ind_abbrev = sys.argv[4]
+network = sys.argv[2]
+pos = sys.argv[3]
+ind = sys.argv[4]
 
-pos_suffix = ind_abbrev
-if ind_abbrev == 'any':
-  pos_suffix == ''
+pos_suffix = '_{}'.format(ind)
+if '_any' in pos_suffix:
+  pos_suffix = ''
 
 analysis_dict = {"any":"any POS in distance <= 400 m",
                  "gr1ha":"POS >= 1 Ha  in distance <= 400 m",
                  "gr1ha_sp":"POS >= 1 Ha or with a sport in distance <= 400 m"}
 
-this_analysis = analysis_dict[ind_abbrev]      
-this_ind = '{network}_{pos}_{ind_abbrev}'.format(network = network,pos = pos,ind_abbrev = ind_abbrev)
-   
+this_analysis = analysis_dict[ind]      
+this_ind = '{network}_{pos}_{ind}'.format(network = network,pos = pos,ind = ind)
+
+os_source = "aos_public_{pos}{pos_suffix}".format(pos = pos,pos_suffix = pos_suffix)
 
 # ArcGIS environment settings
 arcpy.env.workspace = gdb_path  
@@ -89,15 +103,25 @@ arcpy.env.overwriteOutput = True
 origin_points   = parcel_dwellings
 origin_pointsID = points_id
 
-aos_points = "{pos_abbrev}_nodes_30m_{network}{pos_suffix}".format(pos_abbrev = pos_abbrev,pos_suffix = pos_suffix)   
+aos_points = "{pos}_nodes_30m_{network}{pos_suffix}".format(pos = pos,pos_suffix = pos_suffix, network = network)   
 aos_pointsID =  'aos_entryid'
-
+  
 in_network_dataset = {'osm':'PedestrianRoads\\PedestrianRoads_ND',
-                      'vicmap':'pedestrian_vicmap\\pedestrian_vicmap_ND'}[network_abbrev]
+                      'vicmap':'pedestrian_vicmap\\pedestrian_vicmap_ND'}[network]
 
+if __name__ == '__main__':
+  if not arcpy.Exists(origin_points): 
+    sys.exit("The origin point dataset {} could not be located; exiting.".format(origin_points))
+  
+  if not arcpy.Exists(aos_points): 
+    sys.exit("The AOS nodes dataset {} could not be located; exiting.".format(aos_points))
+  
+  if not arcpy.Exists(in_network_dataset): 
+    sys.exit("The network dataset {} could not be located; exiting.".format(in_network_dataset))
+                      
 # table to contain the results of analyses of this type (combinations of network and pos)                   
 aos_threshold = 400
-table  = "pos_400m_{ind_abbrev}".format(ind_abbrev = ind_abbrev)
+table  = "pos_400m_{ind}".format(ind = ind)
   
                       
 hexStart = 0
@@ -146,213 +170,223 @@ if pid !='MainProcess':
   fields = ['Name']  
   arcpy.MakeFeatureLayer_management(hex_grid, "hex_layer")     
   arcpy.MakeFeatureLayer_management(aos_points, "aos_pointsLayer")    
+  arcpy.MakeFeatureLayer_management(origin_points,"origin_pointsLayer") 
 
-  
-# Establish preliminary SQL step to filter down Origin-Destination combinations 
-# by minimum distance to an entry node
-recInsert      = '''
-  UPDATE {table} 
-     SET {this_ind} = 1
-    WHERE {id} IN 
-  '''.format(id = origin_pointsID.lower(),
-             table = table)          
-
-# Aggregate the minimum distance OD combinations into a list
-# node is retained for verification purposes; 
-# ie. we can visually evaluate that the distance to dest checks out  
-# Optionally, other attributes could be joined using a 'post' clause with a left join
-# and aggregated at this point (see earlier code versions).
-# However, it is probably more optimal to keep AOS attributes seperate.
-# If making a query re: a specific AOS subset, the AOS IDs for the relevant 
-# subset could first be identified; then the OD AOS results could be checked
-# to return only those Addresses with subset AOS IDs recorded within the 
-# required distance
-recUpdate      = '''
-  ) v({id}, aos_id, node, distance) 
-  GROUP BY {id},aos_id, node
-  ON CONFLICT ({id}, aos_id) 
-    DO UPDATE
-      SET node = EXCLUDED.node, 
-          distance = EXCLUDED.distance 
-       WHERE {table}.distance > EXCLUDED.distance;
-  '''.format(id = origin_pointsID.lower(),
-             table = table)  
- 
 parcel_count = int(arcpy.GetCount_management(origin_points).getOutput(0))  
 denominator = parcel_count
- 
-arcpy.MakeFeatureLayer_management(origin_points,"origin_pointsLayer") 
- 
-## Functions defined for this script    
-def chunks(l, n):
-    """Yield successive n-sized chunks from l."""
-    for i in range(0, len(l), n):
-        yield l[i:i + n]
-        
+
 # Worker/Child PROCESS
 def ODMatrixWorkerFunction(hex): 
-  # print(hex)
-  # Connect to SQL database 
-  try:
-    conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
-    curs = conn.cursor()
-  except:
-    print("SQL connection error")
-    print(sys.exc_info()[1])
-    return 100
-  # make sure Network Analyst licence is 'checked out'
-  arcpy.CheckOutExtension('Network')
- 
-  # Worker Task is hex-specific by definition/parallel
-  #     Skip if hex was finished in previous run
-  hexStartTime = time.time()
-  if hex[0] < hexStart:
-    return(1)
-    
-  try:
-    count = 0
-    place = 'At the beginning...'
-    to_do_points = hex[1]  
-    A_pointCount = len(to_do_points)
-    place = 'before hex selection'
-    hex_selection = arcpy.SelectLayerByAttribute_management("hex_layer", where_clause = 'OBJECTID = {}'.format(hex[0]))
-    
-    # Evaluate intersection of points with AOS
-    evalulate_intersections = '''
-    DROP TABLE IF EXISTS CREATE TABLE aos_temp_hex_{hex};
-    CREATE TABLE aos_temp_hex_{hex} AS
-    SELECT p.{id}
-    FROM parcel_dwellings p
-    WHERE EXISTS 
-    (SELECT 1 
-       FROM parcel_dwellings p, 
-            {os_source} o 
-      WHERE hex_id = {hex} 
-        AND ST_Intersects(p.geom,o.geom)
-        AND t.{id} = p.{id});
-    SELECT * FROM aos_temp_hex_{hex};
-    '''.format(id = points_id.lower(),
-               table = table,
-               this_ind = this_ind,
-               hex = hex[0])
-    intersections = pandas.read_sql_query(evalulate_intersections,con=engine)
-    ids_with_pos = incompletions.tolist()
-    ids_with_pos = [x.encode('utf8') for x in ids_with_pos]
+  # print("here we go")
 
-    if len(ids_with_pos) > 0:
-      # record positive scores for indicator for intersections
-      evaluate_os_intersection = '''
-      UPDATE {table} o SET this_ind = 1 
-      WHERE EXISTS (SELECT 1 
-                      FROM parcel_dwellings p, 
-                           {os_source} o 
-                     WHERE hex_id = {hex} 
-                       AND ST_Intersects(p.geom,o.geom)
-                       AND t.{id} = p.{id});
+  place = "Connect to SQL database "
+  # print(place)
+  conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
+  curs = conn.cursor()
+  
+  place = "Check out network analyst extension"
+  # print(place)
+  arcpy.CheckOutExtension('Network')
+  
+  place = "process start time"
+  hexStartTime = time.time()
+  count = 0
+  
+  place = 'Count points as list'
+  # print(place)
+  to_do_points = hex[1]  
+  A_pointCount = len(to_do_points)
+  
+  place = 'before hex selection'
+  # print(place)
+  hex_selection = arcpy.SelectLayerByAttribute_management("hex_layer", where_clause = 'OBJECTID = {}'.format(hex[0]))
+  
+  place = "initialise empty lists of ids with pos"
+  # print(place)
+  ids_intersecting_pos = []
+  ids_near_pos = []
+  
+  place = "Evaluate intersection of points with AOS"
+  # print(place)
+  hex_buffer_intersects = '''
+  SELECT 1 
+   WHERE EXISTS (SELECT 1 
+                   FROM  {region}_2018_hex_3000m_diag_3000m_buffer h, 
+                          {os_source} p 
+                  WHERE h.objectid = {hex} 
+                    AND ST_Intersects(h.geom,p.geom) 
+               GROUP BY h.objectid);
+  '''.format(region = region,hex = hex[0],os_source = os_source)
+  curs.execute(hex_buffer_intersects)
+  buffer_intersects = list(curs)
+  if len(buffer_intersects) == 0:
+    B_pointCount = 0
+  else:
+    place = "Buffer intersects AOS, so check if hex intersects also"
+    # print(place)
+    hex_intersects = '''
+    SELECT 1 
+     WHERE EXISTS (SELECT 1 
+                     FROM  {region}_2018_hex_3000m_diag h, 
+                           {os_source} p 
+                    WHERE h.objectid = {hex} 
+                      AND ST_Intersects(h.geom,p.geom) 
+                 GROUP BY h.objectid);
+    '''.format(region = region,hex = hex[0],os_source = os_source)
+    curs.execute(hex_intersects)
+    hex_intersects = list(curs)
+    if len(hex_intersects) > 0:
+      place = "hex intersects, so check if parcels intersect AOS"
+      evalulate_intersections = '''
+      DROP TABLE IF EXISTS aos_temp_hex_{hex};
+      CREATE TABLE aos_temp_hex_{hex} AS
+      SELECT p.{id}
+      FROM parcel_dwellings p
+      WHERE EXISTS 
+      (SELECT 1 
+         FROM parcel_dwellings t, 
+              {os_source} o 
+        WHERE t.hex_id = {hex} 
+          AND ST_Intersects(t.geom,o.geom)
+          AND t.{id} = p.{id})
+      GROUP BY p.{id};
       '''.format(id = points_id.lower(),
-                  hex = hex[0],
-                  table = table)
-      curs.execute(evaluate_os_intersection)
+                 table = table,
+                 this_ind = this_ind,
+                 hex = hex[0],
+                 os_source = os_source)
+      place = "evaluate intersections"
+      # print(place)
+      curs.execute(evalulate_intersections)
       conn.commit()
+      curs.execute("SELECT * FROM aos_temp_hex_{hex}".format(hex = hex[0]))
+      intersections = list(curs)
+      if len(intersections) > 0:
+        place = "Points intersects AOS, so update indicator to reflect this"
+        # print(place)
+        for x in intersections:
+          ids_intersecting_pos.append(x[0].encode('utf8'))
+        evaluate_os_intersection = '''
+        UPDATE {table} t SET {this_ind} = 1 
+        WHERE EXISTS (SELECT 1 
+                        FROM aos_temp_hex_{hex} p
+                       WHERE p.{id} = t.{id});
+        '''.format(id = points_id.lower(),
+                   this_ind = this_ind,
+                   hex = hex[0],
+                   table = table)
+        curs.execute(evaluate_os_intersection)
+        conn.commit()
+        # place = "remove intersection points from to do list"
+        # # print(place)
+        # to_do_points = [x for x in to_do_points if x not in ids_intersecting_pos]
       curs.execute("DROP TABLE aos_temp_hex_{hex}".format(hex=hex[0]))
-      # remove intersection points from to do list
-      to_do_points = [x for x in to_do_points if x not in ids_with_pos]
     
-    A_selection = arcpy.SelectLayerByAttribute_management("origin_pointsLayer", 
-                        where_clause = "hex_id = {hex} AND {id} IN ('{id_list}')".format(hex = hex[0],
-                                                                                         id = origin_pointsID,
-                                                                                         id_list = to_do_points)) 
-    
-    # Select and count parks meeting scenario query
-    # Note that selection of nodes within 3200 meters euclidian distance of the hex 
+    place = "Select and count parks meeting scenario query"
+    # print(place)
+    # Note that selection of nodes within 400 meters euclidian distance of the hex 
     # containing the currently selected parcel is sufficient to guarantee the most optimistic
     # route for an edge case given we have accounted for intersection
-    # -- ie. a straight line distance of 3200m for a parcel on edge of hex
-    B_selection = arcpy.SelectLayerByLocation_management('aos_pointsLayer', 'WITHIN_A_DISTANCE', hex_selection, '3200 Meters')
+    # -- ie. a straight line distance of 400m for a parcel on edge of hex
+    B_selection = arcpy.SelectLayerByLocation_management('aos_pointsLayer', 'WITHIN_A_DISTANCE', hex_selection, '400 Meters')
     B_pointCount = int(arcpy.GetCount_management(B_selection).getOutput(0))
-    place = 'before skip empty B hexes'
-    if B_pointCount==0:
-      query = '''UPDATE {table} SET {this_ind} = 0 WHERE {id} IN ({ids})'''.format(table = table,
-                                                                                       id = points_id.lower(),
-                                                                                       ids = to_do_list)
-      curs.execute(query)
-      conn.commit()
-      
-    if B_pointCount > 0:  
-        A_selection = arcpy.SelectLayerByAttribute_management("origin_pointsLayer", 
-                        where_clause = "hex_id = {hex} AND {id} IN ('{id_list}')".format(hex = hex[0],
+  place = 'before skip empty B hexes'
+  # print(place)    
+  if B_pointCount == 0:  
+      ids_without_pos = to_do_points
+  if B_pointCount > 0:  
+      place = "Select origin points"
+      # print(place)
+      A_selection = arcpy.SelectLayerByAttribute_management("origin_pointsLayer", 
+                        where_clause = '''hex_id = {hex} AND {id} NOT IN ('{id_list}')'''.format(hex = hex[0],
                                                                                          id = origin_pointsID,
-                                                                                         id_list = "','".join(chunk)))   
-        A_pointCount = int(arcpy.GetCount_management(A_selection).getOutput(0))    
-        # Process OD Matrix Setup
-        # add unprocessed address points
-        arcpy.AddLocations_na(in_network_analysis_layer = outNALayer, 
-            sub_layer                      = originsLayerName, 
-            in_table                       = A_selection, 
-            field_mappings                 = "Name {} #".format(origin_pointsID), 
-            search_tolerance               = "{} Meters".format(tolerance), 
-            search_criteria                = "{} SHAPE;{} NONE".format(network_edges,network_junctions), 
-            append                         = "CLEAR", 
-            snap_to_position_along_network = "NO_SNAP", 
-            exclude_restricted_elements    = "INCLUDE",
-            search_query                   = "{} #;{} #".format(network_edges,network_junctions))
-        place = 'After add A locations'
-        # add in parks
-        arcpy.AddLocations_na(in_network_analysis_layer = outNALayer, 
-          sub_layer                      = destinationsLayerName, 
-          in_table                       = B_selection, 
-          field_mappings                 = "Name {} #".format(aos_pointsID), 
+                                                                                         id_list = "','".join(ids_intersecting_pos))) 
+      A_pointCount = int(arcpy.GetCount_management(A_selection).getOutput(0))    
+      # Process OD Matrix Setup
+      place = "add unprocessed address points"
+      # print(place)
+      arcpy.AddLocations_na(in_network_analysis_layer = outNALayer, 
+          sub_layer                      = originsLayerName, 
+          in_table                       = A_selection, 
+          field_mappings                 = "Name {} #".format(origin_pointsID), 
           search_tolerance               = "{} Meters".format(tolerance), 
           search_criteria                = "{} SHAPE;{} NONE".format(network_edges,network_junctions), 
           append                         = "CLEAR", 
           snap_to_position_along_network = "NO_SNAP", 
           exclude_restricted_elements    = "INCLUDE",
-          search_query                   = "{} #;{} #".format(network_edges,network_junctions))    
-        place = 'After add B locations'
-        # Process: Solve
-        result = arcpy.Solve_na(outNALayer, terminate_on_solve_error = "CONTINUE")
-
-        if result[1] == u'true':
-          place = 'After solve'
-          # Extract lines layer, export to SQL database
-          outputLines = arcpy.da.SearchCursor(ODLinesSubLayer, fields)
-          curs = conn.cursor()
-        
-          place = 'before outputLine loop'
-          [ids_with_pos.append(x[0].split('-')[0].encode('utf-8').strip(' ')) for x in outputLines]
-          query = '''UPDATE {table} SET {this_ind} = 1 WHERE {id} IN ({ids})'''.format(table = table,
-                                                                                       id = points_id.lower(),
-                                                                                       ids = to_do_list)
-          curs.execute(query)
-          conn.commit()
-        if arcpy.Exists(result):  
-          arcpy.Delete_management(result)   
-    
-    ids_without_pos = [x for x in to_do_list if x not in ids_with_pos]
-    
-    curs.execute("UPDATE {progress_table} SET processed = processed+{count}".format(progress_table = progress_table,
-                                                                                      count = A_pointCount))
-    conn.commit()
-    curs.execute("SELECT processed from {progress_table}".format(progress_table = progress_table))
-    progress = int(list(curs)[0][0])
-    progressor(progress,total_parcels,start,"{}/{}; last hex processed: {}, at {}".format(progress,total_parcels,hex[0],time.strftime("%Y%m%d-%H%M%S"))) 
-  except:
-    print('''Error: {}
-             Place: {}
-      '''.format( sys.exc_info(),place))   
-
-  finally:
-    arcpy.CheckInExtension('Network')
-    conn.close()
+          search_query                   = "{} #;{} #".format(network_edges,network_junctions))
+      place = "add in parks"
+      # print(place)
+      arcpy.AddLocations_na(in_network_analysis_layer = outNALayer, 
+        sub_layer                      = destinationsLayerName, 
+        in_table                       = B_selection, 
+        field_mappings                 = "Name {} #".format(aos_pointsID), 
+        search_tolerance               = "{} Meters".format(tolerance), 
+        search_criteria                = "{} SHAPE;{} NONE".format(network_edges,network_junctions), 
+        append                         = "CLEAR", 
+        snap_to_position_along_network = "NO_SNAP", 
+        exclude_restricted_elements    = "INCLUDE",
+        search_query                   = "{} #;{} #".format(network_edges,network_junctions))    
+      place = 'Solve'
+      # print(place)
+      result = arcpy.Solve_na(outNALayer, terminate_on_solve_error = "CONTINUE")
+  
+      if result[1] == u'true':
+        place = 'Extract lines layer, export to SQL database'
+        # print(place)
+        outputLines = arcpy.da.SearchCursor(ODLinesSubLayer, fields)
+      
+        place = 'before outputLine loop'
+        # print(place)
+        [ids_near_pos.append(x[0].split('-')[0].encode('utf-8').strip(' ')) for x in outputLines]
+        query = '''UPDATE {table} SET {this_ind} = 1 WHERE {id} IN ('{id_list}')'''.format(table = table,
+                                                                               this_ind = this_ind,
+                                                                                     id = points_id.lower(),
+                                                                                     id_list = "','".join(ids_near_pos))
+        curs.execute(query)
+        conn.commit()
+        place = "identify and update ids without pos"
+        # print(place)
+        ids_with_pos = ids_intersecting_pos+ids_near_pos
+        ids_without_pos = list(set(to_do_points) - set(ids_with_pos))
+      else:
+        ids_without_pos = list(set(to_do_points) - set(intersecting_pos))
+      
+      place = "delete result if exists"
+      # print(place)
+      if arcpy.Exists(result):  
+        arcpy.Delete_management(result)   
+  place = "Update ind for points without pos"
+  # print(place)
+  query = '''UPDATE {table} SET {this_ind} = 0 WHERE {id} IN ('{id_list}')'''.format(table = table,
+                                                                               this_ind = this_ind,
+                                                                               id = points_id.lower(),
+                                                                               id_list = "','".join(ids_without_pos))
+  curs.execute(query)
+  conn.commit()    
+  
+  curs.execute('''UPDATE {progress_table} SET processed = processed+{count}'''.format(progress_table = progress_table, count = A_pointCount))
+  conn.commit()
+  curs.execute('''SELECT processed from {progress_table}'''.format(progress_table = progress_table))
+  progress = int(list(curs)[0][0])
+  ##except:
+  ##  print('''
+  ##  Error: {}
+  ##  Place: {}
+  ##  '''.format( sys.exc_info(),place))   
+  progressor(progress,total_parcels,start,'''{}/{}; last hex processed: {}, at {}'''.format(progress,total_parcels,hex[0],time.strftime("%Y%m%d-%H%M%S")))  
+  arcpy.CheckInExtension('Network')
+  conn.close()
 
 # MAIN PROCESS
 if __name__ == '__main__':
   from script_running_log import script_running_log
-  task = 'POS in 3200m OD analysis using {} network and {} pos source'.format(network_abbrev,pos_abbrev)
+  task = 'POS in 3200m OD analysis using {} network and {} pos source'.format(network,pos)
   print("Commencing task ({}):\n{} at {}".format(db,task,time.strftime("%Y%m%d-%H%M%S")))
   print("Locale: {}".format(locale))
-  print("Network: {} ({})".format(network_abbrev,in_network_dataset))
-  print("POS source: {} ({})".format(pos_abbrev,aos_points))
+  print("Network: {} ({})".format(network,in_network_dataset))
+  print("Analysis: '{}'".format(ind))
+  print("POS source: {} ({})".format(pos,aos_points))
   print("Output OD matrix: {}".format(table))
     
   # INPUT PARAMETERS
@@ -361,17 +395,17 @@ if __name__ == '__main__':
   curs = conn.cursor()
     
     
-  print("Creating indicator table {table} for {this_analysis}".format(table = table,
+  print("Creating indicator table '{table}' for {this_analysis}... ".format(table = table,
                                                                       this_analysis = this_analysis)),
   ind_table = '''
   CREATE TABLE IF NOT EXISTS {table} AS 
   SELECT {id},
-  0::int AS osm_foi_any     ,
-  0::int AS osm_osm_any     ,
-  0::int AS osm_vpa_any     ,
-  0::int AS vicmap_foi_any  ,
-  0::int AS vicmap_osm_any  ,
-  0::int AS vicmap_vpa_any  ,
+  NULL::int AS osm_foi_any     ,
+  NULL::int AS osm_osm_any     ,
+  NULL::int AS osm_vpa_any     ,
+  NULL::int AS vicmap_foi_any  ,
+  NULL::int AS vicmap_osm_any  ,
+  NULL::int AS vicmap_vpa_any  ,
   geom
   FROM parcel_dwellings;
   CREATE INDEX IF NOT EXISTS idx_{table} ON {table} ({id});
@@ -397,7 +431,7 @@ if __name__ == '__main__':
            jsonb_agg(jsonb_strip_nulls(to_jsonb(p.{id}))) AS incomplete
     FROM parcel_dwellings p
     WHERE EXISTS 
-    (SELECT 1 FROM {table} s WHERE {this_ind} IS NULL {ind s.{id} = p.{id})
+    (SELECT 1 FROM {table} s WHERE {this_ind} IS NULL AND s.{id} = p.{id})
     GROUP BY p.hex_id;
   '''.format(id = points_id.lower(),
              table = table,
@@ -415,7 +449,9 @@ if __name__ == '__main__':
   conn.commit()
   print("Done.")
   print("Commence multiprocessing...")  
+  start = time.time()
   progressor(processed,total_parcels,start,"{}/{} at {}".format(processed,total_parcels,time.strftime("%Y%m%d-%H%M%S")))  
+  # nWorkers = 1
   pool = multiprocessing.Pool(nWorkers)
   pool.map(ODMatrixWorkerFunction, to_do_list, chunksize=1)
   
