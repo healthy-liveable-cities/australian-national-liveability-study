@@ -103,212 +103,50 @@ conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()
 
 print("Creating comparison tables, if not already existing...")
-print("  - for any POS within 400m, "),
-pos_400m_any = '''
-CREATE TABLE IF NOT EXISTS pos_400m_any AS 
-SELECT {id},
-0::int AS osm_foi_any     ,
-0::int AS osm_osm_any     ,
-0::int AS osm_vpa_any     ,
-0::int AS vicmap_foi_any  ,
-0::int AS vicmap_osm_any  ,
-0::int AS vicmap_vpa_any  ,
-geom
-FROM parcel_dwellings;
-CREATE INDEX IF NOT EXISTS idx_pos_400m_comparison ON pos_400m_any ({id});
-'''.format(id = points_id.lower())
-curs.execute(pos_400m_any)
-conn.commit()
-print("Done.")
-print("  - for POS >= 1 Ha within 400m, "),
-pos_400m_gr1ha = '''
-CREATE TABLE IF NOT EXISTS pos_400m_gr1ha AS 
-SELECT {id},
-0::int AS osm_foi_gr1ha   ,
-0::int AS osm_osm_gr1ha   ,
-0::int AS osm_vpa_gr1ha   ,
-0::int AS vicmap_foi_gr1ha,
-0::int AS vicmap_osm_gr1ha,
-0::int AS vicmap_vpa_gr1ha,
-geom
-FROM parcel_dwellings;
-CREATE INDEX IF NOT EXISTS idx_pos_400m_gr1ha ON pos_400m_gr1ha ({id});
-'''.format(id = points_id.lower())
-curs.execute(pos_400m_gr1ha)
-conn.commit()
-print("Done.")
-
-print("  - for POS >= 1 Ha or with a sport within 400m, "),
-pos_400m_gr1ha_sp = '''
-CREATE TABLE IF NOT EXISTS pos_400m_gr1ha_sp AS 
-SELECT {id},
-0::int AS osm_foi_gr1ha_sp   ,
-0::int AS osm_osm_gr1ha_sp   ,
-0::int AS osm_vpa_gr1ha_sp   ,
-0::int AS vicmap_foi_gr1ha_sp,
-0::int AS vicmap_osm_gr1ha_sp,
-0::int AS vicmap_vpa_gr1ha_sp,
-geom
-FROM parcel_dwellings;
-CREATE INDEX IF NOT EXISTS idx_pos_400m_gr1ha_sp ON pos_400m_gr1ha_sp ({id});
-'''.format(id = points_id.lower())
-curs.execute(pos_400m_gr1ha_sp)
-conn.commit()
-print("Done.")
-
-
-os_dict = {"osm":"aos_public_osm",
-           "foi":"melb_foi",
-           "vpa":"melb_vpa"}
-
-public_dict = {"osm":"aos_public_osm",
-           "foi":"melb_foi",
-           "vpa":"melb_vpa"}           
-
-for network in ['vicmap','osm']:
-  for pos in ['foi','osm','vpa']:
-    table = 'od_aos_{network}_{pos}_jsonb'.format(network = network,pos = pos)
-    print('\nProcessing indicators for {network} network routing to {pos} public open space...'.format(network = network,pos = pos))
-    check_table_exists = '''
-    SELECT EXISTS (
-    SELECT 1
-    FROM   information_schema.tables 
-    WHERE  table_schema = 'public'
-    AND    table_name = '{table}'
-    );
-    '''.format(table = table)
-    # print(check_table_exists)
-    curs.execute(check_table_exists)
-    table_exists = list(curs)[0][0]
-    print("  - JSON results table {table} exists? {answer}".format(table = table, answer = table_exists))
-    
-    if table_exists:
-      if pos in ['foi','vpa']:
-        print("    - updating access indicator to any POS within 400m ({network}_{pos}_any)... ".format(network = network,pos = pos)),
-        any_update = '''
-        UPDATE pos_400m_any ind
-           SET {network}_{pos}_any = 1
-        WHERE EXISTS 
-        (SELECT 1 
-         FROM (SELECT {id},
-                     (obj->>'aos_id')::int AS aos_id
-               FROM {table}, 
-                    jsonb_array_elements(attributes) obj
-               WHERE obj->'distance'<'400' ) o
-        LEFT JOIN {os_source} pos  
-               ON o.aos_id = pos.aos_id
-            WHERE pos.public = 1
-              AND pos.aos_id IS NOT NULL
-              AND ind.{id} = o.{id});
-              '''.format(id = points_id.lower(),table = table,network = network,pos = pos,os_source = os_dict[pos])
-        # print(any_update)
-        curs.execute(any_update)
-        print("Done")
-        print("    - updating access indicator for POS >= 1 Ha within 400m ({network}_{pos}_gr1ha)... ".format(network = network,pos = pos)),
-        large_update = '''
-        UPDATE pos_400m_gr1ha ind
-           SET {network}_{pos}_gr1ha = 1
-        WHERE EXISTS 
-        (SELECT 1 
-         FROM (SELECT {id},
-                     (obj->>'aos_id')::int AS aos_id
-               FROM {table}, 
-                    jsonb_array_elements(attributes) obj
-               WHERE obj->'distance'<'400' ) o
-        LEFT JOIN {os_source} pos  
-               ON o.aos_id = pos.aos_id
-            WHERE public = 1
-              AND (pos.area_ha >= 1)
-              AND pos.aos_id IS NOT NULL
-              AND ind.{id} = o.{id});
-              '''.format(id = points_id.lower(),table = table,network = network,pos = pos,os_source = os_dict[pos])
-        curs.execute(large_update)
-        print("Done")
-        print("    - updating access indicator for POS >= 1 Ha or a sport within 400m ({network}_{pos}_gr1ha)... ".format(network = network,pos = pos)),
-        large_sport_update = '''
-        UPDATE pos_400m_gr1ha_sp ind
-           SET {network}_{pos}_gr1ha_sp = 1
-        WHERE EXISTS 
-        (SELECT 1 
-         FROM (SELECT {id},
-                     (obj->>'aos_id')::int AS aos_id
-               FROM {table}, 
-                    jsonb_array_elements(attributes) obj
-               WHERE obj->'distance'<'400' ) o
-        LEFT JOIN {os_source} pos  
-               ON o.aos_id = pos.aos_id
-            WHERE public = 1
-              AND (pos.area_ha >= 1
-                   OR
-                   sports = 1)
-              AND pos.aos_id IS NOT NULL
-              AND ind.{id} = o.{id});
-              '''.format(id = points_id.lower(),table = table,network = network,pos = pos,os_source = os_dict[pos])
-        curs.execute(large_sport_update)
-        print("Done")
-      if pos == 'osm':
-        print("    - updating access indicator to any POS within 400m ({network}_{pos}_any)... ".format(network = network,pos = pos)),
-        any_update = '''
-        UPDATE pos_400m_any ind
-           SET {network}_{pos}_any = 1
-        WHERE EXISTS 
-        (SELECT 1 
-         FROM (SELECT {id},
-                     (obj->>'aos_id')::int AS aos_id
-               FROM {table}, 
-                    jsonb_array_elements(attributes) obj
-               WHERE obj->'distance'<'400' ) o
-        LEFT JOIN {os_source} pos  
-               ON o.aos_id = pos.aos_id
-            WHERE pos.aos_id IS NOT NULL
-              AND ind.{id} = o.{id});
-              '''.format(id = points_id.lower(),table = table,network = network,pos = pos,os_source = os_dict[pos])
-        #curs.execute(any_update)
-        print("Done")
-        print("    - updating access indicator for POS >= 1 Ha within 400m ({network}_{pos}_gr1ha)... ".format(network = network,pos = pos)),
-        large_update = '''
-        UPDATE pos_400m_gr1ha ind
-           SET {network}_{pos}_gr1ha = 1
-        WHERE EXISTS 
-        (SELECT 1 
-         FROM (SELECT {id},
-                     (obj->>'aos_id')::int AS aos_id
-               FROM {table}, 
-                    jsonb_array_elements(attributes) obj
-               WHERE obj->'distance'<'400' ) o
-        LEFT JOIN {os_source} pos  
-               ON o.aos_id = pos.aos_id
-            WHERE pos.aos_id IS NOT NULL
-              AND pos.aos_ha >= 1
-              AND ind.{id} = o.{id});
-              '''.format(id = points_id.lower(),table = table,network = network,pos = pos,os_source = os_dict[pos])
-        #curs.execute(large_update)
-        print("Done")
-        print("    - updating access indicator for POS >= 1 Ha or with a sport within 400m ({network}_{pos}_gr1ha_sp)... ".format(network = network,pos = pos))
-        large_sport_update = '''
-        UPDATE pos_400m_gr1ha_sp ind
-           SET {network}_{pos}_gr1ha_sp = 1
-        WHERE EXISTS 
-        (SELECT 1 
-         FROM (SELECT {id},
-                     (obj->>'aos_id')::int AS aos_id
-               FROM {table}, 
-                    jsonb_array_elements(attributes) obj
-               WHERE obj->'distance'<'400' ) o
-        LEFT JOIN (SELECT aos_id
-                   FROM {os_source},
-                        jsonb_array_elements(attributes) obj
-                   WHERE (aos_ha >= 1
-                         OR
-                         obj->'sport' IS NOT NULL)
-                   GROUP BY aos_id) pos
-               ON o.aos_id = pos.aos_id
-            WHERE pos.aos_id IS NOT NULL
-              AND ind.{id} = o.{id});
-              '''.format(id = points_id.lower(),table = table,network = network,pos = pos,os_source = os_dict[pos])
-        curs.execute(large_sport_update)
-        print("Done")    
-
+for ind in ['any','gr1ha','gr1ha_sp']:
+  sos = '''
+  CREATE TABLE pos_400m_{ind}_sos AS
+  SELECT sos_name_2 AS sos                ,
+         SUM(osm_foi_{ind})     AS foi_n  , 
+         100*avg(osm_foi_{ind}) AS foi_pct, 
+         SUM(osm_osm_{ind})     AS osm_n  , 
+         100*avg(osm_osm_{ind}) AS osm_pct, 
+         SUM(osm_vpa_{ind})     AS vpa_n  , 
+         100*avg(osm_vpa_{ind}) AS vpa_pct, 
+         COUNT(*) AS total_n
+  FROM pos_400m_{ind} p 
+  LEFT JOIN (SELECT s.sos_name_2,
+                    s.geom 
+               FROM main_sos_2016_aust s, 
+                    gccsa_2018 g 
+             WHERE ST_Intersects(s.geom,g.geom)) t
+  ON ST_Intersects (p.geom,t.geom)
+  GROUP BY sos_name_2;
+  '''.format(ind = ind)
+  curs.execute(sos)
+  conn.commit()
+  
+  ssc = '''
+  CREATE TABLE pos_400m_{ind}_ssc AS
+  SELECT ssc_name_2 AS ssc                ,
+         SUM(osm_foi_{ind})     AS foi_n  , 
+         100*avg(osm_foi_{ind}) AS foi_pct, 
+         SUM(osm_osm_{ind})     AS osm_n  , 
+         100*avg(osm_osm_{ind}) AS osm_pct, 
+         SUM(osm_vpa_{ind})     AS vpa_n  , 
+         100*avg(osm_vpa_{ind}) AS vpa_pct, 
+         COUNT(*) AS total_n
+  FROM pos_400m_{ind} p 
+  LEFT JOIN (SELECT s.ssc_name_2,
+                    s.geom 
+               FROM main_ssc_2016_aust s, 
+                    gccsa_2018 g 
+             WHERE ST_Intersects(s.geom,g.geom)) t
+  ON ST_Intersects (p.geom,t.geom)
+  GROUP BY ssc_name_2;
+  '''.format(ind = ind)
+  curs.execute(ssc)
+  conn.commit()
   
 # output to completion log    
 script_running_log(script, task, start, locale)
