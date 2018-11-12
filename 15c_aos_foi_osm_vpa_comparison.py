@@ -78,9 +78,34 @@
 # Features where FEATSUBTYP are public (see table below) selected. Those within exclusion features (see table below) tagged as public=0. Remaining features dissolved and tagged public=1. Where dissolved features intersect FTYPE = 'sport facility' these are tagged sports=1.
 # 
 # Features where FEATSUBTYP are not public (see table) selected, dissolved and tagged public =0. Where these dissolved features intersect FTYPE = 'sports facility' these are tagged sports=1.
-
-
-
+################################################################################
+# This script
+#  - assumes script 15b has been run
+#  - makes use of ABS features which are actually imported in script 16 -- in particular, suburbs (ssc) and sections of state (sos)
+#
+# Additional source tables for summarising results were created directly using the following sql
+#   
+# DROP TABLE IF EXISTS study_region_all_sos;
+# CREATE TABLE study_region_all_sos AS 
+# SELECT b.sos_name_2 AS sos_name_2016, 
+#        ST_Intersection(a.geom, b.geom) AS geom
+# FROM 
+# gccsa_2018 a, 
+# main_sos_2016_aust b 
+# WHERE ST_Intersects(a.geom,b.geom);
+# CREATE INDEX IF NOT EXISTS idx_sos      ON study_region_all_sos (sos_name_2016);
+# CREATE INDEX IF NOT EXISTS idx_sos_geom ON study_region_all_sos USING gist(geom);
+#   
+# DROP TABLE IF EXISTS study_region_ssc;
+# CREATE TABLE study_region_ssc AS 
+# SELECT b.ssc_name_2 AS ssc_name_2016, 
+#        b.geom
+# FROM 
+# gccsa_2018 a, 
+# main_ssc_2016_aust b 
+# WHERE ST_Intersects(a.geom,b.geom);  
+# CREATE INDEX IF NOT EXISTS idx_ssc      ON study_region_ssc (ssc_name_2016);
+# CREATE INDEX IF NOT EXISTS idx_ssc_geom ON study_region_ssc USING gist(geom);
 
 import arcpy, arcinfo
 import os
@@ -104,49 +129,66 @@ curs = conn.cursor()
 
 print("Creating comparison tables, if not already existing...")
 for ind in ['any','gr1ha','gr1ha_sp']:
+  print("Tables for {} pos in 400m...".format(ind))
+  print("  - Create indices for id and geom on indicator table... "),
+  create_indices = '''
+  CREATE INDEX IF NOT EXISTS idx_pos_400m_{ind} ON pos_400m_{ind} ({id});
+  CREATE INDEX IF NOT EXISTS idx_pos_400m_{ind}_geom ON pos_400m_{ind} USING gist(geom);
+  '''.format(ind = ind, id = points_id.lower())
+  # print(create_indices)
+  curs.execute(create_indices)
+  conn.commit()
+  print("Done.")
+  
+  print("  - Sections of State (SOS)... "),
   sos = '''
+  DROP TABLE IF EXISTS pos_400m_{ind}_sos;
   CREATE TABLE pos_400m_{ind}_sos AS
-  SELECT sos_name_2 AS sos                ,
-         SUM(osm_foi_{ind})     AS foi_n  , 
-         100*avg(osm_foi_{ind}) AS foi_pct, 
-         SUM(osm_osm_{ind})     AS osm_n  , 
-         100*avg(osm_osm_{ind}) AS osm_pct, 
-         SUM(osm_vpa_{ind})     AS vpa_n  , 
-         100*avg(osm_vpa_{ind}) AS vpa_pct, 
-         COUNT(*) AS total_n
+  SELECT s.sos_name_2016 AS sos       ,
+         SUM(osm_foi)     AS foi_n  , 
+         100*avg(osm_foi) AS foi_pct, 
+         SUM(osm_osm)     AS osm_n  , 
+         100*avg(osm_osm) AS osm_pct, 
+         SUM(osm_vpa)     AS vpa_n  , 
+         100*avg(osm_vpa) AS vpa_pct, 
+         COUNT(*) AS total_n        ,
+         s.geom AS geom         
   FROM pos_400m_{ind} p 
-  LEFT JOIN (SELECT s.sos_name_2,
-                    s.geom 
-               FROM main_sos_2016_aust s, 
-                    gccsa_2018 g 
-             WHERE ST_Intersects(s.geom,g.geom)) t
-  ON ST_Intersects (p.geom,t.geom)
-  GROUP BY sos_name_2;
-  '''.format(ind = ind)
+  LEFT JOIN parcel_sos t
+  ON p.{id} = t.{id}
+  LEFT JOIN study_region_all_sos s
+  ON t.sos_name_2016 = s.sos_name_2016
+  GROUP BY s.sos_name_2016, s.geom;
+  '''.format(ind = ind, id = points_id.lower())
+  print(sos)
   curs.execute(sos)
   conn.commit()
+  print("Done.")
   
+  print("  - Suburbs (SSC)... "),
   ssc = '''
+  DROP TABLE IF EXISTS pos_400m_{ind}_ssc;
   CREATE TABLE pos_400m_{ind}_ssc AS
-  SELECT ssc_name_2 AS ssc                ,
-         SUM(osm_foi_{ind})     AS foi_n  , 
-         100*avg(osm_foi_{ind}) AS foi_pct, 
-         SUM(osm_osm_{ind})     AS osm_n  , 
-         100*avg(osm_osm_{ind}) AS osm_pct, 
-         SUM(osm_vpa_{ind})     AS vpa_n  , 
-         100*avg(osm_vpa_{ind}) AS vpa_pct, 
-         COUNT(*) AS total_n
+  SELECT s.ssc_name_2016 AS ssc       ,
+         SUM(osm_foi)     AS foi_n  , 
+         100*avg(osm_foi) AS foi_pct, 
+         SUM(osm_osm)     AS osm_n  , 
+         100*avg(osm_osm) AS osm_pct, 
+         SUM(osm_vpa)     AS vpa_n  , 
+         100*avg(osm_vpa) AS vpa_pct, 
+         COUNT(*) AS total_n        ,
+         s.geom AS geom
   FROM pos_400m_{ind} p 
-  LEFT JOIN (SELECT s.ssc_name_2,
-                    s.geom 
-               FROM main_ssc_2016_aust s, 
-                    gccsa_2018 g 
-             WHERE ST_Intersects(s.geom,g.geom)) t
-  ON ST_Intersects (p.geom,t.geom)
-  GROUP BY ssc_name_2;
-  '''.format(ind = ind)
+  LEFT JOIN non_abs_linkage t
+  ON p.{id} = t.{id}
+  LEFT JOIN study_region_ssc s
+  ON t.ssc_name_2016 = s.ssc_name_2016
+  GROUP BY s.ssc_name_2016, s.geom;
+  '''.format(ind = ind, id = points_id.lower())
+  print(ssc)
   curs.execute(ssc)
   conn.commit()
+  print("Done.")
   
 # output to completion log    
 script_running_log(script, task, start, locale)

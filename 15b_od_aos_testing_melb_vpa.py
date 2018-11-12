@@ -85,7 +85,7 @@ analysis_dict = {"any":"any POS in distance <= 400 m",
                  "gr1ha_sp":"POS >= 1 Ha or with a sport in distance <= 400 m"}
 
 this_analysis = analysis_dict[ind]      
-this_ind = '{network}_{pos}_{ind}'.format(network = network,pos = pos,ind = ind)
+this_ind = '{network}_{pos}'.format(network = network,pos = pos,ind = ind)
 
 os_source = "aos_public_{pos}{pos_suffix}".format(pos = pos,pos_suffix = pos_suffix)
 
@@ -339,7 +339,7 @@ def ODMatrixWorkerFunction(hex):
         # print(place)
         [ids_near_pos.append(x[0].split('-')[0].encode('utf-8').strip(' ')) for x in outputLines]
         query = '''UPDATE {table} SET {this_ind} = 1 WHERE {id} IN ('{id_list}')'''.format(table = table,
-                                                                               this_ind = this_ind,
+                                                                                     this_ind = this_ind,
                                                                                      id = points_id.lower(),
                                                                                      id_list = "','".join(ids_near_pos))
         curs.execute(query)
@@ -399,12 +399,12 @@ if __name__ == '__main__':
   ind_table = '''
   CREATE TABLE IF NOT EXISTS {table} AS 
   SELECT {id},
-  NULL::int AS osm_foi_any     ,
-  NULL::int AS osm_osm_any     ,
-  NULL::int AS osm_vpa_any     ,
-  NULL::int AS vicmap_foi_any  ,
-  NULL::int AS vicmap_osm_any  ,
-  NULL::int AS vicmap_vpa_any  ,
+  NULL::int AS osm_foi   ,
+  NULL::int AS osm_osm   ,
+  NULL::int AS osm_vpa   ,
+  NULL::int AS vicmap_foi,
+  NULL::int AS vicmap_osm,
+  NULL::int AS vicmap_vpa,
   geom
   FROM parcel_dwellings;
   CREATE INDEX IF NOT EXISTS idx_{table} ON {table} ({id});

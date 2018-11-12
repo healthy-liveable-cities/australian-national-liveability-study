@@ -99,31 +99,34 @@ CREATE TABLE abs_2016_irsd
 
 # Create study region tables
 create_study_region_tables = '''
-  DROP TABLE IF EXISTS study_region_urban;
-  CREATE TABLE study_region_urban AS 
-  SELECT b.sos_name_2 AS sos_name_2016, 
-         ST_Intersection(a.geom, b.geom) AS geom
-  FROM 
-  {region}_{year} a, 
-  main_sos_2016_aust b 
-  WHERE sos_name_2 IN ('Major Urban', 'Other Urban');
-  
-  DROP TABLE IF EXISTS study_region_not_urban;
-  CREATE TABLE study_region_not_urban AS 
-  SELECT b.sos_name_2 AS sos_name_2016, 
-         ST_Intersection(a.geom, b.geom) AS geom
-  FROM 
-  {region}_{year} a, 
-  main_sos_2016_aust b 
-  WHERE sos_name_2 NOT IN ('Major Urban', 'Other Urban');
   
   DROP TABLE IF EXISTS study_region_all_sos;
   CREATE TABLE study_region_all_sos AS 
   SELECT b.sos_name_2 AS sos_name_2016, 
          ST_Intersection(a.geom, b.geom) AS geom
-  FROM 
-  {region}_{year} a, 
-  main_sos_2016_aust b ;
+    FROM {region}_{year} a, 
+         main_sos_2016_aust b 
+  WHERE ST_Intersects(a.geom,b.geom);
+  
+  DROP TABLE IF EXISTS study_region_urban;
+  CREATE TABLE study_region_urban AS 
+  SELECT * 
+    FROM study_region_all_sos
+   WHERE sos_name_2016 IN ('Major Urban', 'Other Urban');
+  
+  DROP TABLE IF EXISTS study_region_not_urban;
+  CREATE TABLE study_region_not_urban AS 
+  SELECT * 
+    FROM study_region_all_sos
+   WHERE sos_name_2016 NOT IN ('Major Urban', 'Other Urban');
+
+  DROP TABLE IF EXISTS study_region_ssc;
+  CREATE TABLE study_region_ssc AS 
+  SELECT b.ssc_name_2 AS ssc_name_2016, 
+         b.geom
+    FROM gccsa_2018 a, 
+         main_ssc_2016_aust b 
+   WHERE ST_Intersects(a.geom,b.geom);  
 '''.format(region = region.lower(), year = year)
   
 # create sa1 area linkage corresponding to later SA1 aggregate tables
