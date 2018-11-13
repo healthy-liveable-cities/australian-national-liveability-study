@@ -244,7 +244,7 @@ for layer in pos_layers:
     '''
     DROP TABLE IF EXISTS aos_public_osm_gr1ha_sp;
     CREATE TABLE aos_public_osm_gr1ha_sp AS
-    SELECT pos.* 
+    SELECT DISTINCT ON (pos.aos_id) pos.* 
       FROM aos_public_osm pos,
        jsonb_array_elements(attributes) obj
      WHERE aos_ha >= 1

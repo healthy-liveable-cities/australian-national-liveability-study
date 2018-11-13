@@ -144,20 +144,24 @@ for ind in ['any','gr1ha','gr1ha_sp']:
   sos = '''
   DROP TABLE IF EXISTS pos_400m_{ind}_sos;
   CREATE TABLE pos_400m_{ind}_sos AS
-  SELECT s.sos_name_2016 AS sos               ,
-         SUM(osm_foi)     AS osm_foi_n        , 
-         100*avg(osm_foi) AS osm_foi_pct      , 
-         SUM(osm_osm)     AS osm_osm_n        , 
-         100*avg(osm_osm) AS osm_osm_pct      , 
-         SUM(osm_vpa)     AS osm_vpa_n        , 
-         100*avg(osm_vpa) AS osm_vpa_pct      , 
-         SUM(vicmap_foi)     AS vicmap_foi_n  , 
-         100*avg(vicmap_foi) AS vicmap_foi_pct, 
-         SUM(vicmap_osm)     AS vicmap_osm_n  , 
-         100*avg(vicmap_osm) AS vicmap_osm_pct, 
-         SUM(vicmap_vpa)     AS vicmap_vpa_n  , 
-         100*avg(vicmap_vpa) AS vicmap_vpa_pct, 
-         COUNT(*) AS total_n                  ,
+  SELECT s.sos_name_2016 AS sos                 ,
+         SUM(osm_foi)     AS osm_foi_n          , 
+         100*avg(osm_foi) AS osm_foi_pct        , 
+         SUM(osm_osm)     AS osm_osm_n          , 
+         100*avg(osm_osm) AS osm_osm_pct        , 
+         SUM(osm_vpa)     AS osm_vpa_n          , 
+         100*avg(osm_vpa) AS osm_vpa_pct        , 
+         SUM(osm_osm2)     AS osm_osm2_n        , 
+         100*avg(osm_osm2) AS osm_osm2_pct      , 
+         SUM(vicmap_foi)     AS vicmap_foi_n    , 
+         100*avg(vicmap_foi) AS vicmap_foi_pct  , 
+         SUM(vicmap_osm)     AS vicmap_osm_n    , 
+         100*avg(vicmap_osm) AS vicmap_osm_pct  , 
+         SUM(vicmap_vpa)     AS vicmap_vpa_n    , 
+         100*avg(vicmap_vpa) AS vicmap_vpa_pct  , 
+         SUM(vicmap_osm2)     AS vicmap_osm2_n  , 
+         100*avg(vicmap_osm2) AS vicmap_osm2_pct, 
+         COUNT(*) AS total_n                    ,
          s.geom AS geom         
   FROM pos_400m_{ind} p 
   LEFT JOIN parcel_sos t
@@ -175,20 +179,24 @@ for ind in ['any','gr1ha','gr1ha_sp']:
   ssc = '''
   DROP TABLE IF EXISTS pos_400m_{ind}_ssc;
   CREATE TABLE pos_400m_{ind}_ssc AS
-  SELECT s.ssc_name_2016 AS ssc               ,
-         SUM(osm_foi)     AS osm_foi_n        , 
-         100*avg(osm_foi) AS osm_foi_pct      , 
-         SUM(osm_osm)     AS osm_osm_n        , 
-         100*avg(osm_osm) AS osm_osm_pct      , 
-         SUM(osm_vpa)     AS osm_vpa_n        , 
-         100*avg(osm_vpa) AS osm_vpa_pct      , 
-         SUM(vicmap_foi)     AS vicmap_foi_n  , 
-         100*avg(vicmap_foi) AS vicmap_foi_pct, 
-         SUM(vicmap_osm)     AS vicmap_osm_n  , 
-         100*avg(vicmap_osm) AS vicmap_osm_pct, 
-         SUM(vicmap_vpa)     AS vicmap_vpa_n  , 
-         100*avg(vicmap_vpa) AS vicmap_vpa_pct, 
-         COUNT(*) AS total_n                  ,
+  SELECT s.ssc_name_2016 AS ssc                 ,
+         SUM(osm_foi)     AS osm_foi_n          , 
+         100*avg(osm_foi) AS osm_foi_pct        , 
+         SUM(osm_osm)     AS osm_osm_n          , 
+         100*avg(osm_osm) AS osm_osm_pct        , 
+         SUM(osm_vpa)     AS osm_vpa_n          , 
+         100*avg(osm_vpa) AS osm_vpa_pct        , 
+         SUM(osm_osm2)     AS osm_osm2_n        , 
+         100*avg(osm_osm2) AS osm_osm2_pct      , 
+         SUM(vicmap_foi)     AS vicmap_foi_n    , 
+         100*avg(vicmap_foi) AS vicmap_foi_pct  , 
+         SUM(vicmap_osm)     AS vicmap_osm_n    , 
+         100*avg(vicmap_osm) AS vicmap_osm_pct  , 
+         SUM(vicmap_vpa)     AS vicmap_vpa_n    , 
+         100*avg(vicmap_vpa) AS vicmap_vpa_pct  , 
+         SUM(vicmap_osm2)     AS vicmap_osm2_n  , 
+         100*avg(vicmap_osm2) AS vicmap_osm2_pct, 
+         COUNT(*) AS total_n                    ,
          s.geom AS geom
   FROM pos_400m_{ind} p 
   LEFT JOIN non_abs_linkage t
@@ -201,6 +209,24 @@ for ind in ['any','gr1ha','gr1ha_sp']:
   curs.execute(ssc)
   conn.commit()
   print("Done.")
+  
+road_inds = '''  
+CREATE TABLE osm_sos_summary AS
+SELECT sos_name_2016,
+       SUM(ST_Length(ST_Intersection(e.geom,s.geom))) 
+FROM edges e, study_region_all_sos s
+WHERE ST_Intersects(e.geom,s.geom)
+GROUP BY s.sos_name_2016;
+
+CREATE TABLE osm_ssc_summary AS
+SELECT sos_name_2016,
+       SUM(ST_Length(ST_Intersection(e.geom,s.geom))) 
+FROM edges e, study_region_ssc s
+WHERE ST_Intersects(e.geom,s.geom)
+GROUP BY s.ssc_name_2016;
+'''
+curs.execute(road_inds)
+conn.commit()
   
 # output to completion log    
 script_running_log(script, task, start, locale)

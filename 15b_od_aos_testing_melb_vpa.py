@@ -36,25 +36,31 @@ if __name__ == '__main__':
         
         Examples of code to run expressed in this format are:
         python 15b_od_aos_testing_melb_vpa.py melb osm osm    any
+        python 15b_od_aos_testing_melb_vpa.py melb osm osm2    any
         python 15b_od_aos_testing_melb_vpa.py melb osm foi    any
         python 15b_od_aos_testing_melb_vpa.py melb osm vpa    any
         python 15b_od_aos_testing_melb_vpa.py melb vicmap foi any
         python 15b_od_aos_testing_melb_vpa.py melb vicmap vpa any
         python 15b_od_aos_testing_melb_vpa.py melb vicmap osm any
+        python 15b_od_aos_testing_melb_vpa.py melb vicmap osm2 any
 
         python 15b_od_aos_testing_melb_vpa.py melb osm osm    gr1ha
+        python 15b_od_aos_testing_melb_vpa.py melb osm osm2    gr1ha
         python 15b_od_aos_testing_melb_vpa.py melb osm foi    gr1ha
         python 15b_od_aos_testing_melb_vpa.py melb osm vpa    gr1ha
         python 15b_od_aos_testing_melb_vpa.py melb vicmap foi gr1ha
         python 15b_od_aos_testing_melb_vpa.py melb vicmap vpa gr1ha
         python 15b_od_aos_testing_melb_vpa.py melb vicmap osm gr1ha
+        python 15b_od_aos_testing_melb_vpa.py melb vicmap osm2 gr1ha
 
         python 15b_od_aos_testing_melb_vpa.py melb osm osm    gr1ha_sp
+        python 15b_od_aos_testing_melb_vpa.py melb osm osm2    gr1ha_sp
         python 15b_od_aos_testing_melb_vpa.py melb osm foi    gr1ha_sp
         python 15b_od_aos_testing_melb_vpa.py melb osm vpa    gr1ha_sp
         python 15b_od_aos_testing_melb_vpa.py melb vicmap foi gr1ha_sp
         python 15b_od_aos_testing_melb_vpa.py melb vicmap vpa gr1ha_sp
         python 15b_od_aos_testing_melb_vpa.py melb vicmap osm gr1ha_sp     
+        python 15b_od_aos_testing_melb_vpa.py melb vicmap osm2 gr1ha_sp     
         
         Note:
           - it is assumed that earlier scripts have been run and all data is where it is expected to be
@@ -66,7 +72,7 @@ if __name__ == '__main__':
         sys.exit(exit_message)
     elif sys.argv[2] not in ['osm','vicmap']:
         sys.exit(exit_message)
-    elif sys.argv[3] not in ['osm','foi','vpa']:
+    elif sys.argv[3] not in ['osm','foi','vpa','osm2']:
         sys.exit(exit_message)
     elif sys.argv[4] not in ['any','gr1ha','gr1ha_sp']:
         sys.exit(exit_message)
@@ -412,6 +418,16 @@ if __name__ == '__main__':
   curs.execute(ind_table)
   conn.commit()
   print("Done.")
+  
+  if pos == 'osm2':
+    print("Adding additional indicators for revised OSM dataset... "),
+    add_osm2_inds = '''
+    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS    osm_osm2 int;
+    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS vicmap_osm2 int;
+    '''.format(table = table)
+    curs.execute(add_osm2_inds)
+    conn.commit()
+    print("Done.")
   
   print("Create a table for tracking progress... "), 
   od_aos_progress_table = '''
