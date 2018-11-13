@@ -211,19 +211,37 @@ for ind in ['any','gr1ha','gr1ha_sp']:
   print("Done.")
   
 road_inds = '''  
-CREATE TABLE osm_sos_summary AS
+CREATE TABLE IF NOT EXISTS osm_sos_summary AS
 SELECT sos_name_2016,
-       SUM(ST_Length(ST_Intersection(e.geom,s.geom))) 
+       SUM(ST_Length(ST_Intersection(e.geom,s.geom))),
+       s.geom
 FROM edges e, study_region_all_sos s
 WHERE ST_Intersects(e.geom,s.geom)
-GROUP BY s.sos_name_2016;
+GROUP BY s.sos_name_2016,s.geom;
 
-CREATE TABLE osm_ssc_summary AS
-SELECT sos_name_2016,
-       SUM(ST_Length(ST_Intersection(e.geom,s.geom))) 
+CREATE TABLE IF NOT EXISTS osm_ssc_summary AS
+SELECT ssc_name_2016,
+       SUM(ST_Length(ST_Intersection(e.geom,s.geom))) ,
+       s.geom
 FROM edges e, study_region_ssc s
 WHERE ST_Intersects(e.geom,s.geom)
-GROUP BY s.ssc_name_2016;
+GROUP BY s.ssc_name_2016,s.geom;
+
+CREATE TABLE IF NOT EXISTS vicmap_sos_summary AS
+SELECT sos_name_2016,
+       SUM(ST_Length(ST_Intersection(e.geom,s.geom))),
+       s.geom
+FROM edges_vicmap e, study_region_all_sos s
+WHERE ST_Intersects(e.geom,s.geom)
+GROUP BY s.sos_name_2016,s.geom;
+
+CREATE TABLE IF NOT EXISTS vicmap_ssc_summary AS
+SELECT ssc_name_2016,
+       SUM(ST_Length(ST_Intersection(e.geom,s.geom))) ,
+       s.geom
+FROM edges_vicmap e, study_region_ssc s
+WHERE ST_Intersects(e.geom,s.geom)
+GROUP BY s.ssc_name_2016,s.geom;
 '''
 curs.execute(road_inds)
 conn.commit()
