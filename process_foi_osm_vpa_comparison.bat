@@ -15,4 +15,11 @@ python 15b_od_aos_testing_melb_vpa.py melb vicmap foi gr1ha_sp
 python 15b_od_aos_testing_melb_vpa.py melb vicmap vpa gr1ha_sp
 python 15b_od_aos_testing_melb_vpa.py melb vicmap osm gr1ha_sp   
 
+python 15b_od_aos_testing_melb_vpa.py melb osm    osm2 any
+python 15b_od_aos_testing_melb_vpa.py melb vicmap osm2 any
+python 15b_od_aos_testing_melb_vpa.py melb osm    osm2 gr1ha
+python 15b_od_aos_testing_melb_vpa.py melb vicmap osm2 gr1ha
+python 15b_od_aos_testing_melb_vpa.py melb osm    osm2 gr1ha_sp
+python 15b_od_aos_testing_melb_vpa.py melb vicmap osm2 gr1ha_sp   
+
 @pause
