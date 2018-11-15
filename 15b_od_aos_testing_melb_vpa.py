@@ -94,7 +94,9 @@ this_analysis = analysis_dict[ind]
 this_ind = '{network}_{pos}'.format(network = network,pos = pos,ind = ind)
 
 os_source = "aos_public_{pos}{pos_suffix}".format(pos = pos,pos_suffix = pos_suffix)
-
+if '_any' in pos_suffix:
+  os_source = "aos_public_{pos}".format(pos = pos)
+  
 # ArcGIS environment settings
 arcpy.env.workspace = gdb_path  
 # create project specific folder in temp dir for scratch.gdb, if not exists

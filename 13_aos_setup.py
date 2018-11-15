@@ -190,11 +190,11 @@ WHERE o.linear_feature IS TRUE
 -- Set up OS for distinction based on location within a school
 ALTER TABLE open_space ADD COLUMN in_school boolean; 
 UPDATE open_space SET in_school = FALSE;
-UPDATE open_space SET in_school = TRUE FROM school_polys WHERE ST_CoveredBy(open_space.geom,school_polys.geom);
+UPDATE open_space SET in_school = TRUE 
+  FROM school_polys 
+ WHERE ST_CoveredBy(open_space.geom,school_polys.geom);
 ALTER TABLE open_space ADD COLUMN is_school boolean; 
 UPDATE open_space SET is_school = FALSE;
-ALTER TABLE open_space ADD COLUMN no_school_geom geometry; 
-UPDATE open_space SET no_school_geom = geom WHERE is_school = FALSE;
 ''',
 '''
 -- Insert school polygons in open space, restricting to relevant de-identified subset of tags (ie. no school names, contact details, etc)
@@ -221,25 +221,57 @@ FROM school_polys;
 UPDATE open_space SET tags =  tags - {exclude_tags_like_name} - ARRAY[{identifying_tags}]
 ;
 '''.format(exclude_tags_like_name = exclude_tags_like_name,
-           identifying_tags = identifying_tags),
+           identifying_tags = identifying_tags),   
 '''
 -- Create variable to indicate public access
 ALTER TABLE open_space ADD COLUMN IF NOT EXISTS public_access boolean; 
 UPDATE open_space SET public_access = FALSE;
 UPDATE open_space SET public_access = TRUE 
  WHERE is_school = FALSE
+   AND in_school = FALSE
  {and_public_space_criteria}
- -- NOTE: the following criteria are for Melbourne test purposes but may not be appropriate nationally
- AND (amenity IS NULL OR amenity NOT IN ('swimming_pool','swimming'))
- AND (leisure IS NULL OR leisure NOT IN ('swimming_pool','swimming'))
- AND (sport IS NULL OR sport NOT IN ('swimming_pool','swimming'));
+ ---- NOTE: the following criteria are for Melbourne test purposes but may not be appropriate nationally
+ -- hence, commented out
+ --AND (amenity IS NULL OR amenity NOT IN ('swimming_pool','swimming'))
+ --AND (leisure IS NULL OR leisure NOT IN ('swimming_pool','swimming'))
+ --AND (sport IS NULL OR sport NOT IN ('swimming_pool','swimming'))
+ ;
 '''.format(and_public_space_criteria = public_space),
+ '''
+ -- Check if area is within a known public access area
+ ALTER TABLE open_space ADD COLUMN within_public boolean;
+ UPDATE open_space SET within_public = FALSE;
+ UPDATE open_space o
+    SET within_public = TRUE
+   FROM open_space x
+  WHERE x.public_access = TRUE
+    AND ST_CoveredBy(o.geom,x.geom)
+    AND o.os_id!=x.os_id;
+''',
+ '''
+ -- If an open space is within or co-extant with a space flagged as not having public access
+ -- which is not itself covered by a public access area
+ -- then it too should be flagged as not public (ie. public_access = FALSE)
+ UPDATE open_space o
+    SET public_access = FALSE
+   FROM open_space x
+  WHERE o.public_access = TRUE 
+    AND x.public_access = FALSE
+    AND x.within_public = FALSE
+    AND ST_CoveredBy(o.geom,x.geom);
+''',
+'''
+ALTER TABLE open_space ADD COLUMN IF NOT EXISTS public_geom geometry; 
+ALTER TABLE open_space ADD COLUMN IF NOT EXISTS not_public_geom geometry; 
+UPDATE open_space SET public_geom = geom WHERE public_access = TRUE;
+UPDATE open_space SET not_public_geom = geom WHERE public_access = FALSE;
+''',
 '''
 -- Create Areas of Open Space (AOS) table
 -- this includes schools and contains indicators to differentiate schools, and parks within schools
 -- the 'geom' attributes is the area within an AOS not including a school
 --    -- this is what we want to use to evaluate collective OS area within the AOS (aos_ha)
--- the 'geom_w_schools' attribute is the area including the school (so if there is no school, this is equal to geom)
+-- the 'geom_all_os' attribute is the area including the school (so if there is no school, this is equal to geom)
 --    -- this is what we will use to create entry nodes for the parks (as otherwise school ovals would be inaccessible)
 -- School AOS features 
 --    -- can always be excluded from analysis, or an analysis can be restricted to focus on these.
@@ -250,16 +282,41 @@ DROP TABLE IF EXISTS open_space_areas;
 CREATE TABLE open_space_areas AS 
 WITH clusters AS(
     SELECT unnest(ST_ClusterWithin(open_space.geom, .001)) AS gc
-       FROM open_space WHERE in_school IS FALSE AND (linear_feature IS FALSE OR acceptable_linear_feature IS TRUE)
-    UNION
-    SELECT  unnest(ST_ClusterWithin(school_os.geom, .001)) AS gc
-       FROM open_space AS school_os WHERE in_school IS TRUE OR is_school IS TRUE
-    UNION
+      FROM open_space 
+     WHERE public_access IS TRUE
+       AND in_school IS FALSE 
+       AND is_school IS FALSE
+       AND (linear_feature IS FALSE 
+            OR 
+            acceptable_linear_feature IS TRUE)
+  UNION
+    SELECT unnest(ST_ClusterWithin(not_public_os.geom, .001)) AS gc
+      FROM open_space AS not_public_os
+     WHERE public_access IS FALSE
+  --     AND in_school IS FALSE 
+  --     AND is_school IS FALSE
+  ----  Perhaps it isn't necessary to seperate schools; special case of 'not public'?
+  -- UNION
+  --   SELECT  unnest(ST_ClusterWithin(school_os.geom, .001)) AS gc
+  --     FROM open_space AS school_os 
+  --    WHERE in_school IS TRUE 
+  --       OR is_school IS TRUE
+  UNION
     SELECT  linear_os.geom AS gc
-       FROM open_space AS linear_os WHERE linear_feature IS TRUE AND acceptable_linear_feature IS FALSE
-    UNION
+      FROM open_space AS linear_os 
+     WHERE linear_feature IS TRUE 
+       AND acceptable_linear_feature IS FALSE
+       AND in_school IS FALSE 
+       AND is_school IS FALSE
+       AND public_access IS TRUE
+  UNION
     SELECT  linear_os.geom AS gc
-       FROM open_space AS linear_os WHERE linear_feature IS TRUE AND acceptable_linear_feature IS TRUE
+      FROM open_space AS linear_os 
+     WHERE linear_feature IS TRUE 
+       AND acceptable_linear_feature IS TRUE
+       AND in_school IS FALSE 
+       AND is_school IS FALSE
+       AND public_access IS TRUE
        )
 , unclustered AS( --unpacking GeomCollections
     SELECT row_number() OVER () AS cluster_id, (ST_DUMP(gc)).geom AS geom 
@@ -268,9 +325,10 @@ SELECT cluster_id as aos_id,
        jsonb_agg(jsonb_strip_nulls(to_jsonb( 
            (SELECT d FROM (SELECT {os_add_as_tags}) d)) || hstore_to_jsonb(tags) )) AS attributes,
     COUNT(1) AS numgeom,
-    ST_Union(no_school_geom) AS geom,
+    ST_Union(public_geom) AS geom,
+    ST_Union(not_public_geom) AS not_public_geom,
     ST_Union(water_geom) AS geom_water,
-    ST_Union(geom) AS geom_w_schools
+    ST_Union(geom) AS geom_all_os
     FROM open_space
     INNER JOIN unclustered USING(geom)
     GROUP BY cluster_id;   
@@ -293,12 +351,7 @@ UPDATE open_space_areas SET aos_ha_water = COALESCE(ST_Area(geom_water)/10000.0,
 ''',
 '''
 -- Calculate total area of OS in Ha, including schools
-UPDATE open_space_areas SET aos_ha_total = ST_Area(geom_w_schools)/10000.0; 
-''',
-'''
--- Create variable for School OS percent
-ALTER TABLE open_space_areas ADD COLUMN school_os_percent numeric; 
-UPDATE open_space_areas SET school_os_percent = 100 * aos_ha/aos_ha_total::numeric WHERE aos_ha!=aos_ha_total AND aos_ha_total > 0; 
+UPDATE open_space_areas SET aos_ha_total = ST_Area(geom_all_os)/10000.0; 
 ''',
 '''
 -- Create variable for Water percent
@@ -312,9 +365,9 @@ UPDATE open_space_areas SET water_percent = 100 * aos_ha_water/aos_ha_total::num
 DROP TABLE IF EXISTS aos_line;
 CREATE TABLE aos_line AS 
 WITH school_bounds AS
-   (SELECT aos_id, ST_SetSRID(st_astext((ST_Dump(geom_w_schools)).geom),7845) AS geom_w_schools  FROM open_space_areas)
-SELECT aos_id, ST_Length(geom_w_schools)::numeric AS length, geom_w_schools    
-FROM (SELECT aos_id, ST_ExteriorRing(geom_w_schools) AS geom_w_schools FROM school_bounds) t;
+   (SELECT aos_id, ST_SetSRID(st_astext((ST_Dump(geom_all_os)).geom),7845) AS geom_all_os  FROM open_space_areas)
+SELECT aos_id, ST_Length(geom_all_os)::numeric AS length, geom_all_os    
+FROM (SELECT aos_id, ST_ExteriorRing(geom_all_os) AS geom_all_os FROM school_bounds) t;
 ''',
 '''
 -- Generate a point every 20m along a park outlines: 
@@ -324,13 +377,13 @@ CREATE TABLE aos_nodes AS
  (SELECT aos_id, 
          length, 
          generate_series(0,1,20/length) AS fraction, 
-         geom_w_schools FROM aos_line) 
+         geom_all_os FROM aos_line) 
 SELECT aos_id,
        row_number() over(PARTITION BY aos_id) AS node, 
-       ST_LineInterpolatePoint(geom_w_schools, fraction)  AS geom_w_schools 
+       ST_LineInterpolatePoint(geom_all_os, fraction)  AS geom_all_os 
 FROM aos;
 
-CREATE INDEX aos_nodes_idx ON aos_nodes USING GIST (geom_w_schools);
+CREATE INDEX aos_nodes_idx ON aos_nodes USING GIST (geom_all_os);
 ALTER TABLE aos_nodes ADD COLUMN aos_entryid varchar; 
 UPDATE aos_nodes SET aos_entryid = aos_id::text || ',' || node::text; 
 ''',
@@ -342,7 +395,7 @@ CREATE TABLE aos_nodes_20m_line AS
 SELECT DISTINCT n.* 
 FROM aos_nodes n, 
      edges l
-WHERE ST_DWithin(n.geom_w_schools ,l.geom,20);
+WHERE ST_DWithin(n.geom_all_os ,l.geom,20);
 '''.format(osm_prefix = osm_prefix),
 '''
 -- Create table of points within 30m of lines (should be your road network) 
@@ -352,7 +405,7 @@ CREATE TABLE aos_nodes_30m_line AS
 SELECT DISTINCT n.* 
 FROM aos_nodes n, 
      edges l
-WHERE ST_DWithin(n.geom_w_schools ,l.geom,30);
+WHERE ST_DWithin(n.geom_all_os ,l.geom,30);
 '''.format(osm_prefix = osm_prefix),
 '''
 -- Create table of points within 50m of lines (should be your road network) 
@@ -362,14 +415,15 @@ CREATE TABLE aos_nodes_50m_line AS
 SELECT DISTINCT n.* 
 FROM aos_nodes n, 
      edges l
-WHERE ST_DWithin(n.geom_w_schools ,l.geom,50);
+WHERE ST_DWithin(n.geom_all_os ,l.geom,50);
 '''.format(osm_prefix = osm_prefix),
 '''
 -- Create subset data for public_open_space_areas
 DROP TABLE IF EXISTS aos_public_osm;
 CREATE TABLE aos_public_osm AS
-SELECT pos.* FROM  open_space_areas pos
-WHERE EXISTS (SELECT 1 FROM open_space_areas o,
+SELECT DISTINCT ON (pos.aos_id) pos.* 
+  FROM  open_space_areas pos
+ WHERE EXISTS (SELECT 1 FROM open_space_areas o,
                             jsonb_array_elements(attributes) obj
               WHERE obj->'public_access' = 'true'
               AND  pos.aos_id = o.aos_id);

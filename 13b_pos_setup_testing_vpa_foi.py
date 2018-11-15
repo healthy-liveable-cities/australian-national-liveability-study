@@ -183,6 +183,26 @@ for layer in pos_layers:
        OR sports = 1
    '''.format(pos = pos),
    '''
+   -- restrict to nodes near OSM network for any public AOS
+   DROP TABLE IF EXISTS {pos}_nodes_30m_osm_any;
+   CREATE TABLE {pos}_nodes_30m_osm_any AS 
+   SELECT * 
+     FROM {pos}_nodes_30m_osm o
+    WHERE EXISTS (SELECT 1 
+                  FROM aos_public_{pos} p
+                  WHERE o.aos_id = p.aos_id);
+   '''.format(pos = pos),
+   '''
+   -- restrict to nodes near VicMap network for any public AOS
+   DROP TABLE IF EXISTS {pos}_nodes_30m_vicmap_any;
+   CREATE TABLE {pos}_nodes_30m_icmap_any AS 
+   SELECT * 
+     FROM {pos}_nodes_30m_vicmap o
+    WHERE EXISTS (SELECT 1 
+                  FROM aos_public_{pos} p
+                  WHERE o.aos_id = p.aos_id);
+   '''.format(pos = pos),
+   '''
    -- restrict to nodes near OSM network for AOS identified to meet criteria of >= 1Ha
    DROP TABLE IF EXISTS {pos}_nodes_30m_osm_gr1ha;
    CREATE TABLE {pos}_nodes_30m_osm_gr1ha AS 
@@ -271,6 +291,26 @@ for layer in pos_layers:
     WHERE ST_DWithin(n.geom_w_schools ,l.geom,30);
     ''',
     '''
+    -- restrict to nodes near OSM network for any public AOS
+    DROP TABLE IF EXISTS {pos}_nodes_30m_osm_any;
+    CREATE TABLE {pos}_nodes_30m_osm_any AS 
+    SELECT * 
+      FROM {pos}_nodes_30m_osm o
+     WHERE EXISTS (SELECT 1 
+                   FROM aos_public_{pos} p
+                   WHERE o.aos_id = p.aos_id);
+    '''.format(pos = pos),
+    '''
+    -- restrict to nodes near VicMap network for any public AOS
+    DROP TABLE IF EXISTS {pos}_nodes_30m_vicmap_any;
+    CREATE TABLE {pos}_nodes_30m_icmap_any AS 
+    SELECT * 
+      FROM {pos}_nodes_30m_vicmap o
+     WHERE EXISTS (SELECT 1 
+                   FROM aos_public_{pos} p
+                   WHERE o.aos_id = p.aos_id);
+    '''.format(pos = pos),
+    '''
     -- restrict to nodes near OSM network for AOS identified to meet criteria of >= 1Ha
     DROP TABLE IF EXISTS osm_nodes_30m_osm_gr1ha;
     CREATE TABLE osm_nodes_30m_osm_gr1ha AS 
@@ -325,7 +365,7 @@ for layer in pos_layers:
 # copy network nodes for each network pos combination to arcgis gdb
 for pos in ['foi','osm','vpa']:
   for network in ['osm','vicmap']:
-    for ind_suffix in ['','_gr1ha','_gr1ha_sp']:
+    for ind_suffix in ['_any','_gr1ha','_gr1ha_sp']:
       feature = '{pos}_nodes_30m_{network}{ind_suffix}'.format(pos = pos,
                                                                 network = network,
                                                                 ind_suffix = ind_suffix)
