@@ -53,8 +53,11 @@ identifying_tags = ','.join(["'{}'".format(x.encode('utf')) for x in df_aos["ide
 exclude_tags_like_name = '''(SELECT array_agg(tags) from (SELECT DISTINCT(skeys(tags)) tags FROM open_space) t WHERE tags ILIKE '%name%')'''
 
 not_public_space = '({})'.format(','.join(df_aos["public_not_in"].dropna().tolist()))
+additional_public_criteria = '({})'.format(' '.join(df_aos["additional_public_criteria"].dropna().tolist()))
 
 public_space = '\n'.join(df_aos['public_field'].dropna().apply(lambda x:'AND ("{var}" IS NULL OR "{var}" NOT IN {list})'.format(var = x,list = not_public_space)).tolist())
+public_space = '{public_space} AND {additional_public_criteria}'.format(public_space = public_space,
+additional_public_criteria = additional_public_criteria)
 # JSONB version of the query
 # public_space = '\n'.join(df_aos['public_field'].dropna().apply(lambda x:"AND (obj -> '{var}' IS NULL OR obj ->> '{var}' NOT IN {list})".format(var = x,list = not_public_space)).tolist())
     
@@ -261,17 +264,17 @@ UPDATE open_space SET public_access = TRUE
     AND ST_CoveredBy(o.geom,x.geom);
 ''',
 '''
-ALTER TABLE open_space ADD COLUMN IF NOT EXISTS public_geom geometry; 
-ALTER TABLE open_space ADD COLUMN IF NOT EXISTS not_public_geom geometry; 
-UPDATE open_space SET public_geom = geom WHERE public_access = TRUE;
-UPDATE open_space SET not_public_geom = geom WHERE public_access = FALSE;
+ALTER TABLE open_space ADD COLUMN IF NOT EXISTS geom_public geometry; 
+ALTER TABLE open_space ADD COLUMN IF NOT EXISTS geom_not_public geometry; 
+UPDATE open_space SET geom_public = geom WHERE public_access = TRUE;
+UPDATE open_space SET geom_not_public = geom WHERE public_access = FALSE;
 ''',
 '''
 -- Create Areas of Open Space (AOS) table
 -- this includes schools and contains indicators to differentiate schools, and parks within schools
 -- the 'geom' attributes is the area within an AOS not including a school
 --    -- this is what we want to use to evaluate collective OS area within the AOS (aos_ha)
--- the 'geom_all_os' attribute is the area including the school (so if there is no school, this is equal to geom)
+-- the 'geom' attribute is the area including the school (so if there is no school, this is equal to geom)
 --    -- this is what we will use to create entry nodes for the parks (as otherwise school ovals would be inaccessible)
 -- School AOS features 
 --    -- can always be excluded from analysis, or an analysis can be restricted to focus on these.
@@ -283,7 +286,11 @@ CREATE TABLE open_space_areas AS
 WITH clusters AS(
     SELECT unnest(ST_ClusterWithin(open_space.geom, .001)) AS gc
       FROM open_space 
-     WHERE public_access IS TRUE
+     WHERE (public_access IS TRUE
+           OR
+           (public_access IS FALSE
+            AND
+            within_public IS TRUE))
        AND in_school IS FALSE 
        AND is_school IS FALSE
        AND (linear_feature IS FALSE 
@@ -325,10 +332,10 @@ SELECT cluster_id as aos_id,
        jsonb_agg(jsonb_strip_nulls(to_jsonb( 
            (SELECT d FROM (SELECT {os_add_as_tags}) d)) || hstore_to_jsonb(tags) )) AS attributes,
     COUNT(1) AS numgeom,
-    ST_Union(public_geom) AS geom,
-    ST_Union(not_public_geom) AS not_public_geom,
+    ST_Union(geom_public) AS geom_public,
+    ST_Union(geom_not_public) AS geom_not_public,
     ST_Union(water_geom) AS geom_water,
-    ST_Union(geom) AS geom_all_os
+    ST_Union(geom) AS geom
     FROM open_space
     INNER JOIN unclustered USING(geom)
     GROUP BY cluster_id;   
@@ -346,12 +353,13 @@ ALTER TABLE open_space_areas ADD COLUMN aos_ha_water double precision;
 ''',
 '''
 -- Calculate total area of OS in Ha and where no OS is present (ie. a school without parks) set this to zero
-UPDATE open_space_areas SET aos_ha = COALESCE(ST_Area(geom)/10000.0,0);
+UPDATE open_space_areas SET aos_ha_public = COALESCE(ST_Area(geom_public)/10000.0,0);
+UPDATE open_space_areas SET aos_ha_not_public = COALESCE(ST_Area(geom_not_public)/10000.0,0);
 UPDATE open_space_areas SET aos_ha_water = COALESCE(ST_Area(geom_water)/10000.0,0);
 ''',
 '''
 -- Calculate total area of OS in Ha, including schools
-UPDATE open_space_areas SET aos_ha_total = ST_Area(geom_all_os)/10000.0; 
+UPDATE open_space_areas SET aos_ha_total = ST_Area(geom)/10000.0; 
 ''',
 '''
 -- Create variable for Water percent
@@ -365,9 +373,9 @@ UPDATE open_space_areas SET water_percent = 100 * aos_ha_water/aos_ha_total::num
 DROP TABLE IF EXISTS aos_line;
 CREATE TABLE aos_line AS 
 WITH school_bounds AS
-   (SELECT aos_id, ST_SetSRID(st_astext((ST_Dump(geom_all_os)).geom),7845) AS geom_all_os  FROM open_space_areas)
-SELECT aos_id, ST_Length(geom_all_os)::numeric AS length, geom_all_os    
-FROM (SELECT aos_id, ST_ExteriorRing(geom_all_os) AS geom_all_os FROM school_bounds) t;
+   (SELECT aos_id, ST_SetSRID(st_astext((ST_Dump(geom)).geom),7845) AS geom  FROM open_space_areas)
+SELECT aos_id, ST_Length(geom)::numeric AS length, geom    
+FROM (SELECT aos_id, ST_ExteriorRing(geom) AS geom FROM school_bounds) t;
 ''',
 '''
 -- Generate a point every 20m along a park outlines: 
@@ -377,13 +385,13 @@ CREATE TABLE aos_nodes AS
  (SELECT aos_id, 
          length, 
          generate_series(0,1,20/length) AS fraction, 
-         geom_all_os FROM aos_line) 
+         geom FROM aos_line) 
 SELECT aos_id,
        row_number() over(PARTITION BY aos_id) AS node, 
-       ST_LineInterpolatePoint(geom_all_os, fraction)  AS geom_all_os 
+       ST_LineInterpolatePoint(geom, fraction)  AS geom 
 FROM aos;
 
-CREATE INDEX aos_nodes_idx ON aos_nodes USING GIST (geom_all_os);
+CREATE INDEX aos_nodes_idx ON aos_nodes USING GIST (geom);
 ALTER TABLE aos_nodes ADD COLUMN aos_entryid varchar; 
 UPDATE aos_nodes SET aos_entryid = aos_id::text || ',' || node::text; 
 ''',
@@ -395,7 +403,7 @@ CREATE TABLE aos_nodes_20m_line AS
 SELECT DISTINCT n.* 
 FROM aos_nodes n, 
      edges l
-WHERE ST_DWithin(n.geom_all_os ,l.geom,20);
+WHERE ST_DWithin(n.geom ,l.geom,20);
 '''.format(osm_prefix = osm_prefix),
 '''
 -- Create table of points within 30m of lines (should be your road network) 
@@ -405,7 +413,7 @@ CREATE TABLE aos_nodes_30m_line AS
 SELECT DISTINCT n.* 
 FROM aos_nodes n, 
      edges l
-WHERE ST_DWithin(n.geom_all_os ,l.geom,30);
+WHERE ST_DWithin(n.geom ,l.geom,30);
 '''.format(osm_prefix = osm_prefix),
 '''
 -- Create table of points within 50m of lines (should be your road network) 
@@ -415,7 +423,7 @@ CREATE TABLE aos_nodes_50m_line AS
 SELECT DISTINCT n.* 
 FROM aos_nodes n, 
      edges l
-WHERE ST_DWithin(n.geom_all_os ,l.geom,50);
+WHERE ST_DWithin(n.geom ,l.geom,50);
 '''.format(osm_prefix = osm_prefix),
 '''
 -- Create subset data for public_open_space_areas
