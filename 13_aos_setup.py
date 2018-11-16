@@ -142,19 +142,19 @@ ALTER TABLE open_space ADD COLUMN medial_axis_length double precision;
 UPDATE open_space SET medial_axis_length = ST_Length(ST_ApproximateMedialAxis(ST_GeomFromEWKT(ST_AsEWKT(geom))));
 ''',
 '''
--- Take ratio of approximate medial axis length (AMAL) to park area
-ALTER TABLE open_space ADD COLUMN amal_to_area_ratio double precision; 
-UPDATE open_space SET amal_to_area_ratio = medial_axis_length/area_ha;
+---- Take ratio of approximate medial axis length (AMAL) to park area
+--ALTER TABLE open_space ADD COLUMN amal_to_area_ratio double precision; 
+--UPDATE open_space SET amal_to_area_ratio = medial_axis_length/area_ha;
 ''',
 '''
--- get geometry of symetric difference of the convex hull of the geometry
-ALTER TABLE open_space ADD COLUMN symdiff_convhull_geoms geometry; 
-UPDATE open_space SET symdiff_convhull_geoms = ST_SymDifference(geom,ST_ConvexHull(geom));
+---- get geometry of symetric difference of the convex hull of the geometry
+--ALTER TABLE open_space ADD COLUMN symdiff_convhull_geoms geometry; 
+--UPDATE open_space SET symdiff_convhull_geoms = ST_SymDifference(geom,ST_ConvexHull(geom));
 ''',
 '''
--- get number of symetrically different shards from the convex hull
-ALTER TABLE open_space ADD COLUMN num_symdiff_convhull_geoms double precision; 
-UPDATE open_space SET num_symdiff_convhull_geoms = ST_NumGeometries(symdiff_convhull_geoms);
+---- get number of symetrically different shards from the convex hull
+--ALTER TABLE open_space ADD COLUMN num_symdiff_convhull_geoms double precision; 
+--UPDATE open_space SET num_symdiff_convhull_geoms = ST_NumGeometries(symdiff_convhull_geoms);
 ''',
 '''
 ALTER TABLE open_space ADD COLUMN min_bounding_circle_area double precision; 
@@ -176,21 +176,30 @@ UPDATE open_space SET linear_feature = TRUE
 WHERE {linear_feature_criteria};
 '''.format(linear_feature_criteria=linear_feature_criteria),
 '''
--- Create 'Acceptable Linear Feature' indicator (alf?)
+---- Create 'Acceptable Linear Feature' indicator
 ALTER TABLE open_space ADD COLUMN acceptable_linear_feature boolean;
 UPDATE open_space SET acceptable_linear_feature = FALSE WHERE linear_feature = TRUE;
 UPDATE open_space o SET acceptable_linear_feature = TRUE
 FROM (SELECT os_id,geom FROM open_space WHERE linear_feature = FALSE) nlf
 WHERE o.linear_feature IS TRUE  
- AND (ST_Within(o.geom,nlf.geom)
- OR  (o.min_bounding_circle_diameter < 800
-      AND (ST_Intersects(o.geom,nlf.geom)
+ AND  (
+      -- acceptable if within a non-linear feature
+      ST_Within(o.geom,nlf.geom)
+ OR  (
+      -- acceptable if it intersects a non-linear feature if it is not too long 
+      -- and it has some reasonably strong relation with a non-linear feature
+      o.min_bounding_circle_diameter < 800
+      AND (
+           -- a considerable proportion of geometry is within the non-linear feature
+          (ST_Intersects(o.geom,nlf.geom)
           AND
-         (st_area(st_intersection(o.geom,nlf.geom))/st_area(o.geom)) > .1)
- OR (ST_Length(ST_CollectionExtract(ST_Intersection(o.geom,nlf.geom), 2)) > 50
-     AND o.os_id < nlf.os_id 
-     AND ST_Touches(o.geom,nlf.geom)
-     AND o.medial_axis_length < 500)));     
+          (st_area(st_intersection(o.geom,nlf.geom))/st_area(o.geom)) > .2)
+       OR (
+           -- acceptable if there is sufficent conjoint distance (> 50m) with a nlf
+          ST_Length(ST_CollectionExtract(ST_Intersection(o.geom,nlf.geom), 2)) > 50
+          AND o.os_id < nlf.os_id 
+          AND ST_Touches(o.geom,nlf.geom))))
+       );     
 -- a feature identified as linear is acceptable as an OS if it is
 --  large enough to contain an OS of sufficient size (0.4 Ha?) 
 -- (suggests it may be an odd shaped park with a lake; something like that)
@@ -346,7 +355,7 @@ WITH clusters AS(
        FROM clusters)
 SELECT cluster_id as aos_id, 
        jsonb_agg(jsonb_strip_nulls(to_jsonb( 
-           (SELECT d FROM (SELECT {os_add_as_tags}) d)) || hstore_to_jsonb(tags) || hstore_to_jsonb(school_tags) )) AS attributes,
+           (SELECT d FROM (SELECT {os_add_as_tags}) d)) || hstore_to_jsonb(tags) || school_tags )) AS attributes,
     COUNT(1) AS numgeom,
     ST_Union(geom_public) AS geom_public,
     ST_Union(geom_not_public) AS geom_not_public,
