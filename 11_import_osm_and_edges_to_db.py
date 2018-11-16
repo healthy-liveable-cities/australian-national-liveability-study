@@ -55,8 +55,8 @@ curs.execute(grant_query)
 conn.commit()
 
 # Define tags for which presence of values is suggestive of some kind of open space 
-# These are defined in the ind_study_region_matrix worksheet 'open_space_defs' under the 'possible_os_tags' column.
-possible_os_tags = '\n'.join(['ALTER TABLE {}_polygon ADD COLUMN IF NOT EXISTS "{}" varchar;'.format(osm_prefix,x.encode('utf')) for x in df_aos["possible_os_tags"].dropna().tolist()])
+# These are defined in the ind_study_region_matrix worksheet 'open_space_defs' under the 'possible_tags' column.
+possible_tags = '\n'.join(['ALTER TABLE {}_polygon ADD COLUMN IF NOT EXISTS "{}" varchar;'.format(osm_prefix,x.encode('utf')) for x in df_aos["possible_tags"].dropna().tolist()])
 
 aos_setup = ['''
 -- Add geom column to polygon table, appropriately transformed to project spatial reference system
@@ -72,7 +72,7 @@ UPDATE {osm_prefix}_roads SET geom = ST_Transform(way,7845);
 '''
 -- Add other columns which are important if they exists, but not important if they don't
 -- --- except that there presence is required for ease of accurate querying.
-{}'''.format(possible_os_tags)
+{}'''.format(possible_tags)
 ]
 
 for sql in aos_setup:

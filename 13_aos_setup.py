@@ -12,7 +12,7 @@
 #           -- a study region specific section of OSM has been prepared and is referenced in the setup xlsx file
 #           -- the postgis_sfcgal extension has been created in the active database
 #
-# Author:  Carl Higgs
+# Authors:  Carl Higgs, Julianna Rozek
 # Date:    20180626
 
 
@@ -41,8 +41,9 @@ curs = conn.cursor()
 os_landuse = "'{}'".format("','".join([x.encode('utf') for x in df_aos["os_landuse"].dropna().tolist()]))
 os_boundary = "'{}'".format("','".join([x.encode('utf') for x in df_aos["os_boundary"].dropna().tolist()]))
 
-
-specific_inclusion_criteria = '\nAND '.join(['({})'.format(x.encode('utf')) for x in df_aos["specific_inclusion_criteria"].dropna().tolist()])
+excluded_keys = '\nOR '.join(df_aos['exclusion_key'].dropna().apply(lambda x:'{var} IS NOT NULL'.format(var = x)).tolist())
+excluded_values = '\nOR '.join(df_aos[['exclusion_field','exclusion_list']].dropna().apply(lambda x:'"{var}" IN {list}'.format(var = x[0],list = x[1]),axis =1))
+exclusion_criteria = '{excluded_keys} \nOR {excluded_values}'.format(excluded_keys = excluded_keys,excluded_values=excluded_values)
 
 water_features = ','.join(["'{}'".format(x.encode('utf')) for x in df_aos["water_tags_for_natural_landuse_leisure"].dropna().tolist()])
 water_sports = ','.join(["'{}'".format(x.encode('utf')) for x in df_aos["water_sports"].dropna().tolist()])
@@ -65,30 +66,45 @@ os_add_as_tags = ',\n'.join(['"{}"'.format(x.encode('utf')) for x in df_aos["os_
 
 
 aos_setup = ['''
+-- Create a 'Not Open Space' table
+DROP TABLE IF EXISTS not_open_space;
+CREATE TABLE not_open_space AS 
+SELECT ST_Union(geom) AS geom FROM {osm_prefix}_polygon p 
+WHERE {exclusion_criteria};
+'''.format(osm_prefix = osm_prefix, 
+           exclusion_criteria = exclusion_criteria),
+'''
 -- Create an 'Open Space' table
 DROP TABLE IF EXISTS open_space;
 CREATE TABLE open_space AS 
-SELECT * FROM {osm_prefix}_polygon p 
+SELECT p.* FROM {osm_prefix}_polygon p
 WHERE (p.leisure IS NOT NULL 
     OR p.natural IS NOT NULL 
     OR p.sport IS NOT NULL  
     OR p.landuse IN ({os_landuse})
     OR p.boundary IN ({os_boundary})
-    OR beach IS NOT NULL
-    OR river IS NOT NULL
-    OR water IS NOT NULL 
-    OR waterway IS NOT NULL 
-    OR wetland IS NOT NULL )
-  AND {specific_inclusion_criteria};
+    OR p.beach IS NOT NULL
+    OR p.river IS NOT NULL
+    OR p.water IS NOT NULL 
+    OR p.waterway IS NOT NULL 
+    OR p.wetland IS NOT NULL );
 '''.format(osm_prefix = osm_prefix, 
            os_landuse = os_landuse,
-           os_boundary = os_boundary,
-           specific_inclusion_criteria = specific_inclusion_criteria),
+           os_boundary = os_boundary),
 '''
--- Create unique POS id 
+-- Create unique POS id and add indices
 ALTER TABLE open_space ADD COLUMN os_id SERIAL PRIMARY KEY;         
--- The below line is expensive to run and may be unnecesessary, so is commented out
---CREATE INDEX open_space_idx ON open_space USING GIST (geom);
+CREATE INDEX open_space_idx ON open_space USING GIST (geom);
+CREATE INDEX  not_open_space_idx ON not_open_space USING GIST (geom);
+''',
+'''
+-- Remove any portions of open space geometry intersecting excluded regions
+UPDATE open_space p 
+   SET geom = ST_Difference(p.geom,x.geom)
+  FROM not_open_space x
+ WHERE ST_Intersects(p.geom,x.geom);
+-- Drop any empty geometries (ie. those which were wholly covered by excluded regions)
+DELETE FROM open_space WHERE ST_IsEmpty(geom);
 ''',
 '''
 -- Create variable for park size 
@@ -330,7 +346,7 @@ WITH clusters AS(
        FROM clusters)
 SELECT cluster_id as aos_id, 
        jsonb_agg(jsonb_strip_nulls(to_jsonb( 
-           (SELECT d FROM (SELECT {os_add_as_tags}) d)) || hstore_to_jsonb(tags) )) AS attributes,
+           (SELECT d FROM (SELECT {os_add_as_tags}) d)) || hstore_to_jsonb(tags) || hstore_to_jsonb(school_tags) )) AS attributes,
     COUNT(1) AS numgeom,
     ST_Union(geom_public) AS geom_public,
     ST_Union(geom_not_public) AS geom_not_public,
