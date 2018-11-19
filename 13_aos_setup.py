@@ -253,6 +253,18 @@ UPDATE open_space SET public_access = TRUE
     AND o.os_id!=x.os_id;
 ''',
  '''
+ -- Check if area is within an indicated not public access area
+ -- for example, an OS may be within a non-public area nested within a public area
+ -- this additional check is required to ensure within_public is set to false
+ UPDATE open_space o 
+    SET public_access = FALSE
+   FROM open_space x
+  WHERE o.public_access = TRUE
+    AND x.public_access = FALSE
+    AND ST_CoveredBy(o.geom,x.geom)
+    AND o.os_id!=x.os_id;
+''',
+ '''
  -- If an open space is within or co-extant with a space flagged as not having public access
  -- which is not itself covered by a public access area
  -- then it too should be flagged as not public (ie. public_access = FALSE)
@@ -287,11 +299,11 @@ CREATE TABLE open_space_areas AS
 WITH clusters AS(
     SELECT unnest(ST_ClusterWithin(open_space.geom, .001)) AS gc
       FROM open_space 
-     WHERE (public_access IS TRUE
+     WHERE public_access IS TRUE
            OR
            (public_access IS FALSE
             AND
-            within_public IS TRUE))
+            within_public IS TRUE)
        AND in_school IS FALSE 
        AND is_school IS FALSE
        AND (linear_feature IS FALSE 
@@ -301,9 +313,10 @@ WITH clusters AS(
     SELECT unnest(ST_ClusterWithin(not_public_os.geom, .001)) AS gc
       FROM open_space AS not_public_os
      WHERE public_access IS FALSE
+       AND within_public IS FALSE
+  ----  Perhaps it isn't necessary to seperate schools; special case of 'not public'?
   --     AND in_school IS FALSE 
   --     AND is_school IS FALSE
-  ----  Perhaps it isn't necessary to seperate schools; special case of 'not public'?
   -- UNION
   --   SELECT  unnest(ST_ClusterWithin(school_os.geom, .001)) AS gc
   --     FROM open_space AS school_os 
@@ -330,16 +343,17 @@ WITH clusters AS(
     SELECT row_number() OVER () AS cluster_id, (ST_DUMP(gc)).geom AS geom 
        FROM clusters)
 SELECT cluster_id as aos_id, 
-       jsonb_agg(jsonb_strip_nulls(to_jsonb( 
-           (SELECT d FROM (SELECT {os_add_as_tags}) d)) || hstore_to_jsonb(tags) || school_tags )) AS attributes,
-    COUNT(1) AS numgeom,
-    ST_Union(geom_public) AS geom_public,
-    ST_Union(geom_not_public) AS geom_not_public,
-    ST_Union(water_geom) AS geom_water,
-    ST_Union(geom) AS geom
-    FROM open_space
-    INNER JOIN unclustered USING(geom)
-    GROUP BY cluster_id;   
+       jsonb_agg(jsonb_strip_nulls(to_jsonb((SELECT d FROM (SELECT {os_add_as_tags}) d)) 
+         || hstore_to_jsonb(tags) 
+         || jsonb_build_object('school_tags',school_tags))) AS attributes,
+       COUNT(1) AS numgeom,
+       ST_Union(geom_public) AS geom_public,
+       ST_Union(geom_not_public) AS geom_not_public,
+       ST_Union(water_geom) AS geom_water,
+       ST_Union(geom) AS geom
+       FROM open_space
+       INNER JOIN unclustered USING(geom)
+       GROUP BY cluster_id;   
 '''.format(os_add_as_tags = os_add_as_tags),
 ''' 
 CREATE UNIQUE INDEX aos_idx ON open_space_areas (aos_id);  
