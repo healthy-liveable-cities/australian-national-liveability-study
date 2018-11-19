@@ -133,30 +133,6 @@ ALTER TABLE open_space ADD COLUMN water_geom geometry;
 UPDATE open_space SET water_geom = geom WHERE water_feature = TRUE;
 ''',
 '''
--- Create variable for medial axis as a hint of linearity
--- https://postgis.net/2015/10/25/postgis_sfcgal_extension/
--- BUT as per the following link, a work around is needed to make this work reliably
--- hence conversion and backconversion of geom to ewkt (bizarre!!)
--- https://github.com/Oslandia/SFCGAL/issues/133
-ALTER TABLE open_space ADD COLUMN medial_axis_length double precision; 
-UPDATE open_space SET medial_axis_length = ST_Length(ST_ApproximateMedialAxis(ST_GeomFromEWKT(ST_AsEWKT(geom))));
-''',
-'''
----- Take ratio of approximate medial axis length (AMAL) to park area
---ALTER TABLE open_space ADD COLUMN amal_to_area_ratio double precision; 
---UPDATE open_space SET amal_to_area_ratio = medial_axis_length/area_ha;
-''',
-'''
----- get geometry of symetric difference of the convex hull of the geometry
---ALTER TABLE open_space ADD COLUMN symdiff_convhull_geoms geometry; 
---UPDATE open_space SET symdiff_convhull_geoms = ST_SymDifference(geom,ST_ConvexHull(geom));
-''',
-'''
----- get number of symetrically different shards from the convex hull
---ALTER TABLE open_space ADD COLUMN num_symdiff_convhull_geoms double precision; 
---UPDATE open_space SET num_symdiff_convhull_geoms = ST_NumGeometries(symdiff_convhull_geoms);
-''',
-'''
 ALTER TABLE open_space ADD COLUMN min_bounding_circle_area double precision; 
 UPDATE open_space SET min_bounding_circle_area = ST_Area(ST_MinimumBoundingCircle(geom));
 ''',
@@ -266,7 +242,7 @@ UPDATE open_space SET public_access = TRUE
  ;
 '''.format(and_public_space_criteria = public_space),
  '''
- -- Check if area is within a known public access area
+ -- Check if area is within an indicated public access area
  ALTER TABLE open_space ADD COLUMN within_public boolean;
  UPDATE open_space SET within_public = FALSE;
  UPDATE open_space o
@@ -371,26 +347,24 @@ CREATE INDEX idx_aos_jsb ON open_space_areas USING GIN (attributes);
 ''',
 ''' 
 -- Create variable for park size 
-ALTER TABLE open_space_areas ADD COLUMN aos_ha double precision; 
+ALTER TABLE open_space_areas ADD COLUMN aos_ha_public double precision; 
+ALTER TABLE open_space_areas ADD COLUMN aos_ha_not_public double precision; 
 -- note aos_ha_total includes school area
-ALTER TABLE open_space_areas ADD COLUMN aos_ha_total double precision; 
+ALTER TABLE open_space_areas ADD COLUMN aos_ha double precision; 
 ALTER TABLE open_space_areas ADD COLUMN aos_ha_water double precision; 
 ''',
 '''
 -- Calculate total area of OS in Ha and where no OS is present (ie. a school without parks) set this to zero
 UPDATE open_space_areas SET aos_ha_public = COALESCE(ST_Area(geom_public)/10000.0,0);
 UPDATE open_space_areas SET aos_ha_not_public = COALESCE(ST_Area(geom_not_public)/10000.0,0);
+UPDATE open_space_areas SET aos_ha = ST_Area(geom)/10000.0; 
 UPDATE open_space_areas SET aos_ha_water = COALESCE(ST_Area(geom_water)/10000.0,0);
-''',
-'''
--- Calculate total area of OS in Ha, including schools
-UPDATE open_space_areas SET aos_ha_total = ST_Area(geom)/10000.0; 
 ''',
 '''
 -- Create variable for Water percent
 ALTER TABLE open_space_areas ADD COLUMN water_percent numeric; 
 UPDATE open_space_areas SET water_percent = 0; 
-UPDATE open_space_areas SET water_percent = 100 * aos_ha_water/aos_ha_total::numeric WHERE aos_ha > 0; 
+UPDATE open_space_areas SET water_percent = 100 * aos_ha_water/aos_ha::numeric WHERE aos_ha > 0; 
 ''',
 '''
 -- Create a linestring aos table 
