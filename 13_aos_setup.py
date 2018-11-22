@@ -308,7 +308,8 @@ WITH clusters AS(
        AND is_school IS FALSE
        AND (linear_feature IS FALSE 
             OR 
-            acceptable_linear_feature IS TRUE)
+            (acceptable_linear_feature IS TRUE
+            AND within_public IS TRUE))
   UNION
     SELECT unnest(ST_ClusterWithin(not_public_os.geom, .001)) AS gc
       FROM open_space AS not_public_os
@@ -335,6 +336,7 @@ WITH clusters AS(
       FROM open_space AS linear_os 
      WHERE linear_feature IS TRUE 
        AND acceptable_linear_feature IS TRUE
+       AND within_public IS FALSE
        AND in_school IS FALSE 
        AND is_school IS FALSE
        AND public_access IS TRUE
