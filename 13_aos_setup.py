@@ -47,6 +47,7 @@ exclusion_criteria = '{excluded_keys} \nOR {excluded_values}'.format(excluded_ke
 
 water_features = ','.join(["'{}'".format(x.encode('utf')) for x in df_aos["water_tags_for_natural_landuse_leisure"].dropna().tolist()])
 water_sports = ','.join(["'{}'".format(x.encode('utf')) for x in df_aos["water_sports"].dropna().tolist()])
+linear_waterway = ','.join(["'{}'".format(x.encode('utf')) for x in df_aos["linear_waterway"].dropna().tolist()])
 
 linear_feature_criteria = '\n '.join(['{}'.format(x.encode('utf')) for x in df_aos["linear_feature_criteria"].dropna().tolist()])
 
@@ -112,21 +113,67 @@ ALTER TABLE open_space ADD COLUMN area_ha double precision;
 UPDATE open_space SET area_ha = ST_Area(geom)/10000.0;
 ''',
 '''
+-- Create variable for associated line tags
+ALTER TABLE open_space ADD COLUMN tags_line jsonb; 
+WITH tags AS ( 
+SELECT o.os_id,
+       jsonb_strip_nulls(to_jsonb((SELECT d FROM (SELECT l.amenity,l.leisure,l."natural",l.tourism,l.waterway) d)))AS attributes 
+FROM {osm_prefix}_line  l,open_space o'''.format(osm_prefix = osm_prefix)+
+'''
+WHERE ST_Intersects (l.geom,o.geom) )
+UPDATE open_space o SET tags_line = attributes
+FROM (SELECT os_id, 
+             jsonb_agg(distinct(attributes)) AS attributes
+      FROM tags 
+      WHERE attributes != '{}'::jsonb 
+      GROUP BY os_id) t
+WHERE o.os_id = t.os_id
+  AND t.attributes IS NOT NULL
+;
+''',
+'''
+-- Create variable for associated point tags
+ALTER TABLE open_space ADD COLUMN tags_point jsonb; 
+WITH tags AS ( 
+SELECT o.os_id,
+       jsonb_strip_nulls(to_jsonb((SELECT d FROM (SELECT l.amenity,l.leisure,l."natural",l.tourism,l.historic) d)))AS attributes 
+FROM {osm_prefix}_point l,open_space o'''.format(osm_prefix = osm_prefix)+
+'''
+WHERE ST_Intersects (l.geom,o.geom) )
+UPDATE open_space o SET tags_point = attributes
+FROM (SELECT os_id, 
+             jsonb_agg(distinct(attributes)) AS attributes
+      FROM tags 
+      WHERE attributes != '{}'::jsonb 
+      GROUP BY os_id) t
+WHERE o.os_id = t.os_id
+  AND t.attributes IS NOT NULL
+;
+''',
+'''
  -- Create water feature indicator
 ALTER TABLE open_space ADD COLUMN water_feature boolean;
 UPDATE open_space SET water_feature = FALSE;
 UPDATE open_space SET water_feature = TRUE 
-   WHERE "natural" IN ({water_features})
+   WHERE "natural" IN ({water_features}) 
+      OR landuse IN ({water_features})
+      OR leisure IN ({water_features}) 
+      OR sport IN ({water_sports})
       OR beach IS NOT NULL
       OR river IS NOT NULL
       OR water IS NOT NULL 
       OR waterway IS NOT NULL 
-      OR wetland IS NOT NULL 
-      OR landuse IN ({water_features})
-      OR leisure IN ({water_features}) 
-      OR sport IN ({water_sports});
+      OR wetland IS NOT NULL;
 '''.format(water_features = water_features,
            water_sports = water_sports),
+'''
+ALTER TABLE open_space ADD COLUMN linear_waterway boolean; 
+UPDATE open_space SET linear_waterway = TRUE
+ WHERE waterway IN ({linear_waterway}) 
+    OR "natural" IN ({linear_waterway}) 
+    OR landuse IN ({linear_waterway})
+    OR leisure IN ({linear_waterway}) ;
+'''.format(linear_waterway = linear_waterway),
 '''
 -- Create variable for AOS area excluding water
 ALTER TABLE open_space ADD COLUMN water_geom geometry; 
@@ -203,8 +250,9 @@ UPDATE open_space SET is_school = FALSE;
 '''
 -- Insert school polygons in open space, restricting to relevant de-identified subset of tags (ie. no school names, contact details, etc)
 ALTER TABLE open_space ADD COLUMN school_tags jsonb; 
-INSERT INTO open_space (area_ha,school_tags,tags,is_school,geom)
-SELECT  area_ha,
+INSERT INTO open_space (amenity,area_ha,school_tags,tags,is_school,geom)
+SELECT  amenity,
+        area_ha,
         school_tags,
         slice(tags, 
               ARRAY['amenity',
@@ -303,18 +351,23 @@ WITH clusters AS(
            OR
            (public_access IS FALSE
             AND
-            within_public IS TRUE)
+            within_public IS TRUE
+            AND (acceptable_linear_feature IS TRUE
+                 OR 
+                 linear_feature IS FALSE))
        AND in_school IS FALSE 
        AND is_school IS FALSE
        AND (linear_feature IS FALSE 
             OR 
             (acceptable_linear_feature IS TRUE
             AND within_public IS TRUE))
+       AND linear_waterway IS NOT TRUE
   UNION
     SELECT unnest(ST_ClusterWithin(not_public_os.geom, .001)) AS gc
       FROM open_space AS not_public_os
      WHERE public_access IS FALSE
        AND within_public IS FALSE
+       AND linear_waterway IS NOT TRUE
   ----  Perhaps it isn't necessary to seperate schools; special case of 'not public'?
   --     AND in_school IS FALSE 
   --     AND is_school IS FALSE
@@ -326,20 +379,16 @@ WITH clusters AS(
   UNION
     SELECT  linear_os.geom AS gc
       FROM open_space AS linear_os 
-     WHERE linear_feature IS TRUE 
+     WHERE (linear_feature IS TRUE 
        AND acceptable_linear_feature IS FALSE
        AND in_school IS FALSE 
-       AND is_school IS FALSE
+       AND is_school IS FALSE)
        AND public_access IS TRUE
+       AND linear_waterway IS NOT TRUE
   UNION
-    SELECT  linear_os.geom AS gc
-      FROM open_space AS linear_os 
-     WHERE linear_feature IS TRUE 
-       AND acceptable_linear_feature IS TRUE
-       AND within_public IS FALSE
-       AND in_school IS FALSE 
-       AND is_school IS FALSE
-       AND public_access IS TRUE
+    SELECT  waterway_os.geom AS gc
+      FROM open_space AS waterway_os 
+     WHERE linear_waterway IS TRUE
        )
 , unclustered AS( --unpacking GeomCollections
     SELECT row_number() OVER () AS cluster_id, (ST_DUMP(gc)).geom AS geom 
@@ -347,7 +396,9 @@ WITH clusters AS(
 SELECT cluster_id as aos_id, 
        jsonb_agg(jsonb_strip_nulls(to_jsonb((SELECT d FROM (SELECT {os_add_as_tags}) d)) 
          || hstore_to_jsonb(tags) 
-         || jsonb_build_object('school_tags',school_tags))) AS attributes,
+         || jsonb_build_object('school_tags',school_tags) 
+         || jsonb_build_object('tags_line',tags_line)
+         || jsonb_build_object('tags_point',tags_point))) AS attributes,
        COUNT(1) AS numgeom,
        ST_Union(geom_public) AS geom_public,
        ST_Union(geom_not_public) AS geom_not_public,
@@ -375,6 +426,15 @@ UPDATE open_space_areas SET aos_ha_public = COALESCE(ST_Area(geom_public)/10000.
 UPDATE open_space_areas SET aos_ha_not_public = COALESCE(ST_Area(geom_not_public)/10000.0,0);
 UPDATE open_space_areas SET aos_ha = ST_Area(geom)/10000.0; 
 UPDATE open_space_areas SET aos_ha_water = COALESCE(ST_Area(geom_water)/10000.0,0);
+''',
+'''
+ -- Set water_feature as true where OS feature intersects a noted water feature
+ -- wet by association
+ALTER TABLE open_space_areas ADD COLUMN has_water_feature boolean; 
+UPDATE open_space_areas SET has_water_feature = FALSE; 
+UPDATE open_space_areas o SET has_water_feature = TRUE 
+   FROM (SELECT * from open_space WHERE water_feature = TRUE) w
+   WHERE ST_Intersects (o.geom,w.geom);
 ''',
 '''
 -- Create variable for Water percent
