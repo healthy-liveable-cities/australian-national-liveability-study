@@ -124,7 +124,7 @@ create_study_region_tables = '''
   CREATE TABLE study_region_ssc AS 
   SELECT b.ssc_name_2 AS ssc_name_2016, 
          b.geom
-    FROM gccsa_2018 a, 
+    FROM {region}_{year} a, 
          main_ssc_2016_aust b 
    WHERE ST_Intersects(a.geom,b.geom);  
 '''.format(region = region.lower(), year = year)
