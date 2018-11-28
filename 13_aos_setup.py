@@ -347,35 +347,36 @@ CREATE TABLE open_space_areas AS
 WITH clusters AS(
     SELECT unnest(ST_ClusterWithin(open_space.geom, .001)) AS gc
       FROM open_space 
-     WHERE public_access IS TRUE
+     WHERE (public_access IS TRUE
            OR
            (public_access IS FALSE
             AND
             within_public IS TRUE
             AND (acceptable_linear_feature IS TRUE
                  OR 
-                 linear_feature IS FALSE))
+                 linear_feature IS FALSE)))
        AND in_school IS FALSE 
        AND is_school IS FALSE
        AND (linear_feature IS FALSE 
             OR 
             (acceptable_linear_feature IS TRUE
             AND within_public IS TRUE))
-       AND linear_waterway IS NOT TRUE
+       AND linear_waterway IS NULL
   UNION
     SELECT unnest(ST_ClusterWithin(not_public_os.geom, .001)) AS gc
       FROM open_space AS not_public_os
      WHERE public_access IS FALSE
        AND within_public IS FALSE
-       AND linear_waterway IS NOT TRUE
-  ----  Perhaps it isn't necessary to seperate schools; special case of 'not public'?
+       AND linear_waterway IS NULL
+  ----  This implicitly includes schools unless the following code is uncommented
   --     AND in_school IS FALSE 
   --     AND is_school IS FALSE
   -- UNION
   --   SELECT  unnest(ST_ClusterWithin(school_os.geom, .001)) AS gc
   --     FROM open_space AS school_os 
-  --    WHERE in_school IS TRUE 
-  --       OR is_school IS TRUE
+  --    WHERE (in_school IS TRUE 
+  --       OR is_school IS TRUE)
+  --      AND linear_waterway IS NULL
   UNION
     SELECT  linear_os.geom AS gc
       FROM open_space AS linear_os 
@@ -384,7 +385,7 @@ WITH clusters AS(
        AND in_school IS FALSE 
        AND is_school IS FALSE)
        AND public_access IS TRUE
-       AND linear_waterway IS NOT TRUE
+       AND linear_waterway IS NULL
   UNION
     SELECT  waterway_os.geom AS gc
       FROM open_space AS waterway_os 
