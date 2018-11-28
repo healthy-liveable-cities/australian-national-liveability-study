@@ -54,13 +54,15 @@ folderPath = df_parameters.loc['folderPath']['value']
 # if current branch is 'li_studyregion_2016', locale will be set as 'studyregion'
 locale = '_'.join(sp.check_output(["git", "status"],cwd=sys.path[0],shell=True).split('\n')[0].split(' ')[2].split('_')[1:-1])
 
-if len(sys.argv) == 2:
+if len(sys.argv) >= 2:
   locale = '{studyregion}'.format(studyregion = sys.argv[1])
 else:
-  print("Note: locale has not been specified; attempting to use current git respository branch to glean study region...")
+  if __name__ == '__main__':
+    print("Note: locale has not been specified; attempting to use current git respository branch to glean study region...")
   if locale == '':
     locale = 'testing'
-print("\nProcessing script {} for locale {}...\n".format(sys.argv[0],locale))
+if __name__ == '__main__':
+  print("\nProcessing script {} for locale {}...\n".format(sys.argv[0],locale))
 
 # More study region details
 
