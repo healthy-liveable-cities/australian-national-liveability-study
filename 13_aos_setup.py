@@ -449,10 +449,10 @@ UPDATE open_space_areas SET water_percent = 100 * aos_ha_water/aos_ha::numeric W
 DROP TABLE IF EXISTS aos_line;
 CREATE TABLE aos_line AS 
 WITH school_bounds AS
-   (SELECT aos_id, ST_SetSRID(st_astext((ST_Dump(geom)).geom),7845) AS geom  FROM open_space_areas)
+   (SELECT aos_id, ST_SetSRID(st_astext((ST_Dump(geom)).geom),{srid}) AS geom  FROM open_space_areas)
 SELECT aos_id, ST_Length(geom)::numeric AS length, geom    
 FROM (SELECT aos_id, ST_ExteriorRing(geom) AS geom FROM school_bounds) t;
-''',
+'''.format(srid=srid),
 '''
 -- Generate a point every 20m along a park outlines: 
 DROP TABLE IF EXISTS aos_nodes; 
