@@ -55,8 +55,8 @@ curs.execute(grant_query)
 conn.commit()
 
 # Define tags for which presence of values is suggestive of some kind of open space 
-# These are defined in the ind_study_region_matrix worksheet 'open_space_defs' under the 'possible_tags' column.
-possible_tags = '\n'.join(['ALTER TABLE {}_polygon ADD COLUMN IF NOT EXISTS "{}" varchar;'.format(osm_prefix,x.encode('utf')) for x in df_aos["possible_tags"].dropna().tolist()])
+# These are defined in the ind_study_region_matrix worksheet 'open_space_defs' under the 'required_tags' column.
+required_tags = '\n'.join(['ALTER TABLE {}_polygon ADD COLUMN IF NOT EXISTS "{}" varchar;'.format(osm_prefix,x.encode('utf')) for x in df_osm["required_tags"].dropna().tolist()])
 
 for shape in ['line','point','polygon','roads']:
   sql = '''
@@ -74,7 +74,7 @@ for shape in ['line','point','polygon','roads']:
 sql = '''
 -- Add other columns which are important if they exists, but not important if they don't
 -- --- except that there presence is required for ease of accurate querying.
-{}'''.format(possible_tags)    
+{}'''.format(required_tags)    
 curs.execute(sql)
 conn.commit()    
 

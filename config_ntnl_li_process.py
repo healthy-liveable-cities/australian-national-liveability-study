@@ -40,7 +40,7 @@ df_parameters = pandas.read_excel(xls, 'parameters',index_col=0)
 df_studyregion = pandas.read_excel(xls, 'study_regions',index_col=1)
 df_inds = pandas.read_excel(xls, 'ind_study_region_matrix')
 df_destinations = pandas.read_excel(xls, 'destinations')
-df_aos = pandas.read_excel(xls, 'open_space_defs')
+df_osm = pandas.read_excel(xls, 'osm_and_open_space_defs')
 
 responsible = df_studyregion['responsible']
 
