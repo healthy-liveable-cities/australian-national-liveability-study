@@ -335,13 +335,11 @@ outCombinedFeature = 'study_destinations'
 # The table 'dest_type' will be created in Postgresql to keep track of destinations
 
 df_destinations = df_destinations.replace(pandas.np.nan, 'NULL', regex=True)
-
-## Retrieve defined variables from destinations table
 destination_list = df_destinations.destination.tolist() # the destinations 
-dest_codes = df_destinations.code.tolist()   # domain is an optional grouping category for destinations / indicators
-dest_domains = df_destinations.domain.tolist()   # domain is an optional grouping category for destinations / indicators
-dest_cutoffs = df_destinations.cutoff.tolist()   # cut off distance within which to evaluate presence
-dest_counts = df_destinations.counts.tolist()   # cut off distance within which to evaluate counts
+# dest_codes = df_destinations.code.tolist()   # domain is an optional grouping category for destinations / indicators
+# dest_domains = df_destinations.domain.tolist()   # domain is an optional grouping category for destinations / indicators
+# dest_cutoffs = df_destinations.cutoff.tolist()   # cut off distance within which to evaluate presence
+# dest_counts = df_destinations.counts.tolist()   # cut off distance within which to evaluate counts
 
 school_destinations = df_parameters.loc['school_destinations']['value']
 school_id = df_parameters.loc['school_id']['value']

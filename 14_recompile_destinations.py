@@ -42,16 +42,23 @@ scratchOutput = os.path.join(arcpy.env.scratchGDB,'MultiPointToPointDest')
 arcpy.env.overwriteOutput = True 
 
 # SQL set up for destination type table creation
-queryPartA = "INSERT INTO dest_type VALUES "
 sqlChunkify = 50
 createTable = '''
   CREATE TABLE dest_type
-  (dest integer NOT NULL,
+  (dest varchar NOT NULL,
    dest_name varchar PRIMARY KEY,
    dest_domain varchar NOT NULL,
    dest_count integer,
    dest_cutoff integer,
    dest_count_cutoff integer);
+   dest_name_full
+   data_location
+   data_processors
+   data_source
+   data_receipt_date
+   data_target_period
+   data_licence
+   notes
    '''
 
 # OUTPUT PROCESS
@@ -62,10 +69,9 @@ print("Commencing task: {} at {}".format(task,time.strftime("%Y%m%d-%H%M%S")))
 # Compile a list of datasets to be checked over for valid features within the destination GDB
 datasets = arcpy.ListDatasets(feature_type='feature')
 
-# Initialise empty destination count array (we fill this in below)
-dest_count = [0]*len(destination_list)
-# we'll add a name field to the combined field list we create containing class of destination
-max_name_length = len(max(destination_list, key=len))+3
+# Initialise empty destination count dictionary (we fill this in below)
+# dest_count = [0]*len(destination_list)
+dest_count = dict()
 
 # create new feature for combined destinations using a template
 # Be aware that if the feature does exist, it will be overwritten
@@ -79,11 +85,12 @@ arcpy.CreateFeatureclass_management(out_path = gdb_path,
 # Define projection to study region spatial reference
 arcpy.DefineProjection_management(os.path.join(gdb_path,outCombinedFeature), spatial_reference)
 
-                                      
+# ingest pre-processed destinations located in destinations geodatabase                                      
 for ds in datasets:
   for fc in arcpy.ListFeatureClasses(feature_dataset=ds):
     if fc in destination_list:
-      destNum = destination_list.index(fc)
+      # destNum = destination_list.index(fc)
+      dest_class = df_destinations.loc[df_destinations['destination'] == fc]['destination_class'].to_string(index = False).encode('utf')
       # Make sure all destinations conform to shape type 'Point' (ie. not multipoint)
       if arcpy.Describe(fc).shapeType != u'Point':
         arcpy.FeatureToPoint_management(fc, scratchOutput, "INSIDE")
@@ -94,12 +101,12 @@ for ds in datasets:
       # clip to hex grid buffer
       selection = arcpy.SelectLayerByLocation_management('destination', 'intersect',os.path.join(gdb_path,hex_grid_buffer))
       count = int(arcpy.GetCount_management(selection).getOutput(0))
-      dest_count[destNum] = count
+      dest_count[fc] = count
       # Insert new rows in combined destination feature
       with arcpy.da.SearchCursor(selection,['SHAPE@','OID@']) as sCur:
         with arcpy.da.InsertCursor( os.path.join(gdb_path,outCombinedFeature),['SHAPE@','OBJECTID','dest_oid','dest_name']) as iCur:
           for row in sCur:
-            dest_oid  = '{:02},{}'.format(dest_codes[destNum],row[1])
+            dest_oid  = '{:02},{}'.format(dest_class,row[1])
             dest_name = fc.encode('utf8')
             iCur.insertRow(row+(dest_oid, dest_name))
 
@@ -120,12 +127,12 @@ conn.commit()
 # insert values into table
 # note that dest_count is feature count from above, not the dest_counts var from config
 for i in range(0,len(destination_list)):
-  curs.execute(queryPartA + "({},'{}','{}',{},{},{})".format(dest_codes[i],
-                                                     destination_list[i],
-                                                     dest_domains[i],
-                                                     dest_count[i],  
-                                                     dest_cutoffs[i],
-                                                     dest_counts[i]) +' ON CONFLICT DO NOTHING')
+  curs.execute("INSERT INTO dest_type VALUES ({},'{}','{}',{},{},{})".format(dest_codes[i],
+                                                                             destination_list[i],
+                                                                             dest_domains[i],
+                                                                             dest_count[i],  
+                                                                             dest_cutoffs[i],
+                                                                             dest_counts[i]) +' ON CONFLICT DO NOTHING')
   conn.commit()
 
 print("Created 'dest_type' destination summary table for database {}.".format(db))
