@@ -62,9 +62,9 @@ for shape in ['line','point','polygon','roads']:
   sql = '''
   -- Add geom column to polygon table, appropriately transformed to project spatial reference system
   ALTER TABLE {osm_prefix}_{shape} ADD COLUMN geom geometry; 
-  UPDATE {osm_prefix}_{shape} SET geom = ST_Transform(way,7845); 
+  UPDATE {osm_prefix}_{shape} SET geom = ST_Transform(way,{srid}); 
   CREATE INDEX {osm_prefix}_{shape}_idx ON {osm_prefix}_{shape} USING GIST (geom);
-  '''.format(osm_prefix = osm_prefix, shape = shape)
+  '''.format(osm_prefix = osm_prefix, shape = shape,srid=srid)
   start = time.time()
   print("\nExecuting: {}".format(sql))
   curs.execute(sql)
