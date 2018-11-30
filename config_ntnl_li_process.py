@@ -41,6 +41,7 @@ df_studyregion = pandas.read_excel(xls, 'study_regions',index_col=1)
 df_inds = pandas.read_excel(xls, 'ind_study_region_matrix')
 df_destinations = pandas.read_excel(xls, 'destinations')
 df_osm = pandas.read_excel(xls, 'osm_and_open_space_defs')
+df_osm_dest = pandas.read_excel(xls, 'osm_dest_definitions')
 
 responsible = df_studyregion['responsible']
 
@@ -340,6 +341,8 @@ destination_list = df_destinations.destination.tolist() # the destinations
 # dest_domains = df_destinations.domain.tolist()   # domain is an optional grouping category for destinations / indicators
 # dest_cutoffs = df_destinations.cutoff.tolist()   # cut off distance within which to evaluate presence
 # dest_counts = df_destinations.counts.tolist()   # cut off distance within which to evaluate counts
+
+df_osm_dest = df_osm_dest.replace(pandas.np.nan, 'NULL', regex=True)
 
 school_destinations = df_parameters.loc['school_destinations']['value']
 school_id = df_parameters.loc['school_id']['value']
