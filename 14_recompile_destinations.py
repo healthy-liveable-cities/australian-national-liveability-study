@@ -89,6 +89,8 @@ create_study_destinations_table = '''
   DROP TABLE IF EXISTS study_destinations;
   CREATE TABLE study_destinations
   (dest_oid varchar NOT NULL PRIMARY KEY,
+   orig_id bigint,
+   dest_class varchar NOT NULL,
    dest_name varchar NOT NULL,
    geom geometry(POINT));
   CREATE INDEX study_destinations_dest_name_idx ON study_destinations (dest_name);
@@ -113,7 +115,9 @@ for dest in destination_list:
     '''.format(dest = dest,buffered_study_region = buffered_study_region)
     curs.execute(limit_extent)
     conn.commit()
-    
+    # count destinations matching this class already processed within the study region
+    curs.execute('''SELECT count(*) FROM study_destinations WHERE dest_class = '{dest_class}';'''.format(dest = dest, dest_class = dest_fields['destination_class']))
+    existing_dest_count = int(list(curs)[0][0])         
     # count destinations from this source within the study region
     curs.execute('''SELECT count(*) FROM {dest};'''.format(dest = dest))
     dest_count = int(list(curs)[0][0])     
@@ -141,10 +145,14 @@ for dest in destination_list:
         curs.execute(get_primary_key_field)
         dest_pkey = list(curs)[0][0]
         
+        # it is possible that dest_class is not unique hence, the dest_oid will not be unique
+        # unless we ensure it reflects a cumulative running index over previous and current dests
+        # within class
         combine_destinations = '''
-          INSERT INTO study_destinations (dest_oid,dest_name,geom)
-          SELECT '{dest_class},' || d.{dest_pkey}, '{dest}', d.geom FROM {dest} d;
+          INSERT INTO study_destinations (dest_oid,orig_id,dest_class,dest_name,geom)
+          SELECT '{dest_class},' || {existing_dest_count} + ROW_NUMBER() OVER (ORDER BY {dest_pkey}), d.{dest_pkey},'{dest_class}', '{dest}', d.geom FROM {dest} d;
         '''.format(dest_class = dest_fields['destination_class'],
+                   existing_dest_count = existing_dest_count,
                    dest_pkey = dest_pkey,
                    dest = dest)
         curs.execute(combine_destinations)
@@ -174,8 +182,8 @@ for dest in destination_list:
   elif dest in dest_osm_list:
     dest_condition = ' OR '.join(df_osm_dest[df_osm_dest['dest_name']==dest].apply(lambda x: "{} IS NOT NULL".format(x.key) if x.value=='NULL' else "{} = '{}'".format(x.key,x.value),axis=1).tolist())
     combine__point_destinations = '''
-      INSERT INTO study_destinations (dest_oid,dest_name,geom)
-      SELECT '{dest_class},' || ROW_NUMBER() OVER (ORDER BY geom), '{dest}', d.geom 
+      INSERT INTO study_destinations (dest_oid,orig_id, dest_class,dest_name,geom)
+      SELECT '{dest_class},' || ROW_NUMBER() OVER (ORDER BY osm_id), osm_id, '{dest_class}', '{dest}', d.geom 
         FROM {osm_prefix}_point d
        WHERE {dest_condition};
     '''.format(dest_class = dest_fields['destination_class'],
@@ -191,8 +199,8 @@ for dest in destination_list:
     dest_count = int(list(curs)[0][0])       
     
     combine_poly_destinations = '''
-      INSERT INTO study_destinations (dest_oid,dest_name,geom)
-      SELECT '{dest_class},' || {dest_count} + ROW_NUMBER() OVER (ORDER BY geom), '{dest}', ST_Centroid(d.geom)
+      INSERT INTO study_destinations (dest_oid,orig_id, dest_class,dest_name,geom)
+      SELECT '{dest_class},' || {dest_count} + ROW_NUMBER() OVER (ORDER BY osm_id), osm_id, '{dest_class}','{dest}', ST_Centroid(d.geom)
         FROM {osm_prefix}_polygon d
        WHERE {dest_condition};
     '''.format(dest_class = dest_fields['destination_class'],
