@@ -99,7 +99,7 @@ create_study_destinations_table = '''
 curs.execute(create_study_destinations_table)
 conn.commit()
 
-print("Importing destintaions...")
+print("\nImporting destinations...")
 print("\n{dest:50} {dest_count}".format(dest = "Destination",dest_count = "Import count"))
 for dest in destination_list:
   dest_fields = {}
