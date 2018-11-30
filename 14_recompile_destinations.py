@@ -11,11 +11,10 @@
 # Author:  Carl Higgs
 # Date:    05/07/2018
 
-# import arcpy
+import arcpy
 import time
-# import numpy
-# import json
 import psycopg2
+
 from script_running_log import script_running_log
 
 # Import custom variables for National Liveability indicator process
@@ -49,7 +48,7 @@ dest_processed_list = [x[(x.find(' ')+1):x.find(' (Point)')] for x in dest_proce
 # list destinations which have OpenStreetMap specified as their data source
 dest_osm_list = [x.encode('utf') for x in df_osm_dest.dest_name.unique().tolist()]
 
-print("Temporarily copy all pre-processed destinations to postgis..."),
+print("\nCopy all pre-processed destinations to postgis..."),
 command = (
         ' ogr2ogr -overwrite -progress -f "PostgreSQL" ' 
         ' PG:"host={host} port=5432 dbname={db}'
@@ -99,7 +98,7 @@ curs.execute(create_study_destinations_table)
 conn.commit()
 
 print("Importing destintaions...")
-print("\n{dest:50} {dest_count:=10}".format(dest = "Destination",dest_count = "Imported"))
+print("\n{dest:50} {dest_count}".format(dest = "Destination",dest_count = "Import count"))
 for dest in destination_list:
   dest_fields = {}
   for field in ['destination_class','dest_name_full','domain','cutoff_closest','cutoff_count']:
@@ -142,6 +141,15 @@ for dest in destination_list:
         curs.execute(get_primary_key_field)
         dest_pkey = list(curs)[0][0]
         
+        combine_destinations = '''
+          INSERT INTO study_destinations (dest_oid,dest_name,geom)
+          SELECT '{dest_class},' || d.{dest_pkey}, '{dest}', d.geom FROM {dest} d;
+        '''.format(dest_class = dest_fields['destination_class'],
+                   dest_pkey = dest_pkey,
+                   dest = dest)
+        curs.execute(combine_destinations)
+        conn.commit()
+        
         summarise_dest_type = '''
         INSERT INTO dest_type (dest_class,dest_name,dest_name_full,domain,count,cutoff_closest,cutoff_count)
         SELECT '{dest_class}',
@@ -160,63 +168,79 @@ for dest in destination_list:
                    cutoff_count   = dest_fields['cutoff_count'])
         curs.execute(summarise_dest_type)
         conn.commit()
-        
-        combine_destinations = '''
-          INSERT INTO study_destinations (dest_oid,dest_name,geom)
-          SELECT '{dest_class},' || d.{dest_pkey}, '{dest}', d.geom FROM {dest} d;
-        '''.format(dest_class = dest_fields['destination_class'],
-                   dest_pkey = dest_pkey,
-                   dest = dest)
-        curs.execute(combine_destinations)
-        conn.commit()
         # print destination name and tally which have been imported
         print("{dest:50} {dest_count:=10d}".format(dest = dest,dest_count = dest_count))
-
+        
   elif dest in dest_osm_list:
     dest_condition = ' OR '.join(df_osm_dest[df_osm_dest['dest_name']==dest].apply(lambda x: "{} IS NOT NULL".format(x.key) if x.value=='NULL' else "{} = '{}'".format(x.key,x.value),axis=1).tolist())
-
+    combine__point_destinations = '''
+      INSERT INTO study_destinations (dest_oid,dest_name,geom)
+      SELECT '{dest_class},' || ROW_NUMBER() OVER (ORDER BY geom), '{dest}', d.geom 
+        FROM {osm_prefix}_point d
+       WHERE {dest_condition};
+    '''.format(dest_class = dest_fields['destination_class'],
+               dest_pkey = dest_pkey,
+               dest = dest,
+               osm_prefix = osm_prefix,
+               dest_condition = dest_condition)
+    curs.execute(combine__point_destinations)
+    conn.commit()        
     
+    # get point dest count in order to set correct auto-increment start value for polygon dest OIDs
+    curs.execute('''SELECT count(*) FROM study_destinations WHERE dest_name = '{dest}';'''.format(dest = dest))
+    dest_count = int(list(curs)[0][0])       
     
+    combine_poly_destinations = '''
+      INSERT INTO study_destinations (dest_oid,dest_name,geom)
+      SELECT '{dest_class},' || {dest_count} + ROW_NUMBER() OVER (ORDER BY geom), '{dest}', ST_Centroid(d.geom)
+        FROM {osm_prefix}_polygon d
+       WHERE {dest_condition};
+    '''.format(dest_class = dest_fields['destination_class'],
+               dest_count = dest_count,
+               dest_pkey = dest_pkey,
+               dest = dest,
+               osm_prefix = osm_prefix,
+               dest_condition = dest_condition)
+    curs.execute(combine_poly_destinations)
+    conn.commit()      
     
+    curs.execute('''SELECT count(*) FROM study_destinations WHERE dest_name = '{dest}';'''.format(dest = dest))
+    dest_count = int(list(curs)[0][0])  
     
-    
+    if dest_count > 0:
+      summarise_dest_type = '''
+      INSERT INTO dest_type (dest_class,dest_name,dest_name_full,domain,count,cutoff_closest,cutoff_count)
+      SELECT '{dest_class}',
+             '{dest}',
+             '{dest_name_full}',
+             '{domain}',
+             {dest_count},
+             {cutoff_closest},
+             {cutoff_count}
+      '''.format(dest_class     = dest_fields['destination_class'],
+                 dest           = dest,
+                 dest_name_full = dest_fields['dest_name_full'],
+                 domain         = dest_fields['domain'],
+                 dest_count     = dest_count,
+                 cutoff_closest = dest_fields['cutoff_closest'],
+                 cutoff_count   = dest_fields['cutoff_count'])
+      curs.execute(summarise_dest_type)
+      conn.commit()
       # print destination name and tally which have been imported
-      print("{dest:50} {dest_count:=10d} {dest_condition}".format(dest=dest,dest_count=dest_count,dest_condition=dest_condition))
-  
+      print("\n{dest:50} {dest_count:=10d}".format(dest=dest,dest_count=dest_count))
+      print("({dest_condition})".format(dest_condition=dest_condition))
   else:
-    print("{} does not have coverage in this studyregion, or the datasource does not otherwise appear to be available.")
+    print("No data appears to be stored for destination {}.".format(dest))
 
-
-
-
-print('''Ingesting OSM destinations...''')
-for dest in dest_osm.destination.tolist():
-
-      
-      
-      
-      
-      
-
-# drop table if it already exists
-curs.execute("DROP TABLE IF EXISTS dest_type;")
+# Copy study region destination table from PostgreSQL db to ArcGIS gdb
+print("Copy nodes to ArcGIS gdb... "),
+curs.execute(grant_query)
 conn.commit()
-curs.execute(createTable)
-conn.commit()
+arcpy.env.workspace = db_sde_path
+arcpy.env.overwriteOutput = True 
+arcpy.CopyFeatures_management('public.study_destinations', os.path.join(gdb_path,'study_destinations')) 
+print("Done.")
 
-# insert values into table
-# note that dest_count is feature count from above, not the dest_counts var from config
-for i in range(0,len(destination_list)):
-  curs.execute("INSERT INTO dest_type VALUES ({},'{}','{}',{},{},{})".format(dest_codes[i],
-                                                                             destination_list[i],
-                                                                             dest_domains[i],
-                                                                             dest_count[i],  
-                                                                             dest_cutoffs[i],
-                                                                             dest_counts[i]) +' ON CONFLICT DO NOTHING')
-  conn.commit()
-
-print("Created 'dest_type' destination summary table for database {}.".format(db))
-conn.close()
-  
 # output to completion log    
 script_running_log(script, task, start, locale)
+conn.close()
