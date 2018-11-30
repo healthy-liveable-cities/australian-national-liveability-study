@@ -42,6 +42,7 @@ df_inds = pandas.read_excel(xls, 'ind_study_region_matrix')
 df_destinations = pandas.read_excel(xls, 'destinations')
 df_osm = pandas.read_excel(xls, 'osm_and_open_space_defs')
 df_osm_dest = pandas.read_excel(xls, 'osm_dest_definitions')
+df_data_catalogue = pandas.read_excel(xls, 'data_catalogue')
 
 responsible = df_studyregion['responsible']
 
@@ -336,7 +337,7 @@ outCombinedFeature = 'study_destinations'
 # The table 'dest_type' will be created in Postgresql to keep track of destinations
 
 df_destinations = df_destinations.replace(pandas.np.nan, 'NULL', regex=True)
-destination_list = df_destinations.destination.tolist() # the destinations 
+destination_list = [x.encode('utf') for x in df_destinations.destination.tolist()] # the destinations 
 # dest_codes = df_destinations.code.tolist()   # domain is an optional grouping category for destinations / indicators
 # dest_domains = df_destinations.domain.tolist()   # domain is an optional grouping category for destinations / indicators
 # dest_cutoffs = df_destinations.cutoff.tolist()   # cut off distance within which to evaluate presence
