@@ -69,21 +69,14 @@ sqlChunkify = 500
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()  
 
-# get list of hexes over which to iterate
-curs.execute("SELECT hex FROM hex_parcels;")
-hex_list = list(curs)    
-
 # define reduced set of destinations and cutoffs (ie. only those with cutoffs defined)
-# curs.execute("SELECT dest_name FROM dest_type WHERE cutoff_closest IS NOT NULL AND count > 0;")
-# destination_list = [x[0] for x in list(curs)]
-# curs.execute("SELECT cutoff_closest FROM dest_type WHERE cutoff_closest IS NOT NULL AND count > 0;")
-# dest_cutoffs = [x[0] for x in list(curs)]
-
 curs.execute("SELECT dest_name,cutoff_closest FROM dest_type WHERE cutoff_closest IS NOT NULL AND count > 0;")
 destination_list = list(curs)
 
 # tally expected hex-destination result set  
-completion_goal = len(hex_list)*len(destination_list)
+# get list of hexes over which to iterate
+curs.execute("SELECT COUNT(*) FROM parcel_dwellings;")
+completion_goal = list(curs)[0][0] * len(destination_list)
 
 # get pid name
 pid = multiprocessing.current_process().name
@@ -100,7 +93,7 @@ createTable     = '''
    threshold  int,
    ind_hard   int,
    ind_soft   double precision,
-   PRIMARY KEY({1},dest)
+   PRIMARY KEY({1},dest_class)
    );
    '''.format(od_distances, origin_pointsID)
 
@@ -209,7 +202,7 @@ def ODMatrixWorkerFunction(hex):
       destStartTime = time.time()
       # destNum = destination_list.index(destination_points)
       # select destination points 
-      destination_selection = arcpy.SelectLayerByAttribute_management("destination_points_layer", where_clause = "dest_name = '{}'".format(destination_points))
+      destination_selection = arcpy.SelectLayerByAttribute_management("destination_points_layer", where_clause = "dest_name = '{}'".format(destination_points[0]))
       # OD Matrix Setup
       arcpy.AddLocations_na(in_network_analysis_layer = outNALayer, 
           sub_layer                      = originsLayerName, 
@@ -259,7 +252,20 @@ def ODMatrixWorkerFunction(hex):
                                                                                                                                           ind_hard  = ind_hard,
                                                                                                                                           ind_soft  = ind_soft))
           if(count % sqlChunkify == 0):
-            curs.execute(queryPartA + ','.join(rowOfChunk for rowOfChunk in chunkedLines) + ' ON CONFLICT DO NOTHING')
+            sql = '''
+            INSERT INTO {od_distances} AS o VALUES {values} 
+            ON CONFLICT ({id},dest_class) 
+            DO UPDATE 
+            SET dest_name = EXCLUDED.dest_name,
+                oid       = EXCLUDED.oid,
+                distance  = EXCLUDED.distance,
+                ind_hard  = EXCLUDED.ind_hard,
+                ind_soft  = EXCLUDED.ind_soft
+            WHERE EXCLUDED.distance < o.distance;
+            '''.format(od_distances=od_distances, 
+                        values = ','.join(rowOfChunk for rowOfChunk in chunkedLines),
+                        id = origin_pointsID)
+            curs.execute(sql)
             conn.commit()
             chunkedLines = list()
         if(count % sqlChunkify != 0):
@@ -274,9 +280,9 @@ def ODMatrixWorkerFunction(hex):
   finally:
     arcpy.CheckInExtension('Network')
     # Report on progress
-    curs.execute("SELECT count(*) FROM {} WHERE dest_name IN (SELECT dest_name FROM dest_type);".format(log_table))
+    curs.execute("SELECT count(*) FROM od_closest;".format(log_table))
     progress = int(list(curs)[0][0]) 
-    progressor(progress,completion_goal,start,"{numerator} / {denominator} hex-destination combinations processed.".format(numerator = progress,denominator = completion_goal))
+    progressor(progress,completion_goal,start,"{numerator} / {denominator} parcel-destination combinations processed.".format(numerator = progress,denominator = completion_goal))
     # Close SQL connection
     conn.close()
 
@@ -313,6 +319,9 @@ if __name__ == '__main__':
   print(" Done.")
 
   print("Iterate over hexes...")
+  # get list of hexes over which to iterate
+  curs.execute("SELECT hex FROM hex_parcels;")
+  hex_list = list(curs)   
   iteration_list = np.asarray([x[0] for x in hex_list])
   # # Iterate process over hexes across nWorkers
   pool.map(ODMatrixWorkerFunction, iteration_list, chunksize=1)
