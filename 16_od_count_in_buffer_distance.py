@@ -200,6 +200,30 @@ def ODMatrixWorkerFunction(hex):
       # Process: Solve
       result = arcpy.Solve_na(outNALayer, terminate_on_solve_error = "CONTINUE")
       if result[1] == u'false':
+        # If no results for this hex-destination combination, we record these zero counts
+        no_result_query = '''
+        INSERT INTO {od_distances} AS o ({id},dest_class,dest_name,cutoff,count)
+        SELECT {id}, '{dest_class}','{s}{dest_name}{e}',{threshold},0 
+        FROM parcel_dwellings p
+        WHERE NOT EXISTS
+        (SELECT 1 FROM {od_distances} o 
+          WHERE o.{id}=p.{id}  AND o.dest_name @> '{s}{dest_name}{e}' AND p.hex_id = {hex})
+        AND hex_id = {hex}
+        ON CONFLICT ({id},dest_class) 
+        DO UPDATE SET dest_name = o.dest_name || EXCLUDED.dest_name,
+        count  = o.count+EXCLUDED.count
+        WHERE NOT EXCLUDED.dest_name <@ o.dest_name;
+        ;
+        '''.format(od_distances = od_distances,
+                   dest_class = dest_class, 
+                   s = '{',
+                   dest_name = dest_name, 
+                   e = '}',
+                   threshold=threshold,
+                   id = origin_pointsID,
+                   hex = hex)
+        curs.execute(no_result_query)
+        conn.commit()
         writeLog(hex,origin_point_count,dest_name,"none found",(time.time()-destStartTime)/60)
       else:
         # get dest_class for feature
@@ -247,6 +271,30 @@ def ODMatrixWorkerFunction(hex):
                       id = origin_pointsID)
           curs.execute(sql)
           conn.commit()
+        # If no results for this hex-destination combination, we record these zero counts
+        no_result_query = '''
+        INSERT INTO {od_distances} AS o ({id},dest_class,dest_name,cutoff,count)
+        SELECT {id}, '{dest_class}','{s}{dest_name}{e}',{threshold},0 
+        FROM parcel_dwellings p
+        WHERE NOT EXISTS
+        (SELECT 1 FROM {od_distances} o 
+          WHERE o.{id}=p.{id}  AND o.dest_name @> '{s}{dest_name}{e}' AND p.hex_id = {hex})
+        AND hex_id = {hex}
+        ON CONFLICT ({id},dest_class) 
+        DO UPDATE SET dest_name = o.dest_name || EXCLUDED.dest_name,
+        count  = o.count+EXCLUDED.count
+        WHERE NOT EXCLUDED.dest_name <@ o.dest_name;
+        ;
+        '''.format(od_distances = od_distances,
+                   dest_class = dest_class, 
+                   s = '{',
+                   dest_name = dest_name, 
+                   e = '}',
+                   threshold=threshold,
+                   id = origin_pointsID,
+                   hex = hex)
+        curs.execute(no_result_query)
+        conn.commit()
         writeLog(hex,origin_point_count,dest_name,"Solved",(time.time()-destStartTime)/60)
     # return worker function as completed once all destinations processed
     return 0
