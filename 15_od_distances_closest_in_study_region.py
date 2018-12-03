@@ -70,13 +70,12 @@ conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()  
 
 # define reduced set of destinations and cutoffs (ie. only those with cutoffs defined)
-curs.execute("SELECT dest_name,cutoff_closest FROM dest_type WHERE cutoff_closest IS NOT NULL AND count > 0;")
+curs.execute("SELECT dest_name,dest_class,cutoff_closest FROM dest_type WHERE cutoff_closest IS NOT NULL AND count > 0;")
 destination_list = list(curs)
 
 # tally expected hex-destination result set  
-# get list of hexes over which to iterate
 curs.execute("SELECT COUNT(*) FROM parcel_dwellings;")
-completion_goal = list(curs)[0][0] * len(destination_list)
+completion_goal = list(curs)[0][0] * len(set([x[1] for x in destination_list]))
 
 # get pid name
 pid = multiprocessing.current_process().name
@@ -199,10 +198,12 @@ def ODMatrixWorkerFunction(hex):
     fields = ['Name', 'Total_Length']
     
     for destination_points in remaining_dest_list:
+      dest_name = destination_points[0]
+      dest_class = destination_points[1]
+      dest_cutoff_threshold = destination_points[2]
       destStartTime = time.time()
-      # destNum = destination_list.index(destination_points)
       # select destination points 
-      destination_selection = arcpy.SelectLayerByAttribute_management("destination_points_layer", where_clause = "dest_name = '{}'".format(destination_points[0]))
+      destination_selection = arcpy.SelectLayerByAttribute_management("destination_points_layer", where_clause = "dest_name = '{}'".format(dest_name))
       # OD Matrix Setup
       arcpy.AddLocations_na(in_network_analysis_layer = outNALayer, 
           sub_layer                      = originsLayerName, 
@@ -227,7 +228,7 @@ def ODMatrixWorkerFunction(hex):
       # Process: Solve
       result = arcpy.Solve_na(outNALayer, terminate_on_solve_error = "CONTINUE")
       if result[1] == u'false':
-        writeLog(hex,origin_point_count,destination_points[0],"no solution",(time.time()-destStartTime)/60)
+        writeLog(hex,origin_point_count,dest_name,"no solution",(time.time()-destStartTime)/60)
       else:
         # Extract lines layer, export to SQL database
         outputLines = arcpy.da.SearchCursor(ODLinesSubLayer, fields)
@@ -240,17 +241,17 @@ def ODMatrixWorkerFunction(hex):
           dest_class = dest_id[0].strip(' ')
           dest_id   = dest_id[1].strip(' ')
           distance  = int(round(outputLine[1]))
-          threshold = float(destination_points[1])
+          threshold = float(dest_cutoff_threshold)
           ind_hard  = int(distance < threshold)
           ind_soft = 1 - 1.0 / (1+np.exp(-soft_threshold_slope*(distance-threshold)/threshold))
-          chunkedLines.append("('{point_id}','{dest_class}','{dest_name}',{dest_id},{distance},{threshold},{ind_hard},{ind_soft})".format(point_id  = origin_id,
-                                                                                                                                          dest_class = dest_class,
-                                                                                                                                          dest_name = destination_points[0],
-                                                                                                                                          dest_id   = dest_id,
-                                                                                                                                          distance  = distance,
-                                                                                                                                          threshold = threshold,
-                                                                                                                                          ind_hard  = ind_hard,
-                                                                                                                                          ind_soft  = ind_soft))
+          chunkedLines.append('''('{point_id}','{d_class}','{d_name}',{d_id},{distance},{threshold},{ind_h},{ind_s})'''.format(point_id  = origin_id,
+                                                                                                                               d_class = dest_class,
+                                                                                                                               d_name = dest_name,
+                                                                                                                               d_id   = dest_id,
+                                                                                                                               distance  = distance,
+                                                                                                                               threshold = threshold,
+                                                                                                                               ind_h  = ind_hard,
+                                                                                                                               ind_s  = ind_soft))
           if(count % sqlChunkify == 0):
             sql = '''
             INSERT INTO {od_distances} AS o VALUES {values} 
@@ -263,15 +264,28 @@ def ODMatrixWorkerFunction(hex):
                 ind_soft  = EXCLUDED.ind_soft
             WHERE EXCLUDED.distance < o.distance;
             '''.format(od_distances=od_distances, 
-                        values = ','.join(rowOfChunk for rowOfChunk in chunkedLines),
+                        values = ','.join(chunkedLines),
                         id = origin_pointsID)
             curs.execute(sql)
             conn.commit()
             chunkedLines = list()
         if(count % sqlChunkify != 0):
-          curs.execute(queryPartA + ','.join(rowOfChunk for rowOfChunk in chunkedLines) + ' ON CONFLICT DO NOTHING')
+          sql = '''
+          INSERT INTO {od_distances} AS o VALUES {values} 
+          ON CONFLICT ({id},dest_class) 
+          DO UPDATE 
+          SET dest_name = EXCLUDED.dest_name,
+              oid       = EXCLUDED.oid,
+              distance  = EXCLUDED.distance,
+              ind_hard  = EXCLUDED.ind_hard,
+              ind_soft  = EXCLUDED.ind_soft
+          WHERE EXCLUDED.distance < o.distance;
+          '''.format(od_distances=od_distances, 
+                      values = ','.join(chunkedLines),
+                      id = origin_pointsID)
+          curs.execute(sql)
           conn.commit()
-        writeLog(hex,origin_point_count,destination_points[0],"Solved",(time.time()-destStartTime)/60)
+        writeLog(hex,origin_point_count,dest_name,"Solved",(time.time()-destStartTime)/60)
     # return worker function as completed once all destinations processed
     return 0
   except:
