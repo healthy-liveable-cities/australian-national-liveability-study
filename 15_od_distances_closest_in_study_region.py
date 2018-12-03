@@ -32,9 +32,6 @@ from config_ntnl_li_process import *
 start = time.time()
 script = os.path.basename(sys.argv[0])
 
-# define spatial reference
-spatial_reference = arcpy.SpatialReference(SpatialRef)
-
 # ArcGIS environment settings
 arcpy.env.workspace = gdb_path  
 # create project specific folder in temp dir for scratch.gdb, if not exists
@@ -77,12 +74,13 @@ curs.execute("SELECT hex FROM hex_parcels;")
 hex_list = list(curs)    
 
 # define reduced set of destinations and cutoffs (ie. only those with cutoffs defined)
-curs.execute("SELECT dest_name FROM dest_type WHERE dest_cutoff IS NOT NULL AND dest_count > 0;")
-destination_list = [x[0] for x in list(curs)]
-curs.execute("SELECT dest_cutoff FROM dest_type WHERE dest_cutoff IS NOT NULL AND dest_count > 0;")
-dest_cutoffs = [x[0] for x in list(curs)]
-curs.execute("SELECT dest FROM dest_type WHERE dest_cutoff IS NOT NULL AND dest_count > 0;")
-dest_codes = [x[0] for x in list(curs)]
+# curs.execute("SELECT dest_name FROM dest_type WHERE cutoff_closest IS NOT NULL AND count > 0;")
+# destination_list = [x[0] for x in list(curs)]
+# curs.execute("SELECT cutoff_closest FROM dest_type WHERE cutoff_closest IS NOT NULL AND count > 0;")
+# dest_cutoffs = [x[0] for x in list(curs)]
+
+curs.execute("SELECT dest_name,cutoff_closest FROM dest_type WHERE cutoff_closest IS NOT NULL AND count > 0;")
+destination_list = list(curs)
 
 # tally expected hex-destination result set  
 completion_goal = len(hex_list)*len(destination_list)
@@ -95,7 +93,7 @@ createTable     = '''
   --DROP TABLE IF EXISTS {0};
   CREATE TABLE IF NOT EXISTS {0}
   ({1} varchar NOT NULL ,
-   dest smallint NOT NULL ,
+   dest_class varchar NOT NULL ,
    dest_name varchar NOT NULL ,
    oid bigint NOT NULL ,
    distance integer NOT NULL, 
@@ -184,7 +182,7 @@ def ODMatrixWorkerFunction(hex):
     # fetch list of successfully processed destinations for this hex, if any
     curs.execute("SELECT dest_name FROM {} WHERE hex = {}".format(log_table,hex))
     completed_dest = [x[0] for x in list(curs)]
-    remaining_dest_list = [x for x in destination_list if x not in completed_dest]
+    remaining_dest_list = [x for x in destination_list if x[0] not in completed_dest]
     
     # Make OD cost matrix layer
     result_object = arcpy.MakeODCostMatrixLayer_na(in_network_dataset = in_network_dataset, 
@@ -209,7 +207,7 @@ def ODMatrixWorkerFunction(hex):
     
     for destination_points in remaining_dest_list:
       destStartTime = time.time()
-      destNum = destination_list.index(destination_points)
+      # destNum = destination_list.index(destination_points)
       # select destination points 
       destination_selection = arcpy.SelectLayerByAttribute_management("destination_points_layer", where_clause = "dest_name = '{}'".format(destination_points))
       # OD Matrix Setup
@@ -236,7 +234,7 @@ def ODMatrixWorkerFunction(hex):
       # Process: Solve
       result = arcpy.Solve_na(outNALayer, terminate_on_solve_error = "CONTINUE")
       if result[1] == u'false':
-        writeLog(hex,origin_point_count,destination_list[destNum],"no solution",(time.time()-destStartTime)/60)
+        writeLog(hex,origin_point_count,destination_points[0],"no solution",(time.time()-destStartTime)/60)
       else:
         # Extract lines layer, export to SQL database
         outputLines = arcpy.da.SearchCursor(ODLinesSubLayer, fields)
@@ -244,22 +242,22 @@ def ODMatrixWorkerFunction(hex):
         chunkedLines = list()
         for outputLine in outputLines :
           count += 1
-          ID_A      = outputLine[0].split('-')[0].strip(' ')
+          origin_id      = outputLine[0].split('-')[0].strip(' ')
           dest_id   = outputLine[0].split('-')[1].split(',')
-          dest_code = dest_id[0].strip(' ')
+          dest_class = dest_id[0].strip(' ')
           dest_id   = dest_id[1].strip(' ')
           distance  = int(round(outputLine[1]))
-          threshold = float(dest_cutoffs[destNum])
+          threshold = float(destination_points[1])
           ind_hard  = int(distance < threshold)
           ind_soft = 1 - 1.0 / (1+np.exp(-soft_threshold_slope*(distance-threshold)/threshold))
-          chunkedLines.append("('{point_id}',{dest_code},'{dest_name}',{dest_id},{distance},{threshold},{ind_hard},{ind_soft})".format(point_id  = ID_A,
-                                                                                                                         dest_code = dest_code,
-                                                                                                                         dest_name = destination_points,
-                                                                                                                         dest_id   = dest_id,
-                                                                                                                         distance  = distance,
-                                                                                                                         threshold = threshold,
-                                                                                                                         ind_hard  = ind_hard,
-                                                                                                                         ind_soft  = ind_soft))
+          chunkedLines.append("('{point_id}','{dest_class}','{dest_name}',{dest_id},{distance},{threshold},{ind_hard},{ind_soft})".format(point_id  = origin_id,
+                                                                                                                                          dest_class = dest_class,
+                                                                                                                                          dest_name = destination_points[0],
+                                                                                                                                          dest_id   = dest_id,
+                                                                                                                                          distance  = distance,
+                                                                                                                                          threshold = threshold,
+                                                                                                                                          ind_hard  = ind_hard,
+                                                                                                                                          ind_soft  = ind_soft))
           if(count % sqlChunkify == 0):
             curs.execute(queryPartA + ','.join(rowOfChunk for rowOfChunk in chunkedLines) + ' ON CONFLICT DO NOTHING')
             conn.commit()
@@ -267,7 +265,7 @@ def ODMatrixWorkerFunction(hex):
         if(count % sqlChunkify != 0):
           curs.execute(queryPartA + ','.join(rowOfChunk for rowOfChunk in chunkedLines) + ' ON CONFLICT DO NOTHING')
           conn.commit()
-        writeLog(hex,origin_point_count,destination_list[destNum],"Solved",(time.time()-destStartTime)/60)
+        writeLog(hex,origin_point_count,destination_points[0],"Solved",(time.time()-destStartTime)/60)
     # return worker function as completed once all destinations processed
     return 0
   except:
