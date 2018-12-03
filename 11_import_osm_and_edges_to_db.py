@@ -54,29 +54,29 @@ print("Done (although, if it didn't work you can use the printed command above t
 curs.execute(grant_query)
 conn.commit()
 
-# Define tags for which presence of values is suggestive of some kind of open space 
-# These are defined in the ind_study_region_matrix worksheet 'open_space_defs' under the 'possible_tags' column.
-possible_tags = '\n'.join(['ALTER TABLE {}_polygon ADD COLUMN IF NOT EXISTS "{}" varchar;'.format(osm_prefix,x.encode('utf')) for x in df_aos["possible_tags"].dropna().tolist()])
+required_fields_list = df_osm["required_tags"].dropna().tolist()
 
 for shape in ['line','point','polygon','roads']:
-  sql = '''
+  # Define tags for which presence of values is suggestive of some kind of open space 
+  # These are defined in the ind_study_region_matrix worksheet 'open_space_defs' under the 'required_tags' column.
+  required_tags = '\n'.join(['ALTER TABLE {prefix}_{shape} ADD COLUMN IF NOT EXISTS "{field}" varchar;'.format(prefix = osm_prefix,shape = shape, field = x.encode('utf')) for x in required_fields_list])
+
+  sql = ['''
   -- Add geom column to polygon table, appropriately transformed to project spatial reference system
   ALTER TABLE {osm_prefix}_{shape} ADD COLUMN geom geometry; 
   UPDATE {osm_prefix}_{shape} SET geom = ST_Transform(way,{srid}); 
   CREATE INDEX {osm_prefix}_{shape}_idx ON {osm_prefix}_{shape} USING GIST (geom);
-  '''.format(osm_prefix = osm_prefix, shape = shape,srid=srid)
-  start = time.time()
-  print("\nExecuting: {}".format(sql))
-  curs.execute(sql)
-  conn.commit()
-  print("Executed in {} mins".format((time.time()-start)/60))
-
-sql = '''
--- Add other columns which are important if they exists, but not important if they don't
--- --- except that there presence is required for ease of accurate querying.
-{}'''.format(possible_tags)    
-curs.execute(sql)
-conn.commit()    
+  '''.format(osm_prefix = osm_prefix, shape = shape,srid=srid),
+  '''
+  -- Add other columns which are important if they exists, but not important if they don't
+  -- --- except that there presence is required for ease of accurate querying.
+  {}'''.format(required_tags)]
+  for query in sql:
+    start = time.time()
+    print("\nExecuting: {}".format(query))
+    curs.execute(query)
+    conn.commit()
+    print("Executed in {} mins".format((time.time()-start)/60))
 
 curs.execute(grant_query)
 conn.commit()    

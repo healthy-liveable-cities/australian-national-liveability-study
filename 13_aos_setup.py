@@ -38,32 +38,32 @@ curs = conn.cursor()
 # Define tags for which presence of values is suggestive of some kind of open space 
 # These are defined in the ind_study_region_matrix worksheet 'open_space_defs' under the 'possible_os_tags' column.
 
-os_landuse = "'{}'".format("','".join([x.encode('utf') for x in df_aos["os_landuse"].dropna().tolist()]))
-os_boundary = "'{}'".format("','".join([x.encode('utf') for x in df_aos["os_boundary"].dropna().tolist()]))
+os_landuse = "'{}'".format("','".join([x.encode('utf') for x in df_osm["os_landuse"].dropna().tolist()]))
+os_boundary = "'{}'".format("','".join([x.encode('utf') for x in df_osm["os_boundary"].dropna().tolist()]))
 
-excluded_keys = '\nOR '.join(df_aos['exclusion_key'].dropna().apply(lambda x:'{var} IS NOT NULL'.format(var = x)).tolist())
-excluded_values = '\nOR '.join(df_aos[['exclusion_field','exclusion_list']].dropna().apply(lambda x:'"{var}" IN {list}'.format(var = x[0],list = x[1]),axis =1))
+excluded_keys = '\nOR '.join(df_osm['exclusion_key'].dropna().apply(lambda x:'{var} IS NOT NULL'.format(var = x)).tolist())
+excluded_values = '\nOR '.join(df_osm[['exclusion_field','exclusion_list']].dropna().apply(lambda x:'"{var}" IN {list}'.format(var = x[0],list = x[1]),axis =1))
 exclusion_criteria = '{excluded_keys} \nOR {excluded_values}'.format(excluded_keys = excluded_keys,excluded_values=excluded_values)
 
-water_features = ','.join(["'{}'".format(x.encode('utf')) for x in df_aos["water_tags_for_natural_landuse_leisure"].dropna().tolist()])
-water_sports = ','.join(["'{}'".format(x.encode('utf')) for x in df_aos["water_sports"].dropna().tolist()])
-linear_waterway = ','.join(["'{}'".format(x.encode('utf')) for x in df_aos["linear_waterway"].dropna().tolist()])
+water_features = ','.join(["'{}'".format(x.encode('utf')) for x in df_osm["water_tags_for_natural_landuse_leisure"].dropna().tolist()])
+water_sports = ','.join(["'{}'".format(x.encode('utf')) for x in df_osm["water_sports"].dropna().tolist()])
+linear_waterway = ','.join(["'{}'".format(x.encode('utf')) for x in df_osm["linear_waterway"].dropna().tolist()])
 
-linear_feature_criteria = '\n '.join(['{}'.format(x.encode('utf')) for x in df_aos["linear_feature_criteria"].dropna().tolist()])
+linear_feature_criteria = '\n '.join(['{}'.format(x.encode('utf')) for x in df_osm["linear_feature_criteria"].dropna().tolist()])
 
-identifying_tags = ','.join(["'{}'".format(x.encode('utf')) for x in df_aos["identifying_tags_to_exclude_other_than_%name%"].dropna().tolist()])
+identifying_tags = ','.join(["'{}'".format(x.encode('utf')) for x in df_osm["identifying_tags_to_exclude_other_than_%name%"].dropna().tolist()])
 exclude_tags_like_name = '''(SELECT array_agg(tags) from (SELECT DISTINCT(skeys(tags)) tags FROM open_space) t WHERE tags ILIKE '%name%')'''
 
-not_public_space = '({})'.format(','.join(df_aos["public_not_in"].dropna().tolist()))
-additional_public_criteria = '({})'.format(' '.join(df_aos["additional_public_criteria"].dropna().tolist()))
+not_public_space = '({})'.format(','.join(df_osm["public_not_in"].dropna().tolist()))
+additional_public_criteria = '({})'.format(' '.join(df_osm["additional_public_criteria"].dropna().tolist()))
 
-public_space = '\n'.join(df_aos['public_field'].dropna().apply(lambda x:'AND ("{var}" IS NULL OR "{var}" NOT IN {list})'.format(var = x,list = not_public_space)).tolist())
+public_space = '\n'.join(df_osm['public_field'].dropna().apply(lambda x:'AND ("{var}" IS NULL OR "{var}" NOT IN {list})'.format(var = x,list = not_public_space)).tolist())
 public_space = '{public_space} AND {additional_public_criteria}'.format(public_space = public_space,
 additional_public_criteria = additional_public_criteria)
 # JSONB version of the query
-# public_space = '\n'.join(df_aos['public_field'].dropna().apply(lambda x:"AND (obj -> '{var}' IS NULL OR obj ->> '{var}' NOT IN {list})".format(var = x,list = not_public_space)).tolist())
+# public_space = '\n'.join(df_osm['public_field'].dropna().apply(lambda x:"AND (obj -> '{var}' IS NULL OR obj ->> '{var}' NOT IN {list})".format(var = x,list = not_public_space)).tolist())
     
-os_add_as_tags = ',\n'.join(['"{}"'.format(x.encode('utf')) for x in df_aos["os_add_as_tags"].dropna().tolist()])
+os_add_as_tags = ',\n'.join(['"{}"'.format(x.encode('utf')) for x in df_osm["os_add_as_tags"].dropna().tolist()])
 
 
 aos_setup = ['''
