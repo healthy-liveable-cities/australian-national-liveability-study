@@ -32,9 +32,6 @@ from config_ntnl_li_process import *
 start = time.time()
 script = os.path.basename(sys.argv[0])
 
-# define spatial reference
-spatial_reference = arcpy.SpatialReference(SpatialRef)
-
 # ArcGIS environment settings
 arcpy.env.workspace = gdb_path  
 # create project specific folder in temp dir for scratch.gdb, if not exists
@@ -72,20 +69,13 @@ sqlChunkify = 500
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()  
 
-# get list of hexes over which to iterate
-curs.execute("SELECT hex FROM hex_parcels;")
-hex_list = list(curs)    
-
 # define reduced set of destinations and cutoffs (ie. only those with cutoffs defined)
-curs.execute("SELECT dest_name FROM dest_type WHERE dest_cutoff IS NOT NULL AND dest_count > 0;")
-destination_list = [x[0] for x in list(curs)]
-curs.execute("SELECT dest_cutoff FROM dest_type WHERE dest_cutoff IS NOT NULL AND dest_count > 0;")
-dest_cutoffs = [x[0] for x in list(curs)]
-curs.execute("SELECT dest FROM dest_type WHERE dest_cutoff IS NOT NULL AND dest_count > 0;")
-dest_codes = [x[0] for x in list(curs)]
+curs.execute("SELECT dest_name,dest_class,cutoff_closest FROM dest_type WHERE cutoff_closest IS NOT NULL AND count > 0;")
+destination_list = list(curs)
 
 # tally expected hex-destination result set  
-completion_goal = len(hex_list)*len(destination_list)
+curs.execute("SELECT COUNT(*) FROM parcel_dwellings;")
+completion_goal = list(curs)[0][0] * len(set([x[1] for x in destination_list]))
 
 # get pid name
 pid = multiprocessing.current_process().name
@@ -95,14 +85,14 @@ createTable     = '''
   --DROP TABLE IF EXISTS {0};
   CREATE TABLE IF NOT EXISTS {0}
   ({1} varchar NOT NULL ,
-   dest smallint NOT NULL ,
+   dest_class varchar NOT NULL ,
    dest_name varchar NOT NULL ,
    oid bigint NOT NULL ,
    distance integer NOT NULL, 
    threshold  int,
    ind_hard   int,
    ind_soft   double precision,
-   PRIMARY KEY({1},dest)
+   PRIMARY KEY({1},dest_class)
    );
    '''.format(od_distances, origin_pointsID)
 
@@ -184,7 +174,7 @@ def ODMatrixWorkerFunction(hex):
     # fetch list of successfully processed destinations for this hex, if any
     curs.execute("SELECT dest_name FROM {} WHERE hex = {}".format(log_table,hex))
     completed_dest = [x[0] for x in list(curs)]
-    remaining_dest_list = [x for x in destination_list if x not in completed_dest]
+    remaining_dest_list = [x for x in destination_list if x[0] not in completed_dest]
     
     # Make OD cost matrix layer
     result_object = arcpy.MakeODCostMatrixLayer_na(in_network_dataset = in_network_dataset, 
@@ -208,10 +198,12 @@ def ODMatrixWorkerFunction(hex):
     fields = ['Name', 'Total_Length']
     
     for destination_points in remaining_dest_list:
+      dest_name = destination_points[0]
+      dest_class = destination_points[1]
+      dest_cutoff_threshold = destination_points[2]
       destStartTime = time.time()
-      destNum = destination_list.index(destination_points)
       # select destination points 
-      destination_selection = arcpy.SelectLayerByAttribute_management("destination_points_layer", where_clause = "dest_name = '{}'".format(destination_points))
+      destination_selection = arcpy.SelectLayerByAttribute_management("destination_points_layer", where_clause = "dest_name = '{}'".format(dest_name))
       # OD Matrix Setup
       arcpy.AddLocations_na(in_network_analysis_layer = outNALayer, 
           sub_layer                      = originsLayerName, 
@@ -236,7 +228,7 @@ def ODMatrixWorkerFunction(hex):
       # Process: Solve
       result = arcpy.Solve_na(outNALayer, terminate_on_solve_error = "CONTINUE")
       if result[1] == u'false':
-        writeLog(hex,origin_point_count,destination_list[destNum],"no solution",(time.time()-destStartTime)/60)
+        writeLog(hex,origin_point_count,dest_name,"no solution",(time.time()-destStartTime)/60)
       else:
         # Extract lines layer, export to SQL database
         outputLines = arcpy.da.SearchCursor(ODLinesSubLayer, fields)
@@ -244,30 +236,56 @@ def ODMatrixWorkerFunction(hex):
         chunkedLines = list()
         for outputLine in outputLines :
           count += 1
-          ID_A      = outputLine[0].split('-')[0].strip(' ')
+          origin_id      = outputLine[0].split('-')[0].strip(' ')
           dest_id   = outputLine[0].split('-')[1].split(',')
-          dest_code = dest_id[0].strip(' ')
+          dest_class = dest_id[0].strip(' ')
           dest_id   = dest_id[1].strip(' ')
           distance  = int(round(outputLine[1]))
-          threshold = float(dest_cutoffs[destNum])
+          threshold = float(dest_cutoff_threshold)
           ind_hard  = int(distance < threshold)
           ind_soft = 1 - 1.0 / (1+np.exp(-soft_threshold_slope*(distance-threshold)/threshold))
-          chunkedLines.append("('{point_id}',{dest_code},'{dest_name}',{dest_id},{distance},{threshold},{ind_hard},{ind_soft})".format(point_id  = ID_A,
-                                                                                                                         dest_code = dest_code,
-                                                                                                                         dest_name = destination_points,
-                                                                                                                         dest_id   = dest_id,
-                                                                                                                         distance  = distance,
-                                                                                                                         threshold = threshold,
-                                                                                                                         ind_hard  = ind_hard,
-                                                                                                                         ind_soft  = ind_soft))
+          chunkedLines.append('''('{point_id}','{d_class}','{d_name}',{d_id},{distance},{threshold},{ind_h},{ind_s})'''.format(point_id  = origin_id,
+                                                                                                                               d_class = dest_class,
+                                                                                                                               d_name = dest_name,
+                                                                                                                               d_id   = dest_id,
+                                                                                                                               distance  = distance,
+                                                                                                                               threshold = threshold,
+                                                                                                                               ind_h  = ind_hard,
+                                                                                                                               ind_s  = ind_soft))
           if(count % sqlChunkify == 0):
-            curs.execute(queryPartA + ','.join(rowOfChunk for rowOfChunk in chunkedLines) + ' ON CONFLICT DO NOTHING')
+            sql = '''
+            INSERT INTO {od_distances} AS o VALUES {values} 
+            ON CONFLICT ({id},dest_class) 
+            DO UPDATE 
+            SET dest_name = EXCLUDED.dest_name,
+                oid       = EXCLUDED.oid,
+                distance  = EXCLUDED.distance,
+                ind_hard  = EXCLUDED.ind_hard,
+                ind_soft  = EXCLUDED.ind_soft
+            WHERE EXCLUDED.distance < o.distance;
+            '''.format(od_distances=od_distances, 
+                        values = ','.join(chunkedLines),
+                        id = origin_pointsID)
+            curs.execute(sql)
             conn.commit()
             chunkedLines = list()
         if(count % sqlChunkify != 0):
-          curs.execute(queryPartA + ','.join(rowOfChunk for rowOfChunk in chunkedLines) + ' ON CONFLICT DO NOTHING')
+          sql = '''
+          INSERT INTO {od_distances} AS o VALUES {values} 
+          ON CONFLICT ({id},dest_class) 
+          DO UPDATE 
+          SET dest_name = EXCLUDED.dest_name,
+              oid       = EXCLUDED.oid,
+              distance  = EXCLUDED.distance,
+              ind_hard  = EXCLUDED.ind_hard,
+              ind_soft  = EXCLUDED.ind_soft
+          WHERE EXCLUDED.distance < o.distance;
+          '''.format(od_distances=od_distances, 
+                      values = ','.join(chunkedLines),
+                      id = origin_pointsID)
+          curs.execute(sql)
           conn.commit()
-        writeLog(hex,origin_point_count,destination_list[destNum],"Solved",(time.time()-destStartTime)/60)
+        writeLog(hex,origin_point_count,dest_name,"Solved",(time.time()-destStartTime)/60)
     # return worker function as completed once all destinations processed
     return 0
   except:
@@ -276,9 +294,9 @@ def ODMatrixWorkerFunction(hex):
   finally:
     arcpy.CheckInExtension('Network')
     # Report on progress
-    curs.execute("SELECT count(*) FROM {} WHERE dest_name IN (SELECT dest_name FROM dest_type);".format(log_table))
+    curs.execute("SELECT count(*) FROM od_closest;".format(log_table))
     progress = int(list(curs)[0][0]) 
-    progressor(progress,completion_goal,start,"{numerator} / {denominator} hex-destination combinations processed.".format(numerator = progress,denominator = completion_goal))
+    progressor(progress,completion_goal,start,"{numerator} / {denominator} parcel-destination combinations processed.".format(numerator = progress,denominator = completion_goal))
     # Close SQL connection
     conn.close()
 
@@ -315,6 +333,9 @@ if __name__ == '__main__':
   print(" Done.")
 
   print("Iterate over hexes...")
+  # get list of hexes over which to iterate
+  curs.execute("SELECT hex FROM hex_parcels;")
+  hex_list = list(curs)   
   iteration_list = np.asarray([x[0] for x in hex_list])
   # # Iterate process over hexes across nWorkers
   pool.map(ODMatrixWorkerFunction, iteration_list, chunksize=1)
