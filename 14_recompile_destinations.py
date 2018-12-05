@@ -241,7 +241,7 @@ for dest in destination_list:
     print("No data appears to be stored for destination {}.".format(dest))
 
 # Copy study region destination table from PostgreSQL db to ArcGIS gdb
-print("Copy nodes to ArcGIS gdb... "),
+print("Copy study destinations to ArcGIS gdb... "),
 curs.execute(grant_query)
 conn.commit()
 arcpy.env.workspace = db_sde_path
