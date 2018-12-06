@@ -60,8 +60,8 @@ def renameSkinny(is_geo, in_obj, out_obj, keep_fields_list=[''], rename_fields_l
 # Note that feature point sources always are a list (often of one source, but formatting as a list
 # easily allows for contexts of multiple point data sources; e.g. cities across state boundaries)
 
-if arcpy.Exists("parcel_dwellings"):
-    arcpy.Delete_management("parcel_dwellings")
+if arcpy.Exists(parcel_dwellings):
+    arcpy.Delete_management(parcel_dwellings)
 
 for feature in points:  
   print("Processing point source {}...".format(feature))
