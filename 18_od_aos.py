@@ -401,7 +401,7 @@ if __name__ == '__main__':
   pool.map(ODMatrixWorkerFunction, to_do_list, chunksize=1)
   
   print("Create indices on attributes")
-  curs.execute('''CREATE INDEX idx_od_aos_jsonb ON od_aos_jsonb ({id});'''.format(points_id.lower()))
+  curs.execute('''CREATE INDEX idx_od_aos_jsonb ON od_aos_jsonb ({id});'''.format(id = points_id.lower()))
   curs.execute('''CREATE INDEX idx_od_aos_jsonb_aos_id ON od_aos_jsonb ((attributes->'aos_id'));''')
   curs.execute('''CREATE INDEX idx_od_aos_jsonb_distance ON od_aos_jsonb ((attributes->'distance'));''')
   conn.commit()
