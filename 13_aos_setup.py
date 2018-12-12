@@ -175,7 +175,7 @@ UPDATE open_space SET linear_waterway = TRUE
     OR leisure IN ({linear_waterway}) ;
 '''.format(linear_waterway = linear_waterway),
 '''
--- Create variable for AOS area excluding water
+-- Create variable for AOS water geometry
 ALTER TABLE open_space ADD COLUMN water_geom geometry; 
 UPDATE open_space SET water_geom = geom WHERE water_feature = TRUE;
 ''',
@@ -414,7 +414,7 @@ CREATE UNIQUE INDEX aos_idx ON open_space_areas (aos_id);
 CREATE INDEX idx_aos_jsb ON open_space_areas USING GIN (attributes);
 ''',
 ''' 
--- Create variable for park size 
+-- Create variable for AOS size 
 ALTER TABLE open_space_areas ADD COLUMN aos_ha_public double precision; 
 ALTER TABLE open_space_areas ADD COLUMN aos_ha_not_public double precision; 
 -- note aos_ha_total includes school area
@@ -422,7 +422,7 @@ ALTER TABLE open_space_areas ADD COLUMN aos_ha double precision;
 ALTER TABLE open_space_areas ADD COLUMN aos_ha_water double precision; 
 ''',
 '''
--- Calculate total area of OS in Ha and where no OS is present (ie. a school without parks) set this to zero
+-- Calculate total area of AOS in Ha
 UPDATE open_space_areas SET aos_ha_public = COALESCE(ST_Area(geom_public)/10000.0,0);
 UPDATE open_space_areas SET aos_ha_not_public = COALESCE(ST_Area(geom_not_public)/10000.0,0);
 UPDATE open_space_areas SET aos_ha = ST_Area(geom)/10000.0; 

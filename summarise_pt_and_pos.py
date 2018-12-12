@@ -3,8 +3,11 @@
 # Authors:  Carl Higgs, Julianna Rozek
 # Date:    20181213
 
+import os
 import psycopg2
+from datetime import date
 
+today = str(date.today())
 # Import custom variables for National Liveability indicator process
 from config_ntnl_li_process import *
 
@@ -12,26 +15,67 @@ from config_ntnl_li_process import *
 conn = psycopg2.connect(dbname=db, user=db_user, password=db_pwd)
 curs = conn.cursor()  
 
-sql = [['''SELECT ROUND(((SUM(ST_Area(geom_public))+SUM(ST_Area(geom_water)))/10000.0)::numeric,2) AS area_ha FROM open_space_areas;''','POS area','Ha']  ,
-       ['''SELECT COUNT(*) FROM study_destinations WHERE dest_class = 'gtfs_2018_stop_30_mins_final';''','PT (30 min freq)','stops'],
-       ['''SELECT COUNT(*) FROM study_destinations WHERE dest_class = 'gtfs_2018_stops';''',             'PT (any)','stops'],
-       ['''SELECT COUNT(*) FROM study_destinations WHERE dest_class = 'gtfs_2018_stops_bus';''',         'PT (bus)','stops'],
-       ['''SELECT COUNT(*) FROM study_destinations WHERE dest_class = 'gtfs_2018_stops_train';''',       'PT (train)','stops'],
-       ['''SELECT COUNT(*) FROM study_destinations WHERE dest_class = 'gtfs_2018_stops_ferry';''',       'PT (ferry)','stops']]
-   
+sql = ['''
+       SELECT ROUND(((SUM(ST_Area(ST_UnaryUnion(ST_Intersection(geom_public,b.geom))))
+                    +SUM(ST_Area(ST_UnaryUnion(ST_Intersection(geom_water,b.geom)))))/10000.0)::numeric,2) AS area_ha  
+       FROM open_space_areas a, {} b;
+       '''.format(study_region),
+       '''
+       SELECT COUNT(s.*) 
+        FROM study_destinations s, {} b 
+       WHERE dest_class = 'gtfs_2018_stop_30_mins_final' 
+         AND ST_Intersects(s.geom,b.geom);
+       '''.format(study_region),
+       '''
+       SELECT COUNT(s.*) 
+        FROM study_destinations s, {} b 
+       WHERE dest_class = 'gtfs_2018_stops' 
+         AND ST_Intersects(s.geom,b.geom);
+       '''.format(study_region),
+       '''
+       SELECT COUNT(s.*) 
+        FROM study_destinations s, {} b 
+       WHERE dest_class = 'gtfs_2018_stops_bus' 
+         AND ST_Intersects(s.geom,b.geom);
+       '''.format(study_region),
+       '''
+       SELECT COUNT(s.*) 
+        FROM study_destinations s, {} b 
+       WHERE dest_class = 'gtfs_2018_stops_train' 
+         AND ST_Intersects(s.geom,b.geom);
+       '''.format(study_region),
+       '''
+       SELECT COUNT(s.*) 
+        FROM study_destinations s, {} b 
+       WHERE dest_class = 'gtfs_2018_stops_tram' 
+         AND ST_Intersects(s.geom,b.geom);
+       '''.format(study_region),
+       '''
+       SELECT COUNT(s.*) 
+        FROM study_destinations s, {} b 
+       WHERE dest_class = 'gtfs_2018_stops_ferry' 
+         AND ST_Intersects(s.geom,b.geom);
+       '''.format(study_region)]
+
 values = [locale]
 for query in sql:
-  curs.execute(query[0])
+  curs.execute(query)
   values.append(list(curs)[0][0])
+  
+conn.close()
 
 print("Pretty:")  
-print('''{:25} {:>16} {:>16} {:>16} {:>16} {:>16} {:>16}'''.format('locale','POS area (Ha)','PT (30 min freq)','PT (any)','PT (bus)','PT (train)','PT (ferry)'))
-print('''{:25}{:16} {:16} {:16} {:16} {:16} {:16}'''.format(*values))
-    
-print("\nComma seperated:")        
-print('''{},{},{},{},{},{},{}'''.format('locale','POS area (Ha)','PT (30 min freq)','PT (any)','PT (bus)','PT (train)','PT (ferry)'))
-print('''{},{},{},{},{},{},{}'''.format(*values))
+print('''{:25} {:>16} {:>16} {:>16} {:>16} {:>16} {:>16} {:>16}'''.format('locale','POS area (Ha)','PT (30 min freq)','PT (any)','PT (bus)','PT (train)','PT (tram)','PT (ferry)'))
+print('''{:25}{:16} {:16} {:16} {:16} {:16} {:16} {:>16}'''.format(*values))
 
-conn.close()
+
+output = os.path.join(folderPath,'pt_pos_summary_{}.csv'.format(today))
+header = '''{},{},{},{},{},{},{},{}'''.format('locale','POS area (Ha)','PT (30 min freq)','PT (any)','PT (bus)','PT (train)','PT (tram)','PT (ferry)')
+if not os.path.exists(output):
+   with open(output, "w") as f:
+     f.write(header)
+
+with open(output, "a") as f:
+  f.write('''{},{},{},{},{},{},{},{}'''.format(*values))
 
 
