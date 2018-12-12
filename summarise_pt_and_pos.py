@@ -29,8 +29,8 @@ print('''{:25} {:>16} {:>16} {:>16} {:>16} {:>16} {:>16}'''.format('locale','POS
 print('''{:25}{:16} {:16} {:16} {:16} {:16} {:16}'''.format(*values))
     
 print("\nComma seperated:")        
-print('''{},{},{},{},{}{},{}'''.format('locale','POS area (Ha)','PT (30 min freq)','PT (any)','PT (bus)','PT (train)','PT (ferry)'))
-print('''{},{},{},{},{} {},{}'''.format(*values))
+print('''{},{},{},{},{},{},{}'''.format('locale','POS area (Ha)','PT (30 min freq)','PT (any)','PT (bus)','PT (train)','PT (ferry)'))
+print('''{},{},{},{},{},{},{}'''.format(*values))
 
 conn.close()
 
