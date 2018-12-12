@@ -19,18 +19,18 @@ sql = [['''SELECT ROUND(((SUM(ST_Area(geom_public))+SUM(ST_Area(geom_water)))/10
        ['''SELECT COUNT(*) FROM study_destinations WHERE dest_class = 'gtfs_2018_stops_train';''',       'PT (train)','stops'],
        ['''SELECT COUNT(*) FROM study_destinations WHERE dest_class = 'gtfs_2018_stops_ferry';''',       'PT (ferry)','stops']]
    
-values = []
+values = [locale]
 for query in sql:
   curs.execute(query[0])
   values.append(float(list(curs)[0][0]))
 
 print("Pretty:")  
-print('''{:>16} {:>16} {:>16} {:>16} {:>16} {:>16}'''.format('POS area (Ha)','PT (30 min freq)','PT (any)','PT (bus)','PT (train)','PT (ferry)'))
-print('''{:16} {:16} {:16} {:16} {:16} {:16}'''.format(*values))
+print('''{:25} {:>16} {:>16} {:>16} {:>16} {:>16} {:>16}'''.format('locale','POS area (Ha)','PT (30 min freq)','PT (any)','PT (bus)','PT (train)','PT (ferry)'))
+print('''{:25}{:16} {:16} {:16} {:16} {:16} {:16}'''.format(*values))
     
 print("\nComma seperated:")        
-print('''{},{},{},{}{},{}'''.format('POS area (Ha)','PT (30 min freq)','PT (any)','PT (bus)','PT (train)','PT (ferry)'))
-print('''{},{},{},{} {},{}'''.format(*values))
+print('''{},{},{},{},{}{},{}'''.format('locale','POS area (Ha)','PT (30 min freq)','PT (any)','PT (bus)','PT (train)','PT (ferry)'))
+print('''{},{},{},{},{} {},{}'''.format(*values))
 
 conn.close()
 
