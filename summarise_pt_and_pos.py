@@ -22,7 +22,7 @@ sql = [['''SELECT ROUND(((SUM(ST_Area(geom_public))+SUM(ST_Area(geom_water)))/10
 values = [locale]
 for query in sql:
   curs.execute(query[0])
-  values.append(float(list(curs)[0][0]))
+  values.append(list(curs)[0][0])
 
 print("Pretty:")  
 print('''{:25} {:>16} {:>16} {:>16} {:>16} {:>16} {:>16}'''.format('locale','POS area (Ha)','PT (30 min freq)','PT (any)','PT (bus)','PT (train)','PT (ferry)'))
