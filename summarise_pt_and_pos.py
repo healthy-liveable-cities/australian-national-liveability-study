@@ -16,9 +16,8 @@ conn = psycopg2.connect(dbname=db, user=db_user, password=db_pwd)
 curs = conn.cursor()  
 
 sql = ['''
-       SELECT ROUND(((SUM(ST_Area(ST_UnaryUnion(ST_Intersection(geom_public,b.geom))))
-                    +SUM(ST_Area(ST_UnaryUnion(ST_Intersection(geom_water,b.geom)))))/10000.0)::numeric,2) AS area_ha  
-       FROM open_space_areas a, {} b;
+       SELECT SUM(ST_Area(ST_Intersection(a.geom_public,b.geom)))/10000.0
+       FROM aos_public_osm a, {} b;
        '''.format(study_region),
        '''
        SELECT COUNT(s.*) 
@@ -64,18 +63,15 @@ for query in sql:
   
 conn.close()
 
-print("Pretty:")  
-print('''{:25} {:>16} {:>16} {:>16} {:>16} {:>16} {:>16} {:>16}'''.format('locale','POS area (Ha)','PT (30 min freq)','PT (any)','PT (bus)','PT (train)','PT (tram)','PT (ferry)'))
-print('''{:25}{:16} {:16} {:16} {:16} {:16} {:16} {:>16}'''.format(*values))
-
-
-output = os.path.join(folderPath,'pt_pos_summary_{}.csv'.format(today))
-header = '''{},{},{},{},{},{},{},{}'''.format('locale','POS area (Ha)','PT (30 min freq)','PT (any)','PT (bus)','PT (train)','PT (tram)','PT (ferry)')
+output = os.path.join(folderPath,'pt_pos_summary_{}_{}.csv'.format(responsible[locale],today))
+header = '''{},{},{},{},{},{},{},{}\n'''.format('locale','POS area (Ha)','PT (30 min freq)','PT (any)','PT (bus)','PT (train)','PT (tram)','PT (ferry)')
 if not os.path.exists(output):
    with open(output, "w") as f:
      f.write(header)
+     print('''{:25} {:>16} {:>16} {:>16} {:>16} {:>16} {:>16} {:>16}'''.format('locale','POS area (Ha)','PT (30 min freq)','PT (any)','PT (bus)','PT (train)','PT (tram)','PT (ferry)'))
 
 with open(output, "a") as f:
-  f.write('''{},{},{},{},{},{},{},{}'''.format(*values))
+  f.write('''{},{},{},{},{},{},{},{}\n'''.format(*values))
+  print('''{:25}{:16} {:16} {:16} {:16} {:16} {:16} {:>16}'''.format(*values))
 
 
