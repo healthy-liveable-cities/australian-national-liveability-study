@@ -20,40 +20,64 @@ sql = ['''
        FROM aos_public_osm a, {} b;
        '''.format(study_region),
        '''
-       SELECT COUNT(s.*) 
-        FROM study_destinations s, {} b 
+       SELECT COUNT(*)
+       FROM
+       (SELECT DISTINCT ON (s.geom)
+       1
+        FROM study_destinations s, gccsa_2018 b 
        WHERE dest_class = 'gtfs_2018_stop_30_mins_final' 
-         AND ST_Intersects(s.geom,b.geom);
+         AND ST_Intersects(s.geom,b.geom)
+      GROUP BY s.geom) t;
        '''.format(study_region),
        '''
-       SELECT COUNT(s.*) 
-        FROM study_destinations s, {} b 
+       SELECT COUNT(*)
+       FROM
+       (SELECT DISTINCT ON (s.geom)
+       1
+        FROM study_destinations s, gccsa_2018 b 
        WHERE dest_class = 'gtfs_2018_stops' 
-         AND ST_Intersects(s.geom,b.geom);
+         AND ST_Intersects(s.geom,b.geom)
+      GROUP BY s.geom) t;
        '''.format(study_region),
        '''
-       SELECT COUNT(s.*) 
-        FROM study_destinations s, {} b 
+       SELECT COUNT(*)
+       FROM
+       (SELECT DISTINCT ON (s.geom)
+       1
+        FROM study_destinations s, gccsa_2018 b 
        WHERE dest_class = 'gtfs_2018_stops_bus' 
-         AND ST_Intersects(s.geom,b.geom);
+         AND ST_Intersects(s.geom,b.geom)
+      GROUP BY s.geom) t;
        '''.format(study_region),
        '''
-       SELECT COUNT(s.*) 
-        FROM study_destinations s, {} b 
+       SELECT COUNT(*)
+       FROM
+       (SELECT DISTINCT ON (s.geom)
+       1
+        FROM study_destinations s, gccsa_2018 b 
        WHERE dest_class = 'gtfs_2018_stops_train' 
-         AND ST_Intersects(s.geom,b.geom);
+         AND ST_Intersects(s.geom,b.geom)
+      GROUP BY s.geom) t;
        '''.format(study_region),
        '''
-       SELECT COUNT(s.*) 
-        FROM study_destinations s, {} b 
+       SELECT COUNT(*)
+       FROM
+       (SELECT DISTINCT ON (s.geom)
+       1
+        FROM study_destinations s, gccsa_2018 b 
        WHERE dest_class = 'gtfs_2018_stops_tram' 
-         AND ST_Intersects(s.geom,b.geom);
+         AND ST_Intersects(s.geom,b.geom)
+      GROUP BY s.geom) t;
        '''.format(study_region),
        '''
-       SELECT COUNT(s.*) 
-        FROM study_destinations s, {} b 
+       SELECT COUNT(*)
+       FROM
+       (SELECT DISTINCT ON (s.geom)
+       1
+        FROM study_destinations s, gccsa_2018 b 
        WHERE dest_class = 'gtfs_2018_stops_ferry' 
-         AND ST_Intersects(s.geom,b.geom);
+         AND ST_Intersects(s.geom,b.geom)
+      GROUP BY s.geom) t;
        '''.format(study_region)]
 
 values = [locale]
