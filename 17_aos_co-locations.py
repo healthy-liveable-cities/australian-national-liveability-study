@@ -19,6 +19,7 @@ conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()
 
 sql = '''
+  ALTER TABLE open_space_areas DROP COLUMN IF EXISTS co_location_100m jsonb;
   ALTER TABLE open_space_areas ADD COLUMN co_location_100m jsonb;
   UPDATE open_space_areas o 
      SET co_location_100m  = t.co_location_100m
