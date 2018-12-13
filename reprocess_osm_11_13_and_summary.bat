@@ -6,6 +6,7 @@ FOR %%A  IN (%*) DO (
   python 12_setup_schools.py %%A
   python 13_aos_setup.py %%A
   python summarise_pt_and_pos.py %%A
+  python purge_aos_estimates.py %%A
 )
 
 @pause
