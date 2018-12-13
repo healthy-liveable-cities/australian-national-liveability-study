@@ -24,7 +24,7 @@ sql = ['''
        FROM
        (SELECT DISTINCT ON (s.geom)
        1
-        FROM study_destinations s, gccsa_2018 b 
+        FROM study_destinations s, {} b 
        WHERE dest_class = 'gtfs_2018_stop_30_mins_final' 
          AND ST_Intersects(s.geom,b.geom)
       GROUP BY s.geom) t;
@@ -34,7 +34,7 @@ sql = ['''
        FROM
        (SELECT DISTINCT ON (s.geom)
        1
-        FROM study_destinations s, gccsa_2018 b 
+        FROM study_destinations s, {} b 
        WHERE dest_class = 'gtfs_2018_stops' 
          AND ST_Intersects(s.geom,b.geom)
       GROUP BY s.geom) t;
@@ -44,7 +44,7 @@ sql = ['''
        FROM
        (SELECT DISTINCT ON (s.geom)
        1
-        FROM study_destinations s, gccsa_2018 b 
+        FROM study_destinations s, {} b 
        WHERE dest_class = 'gtfs_2018_stops_bus' 
          AND ST_Intersects(s.geom,b.geom)
       GROUP BY s.geom) t;
@@ -54,7 +54,7 @@ sql = ['''
        FROM
        (SELECT DISTINCT ON (s.geom)
        1
-        FROM study_destinations s, gccsa_2018 b 
+        FROM study_destinations s, {} b 
        WHERE dest_class = 'gtfs_2018_stops_train' 
          AND ST_Intersects(s.geom,b.geom)
       GROUP BY s.geom) t;
@@ -64,7 +64,7 @@ sql = ['''
        FROM
        (SELECT DISTINCT ON (s.geom)
        1
-        FROM study_destinations s, gccsa_2018 b 
+        FROM study_destinations s, {} b 
        WHERE dest_class = 'gtfs_2018_stops_tram' 
          AND ST_Intersects(s.geom,b.geom)
       GROUP BY s.geom) t;
@@ -74,7 +74,7 @@ sql = ['''
        FROM
        (SELECT DISTINCT ON (s.geom)
        1
-        FROM study_destinations s, gccsa_2018 b 
+        FROM study_destinations s, {} b 
        WHERE dest_class = 'gtfs_2018_stops_ferry' 
          AND ST_Intersects(s.geom,b.geom)
       GROUP BY s.geom) t;
