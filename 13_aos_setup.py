@@ -41,6 +41,7 @@ curs = conn.cursor()
 os_landuse = "'{}'".format("','".join([x.encode('utf') for x in df_osm["os_landuse"].dropna().tolist()]))
 os_boundary = "'{}'".format("','".join([x.encode('utf') for x in df_osm["os_boundary"].dropna().tolist()]))
 
+specific_inclusion = 'p.{}'.format('\nOR p.'.join(df_osm['specific_inclusion'].dropna().tolist()))
 excluded_keys = '\nOR '.join(df_osm['exclusion_key'].dropna().apply(lambda x:'{var} IS NOT NULL'.format(var = x)).tolist())
 excluded_values = '\nOR '.join(df_osm[['exclusion_field','exclusion_list']].dropna().apply(lambda x:'"{var}" IN {list}'.format(var = x[0],list = x[1]),axis =1))
 exclusion_criteria = '{excluded_keys} \nOR {excluded_values}'.format(excluded_keys = excluded_keys,excluded_values=excluded_values)
@@ -79,17 +80,11 @@ WHERE {exclusion_criteria};
 DROP TABLE IF EXISTS open_space;
 CREATE TABLE open_space AS 
 SELECT p.* FROM {osm_prefix}_polygon p
-WHERE (p.leisure IS NOT NULL 
-    OR p.natural IS NOT NULL 
-    OR p.sport IS NOT NULL  
-    OR p.landuse IN ({os_landuse})
-    OR p.boundary IN ({os_boundary})
-    OR p.beach IS NOT NULL
-    OR p.river IS NOT NULL
-    OR p.water IS NOT NULL 
-    OR p.waterway IS NOT NULL 
-    OR p.wetland IS NOT NULL );
+WHERE ({specific_inclusion}
+       OR p.landuse IN ({os_landuse})
+       OR p.boundary IN ({os_boundary}));
 '''.format(osm_prefix = osm_prefix, 
+           specific_inclusion = specific_inclusion,
            os_landuse = os_landuse,
            os_boundary = os_boundary),
 '''
