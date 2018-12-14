@@ -313,7 +313,10 @@ if __name__ == '__main__':
   # Task name is now defined
   task = 'Find closest of each destination type to origin'  # Do stuff
   print("Commencing task ({}): {} at {}".format(db,task,time.strftime("%Y%m%d-%H%M%S")))
-  
+  print('''
+  Please note that this script assumes sausage buffers have previously been calculated, 
+  drawing upon the 'no_sausage' table to exclude any points listed there from consideration.
+  ''')
   try:
     conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
     curs = conn.cursor()
