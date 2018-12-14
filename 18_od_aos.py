@@ -168,7 +168,7 @@ def ODMatrixWorkerFunction(hex):
     B_selection = arcpy.SelectLayerByLocation_management('aos_pointsLayer', 'WITHIN_A_DISTANCE', hex_selection, '3200 Meters')
     B_pointCount = int(arcpy.GetCount_management(B_selection).getOutput(0))
     if B_pointCount == 0:  
-      ids_without_pos = set(to_do_points)
+      # ids_without_pos = set(to_do_points)
       # # It appears that no parks are accessible, so we record a null value for ids so that if processing
       # # recommences this hex will be skipped.  If for some reason an entry for this ID already exists, 
       # # no action is taken.
