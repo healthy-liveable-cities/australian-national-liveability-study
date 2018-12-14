@@ -159,13 +159,19 @@ def ODMatrixWorkerFunction(hex):
     return(1)
     
   try:    
+    # identify any points from this hex without a sausage buffer; lets not consider them
+    sql = '''SELECT gnaf_pid FROM no_sausage WHERE hex_id = {}'''.format(hex)
+    exclude_points = '''('{}')'''.format('.'.join([x[0] for x in list(curs)]))
     # select origin points 
     arcpy.MakeFeatureLayer_management (origin_points, "origin_points_layer")
-    origin_selection = arcpy.SelectLayerByAttribute_management("origin_points_layer", where_clause = 'hex_id = {}'.format(hex))
+    origin_selection = arcpy.SelectLayerByAttribute_management("origin_points_layer", 
+                          where_clause = 'hex_id = {hex_id} AND {id} NOT IN {exclude}'.format(hex_id = hex,
+                                                                                              id = origin_pointsID,
+                                                                                              exclude = exclude_points))
     origin_point_count = int(arcpy.GetCount_management(origin_selection).getOutput(0))
     # Skip hexes with zero adresses
     if origin_point_count == 0:
-        writeLog(hex,0,'NULL',"no origin points",(time.time()-hexStartTime)/60)
+        writeLog(hex,0,'NULL',"no valid origin points",(time.time()-hexStartTime)/60)
         return(2)
     
     # make destination feature layer
