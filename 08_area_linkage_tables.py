@@ -230,7 +230,7 @@ create_area_lga = '''
 create_parcel_sos = '''
   DROP TABLE IF EXISTS parcel_sos;
   CREATE TABLE parcel_sos AS 
-  SELECT a.gnaf_pid,
+  SELECT a.{id},
          sos_name_2016 
   FROM parcel_dwellings a,
        study_region_all_sos b 
