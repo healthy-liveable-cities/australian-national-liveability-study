@@ -43,6 +43,7 @@ df_destinations = pandas.read_excel(xls, 'destinations')
 df_osm = pandas.read_excel(xls, 'osm_and_open_space_defs')
 df_osm_dest = pandas.read_excel(xls, 'osm_dest_definitions')
 df_data_catalogue = pandas.read_excel(xls, 'data_catalogue')
+df_housekeeping = pandas.read_excel(xls, 'housekeeping')
 
 responsible = df_studyregion['responsible']
 
@@ -348,6 +349,9 @@ df_osm_dest = df_osm_dest.replace(pandas.np.nan, 'NULL', regex=True)
 school_destinations = df_parameters.loc['school_destinations']['value']
 school_id = df_parameters.loc['school_id']['value']
 school_id_type = df_parameters.loc['school_id_type']['value']
+
+# When destinations are imported for study region, we don't want to retain all of these; now, purge
+purge_dest_list = df_housekeeping.destinations_to_purge_after_import.tolist()
 
 # specify that the above modules and all variables below are imported on 'from config.py import *'
 __all__ = [x for x in dir() if x not in ['__file__','__all__', '__builtins__', '__doc__', '__name__', '__package__']]

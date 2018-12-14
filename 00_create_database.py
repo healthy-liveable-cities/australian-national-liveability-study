@@ -102,11 +102,25 @@ createUser_ArcSDE = '''
   $do$;
   '''.format(arc_sde_user, db_pwd)  
   
-createPostGIS = '''CREATE EXTENSION IF NOT EXISTS postgis; 
-                   CREATE EXTENSION IF NOT EXISTS hstore; 
-                   SELECT postgis_full_version(); 
-                   CREATE EXTENSION IF NOT EXISTS postgis_sfcgal;'''
-  
+createPostGIS = '''
+  CREATE EXTENSION IF NOT EXISTS postgis; 
+  CREATE EXTENSION IF NOT EXISTS hstore; 
+  SELECT postgis_full_version(); 
+  CREATE EXTENSION IF NOT EXISTS postgis_sfcgal;
+  '''
+
+create_threshold_functions = '''
+CREATE OR REPLACE FUNCTION threshold_hard(in int, in int, out int) 
+    RETURNS NULL ON NULL INPUT
+    AS $$ SELECT ($1 < $2)::int $$
+    LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION threshold_soft(in int, in int, out double precision) 
+    RETURNS NULL ON NULL INPUT
+    AS $$ SELECT 1 - 1/(1+exp(-5*($1-$2)/($2::float))) $$
+    LANGUAGE SQL;    
+  '''
+                   
 ## OUTPUT PROCESS
 
 print("Connecting to default database to action queries.")
@@ -143,6 +157,10 @@ curs = conn.cursor()
 
 print('Creating PostGIS extension ... '),
 curs.execute(createPostGIS)
+print('Done.')
+
+print('Creating threshold functions ... '),
+curs.execute(create_threshold_functions)
 print('Done.')
 conn.close()  
 
