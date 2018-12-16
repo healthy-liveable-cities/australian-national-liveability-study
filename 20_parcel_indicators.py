@@ -54,7 +54,6 @@ DROP TABLE IF EXISTS parcel_indicators;
 CREATE TABLE parcel_indicators AS
 SELECT
 p.{id}                   ,
-p.mb_code_20             ,
 p.count_objectid         ,
 p.point_x                ,
 p.point_y                ,
