@@ -158,14 +158,11 @@ values = [locale] + summary.values.tolist()[0]
 output = os.path.join(folderPath,'ncpf_region_summary_{}_{}.csv'.format(responsible[locale],today))
 header = '''{},{},{},{},{},{},{}\n'''.format('locale','Dwellings','Persons','% PT (any)','% PT (frequent)','% POS (any)','% POS (large)')
 
-print('''\n{:25} {:>16} {:>16} {:>16} {:>16} {:>16} {:>16}'''.format('locale','Dwellings','Persons','% PT (any)','% PT (frequent)','% POS (any)','% POS (large)'))
 if not os.path.exists(output):
    with open(output, "w") as f:
      f.write(header)
 with open(output, "a") as f:
   f.write('''{},{},{},{},{},{},{}\n'''.format(*values))
-  print('''{:25}{:16} {:16} {:16} {:16} {:16} {:16}'''.format(*values))
-
 # # output to completion log    
 # script_running_log(script, task, start, locale)
 # conn.close()
