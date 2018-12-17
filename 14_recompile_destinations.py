@@ -249,7 +249,9 @@ arcpy.env.overwriteOutput = True
 arcpy.CopyFeatures_management('public.study_destinations', os.path.join(gdb_path,'study_destinations')) 
 print("Done.")
 
+
 # When destinations are imported for study region, we don't want to retain all of these; now, purgefor dest in purge_dest_list:
+for dest in purge_dest_list:
    sql = "DROP TABLE IF EXISTS {}".format(dest)
    curs.execute(sql)
    conn.commit()
