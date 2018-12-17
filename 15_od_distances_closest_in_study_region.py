@@ -303,7 +303,7 @@ def ODMatrixWorkerFunction(hex):
   finally:
     arcpy.CheckInExtension('Network')
     # Report on progress
-    curs.execute("SELECT count(*) FROM od_closest;".format(log_table))
+    curs.execute("SELECT count(*) FROM od_closest WHERE dest_name IN (SELECT dest_name FROM dest_type);".format(log_table))
     progress = int(list(curs)[0][0]) 
     progressor(progress,completion_goal,start,"{numerator} / {denominator} parcel-destination combinations processed.".format(numerator = progress,denominator = completion_goal))
     # Close SQL connection
