@@ -15,6 +15,9 @@ from script_running_log import script_running_log
 # Import custom variables for National Liveability indicator process
 from config_ntnl_li_process import *
 
+from datetime import date
+today = str(date.today())
+
 # simple timer for log file
 start = time.time()
 script = os.path.basename(sys.argv[0])
