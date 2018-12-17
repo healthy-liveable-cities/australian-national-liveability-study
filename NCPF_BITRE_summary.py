@@ -156,12 +156,12 @@ summary = pandas.read_sql_query('''SELECT * FROM ncpf_region''',con=engine)
 print(summary)
 values = [locale] + summary.values.tolist()[0]
 output = os.path.join(folderPath,'ncpf_region_summary_{}_{}.csv'.format(responsible[locale],today))
-header = '''{},{},{},{},{},{},{}\n'''.format('locale','Dwellings','Persons','% PT (any)','% PT (frequent)','% POS (any)','% POS (large)',)
+header = '''{},{},{},{},{},{},{}\n'''.format('locale','Dwellings','Persons','% PT (any)','% PT (frequent)','% POS (any)','% POS (large)')
+
+print('''\n{:25} {:>16} {:>16} {:>16} {:>16} {:>16} {:>16}'''.format('locale','Dwellings','Persons','% PT (any)','% PT (frequent)','% POS (any)','% POS (large)'))
 if not os.path.exists(output):
    with open(output, "w") as f:
      f.write(header)
-     print('''{:25} {:>16} {:>16} {:>16} {:>16} {:>16} {:>16}'''.format('locale','POS area (Ha)','PT (30 min freq)','PT (any)','PT (bus)','PT (train)','PT (tram)','PT (ferry)'))
-
 with open(output, "a") as f:
   f.write('''{},{},{},{},{},{},{}\n'''.format(*values))
   print('''{:25}{:16} {:16} {:16} {:16} {:16} {:16}'''.format(*values))
