@@ -38,7 +38,8 @@ curs.execute(create_threshold_functions)
 print('Done.')
 
 
-dl = '''
+sql = ['''
+-- Daily living
 DROP TABLE IF EXISTS ind_daily_living;
 CREATE TABLE IF NOT EXISTS ind_daily_living AS
 SELECT p.{id}, 
@@ -63,9 +64,9 @@ LEFT JOIN (SELECT {id}, ind_hard, ind_soft
            FROM od_closest WHERE dest_class = 'supermarket_osm') supermarket_osm ON p.{id} = supermarket_osm.{id}
 LEFT JOIN (SELECT {id}, ind_hard, ind_soft 
            FROM od_closest WHERE dest_class = 'gtfs_2018_stops') any_pt ON p.{id} = any_pt.{id};
-'''.format(id = points_id)
-
-wa= '''
+'''.format(id = points_id),
+'''
+-- Walkability
 DROP TABLE IF EXISTS ind_walkability;
 CREATE TABLE ind_walkability AS
 SELECT dl.{id}, 
@@ -84,10 +85,9 @@ LEFT JOIN
 LEFT JOIN
     (SELECT {id}, (dd_nh1600m - AVG(dd_nh1600m) OVER())/stddev_pop(dd_nh1600m) OVER() as z_dd FROM dd_nh1600m) AS dd
   ON dd.{id} = dl.{id};
-'''.format(id = points_id)
-
-
-activity = '''
+'''.format(id = points_id),
+'''
+-- Activity centre proximity
 DROP TABLE IF EXISTS ind_activity;
 CREATE TABLE ind_activity AS
 SELECT {id},
@@ -96,10 +96,9 @@ SELECT {id},
        threshold_soft(distance,1000) AS ind_soft
  FROM od_closest 
 WHERE dest_class = 'activity_centres';
-'''.format(id = points_id)
-           
- 
-supermarkets_1000 = '''
+'''.format(id = points_id),
+'''
+-- Supermarkets (1000m)
 DROP TABLE IF EXISTS ind_supermarket1000;
 CREATE TABLE ind_supermarket1000 AS
 SELECT {id}, 
@@ -109,9 +108,9 @@ SELECT {id},
        threshold_soft(MIN(distance),1000) AS ind_soft
 FROM od_closest WHERE dest_class IN ('supermarket','supermarket_osm')
 GROUP BY {id};
-'''.format(id = points_id)
- 
-foodratio = '''
+'''.format(id = points_id),
+'''
+-- Food ratio / proportion measures
 DROP TABLE IF EXISTS ind_foodratio;
 CREATE TABLE ind_foodratio AS
 SELECT p.{id}, 
@@ -135,21 +134,49 @@ LEFT JOIN (SELECT {id},COALESCE(count,0) AS count FROM od_counts WHERE dest_clas
   ON p.{id} = supermarkets.{id}
 LEFT JOIN (SELECT {id},COALESCE(count,0) AS count FROM od_counts WHERE dest_class = 'fast food_osm') AS fastfood 
   ON p.{id} = fastfood.{id};
+'''.format(id = points_id),
+'''
+-- Public transport proximity
+DROP TABLE IF EXISTS ind_transport;
+CREATE TABLE ind_transport AS
+SELECT p.{id},
+       freq30.distance   AS freq30, 
+       any_pt.distance   AS any_pt, 
+       bus.distance   AS bus, 
+       tram.distance  AS tram,
+       train.distance AS train,
+       ferry.distance AS ferry
+FROM parcel_dwellings p
+LEFT JOIN (SELECT {id},distance 
+             FROM od_closest 
+            WHERE dest_class = 'gtfs_2018_stop_30_mins_final') freq30 
+       ON p.{id} = freq30.{id} 
+LEFT JOIN (SELECT {id},distance 
+             FROM od_closest 
+            WHERE dest_class = 'gtfs_2018_stops') any_pt 
+       ON p.{id} = any_pt.{id} 
+LEFT JOIN (SELECT {id},distance 
+             FROM od_closest 
+            WHERE dest_class = 'gtfs_2018_stops_bus') bus 
+       ON p.{id} = bus.{id} 
+LEFT JOIN (SELECT {id},distance 
+             FROM od_closest 
+            WHERE dest_class = 'gtfs_2018_stops_tram') tram 
+       ON p.{id} = tram.{id} 
+LEFT JOIN (SELECT {id},distance 
+             FROM od_closest 
+            WHERE dest_class = 'gtfs_2018_stops_train') train 
+       ON p.{id} = train.{id} 
+LEFT JOIN (SELECT {id},distance 
+             FROM od_closest 
+            WHERE dest_class = 'gtfs_2018_stops_ferry') ferry 
+       ON p.{id} = ferry.{id}
 '''.format(id = points_id)  
+]
 
-
-     
-create_neighbourhood_ind_list = {'01_daily_living': dl,
-                                 '02_walkability': wa,
-                                 '03_activity_centres': activity,
-                                 '04_supermarkets_1000': supermarkets_1000,
-                                 '05_foodratio': foodratio}
-        
-
-
-for ind in sorted(create_neighbourhood_ind_list.keys()):
-  print("Creating {} indicator table... ".format(ind[3:len(ind)])),
-  curs.execute(create_neighbourhood_ind_list[ind])
+for query in sql:
+  print('{}... '.format(query.splitlines()[1])),
+  curs.execute(query)
   conn.commit()
   print("Done.")
 
