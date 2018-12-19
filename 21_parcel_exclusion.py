@@ -40,7 +40,7 @@ qD = " IS NULL ON CONFLICT ({id},indicator) DO NOTHING ".format(id = points_id.l
 query = '''
 {insert} 'sc_nh1600m'                   {table} sc_nh1600m       {attribute} sc_nh1600m {null};
 {insert} 'dd_nh1600m'                   {table} dd_nh1600m       {attribute} dd_nh1600m {null};
-{insert} 'daily living'                 {table} ind_daily_living {attribute} dl_hard    {null};
+{insert} 'daily living'                 {table} ind_daily_living {attribute} dl_hyb_hard    {null};
 {insert} 'parcel_sos'                   {table} parcel_sos       {attribute} sos_name_2016 NOT IN ('Major Urban','Other Urban');
 {insert} 'sa1_maincode'                 {table} abs_linkage ON a.mb_code_20 = abs_linkage.mb_code_2016 
     WHERE abs_linkage.sa1_maincode NOT IN (SELECT sa1_maincode FROM abs_2016_irsd)
@@ -65,34 +65,35 @@ conn.commit()
 print("To view how many excluded parcels you have by section of state, run this query in psql:")
 print("SELECT sos_name_2016, COUNT(DISTINCT(a.gnaf_pid)) from parcel_sos a LEFT JOIN excluded_parcels b ON a.gnaf_pid = b.gnaf_pid WHERE b.gnaf_pid IS NOT NULL GROUP BY sos_name_2016;")
 
-if pos_inclusion != "*":
-  print("\nNullifying POS records for parcels and edge cases not in inclusion region feature (ie. cases where POS data coverage < study region extent)")
-  print(" - import inclusion feature... "), 
-  command = 'ogr2ogr -overwrite -progress -f "PostgreSQL" ' \
-          + 'PG:"host={host} port=5432 dbname={db} '.format(host = db_host,db = db) \
-          + 'user={user} password = {pwd}" '.format(user = db_user,pwd = db_pwd) \
-          + '{gdb} "{feature}" '.format(gdb = os.path.dirname(pos_inclusion),feature = os.path.basename(pos_inclusion)) \
-          + '-lco geometry_name="geom"'
-  sp.call(command, shell=True)
-  print("Done")
-  print(" - Nullify parcels not within bounds of inclusion feature... "),
-  # The idea of this query is that, where there is no intersection between a point and inclusion region (i.geom IS NULL)
-  # then the distance to POS and indicator records associated with that entry are made NULL.
-  nullify_nonincluded_pos = '''
-  UPDATE od_pos 
-    SET 
-      distance = NULL,
-      ind_hard = NULL,
-      ind_soft = NULL
-  WHERE {id} IN (SELECT {id} 
-                 FROM parcel_dwellings p 
-                 LEFT JOIN {pos_inclusion} i
-                 ON ST_Intersects(p.geom, i.geom)
-                 WHERE i.geom IS NULL);
-  '''.format(id = points_id, pos_inclusion = os.path.basename(pos_inclusion))
-  curs.execute(nullify_nonincluded_pos)
-  conn.commit()
-  print("Done.")
+# The below relates to the 2017 method
+# if pos_inclusion != "*":
+  # print("\nNullifying POS records for parcels and edge cases not in inclusion region feature (ie. cases where POS data coverage < study region extent)")
+  # print(" - import inclusion feature... "), 
+  # command = 'ogr2ogr -overwrite -progress -f "PostgreSQL" ' \
+          # + 'PG:"host={host} port=5432 dbname={db} '.format(host = db_host,db = db) \
+          # + 'user={user} password = {pwd}" '.format(user = db_user,pwd = db_pwd) \
+          # + '{gdb} "{feature}" '.format(gdb = os.path.dirname(pos_inclusion),feature = os.path.basename(pos_inclusion)) \
+          # + '-lco geometry_name="geom"'
+  # sp.call(command, shell=True)
+  # print("Done")
+  # print(" - Nullify parcels not within bounds of inclusion feature... "),
+  # # The idea of this query is that, where there is no intersection between a point and inclusion region (i.geom IS NULL)
+  # # then the distance to POS and indicator records associated with that entry are made NULL.
+  # nullify_nonincluded_pos = '''
+  # UPDATE od_pos 
+    # SET 
+      # distance = NULL,
+      # ind_hard = NULL,
+      # ind_soft = NULL
+  # WHERE {id} IN (SELECT {id} 
+                 # FROM parcel_dwellings p 
+                 # LEFT JOIN {pos_inclusion} i
+                 # ON ST_Intersects(p.geom, i.geom)
+                 # WHERE i.geom IS NULL);
+  # '''.format(id = points_id, pos_inclusion = os.path.basename(pos_inclusion))
+  # curs.execute(nullify_nonincluded_pos)
+  # conn.commit()
+  # print("Done.")
 
 # output to completion log    
 script_running_log(script, task, start, locale)
