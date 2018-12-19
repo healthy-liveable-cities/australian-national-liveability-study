@@ -21,14 +21,24 @@ engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_
                                                                  pwd  = db_pwd,
                                                                  host = db_host,
                                                                  db   = db))
-# Read in indicator description matrix
-ind_matrix = pandas.read_csv(os.path.join(sys.path[0],'ind_study_region_matrix.csv'))
+# Indicator configuration sheet is 'df_inds', read in from config file in the config script
 
 # Restrict to indicators associated with study region
-ind_matrix = ind_matrix[ind_matrix['locale'].str.contains(locale)]
+ind_matrix = df_inds[df_inds['locale'].str.contains('|'.join([locale,'\*']))]
 
-# Restrict to indicators with a defined source
-ind_matrix = ind_matrix[pandas.notnull(ind_matrix['Source'])]
+ind_soft = ind_matrix[ind_matrix['tags']=="_{threshold}"]
+for var in ['tags','unit_level_description','aggregate_description','data_sources','Query','Source']:
+  ind_soft[var] = ind_soft[var].str.replace('{threshold}','soft')
+
+ind_hard = ind_matrix[ind_matrix['tags']=="_{threshold}"]
+for var in ['tags','unit_level_description','aggregate_description','data_sources','Query','Source']:
+  ind_hard[var] = ind_hard[var].str.replace('{threshold}','hard')
+
+ind_matrix = pandas.concat([ind_matrix,ind_soft,ind_hard], ignore_index=True).sort_values('ind')
+ind_matrix.drop(ind_matrix[ind_matrix.tags == '_{threshold}'].index, inplace=True)
+# Restrict to indicators with a defined query
+ind_matrix = ind_matrix[pandas.notnull(ind_matrix['Query'])]
+ind_matrix.drop(ind_matrix[ind_matrix['updated?'] == 'n'].index, inplace=True)
 
 # Make concatenated indicator and tag name (e.g. 'walk_14' + 'hard')
 # Tags could be useful later as can allow to search by name for e.g. threshold type,
@@ -163,7 +173,7 @@ print("To view a description of all indicators for your region: SELECT * FROM in
 print("To view a summary of by variable name: SELECT * FROM parcel_ind_null_summary_t;")
 print("To view a summary of row-wise null values: SELECT * FROM parcel_inds_null_tally_summary;")
 print("To view a summary of null values for a particular indicator stratified by section of state:")
-print(" SELECT sos_name_2016, COUNT(*) indicator_null_count FROM parcel_indicators p LEFT JOIN parcel_sos sos ON p.{id} = sos.{id} WHERE indicator IS NULL GROUP BY sos_name_2016;")
+print(" SELECT sos_name_2016, COUNT(*) indicator_null_count FROM parcel_indicators p LEFT JOIN parcel_sos sos ON p.{id} = sos.{id} WHERE indicator IS NULL GROUP BY sos_name_2016;".format(id = points_id))
 
 # output to completion log    
 script_running_log(script, task, start, locale)
