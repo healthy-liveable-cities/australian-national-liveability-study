@@ -351,7 +351,7 @@ school_id = df_parameters.loc['school_id']['value']
 school_id_type = df_parameters.loc['school_id_type']['value']
 
 # When destinations are imported for study region, we don't want to retain all of these; now, purge
-purge_dest_list = df_housekeeping.destinations_to_purge_after_import.tolist()
+purge_dest_list = [x.lower() for x in list(set(destination_list+df_housekeeping.destinations_to_purge_after_import.tolist()))]
 
 # specify that the above modules and all variables below are imported on 'from config.py import *'
 __all__ = [x for x in dir() if x not in ['__file__','__all__', '__builtins__', '__doc__', '__name__', '__package__']]
