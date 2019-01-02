@@ -198,7 +198,7 @@ curs.execute(create_ncpf_region_summary)
 conn.commit()
 print("Done.")
 
-summary = pandas.read_sql_query('''SELECT * FROM ncpf_region_{subset_location}''',con=engine)
+summary = pandas.read_sql_query('''SELECT * FROM ncpf_region_{subset_location}'''.format(subset_location = subset_location),con=engine)
 print(summary)
 values = [subset_location] + summary.values.tolist()[0]
 output = os.path.join(folderPath,'ncpf_region_summary_{}_{}.csv'.format(responsible[locale],today))
