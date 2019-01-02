@@ -93,42 +93,9 @@ for res in summarise_parcel_no_results:
   if len(summary) == 0:
     print("No result for: {}\n".format(res))
 
-                                                                 
-# Define parcel level indicator table creation query
-# Note that we modify inds slightly later when aggregated to reflect cutoffs etc
-
-createTable_exclusions     = '''
-  DROP TABLE IF EXISTS excluded_parcels;
-  CREATE TABLE excluded_parcels
-  ({id} varchar NOT NULL,
-    indicator varchar NOT NULL,  
-  PRIMARY KEY({id},indicator));
-  '''.format(id = points_id.lower())
-
-qA = "INSERT INTO excluded_parcels SELECT a.{id}, ".format(id = points_id.lower())
-qB = "\nFROM parcel_dwellings AS a \nLEFT JOIN "
-qC = " AS b \nON a.{id} = b.{id}  \nWHERE ".format(id = points_id.lower())
-qD = " IS NULL ON CONFLICT ({id},indicator) DO NOTHING ".format(id = points_id.lower())
-  
-# exclude on null indicator, and on null distance
-query = '''
-{insert} 'no network buffer' {table} sausagebuffer_1600       {attribute} b.geom {null};
-{insert} 'parcel_sos'        {table} parcel_sos       {attribute} sos_name_2016 NOT IN ('Major Urban','Other Urban');
-{insert} 'sa1_maincode'      {table} abs_linkage ON a.mb_code_20 = abs_linkage.mb_code_2016 
-    WHERE abs_linkage.sa1_maincode NOT IN (SELECT sa1_maincode FROM abs_2016_irsd)
-    ON CONFLICT ({id},indicator) DO NOTHING;
-'''.format(insert = qA, table = qB, attribute = qC, null = qD, id = points_id.lower())
-
+# connect to postgresql database    
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()
-
-print("Create parcel exclusion table... "),
-curs.execute(createTable_exclusions)
-conn.commit()
-
-curs.execute(query)
-conn.commit()
-print("Done.")
 
 create_ncpf_mb_indicators = '''
 DROP TABLE IF EXISTS ncpf_mb_{subset_location};
