@@ -33,12 +33,6 @@ print("Commencing task: {} at {}".format(task,time.strftime("%Y%m%d-%H%M%S")))
 if df_destinations.destination.is_unique is not True:
   sys.exit("Destination names in 'destinations' tab of ind_study_region_matrix.xlsx are not unique, but they should be.  Please fix this, push the change to all users alerting them to the issue, and try again.");
 
-
-# Create destination type table in sql database
-# connect to the PostgreSQL server
-conn = psycopg2.connect(dbname=db, user=db_user, password=db_pwd)
-curs = conn.cursor()
-
 ### New idea for processing in PostGIS
 # list features for which we appear to have data
 # pre-processed destinations
@@ -64,11 +58,10 @@ print(command)
 sp.call(command, shell=True)
 print("Done (although, if it didn't work you can use the printed command above to do it manually)")
 
-
-
+# Create destination type table in sql database
+# connect to the PostgreSQL server
 conn = psycopg2.connect(dbname=db, user=db_user, password=db_pwd)
 curs = conn.cursor()
-
 
 # Create empty combined destination table
 create_dest_type_table = '''
