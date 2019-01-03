@@ -132,7 +132,7 @@ SELECT p.{id},
 FROM parcel_dwellings p
 LEFT JOIN (SELECT {id},COALESCE(count,0) AS count FROM od_counts WHERE dest_class = 'supermarket_osm') AS supermarkets 
   ON p.{id} = supermarkets.{id}
-LEFT JOIN (SELECT {id},COALESCE(count,0) AS count FROM od_counts WHERE dest_class = 'fast food_osm') AS fastfood 
+LEFT JOIN (SELECT {id},COALESCE(count,0) AS count FROM od_counts WHERE dest_class = 'fastfood_osm') AS fastfood 
   ON p.{id} = fastfood.{id};
 '''.format(id = points_id),
 '''
