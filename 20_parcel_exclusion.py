@@ -43,10 +43,14 @@ null = " IS NULL ON CONFLICT ({id},indicator) DO NOTHING ".format(id = points_id
 if island_exception not in ['','None']:
   print("\nIsland exception has been defined: {}".format(island_exception))
   island_exception = " a.gnaf_pid NOT IN (SELECT gnaf_pid FROM parcel_dwellings p LEFT JOIN abs_linkage s ON p.mb_code_20 = s.mb_code_2016 WHERE s.{island_exception}) AND ".format(island_exception=island_exception)
+  island_reviewed = True
 if island_exception == 'None':
   print("An analyst has reviewed this study region and determined that no island exceptions should be made\n(ie. all daily living indicator null values where they arise should lead to exclusion as they imply network connectivity failure)")
+  island_exception = ''
+  island_reviewed = True
 if island_exception =='':
   print("No island exceptions have been noted, but no note has been made in configuration file to indicator this region's network islands have been reviewed.\n If there are no exceptions for this study region, please enter 'None' in the project configuration file or have someone else do this for you.")
+  island_reviewed = False
 # exclude on null indicator, and on null distance
 query = '''
 {insert} 'no network buffer'    {table} sausagebuffer_1600 {match} b.geom      {null};
@@ -152,9 +156,9 @@ summary = pandas.read_sql_query('''SELECT COUNT(DISTINCT(gnaf_pid)) FROM exclude
 print(summary['count'][0])
 
 print("\nNetwork island diagnostics"),
-if island_exception == '':
+if island_reviewed is False:
   print(" [study region *not yet flagged* as having been reviewed] ")
-if island_exception != '':
+if island_reviewed is True:
   print(" [study region is flagged as having been reviewed] ")
 print("(check table 'network_islands' to see if any large non-main network islands are legitimate islands;\nif so, they can be whitelisted in the project configuration file)\nSummary of network islands:")
 summary = pandas.read_sql_query('''
