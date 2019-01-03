@@ -171,7 +171,42 @@ LEFT JOIN (SELECT {id},distance
              FROM od_closest 
             WHERE dest_class = 'gtfs_2018_stops_ferry') ferry 
        ON p.{id} = ferry.{id}
-'''.format(id = points_id)  
+'''.format(id = points_id)  ,
+'''
+-- Public open space proximity
+DROP TABLE IF EXISTS ind_pos_closest;
+CREATE TABLE ind_pos_closest AS
+SELECT p.{id},
+       pos_any.distance   AS pos_any_distance_m, 
+       pos_large.distance   AS pos_15k_sqm_distance_m
+FROM parcel_dwellings p
+LEFT JOIN (SELECT p.gnaf_pid, 
+                  min(distance) AS distance
+             FROM parcel_dwellings p
+             LEFT JOIN 
+             (SELECT gnaf_pid,
+                    (obj->>'aos_id')::int AS aos_id,
+                    (obj->>'distance')::int AS distance
+              FROM od_aos_jsonb,
+                   jsonb_array_elements(attributes) obj) o ON p.gnaf_pid = o.gnaf_pid
+             LEFT JOIN open_space_areas pos ON o.aos_id = pos.aos_id
+                 WHERE pos.aos_id IS NOT NULL
+                   AND aos_ha_public > 0
+             GROUP BY p.gnaf_pid) pos_any ON p.gnaf_pid = pos_any.gnaf_pid
+LEFT JOIN (SELECT p.gnaf_pid, 
+                  min(distance) AS distance
+             FROM parcel_dwellings p
+             LEFT JOIN 
+             (SELECT gnaf_pid,
+                    (obj->>'aos_id')::int AS aos_id,
+                    (obj->>'distance')::int AS distance
+              FROM od_aos_jsonb,
+                   jsonb_array_elements(attributes) obj) o ON p.gnaf_pid = o.gnaf_pid
+             LEFT JOIN open_space_areas pos ON o.aos_id = pos.aos_id
+                 WHERE pos.aos_id IS NOT NULL
+                   AND aos_ha_public > 1.5
+             GROUP BY p.gnaf_pid) pos_large ON p.gnaf_pid = pos_large.gnaf_pid
+'''.format(id = points_id)      
 ]
 
 for query in sql:
