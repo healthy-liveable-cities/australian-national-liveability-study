@@ -263,11 +263,14 @@ tolerance = df_parameters.loc['tolerance']['value']
 # buffer distance for network lines as sausage buffer  
 line_buffer = df_parameters.loc['line_buffer']['value']
 
-# this distance is a limit beyond which not to search for destinations 
-limit = df_parameters.loc['limit']['value']
-
 # Threshold paramaters
 soft_threshold_slope = df_parameters.loc['soft_threshold_slope']['value']
+
+# Island exceptions are defined using ABS constructs in the project configuration file.
+# They identify contexts where null indicator values are expected to be legitimate due to true network isolation, 
+# not connectivity errors. 
+# For example, for Rottnest Island in Western Australia: sa1_maincode IN ('50702116525')
+island_exception = df_studyregion.fillna('').loc[locale]['island_exception'].encode('utf8')
 
 # Sausage buffer run parameters
 # If you experience 'no forward edges' issues, change this value to 1
@@ -279,29 +282,7 @@ snap_to_grid = 0.001
 if no_foward_edge_issues == 1:
   snap_to_grid = 0.01
 
-# POS
-#  -- make sure projected according to project spatial reference
-
-if type(df_studyregion.loc[locale]['pos_source']) is unicode:
-  # implies POS has been defined; else is nan
-  pos_source   = os.path.join(folderPath,df_studyregion.loc[locale]['pos_source'].encode('utf'))
-  pos_vertices = df_parameters.loc['pos_vertices']['value']  # used to create series of hypothetical entry points around park
-
-  # POS queries - combined national and state-based scenarios, as lists of query-distance 2-tuples by locale
-  pos_locale = df_studyregion.loc[locale]['pos_queries'].encode('utf')
-
-  # Feature for restricted inclusion of POS analysis; used where POS data coverage < study region extent
-  # Note that at the moment we are using a single feature with a 400m Euclidean buffer; indicators
-  # use network distance however (400m network would be no greater than 400 Euclidean), but some seek POS across 
-  # a larger network distance of say 2km.  So, situations may arise where some edge cases are still unfairly 
-  # penalised.  However in practice, for Sydney where this issue could arises the portion of study region where 
-  # this issue arises is not urban and will be marked for exclusion anyway.  
-  # So, to avoid a more complicated scripting approach, we are sticking with single inclusion feature, for now.
-  if type(df_studyregion.loc[locale]['pos_inclusion']) is unicode:
-    pos_inclusion = df_studyregion.loc[locale]['pos_inclusion'].encode('utf')
-  else:
-    pos_inclusion = "*"
-
+# Areas of Open Space
 aos_threshold = df_parameters.loc['aos_threshold']['value']
     
 # Destinations - locate destinations.gdb within dest_dir (ie. 'D:\ntnl_li_2018\data\destinations\' or whereever your ntnl_li_2018 folder is located)

@@ -32,22 +32,32 @@ createTable_exclusions     = '''
   PRIMARY KEY({id},indicator));
   '''.format(id = points_id.lower())
 
-qA = "INSERT INTO excluded_parcels SELECT a.{id}, ".format(id = points_id.lower())
-qB = "\nFROM parcel_dwellings AS a \nLEFT JOIN "
-qC = " AS b \nON a.{id} = b.{id}  \nWHERE ".format(id = points_id.lower())
-qD = " IS NULL ON CONFLICT ({id},indicator) DO NOTHING ".format(id = points_id.lower())
-  
+insert = "INSERT INTO excluded_parcels SELECT a.{id}, ".format(id = points_id.lower())
+table = "\nFROM parcel_dwellings AS a \nLEFT JOIN "
+match = " AS b \nON a.{id} = b.{id}  \nWHERE ".format(id = points_id.lower())
+null = " IS NULL ON CONFLICT ({id},indicator) DO NOTHING ".format(id = points_id.lower())
+
+# Island exceptions are defined using ABS constructs in the project configuration file.
+# They identify contexts where null indicator values are expected to be legitimate due to true network isolation, 
+# not connectivity errors.  
+if island_exception not in ['','None']:
+  print("\nIsland exception has been defined: {}".format(island_exception))
+  island_exception = " a.gnaf_pid NOT IN (SELECT gnaf_pid FROM parcel_dwellings p LEFT JOIN abs_linkage s ON p.mb_code_20 = s.mb_code_2016 WHERE s.{island_exception}) AND ".format(island_exception=island_exception)
+if island_exception == 'None':
+  print("An analyst has reviewed this study region and determined that no island exceptions should be made\n(ie. all daily living indicator null values where they arise should lead to exclusion as they imply network connectivity failure)")
+if island_exception =='':
+  print("No island exceptions have been noted, but no note has been made in configuration file to indicator this region's network islands have been reviewed.\n If there are no exceptions for this study region, please enter 'None' in the project configuration file or have someone else do this for you.")
 # exclude on null indicator, and on null distance
 query = '''
-{insert} 'no network buffer'    {table} sausagebuffer_1600 {attribute} b.geom {null};
-{insert} 'null sc_nh1600m'      {table} sc_nh1600m         {attribute} sc_nh1600m {null};
-{insert} 'null dd_nh1600m'      {table} dd_nh1600m         {attribute} dd_nh1600m {null};
-{insert} 'null daily living'    {table} ind_daily_living   {attribute} dl_hyb_hard    {null};
-{insert} 'not urban parcel_sos' {table} parcel_sos         {attribute} sos_name_2016 NOT IN ('Major Urban','Other Urban');
+{insert} 'no network buffer'    {table} sausagebuffer_1600 {match} b.geom      {null};
+{insert} 'null sc_nh1600m'      {table} sc_nh1600m         {match} sc_nh1600m  {null};
+{insert} 'null dd_nh1600m'      {table} dd_nh1600m         {match} dd_nh1600m  {null};
+{insert} 'null daily living'    {table} ind_daily_living   {match} {island_exception} dl_hyb_hard {null};
+{insert} 'not urban parcel_sos' {table} parcel_sos         {match} sos_name_2016 NOT IN ('Major Urban','Other Urban');
 {insert} 'no IRSD sa1_maincode' {table} abs_linkage ON a.mb_code_20 = abs_linkage.mb_code_2016 
     WHERE abs_linkage.sa1_maincode NOT IN (SELECT sa1_maincode FROM abs_2016_irsd)
     ON CONFLICT ({id},indicator) DO NOTHING;
-'''.format(insert = qA, table = qB, attribute = qC, null = qD, id = points_id.lower())
+'''.format(insert = insert, table = table, match = match, island_exception = island_exception, null = null, id = points_id.lower())
 
 # OUTPUT PROCESS
 print("\n{} for {}...".format(task,locale)),
@@ -136,6 +146,45 @@ print(summary)
 print("\nExcluded parcels by section of state:")
 summary = pandas.read_sql_query('''SELECT sos_name_2016, COUNT(DISTINCT(a.gnaf_pid)) from parcel_sos a LEFT JOIN excluded_parcels b ON a.gnaf_pid = b.gnaf_pid WHERE b.gnaf_pid IS NOT NULL GROUP BY sos_name_2016;''',con=engine) 
 print(summary)
+
+print("\nTotal excluded parcels:")
+summary = pandas.read_sql_query('''SELECT COUNT(DISTINCT(gnaf_pid)) FROM excluded_parcels''',con=engine) 
+print(summary['count'][0])
+
+print("\nNetwork island diagnostics"),
+if island_exception == '':
+  print(" [study region *not yet flagged* as having been reviewed] ")
+if island_exception != '':
+  print(" [study region is flagged as having been reviewed] ")
+print("(check table 'network_islands' to see if any large non-main network islands are legitimate islands;\nif so, they can be whitelisted in the project configuration file)\nSummary of network islands:")
+summary = pandas.read_sql_query('''
+--Create a geometry table for network island clusters 
+DROP TABLE IF EXISTS network_islands; 
+CREATE TABLE network_islands AS 
+SELECT ST_Length(geom) AS length,  
+       geom 
+FROM (SELECT ST_SetSRID( 
+           ST_CollectionHomogenize( 
+             unnest(  
+               ST_ClusterIntersecting( 
+                 geom 
+               ) 
+             ) 
+           ), 
+           7845 
+         ) AS geom FROM edges) t; 
+         
+--Grant permissions so we can open it in qgis and arcgis 
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO arc_sde; 
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO arc_sde; 
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO python; 
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO python; 
+
+--Summarise length in descending order 
+SELECT ROUND(length::numeric,0)::int AS length_metres from network_islands ORDER BY length DESC;  
+''',con=engine) 
+print(summary)
+
 print('')
 # output to completion log    
 script_running_log(script, task, start, locale)
