@@ -57,6 +57,48 @@ ind_sources = '\n'.join(ind_matrix['Source'].unique())
 null_query_summary = ',\n'.join("SUM(" + ind_matrix['indicators'] + " IS NULL::int) AS " + ind_matrix['indicators'])
 null_query_combined = '+\n'.join("(" + ind_matrix['indicators'] + " IS NULL::int)")
 
+# Connect to postgresql database     
+conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
+curs = conn.cursor()
+
+print("Create summary table of destination indicators... "),
+sql = '''SELECT DISTINCT(dest_name) FROM od_closest ORDER BY dest_name;'''
+curs.execute(sql)
+categories = [x[0] for x in curs.fetchall()]
+category_list = ','.join(categories)
+category_types = '"{}" int'.format('" int, "'.join(categories))
+
+crosstab = '''
+DROP TABLE IF EXISTS dest_distance_m;
+CREATE TABLE dest_distance_m AS
+SELECT *
+  FROM   crosstab(
+   'SELECT gnaf_pid, dest_name, distance
+    FROM   od_closest
+    ORDER  BY 1,2'  -- could also just be "ORDER BY 1" here
+  ,$$SELECT unnest('{curly_o}{category_list}{curly_c}'::text[])$$
+   ) AS distance ("gnaf_pid" text, {category_types});
+'''.format(id = points_id.lower(),
+           curly_o = "{",
+           curly_c = "}",
+           category_list = category_list,
+           category_types = category_types)
+curs.execute(crosstab)
+conn.commit()
+print("Done.")
+
+# Compile destination distance queries
+ind_sources = '''{}\nLEFT JOIN  dest_distance_m ON p.gnaf_pid = dest_distance_m.gnaf_pid'''.format(ind_sources)
+ind=0
+for dest in categories:
+  ind+=1 
+  ind_queries = '''{queries},\ndest_distance_m.{dest}/1000.0 AS dist_{dest}'''.format(queries = ind_queries,
+                                                                                              dest = dest)
+null_query_summary = '''{summary},\nSUM(dist_{dest} IS NULL::int) AS dist_{dest}'''.format(summary = null_query_summary,
+                                                                                              dest = dest)
+null_query_combined = '''{summary}+\n(dist_{dest} IS NULL::int) '''.format(summary = null_query_summary,
+                                                                                              dest = dest)
+                                                                                              
 # Define parcel level indicator table creation query
 # Note that we modify inds slightly later when aggregated to reflect cutoffs etc
 create_parcel_indicators = '''
@@ -112,11 +154,7 @@ FROM parcel_indicators;
            null_query_combined = null_query_combined,
            total_inds = len(ind_list))
 
-# Process it all  
-# Note that the sql queries used are printed to screen for reference and checking purposes       
-conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
-curs = conn.cursor()
-
+ 
 print("Creating compiled set of parcel level indicators...")
 print("SQL query:")
 print(create_parcel_indicators)

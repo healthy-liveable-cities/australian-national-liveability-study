@@ -102,11 +102,12 @@ createUser_ArcSDE = '''
   $do$;
   '''.format(arc_sde_user, db_pwd)  
   
-createPostGIS = '''
+create_extensions = '''
   CREATE EXTENSION IF NOT EXISTS postgis; 
-  CREATE EXTENSION IF NOT EXISTS hstore; 
-  SELECT postgis_full_version(); 
   CREATE EXTENSION IF NOT EXISTS postgis_sfcgal;
+  SELECT postgis_full_version(); 
+  CREATE EXTENSION IF NOT EXISTS hstore; 
+  CREATE EXTENSION IF NOT EXISTS tablefunc;
   '''
 
 create_threshold_functions = '''
@@ -155,14 +156,13 @@ conn = psycopg2.connect(dbname=db, user=admin_user_name, password=admin_pwd)
 conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
 curs = conn.cursor()
 
-print('Creating PostGIS extension ... '),
-curs.execute(createPostGIS)
+print('Creating required extensions ... '),
+curs.execute(create_extensions)
 print('Done.')
 
 print('Creating threshold functions ... '),
 curs.execute(create_threshold_functions)
 print('Done.')
-conn.close()  
 
 if not os.path.isfile(os.path.join(locale_dir,db_sde)):
   print('Creating ArcGIS spatial database connection file ... '),
