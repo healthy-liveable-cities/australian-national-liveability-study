@@ -57,6 +57,7 @@ CREATE INDEX idx_aos_nodes_30m_pos_large_geom ON aos_nodes_30m_pos_large USING G
 curs.execute(create_pos_nodes)
 conn.commit()
 print("Done.")
+
 # Copy study region destination table from PostgreSQL db to ArcGIS gdb
 print("Copy pos nodes to ArcGIS gdb... "),
 curs.execute(grant_query)
