@@ -55,7 +55,7 @@ destination_pointsID = 'aos_entryid'
 ## Note - this used to be 'dist_cl_od_parcel_dest' --- simplified to 'od_closest'
 od_distances  = "od_closest_pos"
 log_table    = "log_od_distances_pos"
-
+maximum_analysis_distance = 500
 
 queryPartA = "INSERT INTO {} VALUES ".format(od_distances)
 hexStart = 0
@@ -173,6 +173,7 @@ def ODMatrixWorkerFunction(hex):
                                                    out_network_analysis_layer = "ODmatrix", 
                                                    impedance_attribute = "Length", 
                                                    default_number_destinations_to_find = 1,
+                                                   default_cutoff =  maximum_analysis_distance,
                                                    UTurn_policy = "ALLOW_UTURNS", 
                                                    hierarchy = "NO_HIERARCHY", 
                                                    output_path_shape = "NO_LINES")
