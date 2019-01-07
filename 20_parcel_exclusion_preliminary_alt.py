@@ -59,7 +59,7 @@ query = '''
     WHERE abs_linkage.sa1_maincode NOT IN (SELECT sa1_maincode FROM abs_2016_irsd)
     ON CONFLICT ({id},indicator) DO NOTHING;
 '''.format(insert = insert, table = table, match = match, island_exception = island_exception, null = null, id = points_id.lower())
-SELECT gnaf_pid FROM od_closest WHERE dest_name = 'gtfs_2018_stops' AND distance IS NULL;
+
 # OUTPUT PROCESS
 print("\n{} for {}...".format(task,locale)),
 
