@@ -17,22 +17,40 @@ start = time.time()
 script = os.path.basename(sys.argv[0])
 task = 'create destination indicator tables'
 
+# Connect to postgresql database     
+conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
+curs = conn.cursor()
+
 engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_user,
                                                                  pwd  = db_pwd,
                                                                  host = db_host,
                                                                  db   = db))
 # Indicator configuration sheet is 'df_inds', read in from config file in the config script
 
-# Restrict to indicators associated with study region
+# Restrict to indicators associated with study region (except distance to closest dest indicators)
 ind_matrix = df_inds[df_inds['locale'].str.contains('|'.join([locale,'\*']))]
+
+# Get a list of destinations processed within this region for distance to closest
+sql = '''SELECT DISTINCT(dest_name) FROM od_closest ORDER BY dest_name;'''
+curs.execute(sql)
+categories = [x[0] for x in curs.fetchall()]
+category_list = ','.join(categories)
+category_types = '"{}" int'.format('" int, "'.join(categories))
+
+# get the set of distance to closest regions which match for this region
+destinations = df_inds[df_inds['ind'].str.contains('destinations')]
+destinations = destinations[destinations['ind_plain']=="distance_m_{}".format('|distance_m_'.join(categories))]
+ind_matrix = ind_matrix.append(destinations)
 
 ind_soft = ind_matrix[ind_matrix['tags']=="_{threshold}"]
 for var in ['tags','unit_level_description','aggregate_description','data_sources','Query','Source']:
-  ind_soft[var] = ind_soft[var].str.replace('{threshold}','soft')
+  ind_soft[var][ind_soft[var]=='_{threshold}'].str.replace('{threshold}','soft')
+  #ind_soft[var] = ind_soft[var].str.replace('{threshold}','soft')
 
 ind_hard = ind_matrix[ind_matrix['tags']=="_{threshold}"]
 for var in ['tags','unit_level_description','aggregate_description','data_sources','Query','Source']:
-  ind_hard[var] = ind_hard[var].str.replace('{threshold}','hard')
+  ind_hard[var][ind_hard[var]=='_{threshold}'].str.replace('{threshold}','hard')
+  #ind_hard[var] = ind_hard[var].str.replace('{threshold}','hard')
 
 ind_matrix = pandas.concat([ind_matrix,ind_soft,ind_hard], ignore_index=True).sort_values('ind')
 ind_matrix.drop(ind_matrix[ind_matrix.tags == '_{threshold}'].index, inplace=True)
@@ -57,17 +75,7 @@ ind_sources = '\n'.join(ind_matrix['Source'].unique())
 null_query_summary = ',\n'.join("SUM(" + ind_matrix['indicators'] + " IS NULL::int) AS " + ind_matrix['indicators'])
 null_query_combined = '+\n'.join("(" + ind_matrix['indicators'] + " IS NULL::int)")
 
-# Connect to postgresql database     
-conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
-curs = conn.cursor()
-
-print("Create summary table of destination indicators... "),
-sql = '''SELECT DISTINCT(dest_name) FROM od_closest ORDER BY dest_name;'''
-curs.execute(sql)
-categories = [x[0] for x in curs.fetchall()]
-category_list = ','.join(categories)
-category_types = '"{}" int'.format('" int, "'.join(categories))
-
+print("Create summary table of destination... "),
 crosstab = '''
 DROP TABLE IF EXISTS dest_distance_m;
 CREATE TABLE dest_distance_m AS
@@ -87,17 +95,17 @@ curs.execute(crosstab)
 conn.commit()
 print("Done.")
 
-# Compile destination distance queries
-ind_sources = '''{}\nLEFT JOIN  dest_distance_m ON p.gnaf_pid = dest_distance_m.gnaf_pid'''.format(ind_sources)
-ind=0
-for dest in categories:
-  ind+=1 
-  ind_queries = '''{queries},\ndest_distance_m.{dest}/1000.0 AS dist_{dest}'''.format(queries = ind_queries,
-                                                                                              dest = dest)
-null_query_summary = '''{summary},\nSUM(dist_{dest} IS NULL::int) AS dist_{dest}'''.format(summary = null_query_summary,
-                                                                                              dest = dest)
-null_query_combined = '''{summary}+\n(dist_{dest} IS NULL::int) '''.format(summary = null_query_summary,
-                                                                                              dest = dest)
+# # Compile destination distance queries
+# ind_sources = '''{}\nLEFT JOIN  dest_distance_m ON p.gnaf_pid = dest_distance_m.gnaf_pid'''.format(ind_sources)
+# ind=0
+# for dest in categories:
+  # ind+=1 
+  # ind_queries = '''{queries}\ndest_distance_m.{dest}/1000.0 AS dist_{dest},'''.format(queries = ind_queries,
+                                                                                              # dest = dest)
+# null_query_summary = '''{summary},\nSUM(dist_{dest} IS NULL::int) AS dist_{dest}'''.format(summary = null_query_summary,
+                                                                                              # dest = dest)
+# null_query_combined = '''{summary}+\n(dist_{dest} IS NULL::int) '''.format(summary = null_query_summary,
+                                                                                              # dest = dest)
                                                                                               
 # Define parcel level indicator table creation query
 # Note that we modify inds slightly later when aggregated to reflect cutoffs etc
