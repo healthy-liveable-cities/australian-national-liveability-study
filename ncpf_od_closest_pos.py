@@ -284,6 +284,14 @@ if __name__ == '__main__':
     print(sys.exc_info()[0])
     raise
     
+  print("Create a table for tracking progress... "), 
+  od_aos_progress_table = '''
+    DROP TABLE IF EXISTS od_aos_progress_ncpf;
+    CREATE TABLE IF NOT EXISTS od_aos_progress_ncpf AS SELECT 0 AS processed;
+    '''
+  curs.execute(od_aos_progress_table)
+  conn.commit()
+  print("Done.")    
   print("Setup a pool of workers/child processes and split log output..."),
   # Parallel processing setting
   # (now set as parameter in ind_study_region_matrix xlsx file)
