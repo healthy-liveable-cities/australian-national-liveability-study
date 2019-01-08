@@ -115,18 +115,8 @@ queryUpdate      = '''
   DO UPDATE SET {1}=EXCLUDED.{1},{2}=EXCLUDED.{2},{3}=EXCLUDED.{3}
   '''.format('hex','parcel_count','status','mins','dest_name')            
 
-# Worker/Child PROCESS
-def ODMatrixWorkerFunction(hex): 
-  try:
-    arcpy.CheckOutExtension('Network')
-    # Connect to SQL database 
-    conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
-    curs = conn.cursor()  
-    # select origin points 
-    arcpy.MakeFeatureLayer_management (origin_points, "origin_points_layer",where_clause = 'hex_id = {hex_id}'.format(hex_id = hex))
-    origin_point_count = int(arcpy.GetCount_management("origin_points_layer").getOutput(0))
-    # Skip hexes with zero adresses
-    if origin_point_count > 0:    
+# WORKER PROCESSORS pre-setup
+if __name__ != '__main__':   
       # Make OD cost matrix layer
       result_object = arcpy.MakeODCostMatrixLayer_na(in_network_dataset = in_network_dataset, 
                                                      out_network_analysis_layer = "ODmatrix", 
@@ -147,8 +137,20 @@ def ODMatrixWorkerFunction(hex):
       
       # you may have to do this later in the script - but try now....
       ODLinesSubLayer = arcpy.mapping.ListLayers(outNALayer, linesLayerName)[0]
-      fields = ['Name', 'Total_Length']
-      
+      fields = ['Name', 'Total_Length']  
+  
+# Worker/Child PROCESS
+def ODMatrixWorkerFunction(hex): 
+  try:
+    arcpy.CheckOutExtension('Network')
+    # Connect to SQL database 
+    conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
+    curs = conn.cursor()  
+    # select origin points 
+    arcpy.MakeFeatureLayer_management (origin_points, "origin_points_layer",where_clause = 'hex_id = {hex_id}'.format(hex_id = hex))
+    origin_point_count = int(arcpy.GetCount_management("origin_points_layer").getOutput(0))
+    # Skip hexes with zero adresses
+    if origin_point_count > 0:         
       # for destination_points in remaining_dest_list:
       for destination_points in destination_list:
         # make destination feature layer
