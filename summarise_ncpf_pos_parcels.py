@@ -54,7 +54,7 @@ for region in sys.argv[1:]:
 
     print("    - Create table of POS NCPF parcel estimates (ind_pos_access_ncpf)... "),
     # Get a list of destinations processed within this region for distance to closest
-    sql = '''SELECT DISTINCT(dest_class) FROM od_closest_pos ORDER BY dest_name;'''
+    sql = '''SELECT DISTINCT(dest_class) FROM od_closest_pos ORDER BY dest_class;'''
     curs.execute(sql)
     categories = [x[0] for x in curs.fetchall()]
     category_list = ','.join(categories)
@@ -63,7 +63,7 @@ for region in sys.argv[1:]:
     DROP TABLE IF EXISTS ind_pos_access_ncpf;
     CREATE TABLE ind_pos_access_ncpf AS
     SELECT p.gnaf_pid, 
-           COALESCE(any,0) AS access_pos_any_400m,
+           COALESCE("any",0) AS access_pos_any_400m,
            COALESCE(large,0) AS access_pos_large_400m,
            p.geom
     FROM parcel_dwellings p
