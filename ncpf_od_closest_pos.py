@@ -59,17 +59,18 @@ maximum_analysis_distance = 400
 
 queryPartA = "INSERT INTO {} VALUES ".format(od_distances)
 hexStart = 0
-sqlChunkify = 1000
+sqlChunkify = 500
   
 # initiate postgresql connection
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()  
 
-destination_list = [['aos_nodes_30m_pos_any','any',400],['aos_nodes_30m_pos_large','large',400]]
+destination_list = [['aos_nodes_30m_pos_any','any',400,0],['aos_nodes_30m_pos_large','large',400,1.5]]
 
-# tally expected hex-destination result set  
-curs.execute("SELECT COUNT(*) FROM parcel_dwellings;")
-completion_goal = list(curs)[0][0] * len(set([x[1] for x in destination_list]))
+# define completion goal (ie. parcel count)
+curs.execute("SELECT sum(parcel_count) FROM hex_parcels;")
+total_parcels = int(list(curs)[0][0])
+progress_table = 'od_aos_progress_ncpf'
 
 # get pid name
 pid = multiprocessing.current_process().name
@@ -113,177 +114,152 @@ queryUpdate      = '''
   ON CONFLICT ({0},{4}) 
   DO UPDATE SET {1}=EXCLUDED.{1},{2}=EXCLUDED.{2},{3}=EXCLUDED.{3}
   '''.format('hex','parcel_count','status','mins','dest_name')            
-    
-# Define log file write method
-def writeLog(hex = 0, AhexN = 'NULL', Bcode = 'NULL', status = 'NULL', mins= 0, create = log_table):
-  try:
-    if create == 'create':
-      curs.execute(createTable_log)
-      conn.commit()
-      
-    else:
-      moment = time.strftime("%Y%m%d-%H%M%S")
-      # print to screen regardless
-      # print('Hex:{:5d} A:{:8s} Dest:{:8s} {:15s} {:15s}'.format(hex, str(AhexN), str(Bcode), status, moment))     
-      # write to sql table
-      curs.execute("{0} ({1},{2},'{3}','{4}',{5}) {6}".format(queryInsert,hex, AhexN, Bcode,status, mins, queryUpdate))
-      conn.commit()  
-  except:
-    print("ERROR: {}".format(sys.exc_info()))
-    raise
 
 # Worker/Child PROCESS
 def ODMatrixWorkerFunction(hex): 
-  # Connect to SQL database 
   try:
+    # Connect to SQL database 
     conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
-    curs = conn.cursor()
-  except:
-    print("SQL connection error")
-    print(sys.exc_info()[1])
-    return 100
-  # make sure Network Analyst licence is 'checked out'
-  arcpy.CheckOutExtension('Network')
- 
-  # Worker Task is hex-specific by definition/parallel
-  # Skip if hex was finished in previous run
-  hexStartTime = time.time()
-  if hex < hexStart:
-    return(1)
-    
-  try:    
+    curs = conn.cursor()  
     # select origin points 
-    arcpy.MakeFeatureLayer_management (origin_points, "origin_points_layer")
-    origin_selection = arcpy.SelectLayerByAttribute_management("origin_points_layer", 
-                          where_clause = 'hex_id = {hex_id}'.format(hex_id = hex))
-    origin_point_count = int(arcpy.GetCount_management(origin_selection).getOutput(0))
+    arcpy.MakeFeatureLayer_management (origin_points, "origin_points_layer",where_clause = 'hex_id = {hex_id}'.format(hex_id = hex))
+    origin_point_count = int(arcpy.GetCount_management("origin_points_layer").getOutput(0))
     # Skip hexes with zero adresses
-    if origin_point_count == 0:
-        writeLog(hex,0,'NULL',"no valid origin points",(time.time()-hexStartTime)/60)
-        return(2)
-    
-    # fetch list of successfully processed destinations for this hex, if any
-    curs.execute("SELECT dest_name FROM {} WHERE hex = {}".format(log_table,hex))
-    completed_dest = [x[0] for x in list(curs)]
-    remaining_dest_list = [x for x in destination_list if x[0] not in completed_dest]
-    
-    # Make OD cost matrix layer
-    result_object = arcpy.MakeODCostMatrixLayer_na(in_network_dataset = in_network_dataset, 
-                                                   out_network_analysis_layer = "ODmatrix", 
-                                                   impedance_attribute = "Length", 
-                                                   default_number_destinations_to_find = 1,
-                                                   default_cutoff =  maximum_analysis_distance,
-                                                   UTurn_policy = "ALLOW_UTURNS", 
-                                                   hierarchy = "NO_HIERARCHY", 
-                                                   output_path_shape = "NO_LINES")
-    outNALayer = result_object.getOutput(0)
-    
-    #Get the names of all the sublayers within the service area layer.
-    subLayerNames = arcpy.na.GetNAClassNames(outNALayer)
-    #Store the layer names that we will use later
-    originsLayerName = subLayerNames["Origins"]
-    destinationsLayerName = subLayerNames["Destinations"]
-    linesLayerName = subLayerNames["ODLines"]
-    
-    # you may have to do this later in the script - but try now....
-    ODLinesSubLayer = arcpy.mapping.ListLayers(outNALayer, linesLayerName)[0]
-    fields = ['Name', 'Total_Length']
-    
-    for destination_points in remaining_dest_list:
-      # make destination feature layer
-      arcpy.MakeFeatureLayer_management (destination_points[0], "destination_points_layer") 
-      dest_class = destination_points[1]
-      dest_cutoff_threshold = destination_points[2]
-      destStartTime = time.time()
-      # OD Matrix Setup
-      arcpy.AddLocations_na(in_network_analysis_layer = outNALayer, 
-          sub_layer                      = originsLayerName, 
-          in_table                       = origin_selection, 
-          field_mappings                 = "Name {} #".format(origin_pointsID), 
-          search_tolerance               = "{} Meters".format(tolerance), 
-          search_criteria                = "{} SHAPE;{} NONE".format(network_edges,network_junctions), 
-          append                         = "CLEAR", 
-          snap_to_position_along_network = "NO_SNAP", 
-          exclude_restricted_elements    = "INCLUDE",
-          search_query                   = "{} #;{} #".format(network_edges,network_junctions))
-      arcpy.AddLocations_na(in_network_analysis_layer = outNALayer, 
-          sub_layer                      = destinationsLayerName, 
-          in_table                       = "destination_points_layer", 
-          field_mappings                 = "Name {} #".format(destination_pointsID), 
-          search_tolerance               = "{} Meters".format(tolerance), 
-          search_criteria                = "{} SHAPE;{} NONE".format(network_edges,network_junctions), 
-          append                         = "CLEAR", 
-          snap_to_position_along_network = "NO_SNAP", 
-          exclude_restricted_elements    = "INCLUDE",
-          search_query                   = "{} #;{} #".format(network_edges,network_junctions))
-      # Process: Solve
-      result = arcpy.Solve_na(outNALayer, terminate_on_solve_error = "CONTINUE")
-      if result[1] == u'false':
-        writeLog(hex,origin_point_count,dest_class,"no solution",(time.time()-destStartTime)/60)
-      else:
-        # Extract lines layer, export to SQL database
-        outputLines = arcpy.da.SearchCursor(ODLinesSubLayer, fields)
-        count = 0
-        chunkedLines = list()
-        for outputLine in outputLines:
-          count += 1
-          origin_id      = outputLine[0].split('-')[0].strip(' ')
-          dest_id   = outputLine[0].split('-')[1].split(',')
-          dest_name = dest_id[0].strip(' ')
-          dest_id   = dest_id[1].strip(' ')
-          distance  = int(round(outputLine[1]))
-          threshold = float(dest_cutoff_threshold)
-          ind_hard  = int(distance < threshold)
-          chunkedLines.append('''('{point_id}','{d_class}','{d_name}',{d_id},{distance},{threshold},{ind_h})'''.format(point_id  = origin_id,
-                                                                                                                               d_class = dest_class,
-                                                                                                                               d_name = dest_name,
-                                                                                                                               d_id   = dest_id,
-                                                                                                                               distance  = distance,
-                                                                                                                               threshold = threshold,
-                                                                                                                               ind_h  = ind_hard))
-          if(count % sqlChunkify == 0):
-            sql = '''
-            INSERT INTO {od_distances} AS o VALUES {values} 
-            ON CONFLICT ({id},dest_class) 
-            DO UPDATE 
-            SET dest_name = EXCLUDED.dest_name,
-                oid       = EXCLUDED.oid,
-                distance  = EXCLUDED.distance,
-                ind_hard  = EXCLUDED.ind_hard
-            WHERE EXCLUDED.distance < o.distance;
-            '''.format(od_distances=od_distances, 
-                        values = ','.join(chunkedLines),
-                        id = origin_pointsID)
-            curs.execute(sql)
-            conn.commit()
+    if origin_point_count > 0:    
+      # Make OD cost matrix layer
+      result_object = arcpy.MakeODCostMatrixLayer_na(in_network_dataset = in_network_dataset, 
+                                                     out_network_analysis_layer = "ODmatrix", 
+                                                     impedance_attribute = "Length", 
+                                                     default_number_destinations_to_find = 1,
+                                                     default_cutoff =  maximum_analysis_distance,
+                                                     UTurn_policy = "ALLOW_UTURNS", 
+                                                     hierarchy = "NO_HIERARCHY", 
+                                                     output_path_shape = "NO_LINES")
+      outNALayer = result_object.getOutput(0)
+      
+      #Get the names of all the sublayers within the service area layer.
+      subLayerNames = arcpy.na.GetNAClassNames(outNALayer)
+      #Store the layer names that we will use later
+      originsLayerName = subLayerNames["Origins"]
+      destinationsLayerName = subLayerNames["Destinations"]
+      linesLayerName = subLayerNames["ODLines"]
+      
+      # you may have to do this later in the script - but try now....
+      ODLinesSubLayer = arcpy.mapping.ListLayers(outNALayer, linesLayerName)[0]
+      fields = ['Name', 'Total_Length']
+      
+      # for destination_points in remaining_dest_list:
+      for destination_points in destination_list:
+        # make destination feature layer
+        arcpy.MakeFeatureLayer_management (destination_points[0], "destination_points_layer") 
+        dest_class = destination_points[1]
+        dest_cutoff_threshold = destination_points[2]
+        destStartTime = time.time()
+        min_size_gr = destination_points[3]
+        sql = '''
+              SELECT gnaf_pid 
+                FROM parcel_dwellings p, 
+                     open_space_areas o 
+               WHERE hex_id = {hex} 
+                 AND o.aos_ha_public > {min_size_gr} 
+                 AND ST_DWithin(p.geom,o.geom,{dest_cutoff_threshold});
+              '''.format(hex=hex,min_size_gr=min_size_gr,dest_cutoff_threshold=dest_cutoff_threshold)
+        curs.execute(sql)
+        parcel_near_pos_list = [x[0] for x in list(curs)]
+        if len(parcel_near_pos_list) > 0:
+          include = '''hex_id = {hex_id} AND {id} IN ('{parcel_near_pos}')'''.format(hex_id = hex, 
+                                                                                      id = origin_pointsID,
+                                                                                      parcel_near_pos=  "','".join(parcel_near_pos_list))
+          # print(include)
+          origin_selection = arcpy.SelectLayerByAttribute_management("origin_points_layer", 
+                          where_clause = include)
+          # OD Matrix Setup
+          arcpy.AddLocations_na(in_network_analysis_layer = outNALayer, 
+              sub_layer                      = originsLayerName, 
+              in_table                       = origin_selection, 
+              field_mappings                 = "Name {} #".format(origin_pointsID), 
+              search_tolerance               = "{} Meters".format(tolerance), 
+              search_criteria                = "{} SHAPE;{} NONE".format(network_edges,network_junctions), 
+              append                         = "CLEAR", 
+              snap_to_position_along_network = "NO_SNAP", 
+              exclude_restricted_elements    = "INCLUDE",
+              search_query                   = "{} #;{} #".format(network_edges,network_junctions))
+          arcpy.AddLocations_na(in_network_analysis_layer = outNALayer, 
+              sub_layer                      = destinationsLayerName, 
+              in_table                       = "destination_points_layer", 
+              field_mappings                 = "Name {} #".format(destination_pointsID), 
+              search_tolerance               = "{} Meters".format(tolerance), 
+              search_criteria                = "{} SHAPE;{} NONE".format(network_edges,network_junctions), 
+              append                         = "CLEAR", 
+              snap_to_position_along_network = "NO_SNAP", 
+              exclude_restricted_elements    = "INCLUDE",
+              search_query                   = "{} #;{} #".format(network_edges,network_junctions))
+          # Process: Solve
+          result = arcpy.Solve_na(outNALayer, terminate_on_solve_error = "CONTINUE")
+          if result[1] != u'false':
+            # Extract lines layer, export to SQL database
+            outputLines = arcpy.da.SearchCursor(ODLinesSubLayer, fields)
+            count = 0
             chunkedLines = list()
-        if(count % sqlChunkify != 0):
-          sql = '''
-          INSERT INTO {od_distances} AS o VALUES {values} 
-          ON CONFLICT ({id},dest_class) 
-          DO UPDATE 
-          SET dest_name = EXCLUDED.dest_name,
-              oid       = EXCLUDED.oid,
-              distance  = EXCLUDED.distance,
-              ind_hard  = EXCLUDED.ind_hard
-          WHERE EXCLUDED.distance < o.distance;
-          '''.format(od_distances=od_distances, 
-                      values = ','.join(chunkedLines),
-                      id = origin_pointsID)
-          curs.execute(sql)
-          conn.commit()
-        writeLog(hex,origin_point_count,dest_class,"Solved",(time.time()-destStartTime)/60)
-    # return worker function as completed once all destinations processed
-    return 0
+            for outputLine in outputLines:
+              count += 1
+              origin_id      = outputLine[0].split('-')[0].strip(' ')
+              dest_id   = outputLine[0].split('-')[1].split(',')
+              dest_name = dest_id[0].strip(' ')
+              dest_id   = dest_id[1].strip(' ')
+              distance  = int(round(outputLine[1]))
+              threshold = float(dest_cutoff_threshold)
+              ind_hard  = int(distance < threshold)
+              chunkedLines.append('''('{point_id}','{d_class}','{d_name}',{d_id},{distance},{threshold},{ind_h})'''.format(point_id  = origin_id,
+                                                                                                                                   d_class = dest_class,
+                                                                                                                                   d_name = dest_name,
+                                                                                                                                   d_id   = dest_id,
+                                                                                                                                   distance  = distance,
+                                                                                                                                   threshold = threshold,
+                                                                                                                                   ind_h  = ind_hard))
+              if(count % sqlChunkify == 0):
+                sql = '''
+                INSERT INTO {od_distances} AS o VALUES {values} 
+                ON CONFLICT ({id},dest_class) 
+                DO UPDATE 
+                SET dest_name = EXCLUDED.dest_name,
+                    oid       = EXCLUDED.oid,
+                    distance  = EXCLUDED.distance,
+                    ind_hard  = EXCLUDED.ind_hard
+                WHERE EXCLUDED.distance < o.distance;
+                '''.format(od_distances=od_distances, 
+                            values = ','.join(chunkedLines),
+                            id = origin_pointsID)
+                curs.execute(sql)
+                conn.commit()
+                chunkedLines = list()
+            if(count % sqlChunkify != 0):
+              sql = '''
+              INSERT INTO {od_distances} AS o VALUES {values} 
+              ON CONFLICT ({id},dest_class) 
+              DO UPDATE 
+              SET dest_name = EXCLUDED.dest_name,
+                  oid       = EXCLUDED.oid,
+                  distance  = EXCLUDED.distance,
+                  ind_hard  = EXCLUDED.ind_hard
+              WHERE EXCLUDED.distance < o.distance;
+              '''.format(od_distances=od_distances, 
+                          values = ','.join(chunkedLines),
+                          id = origin_pointsID)
+              curs.execute(sql)
+              conn.commit()
   except:
     print(sys.exc_info())
 
   finally:
     arcpy.CheckInExtension('Network')
     # Report on progress
-    curs.execute("SELECT count(*) FROM od_closest_pos;".format(log_table))
-    progress = int(list(curs)[0][0]) 
-    progressor(progress,completion_goal,start,"{numerator} / {denominator} parcel-pos combinations processed.".format(numerator = progress,denominator = completion_goal))
+    curs.execute('''UPDATE {progress_table} SET processed = processed+{count}'''.format(progress_table = progress_table,
+                                                                                                 count = origin_point_count))
+    conn.commit()
+    curs.execute('''SELECT processed from {progress_table}'''.format(progress_table = progress_table))
+    progress = int(list(curs)[0][0])
+    progressor(progress,total_parcels,start,"{numerator} / {denominator} parcels processed.".format(numerator = progress,denominator = total_parcels))
     # Close SQL connection
     conn.close()
 
@@ -304,11 +280,7 @@ if __name__ == '__main__':
     print("SQL connection error")
     print(sys.exc_info()[0])
     raise
-   
-  print("Initialise log file..."),
-  writeLog(create='create')
-  print(" Done.")
-  
+    
   print("Setup a pool of workers/child processes and split log output..."),
   # Parallel processing setting
   # (now set as parameter in ind_study_region_matrix xlsx file)
