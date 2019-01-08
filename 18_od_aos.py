@@ -120,7 +120,7 @@ recUpdate      = '''
     DO UPDATE
       SET node = EXCLUDED.node, 
           distance = EXCLUDED.distance 
-       WHERE od_aos.distance > EXCLUDED.distance;
+       WHERE EXCLUDED.distance < od_aos.distance;
   '''.format(id = origin_pointsID.lower())  
  
 parcel_count = int(arcpy.GetCount_management(origin_points).getOutput(0))  
@@ -167,21 +167,21 @@ def ODMatrixWorkerFunction(hex):
     # print(place)   
     B_selection = arcpy.SelectLayerByLocation_management('aos_pointsLayer', 'WITHIN_A_DISTANCE', hex_selection, '3200 Meters')
     B_pointCount = int(arcpy.GetCount_management(B_selection).getOutput(0))
-    #if B_pointCount == 0:  
-    ## ids_without_pos = set(to_do_points)
-    ## # It appears that no parks are accessible, so we record a null value for ids so that if processing
-    ## # recommences this hex will be skipped.  If for some reason an entry for this ID already exists, 
-    ## # no action is taken.
-    ## TO DO THE BELOW, WE NEED TO REMOVE NOT NULL CONSTRAINT
-    ## evaluate_os_intersection = '''
-    ## INSERT INTO od_aos ({id})
-    ## SELECT {id}
-    ## FROM parcel_dwellings p
-    ## WHERE hex_id = {hex};
-    #  # '''.format(id = points_id.lower(),
-    #            # hex = hex[0])
-    ## curs.execute(evaluate_os_intersection)
-    ## conn.commit()        
+    if B_pointCount == 0:  
+      ids_without_pos = set(to_do_points)
+      # It appears that no parks are accessible, so we record a null value for ids so that if processing
+      # recommences this hex will be skipped.  If for some reason an entry for this ID already exists, 
+      # no action is taken.
+      # To side step non-null constrain on AOS ID, we insert -9999 to indicate a no park within 3.2km
+      evaluate_os_intersection = '''
+      INSERT INTO od_aos ({id},aos_id)
+      SELECT {id},-9999
+      FROM parcel_dwellings p
+      WHERE hex_id = {hex};
+       '''.format(id = points_id.lower(),
+                 hex = hex[0])
+      curs.execute(evaluate_os_intersection)
+      conn.commit()        
     if B_pointCount > 0:  
       place = "Buffer intersects AOS, so check if hex intersects also"
       # print(place)
@@ -207,8 +207,7 @@ def ODMatrixWorkerFunction(hex):
         AND ST_Intersects(p.geom,o.geom)
         ON CONFLICT ({id}, aos_id) 
           DO UPDATE
-             SET distance = 0 
-             WHERE od_aos.distance > EXCLUDED.distance;
+             SET distance = 0;
           '''.format(id = points_id.lower(),
                     hex = hex[0])
         curs.execute(evaluate_os_intersection)
