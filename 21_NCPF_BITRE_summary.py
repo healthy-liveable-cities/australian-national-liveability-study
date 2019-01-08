@@ -43,10 +43,10 @@ SELECT a.mb_code_2016,
 	   a.dwelling * AVG(COALESCE(pos_large.ind_hard,0))            AS dw_w_pos_large
 FROM parcel_dwellings p
 LEFT JOIN abs_linkage a ON p.mb_code_20 = a.mb_code_2016
-LEFT JOIN (SELECT * FROM od_closest     WHERE dest_class  = 'gtfs_2018_stops') pt_any   ON p.gnaf_pid = pt_any.gnaf_pid 
+LEFT JOIN (SELECT * FROM od_closest     WHERE dest_class = 'gtfs_2018_stops') pt_any   ON p.gnaf_pid = pt_any.gnaf_pid 
 LEFT JOIN (SELECT * FROM od_closest     WHERE dest_class = 'gtfs_2018_stop_30_mins_final') pt_freq  ON p.gnaf_pid = pt_freq.gnaf_pid 
-LEFT JOIN (SELECT * FROM od_closest_pos WHERE dest_name = 'aos_nodes_30m_pos_any') pos_any ON p.gnaf_pid = pos_any.gnaf_pid 
-LEFT JOIN (SELECT * FROM od_closest_pos WHERE dest_name ='aos_nodes_30m_pos_large') pos_large ON p.gnaf_pid = pos_large.gnaf_pid 
+LEFT JOIN (SELECT * FROM od_closest_pos WHERE dest_class = 'any') pos_any ON p.gnaf_pid = pos_any.gnaf_pid 
+LEFT JOIN (SELECT * FROM od_closest_pos WHERE dest_class = 'large') pos_large ON p.gnaf_pid = pos_large.gnaf_pid 
 WHERE NOT EXISTS (SELECT 1 
                     FROM excluded_parcels x 
                    WHERE x.gnaf_pid = p.gnaf_pid)

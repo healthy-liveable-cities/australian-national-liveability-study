@@ -54,7 +54,7 @@ for region in sys.argv[1:]:
 
     print("    - Create table of POS NCPF parcel estimates (ind_pos_access_ncpf)... "),
     # Get a list of destinations processed within this region for distance to closest
-    sql = '''SELECT DISTINCT(dest_name) FROM od_closest_pos ORDER BY dest_name;'''
+    sql = '''SELECT DISTINCT(dest_class) FROM od_closest_pos ORDER BY dest_name;'''
     curs.execute(sql)
     categories = [x[0] for x in curs.fetchall()]
     category_list = ','.join(categories)
@@ -63,14 +63,14 @@ for region in sys.argv[1:]:
     DROP TABLE IF EXISTS ind_pos_access_ncpf;
     CREATE TABLE ind_pos_access_ncpf AS
     SELECT p.gnaf_pid, 
-           COALESCE(aos_nodes_30m_pos_any,0) AS access_pos_any_400m,
-           COALESCE(aos_nodes_30m_pos_large,0) AS access_pos_large_400m,
+           COALESCE(any,0) AS access_pos_any_400m,
+           COALESCE(large,0) AS access_pos_large_400m,
            p.geom
     FROM parcel_dwellings p
     LEFT JOIN 
     (SELECT *
       FROM   crosstab(
-       'SELECT gnaf_pid, dest_name, ind_hard
+       'SELECT gnaf_pid, dest_class, ind_hard
         FROM   od_closest_pos
         ORDER  BY 1,2'  -- could also just be "ORDER BY 1" here
       ,$$SELECT unnest('{curly_o}{category_list}{curly_c}'::text[])$$
