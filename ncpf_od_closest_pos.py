@@ -118,6 +118,7 @@ queryUpdate      = '''
 # Worker/Child PROCESS
 def ODMatrixWorkerFunction(hex): 
   try:
+    arcpy.CheckOutExtension('Network')
     # Connect to SQL database 
     conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
     curs = conn.cursor()  
