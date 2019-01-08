@@ -35,64 +35,6 @@ print('''
 Preparing National Cities Performance Framework summary for {subset_location}, a subset of {locale}.
 '''.format(subset_location = subset_location, locale = locale))
 
-summarise_parcel_no_results = ['''
-SELECT '{region}' AS region, 
-       sos_name_2016,
-       COUNT(*) AS gtfs_result 
-  FROM parcel_sos 
- WHERE gnaf_pid IN (SELECT DISTINCT(o.gnaf_pid) 
-                      FROM od_closest o 
-                 LEFT JOIN non_abs_linkage s 
-                        ON o.gnaf_pid = s.gnaf_pid 
-                     WHERE lga_name_2016 IN ({subset})
-                       AND dest_name = 'gtfs_2018_stops') 
- GROUP BY sos_name_2016;
-'''.format(region = subset_location, subset = subset_list),
-'''
-SELECT '{region}' AS region, 
-       sos_name_2016, 
-       COUNT(*) AS gtfs_no_result 
- FROM parcel_sos WHERE gnaf_pid NOT IN (SELECT DISTINCT(o.gnaf_pid) 
-                      FROM od_closest o 
-                 LEFT JOIN non_abs_linkage s 
-                        ON o.gnaf_pid = s.gnaf_pid 
-                     WHERE lga_name_2016 IN ({subset})
-                       AND dest_name = 'gtfs_2018_stops') 
- GROUP BY sos_name_2016;
-'''.format(region = subset_location, subset = subset_list),
-'''
-SELECT '{region}' AS region, 
-       sos_name_2016, 
-       COUNT(*) AS pos_result 
-  FROM parcel_sos 
- WHERE gnaf_pid IN (SELECT DISTINCT(o.gnaf_pid) 
-                      FROM od_aos_jsonb o 
-                 LEFT JOIN non_abs_linkage s 
-                        ON o.gnaf_pid = s.gnaf_pid 
-                     WHERE lga_name_2016 IN ({subset})) 
-GROUP BY sos_name_2016;
-'''.format(region = subset_location, subset = subset_list),
-'''
-SELECT '{region}' AS region, 
-       sos_name_2016, 
-       COUNT(*) AS pos_no_result 
-  FROM parcel_sos 
- WHERE gnaf_pid NOT IN (SELECT DISTINCT(o.gnaf_pid) 
-                          FROM od_aos_jsonb o 
-                     LEFT JOIN non_abs_linkage s 
-                            ON o.gnaf_pid = s.gnaf_pid 
-                         WHERE lga_name_2016 IN ({subset})) 
-GROUP BY sos_name_2016;
-'''.format(region = subset_location, subset = subset_list)]                                                                
-                                                                 
-print("\n Nulls for sample points (GNAF parcels) by indicator and Section of state")
-for res in summarise_parcel_no_results:
-  summary = pandas.read_sql_query(res,con=engine)
-  if len(summary) != 0:
-    print(summary)
-  if len(summary) == 0:
-    print("No result for: {}\n".format(res))
-
 # connect to postgresql database    
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()
@@ -103,45 +45,22 @@ CREATE TABLE ncpf_mb_{subset_location} AS
 SELECT a.mb_code_2016, 
 	   a.dwelling,
 	   a.person,
-	   a.dwelling * AVG((pt_any.distance < 400)::int) AS dw_w_pt_any,
-	   a.dwelling * AVG((pt_freq.distance < 400)::int) AS dw_w_pt_freq,
-	   a.dwelling * AVG(any_pos)                    AS dw_w_pos_any,
-	   a.dwelling * AVG(large_pos)                  AS dw_w_pos_large
+       -- note: the 'ind_hard' variable has already been evaluated against 400m for POS indicators
+       -- Also, nulls signify no access, hence these are coalesced to be included as zero
+	   a.dwelling * AVG(COALESCE((pt_any.distance < 400)::int,0))  AS dw_w_pt_any,
+	   a.dwelling * AVG(COALESCE((pt_freq.distance < 400)::int,0)) AS dw_w_pt_freq,
+	   a.dwelling * AVG(COALESCE(pos_any.ind_hard,0))              AS dw_w_pos_any,
+	   a.dwelling * AVG(COALESCE(pos_large.ind_hard,0))            AS dw_w_pos_large
 FROM parcel_dwellings p
-LEFT JOIN non_abs_linkage s ON p.gnaf_pid = s.gnaf_pid
 LEFT JOIN abs_linkage a ON p.mb_code_20 = a.mb_code_2016
-LEFT JOIN od_closest pt_any   ON p.gnaf_pid = pt_any.gnaf_pid 
-LEFT JOIN od_closest pt_freq  ON p.gnaf_pid = pt_freq.gnaf_pid 
-LEFT JOIN (SELECT p.gnaf_pid, COALESCE((min(distance) < 400)::int,0) AS any_pos
-             FROM parcel_dwellings p
-             LEFT JOIN 
-             (SELECT gnaf_pid,
-                    (obj->>'aos_id')::int AS aos_id,
-                    (obj->>'distance')::int AS distance
-              FROM od_aos_jsonb,
-                   jsonb_array_elements(attributes) obj) o ON p.gnaf_pid = o.gnaf_pid
-             LEFT JOIN open_space_areas pos ON o.aos_id = pos.aos_id
-                 WHERE pos.aos_id IS NOT NULL
-                   AND aos_ha_public > 0
-             GROUP BY p.gnaf_pid) pos_any ON p.gnaf_pid = pos_any.gnaf_pid
-LEFT JOIN (SELECT p.gnaf_pid, COALESCE((min(distance) < 400)::int,0) AS large_pos
-             FROM parcel_dwellings p
-             LEFT JOIN 
-             (SELECT gnaf_pid,
-                    (obj->>'aos_id')::int AS aos_id,
-                    (obj->>'distance')::int AS distance
-              FROM od_aos_jsonb,
-                   jsonb_array_elements(attributes) obj) o ON p.gnaf_pid = o.gnaf_pid
-             LEFT JOIN open_space_areas pos ON o.aos_id = pos.aos_id
-                 WHERE pos.aos_id IS NOT NULL
-                   AND aos_ha_public > 1.5
-             GROUP BY p.gnaf_pid) pos_large ON p.gnaf_pid = pos_large.gnaf_pid
+LEFT JOIN (SELECT * FROM od_closest     WHERE dest_class = 'gtfs_2018_stops') pt_any   ON p.gnaf_pid = pt_any.gnaf_pid 
+LEFT JOIN (SELECT * FROM od_closest     WHERE dest_class = 'gtfs_2018_stop_30_mins_final') pt_freq  ON p.gnaf_pid = pt_freq.gnaf_pid 
+LEFT JOIN (SELECT * FROM od_closest_pos WHERE dest_class = 'any') pos_any ON p.gnaf_pid = pos_any.gnaf_pid 
+LEFT JOIN (SELECT * FROM od_closest_pos WHERE dest_class = 'large') pos_large ON p.gnaf_pid = pos_large.gnaf_pid 
 WHERE lga_name_2016 IN ({subset}) 
      AND NOT EXISTS (SELECT 1 
                     FROM excluded_parcels x 
                    WHERE x.gnaf_pid = p.gnaf_pid)
-     AND pt_any.dest_class ='gtfs_2018_stops'
-     AND pt_freq.dest_class ='gtfs_2018_stop_30_mins_final'
 GROUP BY mb_code_2016, dwelling, person;
 '''.format(subset_location = subset_location, subset = subset_list)                                                              
 print("Create NCPF mesh block results... "),
