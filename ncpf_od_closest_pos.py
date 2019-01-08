@@ -272,7 +272,7 @@ def ODMatrixWorkerFunction(hex):
                       id = origin_pointsID)
           curs.execute(sql)
           conn.commit()
-        writeLog(hex,origin_point_count,dest_name,"Solved",(time.time()-destStartTime)/60)
+        writeLog(hex,origin_point_count,dest_class,"Solved",(time.time()-destStartTime)/60)
     # return worker function as completed once all destinations processed
     return 0
   except:
