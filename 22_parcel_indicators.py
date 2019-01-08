@@ -39,9 +39,9 @@ category_types = '"{}" int'.format('" int, "'.join(categories))
 
 # get the set of distance to closest regions which match for this region
 destinations = df_inds[df_inds['ind'].str.contains('destinations')]
-destinations = destinations[destinations['ind_plain']=="distance_m_{}".format('|distance_m_'.join(categories))]
-ind_matrix = ind_matrix.append(destinations)
-
+current_categories = [x for x in categories if 'distance_m_{}'.format(x) in destinations.ind_plain.str.encode('utf8').tolist()]
+ind_matrix = ind_matrix.append(destinations[destinations['ind_plain'].str.replace('distance_m_','').str.contains('|'.join(current_categories))])
+ind_matrix['order'] = ind_matrix.index
 ind_soft = ind_matrix[ind_matrix['tags']=="_{threshold}"]
 for var in ['tags','unit_level_description','aggregate_description','data_sources','Query','Source']:
   ind_soft[var][ind_soft[var]=='_{threshold}'].str.replace('{threshold}','soft')
@@ -63,8 +63,10 @@ ind_matrix.drop(ind_matrix[ind_matrix['updated?'] == 'n'].index, inplace=True)
 # or other keywords (policy, binary, obsolete, planned --- i don't know, whatever)
 # These tags are tacked on the end of the ind name seperated with underscores
 ind_matrix['indicators'] = ind_matrix['ind'] + ind_matrix['tags'].fillna('')
-
+# ind_matrix['sort_cat'] = pandas.Categorical(ind_matrix['ind'], categories=mylist, ordered=True)
+# ind_matrix.sort_values('sort_cat', inplace=True)
 # Compile list of indicators
+ind_matrix.sort_values('order', inplace='true')
 ind_list = ind_matrix['indicators'].tolist()
 
 # Compile string of queries, and of unique sources to plug in SQL table creation query
@@ -75,7 +77,7 @@ ind_sources = '\n'.join(ind_matrix['Source'].unique())
 null_query_summary = ',\n'.join("SUM(" + ind_matrix['indicators'] + " IS NULL::int) AS " + ind_matrix['indicators'])
 null_query_combined = '+\n'.join("(" + ind_matrix['indicators'] + " IS NULL::int)")
 
-print("Create summary table of destination... "),
+print("Create summary table of destination distances... "),
 crosstab = '''
 DROP TABLE IF EXISTS dest_distance_m;
 CREATE TABLE dest_distance_m AS
