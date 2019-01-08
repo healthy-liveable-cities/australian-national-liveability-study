@@ -55,11 +55,11 @@ destination_pointsID = 'aos_entryid'
 ## Note - this used to be 'dist_cl_od_parcel_dest' --- simplified to 'od_closest'
 od_distances  = "od_closest_pos"
 log_table    = "log_od_distances_pos"
-maximum_analysis_distance = 500
+maximum_analysis_distance = 400
 
 queryPartA = "INSERT INTO {} VALUES ".format(od_distances)
 hexStart = 0
-sqlChunkify = 500
+sqlChunkify = 1000
   
 # initiate postgresql connection
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
@@ -76,7 +76,7 @@ pid = multiprocessing.current_process().name
 
 # Define query to create table
 createTable     = '''
-  --DROP TABLE IF EXISTS {0};
+  DROP TABLE IF EXISTS {0};
   CREATE TABLE IF NOT EXISTS {0}
   ({1} varchar NOT NULL ,
    dest_class varchar NOT NULL ,
@@ -85,7 +85,6 @@ createTable     = '''
    distance integer NOT NULL, 
    threshold  int,
    ind_hard   int,
-   ind_soft   double precision,
    PRIMARY KEY({1},dest_class)
    );
    '''.format(od_distances, origin_pointsID)
@@ -95,7 +94,7 @@ queryPartA      = '''
   '''.format(od_distances)
 
 createTable_log     = '''
-  --DROP TABLE IF EXISTS {0};
+  DROP TABLE IF EXISTS {0};
   CREATE TABLE IF NOT EXISTS {0}
     (hex integer NOT NULL, 
     parcel_count integer NOT NULL, 
@@ -193,7 +192,6 @@ def ODMatrixWorkerFunction(hex):
     for destination_points in remaining_dest_list:
       # make destination feature layer
       arcpy.MakeFeatureLayer_management (destination_points[0], "destination_points_layer") 
-      dest_name = destination_points[0]
       dest_class = destination_points[1]
       dest_cutoff_threshold = destination_points[2]
       destStartTime = time.time()
@@ -221,7 +219,7 @@ def ODMatrixWorkerFunction(hex):
       # Process: Solve
       result = arcpy.Solve_na(outNALayer, terminate_on_solve_error = "CONTINUE")
       if result[1] == u'false':
-        writeLog(hex,origin_point_count,dest_name,"no solution",(time.time()-destStartTime)/60)
+        writeLog(hex,origin_point_count,dest_class,"no solution",(time.time()-destStartTime)/60)
       else:
         # Extract lines layer, export to SQL database
         outputLines = arcpy.da.SearchCursor(ODLinesSubLayer, fields)
@@ -231,20 +229,18 @@ def ODMatrixWorkerFunction(hex):
           count += 1
           origin_id      = outputLine[0].split('-')[0].strip(' ')
           dest_id   = outputLine[0].split('-')[1].split(',')
-          dest_class = dest_id[0].strip(' ')
+          dest_name = dest_id[0].strip(' ')
           dest_id   = dest_id[1].strip(' ')
           distance  = int(round(outputLine[1]))
           threshold = float(dest_cutoff_threshold)
           ind_hard  = int(distance < threshold)
-          ind_soft = 1 - 1.0 / (1+np.exp(-soft_threshold_slope*(distance-threshold)/threshold))
-          chunkedLines.append('''('{point_id}','{d_class}','{d_name}',{d_id},{distance},{threshold},{ind_h},{ind_s})'''.format(point_id  = origin_id,
+          chunkedLines.append('''('{point_id}','{d_class}','{d_name}',{d_id},{distance},{threshold},{ind_h})'''.format(point_id  = origin_id,
                                                                                                                                d_class = dest_class,
                                                                                                                                d_name = dest_name,
                                                                                                                                d_id   = dest_id,
                                                                                                                                distance  = distance,
                                                                                                                                threshold = threshold,
-                                                                                                                               ind_h  = ind_hard,
-                                                                                                                               ind_s  = ind_soft))
+                                                                                                                               ind_h  = ind_hard))
           if(count % sqlChunkify == 0):
             sql = '''
             INSERT INTO {od_distances} AS o VALUES {values} 
@@ -253,8 +249,7 @@ def ODMatrixWorkerFunction(hex):
             SET dest_name = EXCLUDED.dest_name,
                 oid       = EXCLUDED.oid,
                 distance  = EXCLUDED.distance,
-                ind_hard  = EXCLUDED.ind_hard,
-                ind_soft  = EXCLUDED.ind_soft
+                ind_hard  = EXCLUDED.ind_hard
             WHERE EXCLUDED.distance < o.distance;
             '''.format(od_distances=od_distances, 
                         values = ','.join(chunkedLines),
@@ -270,8 +265,7 @@ def ODMatrixWorkerFunction(hex):
           SET dest_name = EXCLUDED.dest_name,
               oid       = EXCLUDED.oid,
               distance  = EXCLUDED.distance,
-              ind_hard  = EXCLUDED.ind_hard,
-              ind_soft  = EXCLUDED.ind_soft
+              ind_hard  = EXCLUDED.ind_hard
           WHERE EXCLUDED.distance < o.distance;
           '''.format(od_distances=od_distances, 
                       values = ','.join(chunkedLines),
