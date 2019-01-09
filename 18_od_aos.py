@@ -161,14 +161,11 @@ def ODMatrixWorkerFunction(hex):
     # process ids in groups of 500 or fewer
     place = 'before hex selection'
     hex_selection = arcpy.SelectLayerByAttribute_management("hex_layer", where_clause = 'OBJECTID = {}'.format(hex[0]))
-    ids_with_pos    = set([])
-    ids_without_pos = set([])
     place = 'before skip empty B hexes'
     # print(place)   
     B_selection = arcpy.SelectLayerByLocation_management('aos_pointsLayer', 'WITHIN_A_DISTANCE', hex_selection, '3200 Meters')
     B_pointCount = int(arcpy.GetCount_management(B_selection).getOutput(0))
     if B_pointCount == 0:  
-      ids_without_pos = set(to_do_points)
       # It appears that no parks are accessible, so we record a null value for ids so that if processing
       # recommences this hex will be skipped.  If for some reason an entry for this ID already exists, 
       # no action is taken.
@@ -317,7 +314,6 @@ def JSON_agg_function(hex):
   hex = hex[0]
   to_do_points = hex[1]  
   A_pointCount = len(to_do_points)    
-  
   
 # MAIN PROCESS
 if __name__ == '__main__':
