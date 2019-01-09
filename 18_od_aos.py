@@ -97,7 +97,7 @@ if pid !='MainProcess':
 # by minimum distance to an entry node
 recInsert      = '''
   INSERT INTO {table} ({id}, aos_id, node, distance)  
-  SELECT DISTINCT ON (gnaf_pid, aos_id) gnaf_pid, aos_id, node, min(distance) AS distance
+  SELECT DISTINCT ON (gnaf_pid, aos_id) gnaf_pid, aos_id, node, distance
    FROM  
    (VALUES 
   '''.format(id = origin_pointsID.lower(),
@@ -115,7 +115,7 @@ recInsert      = '''
 # required distance
 recUpdate      = '''
   ) v({id}, aos_id, node, distance) 
-  GROUP BY {id},aos_id, node
+  ORDER BY gnaf_pid, aos_id, distance ASC 
   ON CONFLICT ({id}, aos_id) 
     DO UPDATE
       SET node = EXCLUDED.node, 
