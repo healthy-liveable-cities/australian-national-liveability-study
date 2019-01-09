@@ -66,7 +66,7 @@ ind_matrix['indicators'] = ind_matrix['ind'] + ind_matrix['tags'].fillna('')
 # ind_matrix['sort_cat'] = pandas.Categorical(ind_matrix['ind'], categories=mylist, ordered=True)
 # ind_matrix.sort_values('sort_cat', inplace=True)
 # Compile list of indicators
-ind_matrix.sort_values('order', inplace='true')
+ind_matrix.sort_values('order', inplace=True)
 ind_list = ind_matrix['indicators'].tolist()
 
 # Compile string of queries, and of unique sources to plug in SQL table creation query
