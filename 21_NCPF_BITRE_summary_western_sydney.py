@@ -40,7 +40,7 @@ conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()
 
 create_ncpf_mb_indicators = '''
-DROP TABLE IF EXISTS ncpf_mb_{subset_location};
+DROP TABLE IF EXISTS ncpf_mb2_{subset_location};
 CREATE TABLE ncpf_mb_{subset_location} AS
 SELECT a.mb_code_2016, 
 	   a.dwelling,
@@ -49,14 +49,13 @@ SELECT a.mb_code_2016,
        -- Also, nulls signify no access, hence these are coalesced to be included as zero
 	   a.dwelling * AVG(COALESCE((pt_any.distance < 400)::int,0))  AS dw_w_pt_any,
 	   a.dwelling * AVG(COALESCE((pt_freq.distance < 400)::int,0)) AS dw_w_pt_freq,
-	   a.dwelling * AVG(COALESCE(pos_any.ind_hard,0))              AS dw_w_pos_any,
-	   a.dwelling * AVG(COALESCE(pos_large.ind_hard,0))            AS dw_w_pos_large
+	   a.dwelling * AVG(pos_400m_ncpf.any) AS dw_w_pos_any,
+	   a.dwelling * AVG(pos_400m_ncpf.large) AS dw_w_pos_large
 FROM parcel_dwellings p
 LEFT JOIN abs_linkage a ON p.mb_code_20 = a.mb_code_2016
 LEFT JOIN (SELECT * FROM od_closest     WHERE dest_class = 'gtfs_2018_stops') pt_any   ON p.gnaf_pid = pt_any.gnaf_pid 
 LEFT JOIN (SELECT * FROM od_closest     WHERE dest_class = 'gtfs_2018_stop_30_mins_final') pt_freq  ON p.gnaf_pid = pt_freq.gnaf_pid 
-LEFT JOIN (SELECT * FROM od_closest_pos WHERE dest_class = 'any') pos_any ON p.gnaf_pid = pos_any.gnaf_pid 
-LEFT JOIN (SELECT * FROM od_closest_pos WHERE dest_class = 'large') pos_large ON p.gnaf_pid = pos_large.gnaf_pid 
+LEFT JOIN pos_400m_ncpf ON p.gnaf_pid = pos_400m_ncpf.gnaf_pid 
 WHERE lga_name_2016 IN ({subset}) 
      AND NOT EXISTS (SELECT 1 
                     FROM excluded_parcels x 
@@ -69,7 +68,7 @@ conn.commit()
 print("Done.")
 
 create_ncpf_region_summary = '''
-DROP TABLE IF EXISTS ncpf_region_{subset_location};
+DROP TABLE IF EXISTS ncpf_region2_{subset_location};
 CREATE TABLE ncpf_region_{subset_location} AS
 SELECT SUM(dwelling)::int AS dwellings,
 	   SUM(person)::int   AS persons,
@@ -84,10 +83,10 @@ curs.execute(create_ncpf_region_summary)
 conn.commit()
 print("Done.")
 
-summary = pandas.read_sql_query('''SELECT * FROM ncpf_region_{subset_location}'''.format(subset_location = subset_location),con=engine)
+summary = pandas.read_sql_query('''SELECT * FROM ncpf_region2_{subset_location}'''.format(subset_location = subset_location),con=engine)
 print(summary)
 values = [subset_location] + summary.values.tolist()[0]
-output = os.path.join(folderPath,'ncpf_region_summary_{}_{}.csv'.format(responsible[locale],today))
+output = os.path.join(folderPath,'ncpf_region2_summary_{}_{}.csv'.format(responsible[locale],today))
 header = '''{},{},{},{},{},{},{}\n'''.format('locale','Dwellings','Persons','% PT (any)','% PT (frequent)','% POS (any)','% POS (large)')
 
 if not os.path.exists(output):

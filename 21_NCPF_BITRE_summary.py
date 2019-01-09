@@ -74,10 +74,10 @@ curs.execute(create_ncpf_region_summary)
 conn.commit()
 print("Done.")
 
-summary = pandas.read_sql_query('''SELECT * FROM ncpf_region''',con=engine)
+summary = pandas.read_sql_query('''SELECT * FROM ncpf_region2''',con=engine)
 print(summary)
 values = [locale] + summary.values.tolist()[0]
-output = os.path.join(folderPath,'ncpf_region_summary_{}_{}.csv'.format(responsible[locale],today))
+output = os.path.join(folderPath,'ncpf_region2_summary_{}_{}.csv'.format(responsible[locale],today))
 header = '''{},{},{},{},{},{},{}\n'''.format('locale','Dwellings','Persons','% PT (any)','% PT (frequent)','% POS (any)','% POS (large)')
 
 if not os.path.exists(output):
