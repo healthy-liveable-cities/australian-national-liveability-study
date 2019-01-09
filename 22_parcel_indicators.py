@@ -42,8 +42,8 @@ destinations = df_inds[df_inds['ind'].str.contains('destinations')]
 current_categories = [x for x in categories if 'distance_m_{}'.format(x) in destinations.ind_plain.str.encode('utf8').tolist()]
 ind_matrix = ind_matrix.append(destinations[destinations['ind_plain'].str.replace('distance_m_','').str.contains('|'.join(current_categories))])
 ind_matrix['order'] = ind_matrix.index
-ind_soft = ind_matrix.loc[ind_matrix.tags=='_{threshold}',:]
-ind_hard = ind_matrix.loc[ind_matrix.tags=='_{threshold}',:]
+ind_soft = ind_matrix.loc[ind_matrix.tags=='_{threshold}',:].copy()
+ind_hard = ind_matrix.loc[ind_matrix.tags=='_{threshold}',:].copy()
 ind_soft.replace(to_replace='{threshold}', value='soft', inplace=True,regex=True)
 ind_hard.replace(to_replace='{threshold}', value='hard', inplace=True,regex=True)
 
