@@ -28,11 +28,12 @@ createTable_exclusions     = '''
   DROP TABLE IF EXISTS excluded_parcels;
   CREATE TABLE excluded_parcels
   ({id} varchar NOT NULL,
+    geom geometry,
     indicator varchar NOT NULL,  
   PRIMARY KEY({id},indicator));
   '''.format(id = points_id.lower())
 
-insert = "INSERT INTO excluded_parcels SELECT a.{id}, ".format(id = points_id.lower())
+insert = "INSERT INTO excluded_parcels SELECT a.{id},a.geom, ".format(id = points_id.lower())
 table = "\nFROM parcel_dwellings AS a \nLEFT JOIN "
 match = " AS b \nON a.{id} = b.{id}  \nWHERE ".format(id = points_id.lower())
 null = " IS NULL ON CONFLICT ({id},indicator) DO NOTHING ".format(id = points_id.lower())

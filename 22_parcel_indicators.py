@@ -42,15 +42,10 @@ destinations = df_inds[df_inds['ind'].str.contains('destinations')]
 current_categories = [x for x in categories if 'distance_m_{}'.format(x) in destinations.ind_plain.str.encode('utf8').tolist()]
 ind_matrix = ind_matrix.append(destinations[destinations['ind_plain'].str.replace('distance_m_','').str.contains('|'.join(current_categories))])
 ind_matrix['order'] = ind_matrix.index
-ind_soft = ind_matrix[ind_matrix['tags']=="_{threshold}"]
-for var in ['tags','unit_level_description','aggregate_description','data_sources','Query','Source']:
-  ind_soft[var][ind_soft[var]=='_{threshold}'].str.replace('{threshold}','soft')
-  #ind_soft[var] = ind_soft[var].str.replace('{threshold}','soft')
-
-ind_hard = ind_matrix[ind_matrix['tags']=="_{threshold}"]
-for var in ['tags','unit_level_description','aggregate_description','data_sources','Query','Source']:
-  ind_hard[var][ind_hard[var]=='_{threshold}'].str.replace('{threshold}','hard')
-  #ind_hard[var] = ind_hard[var].str.replace('{threshold}','hard')
+ind_soft = ind_matrix.loc[ind_matrix.tags=='_{threshold}',:]
+ind_hard = ind_matrix.loc[ind_matrix.tags=='_{threshold}',:]
+ind_soft.replace(to_replace='{threshold}', value='soft', inplace=True,regex=True)
+ind_hard.replace(to_replace='{threshold}', value='hard', inplace=True,regex=True)
 
 ind_matrix = pandas.concat([ind_matrix,ind_soft,ind_hard], ignore_index=True).sort_values('ind')
 ind_matrix.drop(ind_matrix[ind_matrix.tags == '_{threshold}'].index, inplace=True)
