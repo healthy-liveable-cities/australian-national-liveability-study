@@ -77,7 +77,7 @@ SELECT SUM(dwelling)::int AS dwellings,
 	   ROUND((100*SUM(dw_w_pt_freq  )/SUM(dwelling))::numeric, 2) AS pct_pt_freq  ,
 	   ROUND((100*SUM(dw_w_pos_any  )/SUM(dwelling))::numeric, 2) AS pct_pos_any  ,
 	   ROUND((100*SUM(dw_w_pos_large)/SUM(dwelling))::numeric, 2) AS pct_pos_large
-FROM ncpf_mb_{subset_location};
+FROM ncpf_mb2_{subset_location};
 '''.format(subset_location = subset_location)                                                             
 print("Create NCPF region results... "),
 curs.execute(create_ncpf_region_summary)
