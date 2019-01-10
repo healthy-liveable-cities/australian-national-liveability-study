@@ -52,6 +52,7 @@ SELECT a.mb_code_2016,
 	   a.dwelling * AVG(pos_400m_ncpf.any) AS dw_w_pos_any,
 	   a.dwelling * AVG(pos_400m_ncpf.large) AS dw_w_pos_large
 FROM parcel_dwellings p
+LEFT JOIN non_abs_linkage s ON p.gnaf_pid = s.gnaf_pid
 LEFT JOIN abs_linkage a ON p.mb_code_20 = a.mb_code_2016
 LEFT JOIN (SELECT * FROM od_closest     WHERE dest_class = 'gtfs_2018_stops') pt_any   ON p.gnaf_pid = pt_any.gnaf_pid 
 LEFT JOIN (SELECT * FROM od_closest     WHERE dest_class = 'gtfs_2018_stop_30_mins_final') pt_freq  ON p.gnaf_pid = pt_freq.gnaf_pid 

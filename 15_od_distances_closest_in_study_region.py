@@ -161,11 +161,11 @@ def ODMatrixWorkerFunction(hex):
   try:    
     # identify any points from this hex without a sausage buffer; lets not consider them
     exclude_points = ""
-    sql = '''SELECT gnaf_pid FROM no_sausage WHERE hex_id = {}'''.format(hex)
-    curs.execute(sql)
-    if len(list(curs)) > 0:
-      exclude_points = '''AND {id} NOT IN ('{exclude}')'''.format(id = origin_pointsID,
-                                                                  exclude = '.'.join([x[0] for x in list(curs)]))
+    # sql = '''SELECT gnaf_pid FROM no_sausage WHERE hex_id = {}'''.format(hex)
+    # curs.execute(sql)
+    # if len(list(curs)) > 0:
+      # exclude_points = '''AND {id} NOT IN ('{exclude}')'''.format(id = origin_pointsID,
+                                                                  # exclude = ','.join([x[0] for x in list(curs)]))
     # select origin points 
     arcpy.MakeFeatureLayer_management (origin_points, "origin_points_layer")
     origin_selection = arcpy.SelectLayerByAttribute_management("origin_points_layer", 
@@ -316,10 +316,10 @@ if __name__ == '__main__':
   # Task name is now defined
   task = 'Find closest of each destination type to origin'  # Do stuff
   print("Commencing task ({}): {} at {}".format(db,task,time.strftime("%Y%m%d-%H%M%S")))
-  print('''
-  Please note that this script assumes sausage buffers have previously been calculated, 
-  drawing upon the 'no_sausage' table to exclude any points listed there from consideration.
-  ''')
+  # print('''
+  # Please note that this script assumes sausage buffers have previously been calculated, 
+  # drawing upon the 'no_sausage' table to exclude any points listed there from consideration.
+  # ''')
   try:
     conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
     curs = conn.cursor()
@@ -340,7 +340,6 @@ if __name__ == '__main__':
   print("Setup a pool of workers/child processes and split log output..."),
   # Parallel processing setting
   # (now set as parameter in ind_study_region_matrix xlsx file)
-  # nWorkers = 7  
   pool = multiprocessing.Pool(processes=nWorkers)
   print(" Done.")
 
