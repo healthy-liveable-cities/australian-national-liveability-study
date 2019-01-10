@@ -41,7 +41,7 @@ curs = conn.cursor()
 
 create_ncpf_mb_indicators = '''
 DROP TABLE IF EXISTS ncpf_mb2_{subset_location};
-CREATE TABLE ncpf_mb_{subset_location} AS
+CREATE TABLE ncpf_mb2_{subset_location} AS
 SELECT a.mb_code_2016, 
 	   a.dwelling,
 	   a.person,
@@ -70,7 +70,7 @@ print("Done.")
 
 create_ncpf_region_summary = '''
 DROP TABLE IF EXISTS ncpf_region2_{subset_location};
-CREATE TABLE ncpf_region_{subset_location} AS
+CREATE TABLE ncpf_region2_{subset_location} AS
 SELECT SUM(dwelling)::int AS dwellings,
 	   SUM(person)::int   AS persons,
 	   ROUND((100*SUM(dw_w_pt_any   )/SUM(dwelling))::numeric, 2) AS pct_pt_any   ,
