@@ -377,6 +377,7 @@ if __name__ == '__main__':
   remaining_hex_list = [int(x[0]) for x in list(curs)]
   
   # Setup a pool of workers/child processes and split log output
+  nWorkers = 5
   pool = multiprocessing.Pool(nWorkers)
   
   # Divide work by hexes
