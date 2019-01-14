@@ -339,7 +339,7 @@ if __name__ == '__main__':
       curs.execute(mark_incorrect_sql)
       conn.commit()
       print("Done.")
-      curs.execute('''SELECT 1 WHERE to_regclass('public.od_aos_incorrect') IS NOT NULL AND to_regclass('public.od_aos_jsonb_incorrect') IS NOT NULL AND to_regclass('public.od_aos_progress_incorrect') IS NOT NULL;''')
+    curs.execute('''SELECT 1 WHERE to_regclass('public.od_aos_incorrect') IS NOT NULL AND to_regclass('public.od_aos_jsonb_incorrect') IS NOT NULL AND to_regclass('public.od_aos_progress_incorrect') IS NOT NULL;''')
     res = curs.fetchone()
     if res is None:
       print("At least one of these tables still does not exist, which implies at least one wasn't calculated in the first instance; or they have been manually renamed to something else, or deleted. So, we create an empty 'incorrect' table just to mark that we have checked no incorrect results persist unmarked as being incorrect")
