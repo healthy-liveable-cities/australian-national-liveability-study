@@ -48,7 +48,7 @@ hexStart = 0
 
 # SQL Settings
 sqlTableName  = "od_aos"
-sqlChunkify = 500
+sqlChunkify = 600
         
 # initiate postgresql connection
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
