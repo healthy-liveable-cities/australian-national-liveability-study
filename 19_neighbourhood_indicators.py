@@ -27,7 +27,7 @@ CREATE OR REPLACE FUNCTION threshold_hard(in int, in int, out int)
     AS $$ SELECT ($1 < $2)::int $$
     LANGUAGE SQL;
 
-CREATE OR REPLACE FUNCTION threshold_soft_test(distance int, threshold int) returns double precision AS 
+CREATE OR REPLACE FUNCTION threshold_soft(distance int, threshold int) returns double precision AS 
 $$
 BEGIN
   -- We check to see if the value we are exponentiation is more or less than 100; if so,
