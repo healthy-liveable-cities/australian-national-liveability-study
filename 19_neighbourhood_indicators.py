@@ -27,10 +27,29 @@ CREATE OR REPLACE FUNCTION threshold_hard(in int, in int, out int)
     AS $$ SELECT ($1 < $2)::int $$
     LANGUAGE SQL;
 
-CREATE OR REPLACE FUNCTION threshold_soft(in int, in int, out double precision) 
-    RETURNS NULL ON NULL INPUT
-    AS $$ SELECT 1 - 1/(1+exp(-5*($1-$2)/($2::float))) $$
-    LANGUAGE SQL;    
+CREATE OR REPLACE FUNCTION threshold_soft_test(distance int, threshold int) returns double precision AS 
+$$
+BEGIN
+  -- We check to see if the value we are exponentiation is more or less than 100; if so,
+  -- if so the result will be more or less either 1 or 0, respectively. 
+  -- If the value we are exponentiating is much > abs(700) then we risk overflow/underflow error
+  -- due to the value exceeding the numerical limits of postgresql
+  -- If the value we are exponentiating is based on a positive distance, then we know it is invalid!
+  -- For reference, a 10km distance with 400m threshold yields a check value of -120, 
+  -- the exponent of which is 1.30418087839363e+052 and 1 - 1/(1+exp(-120)) is basically 1 - 1 = 0
+  -- Using a check value of -100, the point at which zero is returned with a threshold of 400 
+  -- is for distance of 3339km
+  IF (distance < 0) 
+      THEN RETURN NULL;
+  ELSIF (-5*(distance-threshold)/(threshold::float) < -100) 
+    THEN RETURN 0;
+  ELSE 
+    RETURN 1 - 1/(1+exp(-5*(distance-threshold)/(threshold::float)));
+  END IF;
+END;
+$$
+LANGUAGE plpgsql
+RETURNS NULL ON NULL INPUT;  
   '''
 
 print('Creating or replacing threshold functions ... '),
@@ -116,15 +135,6 @@ CREATE TABLE ind_foodratio AS
 SELECT p.{id}, 
        supermarkets.count AS supermarkets,
        fastfood.count AS fastfood,
-       (CASE
-        WHEN fastfood.count > 0 THEN
-          (COALESCE(supermarkets.count,0))/(COALESCE(fastfood.count::double precision,0))
-        WHEN fastfood.count IS NULL THEN
-          (COALESCE(supermarkets.count,0)+1.0)/(COALESCE(fastfood.count::double precision,0)+1.0) 
-        ELSE NULL END
-        ) AS cond_food_ratio,            
-       (COALESCE(supermarkets.count,0)+1.0)/(COALESCE(fastfood.count::double precision,0)+1.0) AS mod_food_ratio,
-       log((COALESCE(supermarkets.count,0)+1.0)/(COALESCE(fastfood.count::double precision,0)+1.0)) AS log_mod_food_ratio,
        (CASE
         WHEN ((COALESCE(supermarkets.count,0))+(COALESCE(fastfood.count,0))) !=0 THEN  
           (COALESCE(supermarkets.count,0))/((COALESCE(supermarkets.count,0))+(COALESCE(fastfood.count,0)))::double precision
