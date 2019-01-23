@@ -133,17 +133,17 @@ GROUP BY {id};
 DROP TABLE IF EXISTS ind_foodratio;
 CREATE TABLE ind_foodratio AS
 SELECT p.{id}, 
-       supermarkets.count AS supermarkets,
-       fastfood.count AS fastfood,
+       COALESCE(supermarkets.count,0) AS supermarkets,
+       COALESCE(fastfood.count,0) AS fastfood,
        (CASE
-        WHEN ((COALESCE(supermarkets.count,0))+(COALESCE(fastfood.count,0))) !=0 THEN  
-          (COALESCE(supermarkets.count,0))/((COALESCE(supermarkets.count,0))+(COALESCE(fastfood.count,0)))::double precision
+        WHEN COALESCE(supermarkets.count,0) + COALESCE(fastfood.count,0) !=0 THEN  
+          COALESCE(supermarkets.count,0)/(COALESCE(supermarkets.count,0) + COALESCE(fastfood.count,0))::float
         ELSE NULL END) AS supermarket_proportion 
 FROM parcel_dwellings p
-LEFT JOIN (SELECT {id},COALESCE(count,0) AS count FROM od_counts WHERE dest_class = 'supermarket_osm') AS supermarkets 
-  ON p.{id} = supermarkets.{id}
-LEFT JOIN (SELECT {id},COALESCE(count,0) AS count FROM od_counts WHERE dest_class = 'fastfood_osm') AS fastfood 
-  ON p.{id} = fastfood.{id};
+LEFT JOIN od_counts AS supermarkets ON p.{id} = supermarkets.{id}
+LEFT JOIN od_counts AS fastfood ON p.{id} = fastfood.{id}
+  WHERE supermarkets.dest_class = 'supermarket_osm'
+    AND fastfood.dest_class = 'fastfood_osm';
 '''.format(id = points_id),
 '''
 -- Public transport proximity
@@ -190,32 +190,32 @@ SELECT p.{id},
        pos_any.distance   AS pos_any_distance_m, 
        pos_large.distance   AS pos_15k_sqm_distance_m
 FROM parcel_dwellings p
-LEFT JOIN (SELECT p.gnaf_pid, 
+LEFT JOIN (SELECT p.{id}, 
                   min(distance) AS distance
              FROM parcel_dwellings p
              LEFT JOIN 
-             (SELECT gnaf_pid,
+             (SELECT {id},
                     (obj->>'aos_id')::int AS aos_id,
                     (obj->>'distance')::int AS distance
               FROM od_aos_jsonb,
-                   jsonb_array_elements(attributes) obj) o ON p.gnaf_pid = o.gnaf_pid
+                   jsonb_array_elements(attributes) obj) o ON p.{id} = o.{id}
              LEFT JOIN open_space_areas pos ON o.aos_id = pos.aos_id
                  WHERE pos.aos_id IS NOT NULL
                    AND aos_ha_public > 0
-             GROUP BY p.gnaf_pid) pos_any ON p.gnaf_pid = pos_any.gnaf_pid
-LEFT JOIN (SELECT p.gnaf_pid, 
+             GROUP BY p.{id}) pos_any ON p.{id} = pos_any.{id}
+LEFT JOIN (SELECT p.{id}, 
                   min(distance) AS distance
              FROM parcel_dwellings p
              LEFT JOIN 
-             (SELECT gnaf_pid,
+             (SELECT {id},
                     (obj->>'aos_id')::int AS aos_id,
                     (obj->>'distance')::int AS distance
               FROM od_aos_jsonb,
-                   jsonb_array_elements(attributes) obj) o ON p.gnaf_pid = o.gnaf_pid
+                   jsonb_array_elements(attributes) obj) o ON p.{id} = o.{id}
              LEFT JOIN open_space_areas pos ON o.aos_id = pos.aos_id
                  WHERE pos.aos_id IS NOT NULL
                    AND aos_ha_public > 1.5
-             GROUP BY p.gnaf_pid) pos_large ON p.gnaf_pid = pos_large.gnaf_pid
+             GROUP BY p.{id}) pos_large ON p.{id} = pos_large.{id}
 '''.format(id = points_id)      
 ]
 
