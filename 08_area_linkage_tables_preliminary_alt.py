@@ -91,8 +91,8 @@ create_non_abslinkage_Table     = '''
   '''.format(points_id,suburb_feature, lga_feature)
 
 create_irsd_table = '''
-DROP TABLE IF EXISTS abs_2016_irsd;
-CREATE TABLE abs_2016_irsd 
+DROP TABLE IF EXISTS area_disadvantage;
+CREATE TABLE area_disadvantage 
 (sa1_maincode varchar, sa1_7digit varchar, usual_resident_pop integer, irsd_score integer, aust_rank integer, aust_decile integer, aust_pctile integer, state varchar, state_rank integer, state_decile integer, state_pctile integer);
 '''
 
@@ -156,7 +156,7 @@ create_area_sa1 = '''
                     ST_Intersection(a.geom, b.geom) AS geom
              FROM main_sa1_2016_aust_full a, 
                   study_region_urban b) c ON a.sa1_maincode = c.sa1_mainco
-  WHERE a.sa1_maincode IN (SELECT sa1_maincode FROM abs_2016_irsd)
+  WHERE a.sa1_maincode IN (SELECT sa1_maincode FROM area_disadvantage)
   AND suburb IS NOT NULL 
   GROUP BY a.sa1_maincode, suburb, lga, c.geom
   ORDER BY a.sa1_maincode ASC;
@@ -183,7 +183,7 @@ create_area_ssc = '''
          FROM abs_linkage a
          LEFT JOIN parcel_dwellings p ON a.mb_code_2016 = p.mb_code_20
          LEFT JOIN non_abs_linkage b on p.{0} = b.{0}
-         WHERE a.sa1_maincode IN (SELECT sa1_maincode FROM abs_2016_irsd)
+         WHERE a.sa1_maincode IN (SELECT sa1_maincode FROM area_disadvantage)
          AND ssc_name_2016 IS NOT NULL
          GROUP BY mb_code_2016,ssc_name_2016,lga_name_2016,dwelling,person,a.geom
          ) t
@@ -214,7 +214,7 @@ create_area_lga = '''
          FROM abs_linkage a
          LEFT JOIN parcel_dwellings p ON a.mb_code_2016 = p.mb_code_20
          LEFT JOIN non_abs_linkage b on p.{0} = b.{0}
-         WHERE a.sa1_maincode IN (SELECT sa1_maincode FROM abs_2016_irsd)
+         WHERE a.sa1_maincode IN (SELECT sa1_maincode FROM area_disadvantage)
          AND lga_name_2016 IS NOT NULL
          GROUP BY mb_code_2016,lga_name_2016,dwelling,person,a.geom
          ) t
@@ -242,7 +242,7 @@ create_mb_excluded_no_irsd = '''
   DROP TABLE IF EXISTS mb_excluded_no_irsd;
   CREATE TABLE mb_excluded_no_irsd AS
   SELECT * FROM abs_linkage 
-  WHERE sa1_maincode NOT IN (SELECT sa1_maincode FROM abs_2016_irsd);
+  WHERE sa1_maincode NOT IN (SELECT sa1_maincode FROM area_disadvantage);
   '''
 
 # create excluded Mesh Block table
@@ -340,7 +340,7 @@ print("Import ABS SEIFA IRSD table... "),
 conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
 curs = conn.cursor()
 curs.execute(create_irsd_table)
-curs.copy_expert(sql="COPY abs_2016_irsd FROM STDIN WITH CSV HEADER DELIMITER AS ',';", file=open(abs_irsd))
+curs.copy_expert(sql="COPY area_disadvantage FROM STDIN WITH CSV HEADER DELIMITER AS ',';", file=open(abs_irsd))
 print("Done.")
 
 print("Create addition area linkage tables to list SA1s, and suburbs within LGAs:")

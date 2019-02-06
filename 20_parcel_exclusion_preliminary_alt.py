@@ -56,7 +56,7 @@ query = '''
 {insert} 'null daily living'    {table} od_closest {match} {island_exception} dest_class = 'gtfs_2018_stops' AND distance {null};
 {insert} 'not urban parcel_sos' {table} parcel_sos {match} sos_name_2016 NOT IN ('Major Urban','Other Urban');
 {insert} 'no IRSD sa1_maincode' {table} abs_linkage ON a.mb_code_20 = abs_linkage.mb_code_2016 
-    WHERE abs_linkage.sa1_maincode NOT IN (SELECT sa1_maincode FROM abs_2016_irsd)
+    WHERE abs_linkage.sa1_maincode NOT IN (SELECT sa1_maincode FROM area_disadvantage)
     ON CONFLICT ({id},indicator) DO NOTHING;
 '''.format(insert = insert, table = table, match = match, island_exception = island_exception, null = null, id = points_id.lower())
 

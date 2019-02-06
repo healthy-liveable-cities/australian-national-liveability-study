@@ -24,8 +24,8 @@ import subprocess as sp     # for executing external commands (e.g. pgsql2shp or
 import numpy
 import time
 import psycopg2 
-from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 from progressor import progressor
+from sqlalchemy import create_engine
 
 from script_running_log import script_running_log
 
@@ -39,18 +39,11 @@ script = os.path.basename(sys.argv[0])
 task = 'Create ABS and non-ABS linkage tables using 2016 data sourced from ABS'
 
 # INPUT PARAMETERS
+engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_user,
+                                                                      pwd  = db_pwd,
+                                                                      host = db_host,
+                                                                      db   = db))
 
-A_points = parcel_dwellings
-
-parcel_mb_table    = 'parcel_dwellings'
-abs_linkage_table  = 'abs_linkage'
-
-suburb_feature = os.path.basename(abs_suburb).strip('.shp').lower()
-lga_feature = os.path.basename(abs_lga).strip('.shp').lower()
-
-# Note - I found SA1 7 digit code is not unique within a state and so can't be relied upon 
-# to uniquely identify an SA1; As such now using SA1 maincode
-# (WA example - #5110308 has n = 6 (only one of which is in GCCSA though)
 create_abslinkage_Table     = '''
   DROP TABLE IF EXISTS abs_linkage;
   CREATE TABLE IF NOT EXISTS abs_linkage AS
@@ -90,11 +83,11 @@ create_non_abslinkage_Table     = '''
   ALTER  TABLE non_abs_linkage ADD PRIMARY KEY ({0});
   '''.format(points_id,suburb_feature, lga_feature)
 
-create_irsd_table = '''
-DROP TABLE IF EXISTS abs_2016_irsd;
-CREATE TABLE abs_2016_irsd 
-(sa1_maincode varchar, sa1_7digit varchar, usual_resident_pop integer, irsd_score integer, aust_rank integer, aust_decile integer, aust_pctile integer, state varchar, state_rank integer, state_decile integer, state_pctile integer);
-'''
+# create_irsd_table = '''
+# DROP TABLE IF EXISTS area_disadvantage;
+# CREATE TABLE area_disadvantage 
+# (sa1_maincode varchar, sa1_7digit varchar, usual_resident_pop integer, irsd_score integer, aust_rank integer, aust_decile integer, aust_pctile integer, state varchar, state_rank integer, state_decile integer, state_pctile integer);
+# '''
 
 
 # Create study region tables
@@ -156,7 +149,7 @@ create_area_sa1 = '''
                     ST_Intersection(a.geom, b.geom) AS geom
              FROM main_sa1_2016_aust_full a, 
                   study_region_urban b) c ON a.sa1_maincode = c.sa1_mainco
-  WHERE a.sa1_maincode IN (SELECT sa1_maincode FROM abs_2016_irsd)
+  WHERE a.sa1_maincode IN (SELECT sa1_maincode FROM area_disadvantage)
   AND suburb IS NOT NULL 
   GROUP BY a.sa1_maincode, suburb, lga, c.geom
   ORDER BY a.sa1_maincode ASC;
@@ -183,7 +176,7 @@ create_area_ssc = '''
          FROM abs_linkage a
          LEFT JOIN parcel_dwellings p ON a.mb_code_2016 = p.mb_code_20
          LEFT JOIN non_abs_linkage b on p.{0} = b.{0}
-         WHERE a.sa1_maincode IN (SELECT sa1_maincode FROM abs_2016_irsd)
+         WHERE a.sa1_maincode IN (SELECT sa1_maincode FROM area_disadvantage)
          AND ssc_name_2016 IS NOT NULL
          GROUP BY mb_code_2016,ssc_name_2016,lga_name_2016,dwelling,person,a.geom
          ) t
@@ -214,7 +207,7 @@ create_area_lga = '''
          FROM abs_linkage a
          LEFT JOIN parcel_dwellings p ON a.mb_code_2016 = p.mb_code_20
          LEFT JOIN non_abs_linkage b on p.{0} = b.{0}
-         WHERE a.sa1_maincode IN (SELECT sa1_maincode FROM abs_2016_irsd)
+         WHERE a.sa1_maincode IN (SELECT sa1_maincode FROM area_disadvantage)
          AND lga_name_2016 IS NOT NULL
          GROUP BY mb_code_2016,lga_name_2016,dwelling,person,a.geom
          ) t
@@ -242,7 +235,7 @@ create_mb_excluded_no_irsd = '''
   DROP TABLE IF EXISTS mb_excluded_no_irsd;
   CREATE TABLE mb_excluded_no_irsd AS
   SELECT * FROM abs_linkage 
-  WHERE sa1_maincode NOT IN (SELECT sa1_maincode FROM abs_2016_irsd);
+  WHERE sa1_maincode NOT IN (SELECT sa1_maincode FROM area_disadvantage);
   '''
 
 # create excluded Mesh Block table
@@ -302,15 +295,6 @@ curs.execute(create_abslinkage_Table)
 conn.commit()
 
 print("Copy ABS geometries to postgis...")
-# Note that the option flag '-lco precision = NO' is used to mitigate a datatype error; ie. it recasts
-# a redundantly double precision field to a more appropriately concise FLOAT8 (which is fine)
-# # ERROR 1: COPY statement failed.
-# # ERROR:  numeric field overflow
-# # DETAIL:  A field with precision 13, scale 11 must round to an absolute value less than 10^2.
-# # CONTEXT:  COPY main_ssc_2016_aust, line 5, column area_alber: "127.17000000000"
-# ie. instead of recording area as "127.17000000000", it records "127.17" -- better! and works.
-# see: https://gis.stackexchange.com/questions/254671/ogr2ogr-error-importing-shapefile-into-postgis-numeric-field-overflow
-
 for area in [abs_SA1,abs_SA2, abs_SA3, abs_SA4, abs_lga, abs_suburb,abs_SOS]:
   feature = os.path.basename(area).strip('.shp').lower()
   name = feature.strip('main_')[0:3]
@@ -332,15 +316,20 @@ print("Create non-ABS linkage table (linking point IDs with suburbs and LGAs... 
 curs.execute(create_non_abslinkage_Table)
 conn.commit()
 print("Done")
-
-   
-# NOTE: the copy statement is commented out as it does not work from script context; run this as an interactive query  
-   
-print("Import ABS SEIFA IRSD table... "),
-conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
-curs = conn.cursor()
-curs.execute(create_irsd_table)
-curs.copy_expert(sql="COPY abs_2016_irsd FROM STDIN WITH CSV HEADER DELIMITER AS ',';", file=open(abs_irsd))
+  
+print("Import area level disadvantage data... "),
+disadvantage = pandas.read_csv(area_info['disadvantage']['data'], index_col = area_info['disadvantage']['id'])
+disadvantage.index = disadvantage.index.map(str)
+region_limit = '''
+SELECT {id} 
+  FROM {table},{buffered_study_region}
+ WHERE ST_Intersects({table}.geom,{buffered_study_region}.geom)
+ '''.format(id = areas[area_info['disadvantage']['area']]['id'],
+            table = os.path.splitext(os.path.basename(areas[area_info['disadvantage']['area']]['data']))[0].lower(),
+            buffered_study_region = buffered_study_region)
+areas_in_region = pandas.read_sql_query(region_limit,con=engine,index_col=areas[area_info['disadvantage']['area']]['id'])
+disadvantage = areas_in_region.merge(disadvantage,how='left', left_index=True, right_index=True)
+disadvantage.to_sql(area_info['disadvantage']['table'], index_label =area_info['disadvantage']['id'],con = engine, if_exists='replace')
 print("Done.")
 
 print("Create addition area linkage tables to list SA1s, and suburbs within LGAs:")

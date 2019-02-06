@@ -45,6 +45,8 @@ df_osm_dest = pandas.read_excel(xls, 'osm_dest_definitions')
 df_data_catalogue = pandas.read_excel(xls, 'data_catalogue')
 df_housekeeping = pandas.read_excel(xls, 'housekeeping')
 
+df_parameters.value = df_parameters.value.fillna('')
+
 responsible = df_studyregion['responsible']
 
 year   = df_parameters.loc['year']['value']
@@ -67,6 +69,18 @@ else:
 if __name__ == '__main__':
   print("\nProcessing script {} for locale {}...\n".format(sys.argv[0],locale))
 
+def pretty(d, indent=0):
+   for key, value in d.items():
+      depth = 0
+      print('\t' * indent + str(key)+':'),
+      if isinstance(value, dict):
+        if depth == 0:
+          print(" ")
+          depth+=1
+        pretty(value, indent+1)
+      else:
+        print(' ' + str(value))
+  
 # More study region details
 
 region = df_studyregion.loc[locale]['region'].encode('utf')
@@ -172,44 +186,63 @@ grant_query = '''GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA pu
                  GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {1};
                  GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO {1};'''.format(arc_sde_user,db_user)
 
-# ABS data
-# ABS data sourced online is located in the ABS_downloads folder
-# cleaned data referenced below (including output from scripts) is located in ABS_derived
+# Region set up
+areas_of_interest = [int(x) for x in df_parameters.loc['regions_of_interest']['value'].split(',')]
+areas = {}
+for area in areas_of_interest + ['urban']:
+  prefix = area
+  if type(area) is int:
+    prefix = 'region{}'.format(area)
+  if df_parameters.loc['{}_data'.format(prefix)]['value'] != '':
+    areas[area] = {}
+    for field in ['data','name','id']:
+      if field=='data':
+        # join with data path prefix
+        areas[area][field] = os.path.join(folderPath,df_parameters.loc['{}_{}'.format(prefix,field)]['value'].encode('utf8'))
+        areas[area]['table'] = os.path.splitext(os.path.basename(areas[area]['data']))[0].lower().encode('utf8')
+      elif field=='name': 
+        # split into full (f) and short (s) lower case versions; latter is safe for database use
+        areas[area]['name_f'] = df_parameters.loc['{}_name'.format(prefix)]['value'].split(',')[0].encode('utf8')
+        if len(df_parameters.loc['{}_name'.format(prefix)]['value'].split(',')) > 1:
+          areas[area]['name_s'] = df_parameters.loc['{}_name'.format(prefix)]['value'].split(',')[1].lower().encode('utf8')
+        else:
+          areas[area]['name_s'] = areas[area]['name_f'].lower().encode('utf8')
+      else:
+        areas[area][field] = df_parameters.loc['{}_{}'.format(prefix,field)]['value'].encode('utf8')
 
-# Index of Relative Socio-Economic Disadvantage (cleaned)
-abs_irsd  = os.path.join(folderPath,
-                         df_parameters.loc['abs_irsd']['value'].encode('utf'))
-              
-# meshblock source shape file (ABS download)
+area_info = {}
+for info in ['dwellings','disadvantage']:
+  area_info[info] = {}
+  if df_parameters.loc['{}_data'.format(info)]['value'].encode('utf')!= '':
+    area_info[info]['data']      = os.path.join(folderPath,df_parameters.loc['{}_data'.format(info)]['value'].encode('utf'))
+    area_info[info]['table']     = 'area_{}'.format(info)
+    area_info[info]['area']      = int(df_parameters.loc['{}_area'.format(info)]['value'])
+    area_info[info]['id']        = df_parameters.loc['{}_id'.format(info)]['value'].encode('utf')
+    area_info[info]['field']     = df_parameters.loc['{}_field'.format(info)]['value'].encode('utf')
+    area_info[info]['exclusion'] = df_parameters.loc['{}_exclusion'.format(info)]['value']
+
+# This is a legacy configuration option not yet updated to the generic framework
+# ie. this configuration is Australia specific, but must be generalised to non-specific region
+# However, as of February 2019 I haven't had time to make the full update
+# This configuration retained for compatability with scripts until full re-write
 # Meshblock Dwellings feature name
-meshblocks   = os.path.join(folderPath,
-                         df_parameters.loc['meshblocks']['value'].encode('utf'))
+meshblocks = areas[0]['data']
+abs_SA1    = areas[1]['data']
+abs_SA2    = areas[2]['data']
+abs_SA3    = areas[3]['data']
+abs_SA4    = areas[4]['data']
+abs_lga    = areas[5]['data']
+abs_suburb = areas[6]['data']
+abs_SOS    = areas['urban']['data']
+
+suburb_feature = areas[6]['table']
+lga_feature = areas[5]['table']
 
 # meshblock ID MB_CODE_20 (varname is truncated by arcgis to 8 chars) datatype is varchar(11) 
-meshblock_id    = df_parameters.loc['meshblock_id']['value'].encode('utf')
-
-# Dwelling count source csv (ABS download)
-# CLEAN APPLIED: removed comments from end of file
-dwellings        = os.path.join(folderPath,
-                         df_parameters.loc['dwellings']['value'].encode('utf'))
-dwellings_id     = df_parameters.loc['dwellings_id']['value'].encode('utf')
-dwellings_field  = df_parameters.loc['dwellings_id']['value'].encode('utf')
-
-# other areas
-abs_SA1 = os.path.join(folderPath,
-                      df_parameters.loc['abs_SA1']['value'].encode('utf'))
-abs_SA2 = os.path.join(folderPath,              
-                      df_parameters.loc['abs_SA2']['value'].encode('utf'))
-abs_SA3 = os.path.join(folderPath,              
-                      df_parameters.loc['abs_SA3']['value'].encode('utf'))
-abs_SA4 = os.path.join(folderPath,              
-                      df_parameters.loc['abs_SA4']['value'].encode('utf'))
-abs_SOS = os.path.join(folderPath,
-                      df_parameters.loc['abs_SOS']['value'].encode('utf'))
-abs_lga = os.path.join(folderPath,              
-                      df_parameters.loc['abs_lga']['value'].encode('utf'))
-abs_suburb = os.path.join(folderPath,
-                      df_parameters.loc['abs_suburb']['value'].encode('utf'))
+meshblock_id     = areas[0]['id']
+dwellings        = area_info['dwellings']['data']
+dwellings_id     = area_info['dwellings']['id']
+dwellings_field  = area_info['dwellings']['field']
 
 # parcels (point data locations used for sampling)
 # Note that the process assumes we have already transformed points to the project's spatial reference

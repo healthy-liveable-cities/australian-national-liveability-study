@@ -33,18 +33,18 @@ sp.call(command, shell=True, cwd=osm2pgsql_exe)
 print("Done.")
 
 
-print("Copy the network edges from gdb to postgis..."),
+print("Copy the network edges and nodes from gdb to postgis..."),
 command = (
         ' ogr2ogr -overwrite -progress -f "PostgreSQL" ' 
         ' PG:"host={host} port=5432 dbname={db}'
         ' user={user} password = {pwd}" '
-        ' {gdb} "{feature}" '
+        ' {gdb} {feature} '
         ' -lco geometry_name="geom"'.format(host = db_host,
                                      db = db,
                                      user = db_user,
                                      pwd = db_pwd,
                                      gdb = gdb_path,
-                                     feature = 'edges') 
+                                     feature = '"edges" "nodes"') 
         )
 print(command)
 sp.call(command, shell=True)
