@@ -21,6 +21,49 @@ task = 'create destination indicator tables'
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()
 
+print("Re-import areas to ensure proper indexing, and restrict other imported areas to study region.")
+for area in areas:
+  print('{}: '.format(areas[area]['name_f'])), 
+  command = 'ogr2ogr -overwrite -progress -f "PostgreSQL" -a_srs "EPSG:{srid}" '.format(srid = srid) \
+            + 'PG:"host={host} port=5432 dbname={db} '.format(host = db_host,db = db) \
+            + 'user={user} password = {pwd}" '.format(user = db_user,pwd = db_pwd) \
+            + '{shp} '.format(shp = areas[area]['data']) \
+            + '-lco geometry_name="geom"  -lco precision=NO ' \
+            + '-nlt MULTIPOLYGON' 
+  # print(command)
+  sp.call(command, shell=True) 
+  curs.execute('''
+  DELETE FROM  {area} a 
+        USING {buffered_study_region} b 
+    WHERE NOT ST_Intersects(a.geom,b.geom) 
+           OR a.geom IS NULL;
+  '''.format(area = areas[area]['table'],
+             buffered_study_region = buffered_study_region))
+  conn.commit()
+
+print("Create area level destination counts... ")
+for area in areas:
+  area_name = areas[area]['name_s']
+  print(area_name)
+  query = '''
+  DROP TABLE IF EXISTS {area_name}_dest_counts;
+  CREATE TABLE {area_name}_dest_counts AS
+  SELECT a.{area_id}, dest_class, count(d.geom) AS count
+  FROM {area_table} a
+  LEFT JOIN 
+       study_destinations d ON st_contains(a.geom,d.geom)
+  GROUP BY a.{area_id},dest_class
+  ORDER BY a.{area_id},dest_class;  
+  '''.format(area_name = area_name,
+             area_table = areas[area]['table'],
+             area_id = areas[area]['id'])
+  print(query)
+  curs.execute(query)
+  conn.commit()
+  
+print("Done.")
+
+print('Creating or replacing threshold functions ... '),
 create_threshold_functions = '''
 CREATE OR REPLACE FUNCTION threshold_hard(in int, in int, out int) 
     RETURNS NULL ON NULL INPUT
@@ -51,12 +94,10 @@ $$
 LANGUAGE plpgsql
 RETURNS NULL ON NULL INPUT;  
   '''
-
-print('Creating or replacing threshold functions ... '),
 curs.execute(create_threshold_functions)
 print('Done.')
 
-
+# Define a series of neighbourhood indicator queries
 sql = ['''
 -- Daily living
 DROP TABLE IF EXISTS ind_daily_living;

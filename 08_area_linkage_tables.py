@@ -294,19 +294,39 @@ curs = conn.cursor()
 curs.execute(create_abslinkage_Table)
 conn.commit()
 
-print("Copy ABS geometries to postgis...")
-for area in [abs_SA1,abs_SA2, abs_SA3, abs_SA4, abs_lga, abs_suburb,abs_SOS]:
-  feature = os.path.basename(area).strip('.shp').lower()
-  name = feature.strip('main_')[0:3]
-  print('{}: '.format(name)), 
+# previous code --- loads all of australia into each db --- excessive!
+# print("Copy ABS geometries to postgis...")
+# for area in [abs_SA1,abs_SA2, abs_SA3, abs_SA4, abs_lga, abs_suburb,abs_SOS]:
+  # feature = os.path.basename(area).strip('.shp').lower()
+  # name = feature.strip('main_')[0:3]
+  # print('{}: '.format(name)), 
+  # command = 'ogr2ogr -overwrite -progress -f "PostgreSQL" -a_srs "EPSG:{srid}" '.format(srid = srid) \
+          # + 'PG:"host={host} port=5432 dbname={db} '.format(host = db_host,db = db) \
+          # + 'user={user} password = {pwd}" '.format(user = db_user,pwd = db_pwd) \
+          # + '{shp} '.format(shp = area) \
+          # + '-lco geometry_name="geom"  -lco precision=NO ' \
+          # + '-nlt MULTIPOLYGON'
+  # sp.call(command, shell=True)
+
+for area in areas:
+  print('{}: '.format(areas[area]['name_f'])), 
   command = 'ogr2ogr -overwrite -progress -f "PostgreSQL" -a_srs "EPSG:{srid}" '.format(srid = srid) \
           + 'PG:"host={host} port=5432 dbname={db} '.format(host = db_host,db = db) \
           + 'user={user} password = {pwd}" '.format(user = db_user,pwd = db_pwd) \
-          + '{shp} '.format(shp = area) \
+          + '{shp} '.format(shp = areas[area]['data']) \
           + '-lco geometry_name="geom"  -lco precision=NO ' \
-          + '-nlt MULTIPOLYGON'
-  sp.call(command, shell=True)
-
+          + '-nlt MULTIPOLYGON' 
+  print(command)
+  sp.call(command, shell=True) 
+  curs.execute('''
+  DELETE FROM  {area} a 
+        USING {buffered_study_region} b 
+    WHERE NOT ST_Intersects(a.geom,b.geom) 
+           OR a.geom IS NULL;
+  '''.format(area = areas[area]['table'],
+             buffered_study_region = buffered_study_region))
+  conn.commit()
+  
 print("Granting privileges to python and arcgis users... "),
 curs.execute(grant_query)
 conn.commit()
