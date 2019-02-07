@@ -44,26 +44,13 @@ featureClasses = arcpy.ListFeatureClasses()
 # SQL Settings
 ## Note - this used to be 'dist_cl_od_parcel_dest' --- simplified to 'result_table'
 result_table = "od_distances_3200m"
-
-sqlChunkify = 500
-  
-# initiate postgresql connection
-conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
-curs = conn.cursor()  
-
-# define reduced set of destinations and cutoffs (ie. only those with cutoffs defined)
-curs.execute("SELECT DISTINCT(dest_class) FROM dest_type WHERE cutoff_count IS NOT NULL AND count > 0;")
-destination_list = list(curs)
-
-# tally expected parcel-destination class result set  
-curs.execute("SELECT COUNT(*) FROM parcel_dwellings;")
-completion_goal = list(curs)[0][0] * len(set([x[0] for x in destination_list]))
+progress_table = "{table}_progress".format(table = result_table)
 
 # SQL insert queries
-insert1 = '''INSERT INTO {table} ({id}, dest_class, distances) SELECT {id},'''.format(table = result_table,
+insert1 = '''INSERT INTO {table} ({id}, hex, dest_class, distances) SELECT {id},'''.format(table = result_table,
                                                                                        id = origin_pointsID.lower())
-insert2 = ''', dest_class, array_agg(distance) AS distances FROM (VALUES '''     
-insert3 = ''') v({id}, dest_class, distance) GROUP BY {id}, dest_class, hex ''' 
+insert2 = ''' AS hex, dest_class, array_agg(distance) AS distances FROM (VALUES '''     
+insert3 = ''') v({id}, dest_class, distance) GROUP BY {id}, dest_class '''.format(id = origin_pointsID.lower()) 
 insert4 = '''ON CONFLICT DO NOTHING;'''
 
 # get pid name
@@ -93,6 +80,18 @@ if pid !='MainProcess':
   arcpy.MakeFeatureLayer_management (origin_points, "origin_points_layer")
   arcpy.MakeFeatureLayer_management (outCombinedFeature, "destination_points_layer")       
   arcpy.MakeFeatureLayer_management(hex_grid, "hex_layer")   
+  # initial postgresql connection
+  conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
+  curs = conn.cursor()  
+  
+  # define reduced set of destinations and cutoffs (ie. only those with cutoffs defined)
+  curs.execute("SELECT DISTINCT(dest_class) FROM dest_type WHERE cutoff_count IS NOT NULL AND count > 0;")
+  destination_list = list(curs)
+  
+  # tally expected parcel-destination class result set  
+  curs.execute("SELECT COUNT(*) FROM parcel_dwellings;")
+  completion_goal = list(curs)[0][0] * len(set([x[0] for x in destination_list]))
+  conn.close()
 
 # Worker/Child PROCESS
 def ODMatrixWorkerFunction(hex): 
@@ -119,7 +118,7 @@ def ODMatrixWorkerFunction(hex):
         return(2)
     # fetch list of successfully processed destinations for this hex, if any
     curs.execute('''SELECT DISTINCT(dest_class)
-                      FROM {table} d
+                      FROM {table}
                      WHERE hex = {hex}'''.format(table = result_table, hex = hex))
     completed_dest = [x[0] for x in list(curs)]
     remaining_dest_list = [x[0] for x in destination_list if x[0] not in completed_dest]
@@ -133,20 +132,20 @@ def ODMatrixWorkerFunction(hex):
     if dest_in_hex_count == 0: 
         place = 'zero dest in hex, so insert null records'
         null_dest_insert = '''
-         INSERT INTO {table} ({id}, {hex}, dest_class, distances)  
+         INSERT INTO {table} ({id}, hex, dest_class, distances)  
          SELECT gnaf_pid,{hex}, dest_class, '{curlyo}{curlyc}'::int[] 
            FROM parcel_dwellings 
          CROSS JOIN (SELECT DISTINCT(dest_class) dest_class 
                        FROM dest_type 
-                      WHERE dest_class IN {dest_list}) d
+                      WHERE dest_class IN ('{dest_list}')) d
           WHERE hex_id = {hex};
          '''.format(table = result_table,
                     id = origin_pointsID.lower(), 
                     hex = hex,
                     curlyo = '{',
                     curlyc = '}',
-                    dest_list = remaining_dest_list)  
-        print(null_dest_insert)                    
+                    dest_list = "','".join(remaining_dest_list))
+        # print(null_dest_insert)                    
         curs.execute(null_dest_insert)
         conn.commit()
         # update current progress
@@ -198,12 +197,9 @@ def ODMatrixWorkerFunction(hex):
             if result[1] == u'false':
               place = 'OD results processed, but no results recorded'
               null_dest_insert = '''
-                INSERT INTO {table} ({id}, {hex}, dest_class, distances)  
-                SELECT gnaf_pid,{hex}, dest_class, '{curlyo}{curlyc}'::int[] 
+                INSERT INTO {table} ({id}, hex, dest_class, distances)  
+                SELECT gnaf_pid,{hex}, '{dest_class}', '{curlyo}{curlyc}'::int[] 
                   FROM parcel_dwellings 
-                CROSS JOIN (SELECT DISTINCT(dest_class) dest_class 
-                              FROM dest_type 
-                             WHERE dest_class = {dest_class}) d
                  WHERE hex_id = {hex};
                 '''.format(table = result_table,
                            id = origin_pointsID.lower(), 
@@ -211,7 +207,7 @@ def ODMatrixWorkerFunction(hex):
                            curlyo = '{',
                            curlyc = '}',
                            dest_class = dest_class) 
-              print(null_dest_insert)                           
+              # print(null_dest_insert)                           
               curs.execute(null_dest_insert)
               conn.commit()
               place = "update progress (post OD matrix results, no results)"
@@ -224,24 +220,28 @@ def ODMatrixWorkerFunction(hex):
               place = 'before outputLine loop'
               for outputLine in outputLines:
                 origin_id      = outputLine[0].split('-')[0].strip(' ')
+                dest_id   = outputLine[0].split('-')[1].split(',')
                 dest_class = dest_id[0].strip(' ')
                 distance  = int(round(outputLine[1]))
                 place = "before chunk append of returned and processed results"
-                chunkedLines.append('''('{origin_id}',{dest_class},{distance})'''.format(origin_id = origin_id,
+                chunkedLines.append('''('{origin_id}','{dest_class}',{distance})'''.format(origin_id = origin_id,
                                                                                           dest_class = dest_class,
                                                                                           distance  = distance))
               place = "before execute returned results sql"
-              curs.execute('''{insert1}{hex}{insert2}{values}{insert3}{insert4}'''.format(insert1 = insert1,
+              sql_query = '''{insert1}{hex}{insert2}{values}{insert3}{insert4}'''.format(insert1 = insert1,
+                                                                                          hex = hex,
                                                                                           insert2 = insert2,
                                                                                           values   = ','.join(chunkedLines),
                                                                                           insert3 = insert3,
-                                                                                          insert4 = insert3))
+                                                                                          insert4 = insert4)
+              print(sql_query)
+              curs.execute(sql_query)
               place = "before commit of returned and processed results"
               conn.commit()
               # Where results don't exist for a destination class, ensure a null array is recorded
               null_dest_insert = '''
-               INSERT INTO {table} ({id}, {hex}, dest_class, distances)  
-               SELECT gnaf_pid,{hex}, dest_class, '{curlyo}{curlyc}'::int[] 
+               INSERT INTO {table} ({id}, hex, dest_class, distances)  
+               SELECT gnaf_pid,{hex}, '{dest_class}', '{curlyo}{curlyc}'::int[] 
                  FROM parcel_dwellings 
                WHERE hex = {hex}
                  AND NOT EXISTS (SELECT 1 FROM {table} WHERE dest_class = {dest_class} and hex = {hex});
@@ -278,41 +278,42 @@ def ODMatrixWorkerFunction(hex):
 if __name__ == '__main__':
   task = 'Record distances from origins to destinations within 3200m'
   print("Commencing task ({}): {} at {}".format(db,task,time.strftime("%Y%m%d-%H%M%S")))
-
-  create_table = '''
-  --DROP TABLE IF EXISTS {0};
+  # initial postgresql connection
+  conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
+  curs = conn.cursor()  
+  
+  create_results_table = '''
+  DROP TABLE IF EXISTS {0};
   CREATE TABLE IF NOT EXISTS {0}
   ({1} varchar NOT NULL ,
    hex integer NOT NULL, 
    dest_class varchar NOT NULL ,
-   distances integer NOT NULL, 
+   distances int[] NOT NULL, 
    PRIMARY KEY({1},dest_class)
    );
    '''.format(result_table, origin_pointsID)
-  curs.execute(create_table)
+  curs.execute(create_results_table)
   conn.commit()
 
   print("Create a table for tracking progress... "), 
-  progress_table = '''
-    DROP TABLE IF EXISTS {table}_progress;
-    CREATE TABLE IF NOT EXISTS {table}_progress AS SELECT 0::int AS processed;
-    '''.format(table = result_table)
-  curs.execute(progress_table)
+  create_progress_table = '''
+    DROP TABLE IF EXISTS {progress_table};
+    CREATE TABLE IF NOT EXISTS {progress_table} (processed int);
+    INSERT INTO {progress_table} SELECT count(*) processed FROM {result_table};
+    '''.format(progress_table = progress_table,
+               result_table = result_table)
+  # print(create_progress_table)
+  curs.execute(create_progress_table)
   conn.commit()
   print("Done.")
   
-  print("Setup a pool of workers/child processes and split log output..."),
+  print("Commence multiprocessing..."),
   # Parallel processing setting
   # (now set as parameter in ind_study_region_matrix xlsx file)
-  # nWorkers = 4  
   pool = multiprocessing.Pool(processes=nWorkers)
-  print(" Done.")
-
-  print("Iterate over hexes...")
   # get list of hexes over which to iterate
   curs.execute("SELECT hex FROM hex_parcels;")
-  hex_list = list(curs)   
-  iteration_list = np.asarray([x[0] for x in hex_list])
+  iteration_list = np.asarray([x[0] for x in list(curs)])
   # # Iterate process over hexes across nWorkers
   pool.map(ODMatrixWorkerFunction, iteration_list, chunksize=1)
   
