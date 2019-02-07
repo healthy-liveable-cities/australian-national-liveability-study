@@ -70,10 +70,10 @@ print('Creating or replacing threshold functions ... '),
 create_threshold_functions = '''
 -- Function for returning counts of values in an array less than a threshold distance
 -- e.g. an array of distances in m to destinations, evaluated against a threshold of 800m
--- SELECT gnaf_pid, count_in_threshold(array_agg,1600) FROM test_sport;
+-- SELECT gnaf_pid, count_in_threshold(distances,1600) FROM sport_3200m;
 -- is equivalent to 
--- SELECT gnaf_pid, count(*) 
---   FROM (SELECT gnaf_pid,unnest(array_agg) distance FROM test_sport) t 
+-- SELECT gnaf_pid, count(distances) 
+--   FROM (SELECT gnaf_pid,unnest(array_agg) distances FROM sport_3200m) t 
 -- WHERE distance < 1600 GROUP BY gnaf_pid;
 CREATE OR REPLACE FUNCTION count_in_threshold(distances int[],threshold int) returns bigint as $$
     SELECT COUNT(*) 
@@ -278,10 +278,11 @@ LEFT JOIN (SELECT p.{id},
 '''.format(id = points_id),
 '''
 -- Create table indexing sport use within 3200m
+-- Query these results like: SELECT gnaf_pid, count_in_threshold(distances,1600) FROM sport_3200m;
 DROP TABLE IF EXISTS sport_3200m;
 CREATE TABLE sport_3200m AS
 SELECT p.{id}, 
-       array_agg(distance)
+       array_agg(distance) AS distances
   FROM parcel_dwellings p
 LEFT JOIN (SELECT {id},
                   (obj->>'aos_id')::int AS aos_id,
