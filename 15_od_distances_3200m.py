@@ -273,7 +273,7 @@ if __name__ == '__main__':
   curs = conn.cursor()  
   
   create_results_table = '''
-  DROP TABLE IF EXISTS {0};
+  --DROP TABLE IF EXISTS {0};
   CREATE TABLE IF NOT EXISTS {0}
   ({1} varchar NOT NULL ,
    hex integer NOT NULL, 
