@@ -152,17 +152,7 @@ def ODMatrixWorkerFunction(hex):
         place = "update progress (zero destinations)"
         curs.execute('''UPDATE {progress_table} SET processed = processed+{count}'''.format(progress_table = progress_table,
                                                                                              count = origin_point_count * len(remaining_dest_list)))
-        conn.commit()
-        curs.execute('''SELECT processed from {progress_table}'''.format(progress_table = progress_table))
-        progress = int(list(curs)[0][0])
-        place = 'initial progress - no destinations'
-        progressor(progress,
-                   completion_goal,
-                   start,
-                   '''{}/{}; last hex processed: {}, at {}'''.format(progress,
-                                                                     completion_goal,
-                                                                     hex,
-                                                                     time.strftime("%Y%m%d-%H%M%S"))) 
+        conn.commit() 
     else: 
         # We now know there are destinations to be processed remaining in this hex, so we proceed
         for dest_class in remaining_dest_list:
@@ -234,7 +224,6 @@ def ODMatrixWorkerFunction(hex):
                                                                                           values   = ','.join(chunkedLines),
                                                                                           insert3 = insert3,
                                                                                           insert4 = insert4)
-              print(sql_query)
               curs.execute(sql_query)
               place = "before commit of returned and processed results"
               conn.commit()
@@ -242,15 +231,16 @@ def ODMatrixWorkerFunction(hex):
               null_dest_insert = '''
                INSERT INTO {table} ({id}, hex, dest_class, distances)  
                SELECT gnaf_pid,{hex}, '{dest_class}', '{curlyo}{curlyc}'::int[] 
-                 FROM parcel_dwellings 
-               WHERE hex = {hex}
-                 AND NOT EXISTS (SELECT 1 FROM {table} WHERE dest_class = {dest_class} and hex = {hex});
+                 FROM parcel_dwellings
+               WHERE hex_id = {hex}
+                 AND NOT EXISTS (SELECT 1 FROM {table} WHERE dest_class = '{dest_class}' and hex = {hex});
                '''.format(table = result_table,
                           id = origin_pointsID.lower(), 
                           hex = hex,
                           curlyo = '{',
                           curlyc = '}',
-                          dest_class = dest_class)    
+                          dest_class = dest_class)   
+              # print(null_dest_insert)                          
               curs.execute(null_dest_insert)
               conn.commit()       
               place = "update progress (post OD matrix results, successful)"
@@ -258,16 +248,16 @@ def ODMatrixWorkerFunction(hex):
             curs.execute('''UPDATE {progress_table} SET processed = processed+{count}'''.format(progress_table = progress_table,
                                                                                                  count = origin_point_count))
             conn.commit()
-            curs.execute('''SELECT processed from {progress_table}'''.format(progress_table = progress_table))
-            progress = int(list(curs)[0][0])
-            place = 'final progress'
-            progressor(progress,
-                       completion_goal,
-                       start,
-                       '''{}/{}; last hex processed: {}, at {}'''.format(progress,
-                                                                         completion_goal,
-                                                                         hex,
-                                                                         time.strftime("%Y%m%d-%H%M%S"))) 
+    curs.execute('''SELECT processed from {progress_table}'''.format(progress_table = progress_table))
+    progress = int(list(curs)[0][0])
+    place = 'final progress'
+    progressor(progress,
+               completion_goal,
+               start,
+               '''{}/{}; last hex processed: {}, at {}'''.format(progress,
+                                                                 completion_goal,
+                                                                 hex,
+                                                                 time.strftime("%Y%m%d-%H%M%S"))) 
   except:
       print('''Error: {}\nPlace: {}'''.format( sys.exc_info(),place))  
   finally:
