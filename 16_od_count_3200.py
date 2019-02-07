@@ -41,15 +41,9 @@ destination_pointsID = destination_id
 # Get a list of feature 
 featureClasses = arcpy.ListFeatureClasses()
 
-# Processing is undertake for any value > hexStart
-# So, if you want to start from a specific hex number,
-# you could change this to a larger value
-hexStart = 0
-
 # SQL Settings
 ## Note - this used to be 'dist_cl_od_parcel_dest' --- simplified to 'result_table'
 result_table = "od_counts_3200"
-log_table = "log_od_counts_3200"
 
 sqlChunkify = 500
   
@@ -58,83 +52,47 @@ conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()  
 
 # define reduced set of destinations and cutoffs (ie. only those with cutoffs defined)
-curs.execute("SELECT dest_class FROM dest_type WHERE cutoff_count IS NOT NULL AND count > 0;")
+curs.execute("SELECT DISTINCT(dest_class) FROM dest_type WHERE cutoff_count IS NOT NULL AND count > 0;")
 destination_list = list(curs)
 
 # tally expected parcel-destination class result set  
 curs.execute("SELECT COUNT(*) FROM parcel_dwellings;")
-completion_goal = list(curs)[0][0] * len(set([x[1] for x in destination_list]))
+completion_goal = list(curs)[0][0] * len(set([x[0] for x in destination_list]))
+
+# SQL insert queries
+insert1 = '''INSERT INTO {table} ({id}, dest_class, distances) SELECT {id},'''.format(table = result_table,
+                                                                                       id = origin_pointsID.lower())
+insert2 = ''', dest_class, array_agg(distance) AS distances FROM (VALUES '''     
+insert3 = ''') v({id}, dest_class, distance) GROUP BY {id}, dest_class, hex ''' 
+insert4 = '''ON CONFLICT DO NOTHING;'''
 
 # get pid name
 pid = multiprocessing.current_process().name
 
-
-
-
-
-# Result table queries
-recInsert      = '''
-  INSERT INTO {table} ({id}, dest_class, distances)  
-  SELECT gnaf_pid, dest_class, array_agg(distance) AS distances
-   FROM  
-   (VALUES 
-  '''.format(id = origin_pointsID.lower(),
-             table = sqlTableName)       
-# Aggregate the minimum distance OD combinations into a list
-# node is retained for verification purposes; 
-# ie. we can visually evaluate that the distance to dest checks out  
-# Optionally, other attributes could be joined using a 'post' clause with a left join
-# and aggregated at this point (see earlier code versions).
-# However, it is probably more optimal to keep AOS attributes seperate.
-# If making a query re: a specific AOS subset, the AOS IDs for the relevant 
-# subset could first be identified; then the OD AOS results could be checked
-# to return only those Addresses with subset AOS IDs recorded within the 
-# required distance
-recUpdate      = '''
-  ) v({id}, dest_class, distance) 
-  GROUP BY gnaf_pid, dest_class
-  ON CONFLICT DO NOTHING;
-  '''.format(id = origin_pointsID.lower())  
+if pid !='MainProcess':
+  # Make OD cost matrix layer
+  result_object = arcpy.MakeODCostMatrixLayer_na(in_network_dataset = in_network_dataset, 
+                                                 out_network_analysis_layer = "ODmatrix", 
+                                                 impedance_attribute = "Length", 
+                                                 default_cutoff = 3200,
+                                                 UTurn_policy = "ALLOW_UTURNS", 
+                                                 hierarchy = "NO_HIERARCHY", 
+                                                 output_path_shape = "NO_LINES")                                 
+  outNALayer = result_object.getOutput(0)
   
-# Log table queries
-createTable_log     = '''
-    --DROP TABLE IF EXISTS {0};
-    CREATE TABLE IF NOT EXISTS {0}
-      (hex integer NOT NULL, 
-      parcel_count integer NOT NULL, 
-      dest_name varchar, 
-      status varchar, 
-      mins double precision,
-      PRIMARY KEY(hex,dest_name)
-      );
-          '''.format(log_table)    
-
-logInsert      = '''
-  INSERT INTO {} VALUES
-  '''.format(log_table)          
-
-logUpdate      = '''
-  ON CONFLICT ({0},{4}) 
-  DO UPDATE SET {1}=EXCLUDED.{1},{2}=EXCLUDED.{2},{3}=EXCLUDED.{3}
-  '''.format('hex','parcel_count','status','mins','dest_name')            
-    
-# Define log file write method
-def writeLog(hex = 0, AhexN = 'NULL', Bcode = 'NULL', status = 'NULL', mins= 0, create = log_table):
-  try:
-    if create == 'create':
-      curs.execute(createTable_log)
-      conn.commit()
-      
-    else:
-      moment = time.strftime("%Y%m%d-%H%M%S")
-      # print to screen regardless
-      # print('Hex:{:5d} A:{:8s} Dest:{:8s} {:15s} {:15s}'.format(hex, str(AhexN), str(Bcode), status, moment))     
-      # write to sql table
-      curs.execute("{0} ({1},{2},'{3}','{4}',{5}) {6}".format(logInsert,hex, AhexN, Bcode,status, mins, logUpdate))
-      conn.commit()  
-  except:
-    print("ERROR: {}".format(sys.exc_info()))
-    raise
+  #Get the names of all the sublayers within the service area layer.
+  subLayerNames = arcpy.na.GetNAClassNames(outNALayer)
+  #Store the layer names that we will use later
+  originsLayerName = subLayerNames["Origins"]
+  destinationsLayerName = subLayerNames["Destinations"]
+  linesLayerName = subLayerNames["ODLines"]
+  
+  # you may have to do this later in the script - but try now....
+  ODLinesSubLayer = arcpy.mapping.ListLayers(outNALayer, linesLayerName)[0]
+  fields = ['Name', 'Total_Length']
+  arcpy.MakeFeatureLayer_management (origin_points, "origin_points_layer")
+  arcpy.MakeFeatureLayer_management (outCombinedFeature, "destination_points_layer")       
+  arcpy.MakeFeatureLayer_management(hex_grid, "hex_layer")   
 
 # Worker/Child PROCESS
 def ODMatrixWorkerFunction(hex): 
@@ -151,220 +109,172 @@ def ODMatrixWorkerFunction(hex):
  
   # Worker Task is hex-specific by definition/parallel
   # Skip if hex was finished in previous run
-  hexStartTime = time.time()
-  if hex < hexStart:
-    return(1)
-    
+  hexStartTime = time.time() 
   try:    
-    # select origin points 
-    arcpy.MakeFeatureLayer_management (origin_points, "origin_points_layer")
+    output_values = list()
+    count = 0
+    # select origin points    
     origin_selection = arcpy.SelectLayerByAttribute_management("origin_points_layer", where_clause = 'HEX_ID = {}'.format(hex))
     origin_point_count = int(arcpy.GetCount_management(origin_selection).getOutput(0))
     # Skip hexes with zero adresses
     if origin_point_count == 0:
-        writeLog(hex,0,'NULL',"no origin points",(time.time()-hexStartTime)/60)
         return(2)
-    
-    # make destination feature layer
-    arcpy.MakeFeatureLayer_management (outCombinedFeature, "destination_points_layer")        
-
     # fetch list of successfully processed destinations for this hex, if any
-    curs.execute("SELECT dest_class FROM {} WHERE hex = {}".format(log_table,hex))
+    curs.execute('''SELECT DISTINCT(dest_class)
+                      FROM {table} d
+                     WHERE hex = {hex}'''.format(table = result_table, hex = hex))
     completed_dest = [x[0] for x in list(curs)]
     remaining_dest_list = [x[0] for x in destination_list if x[0] not in completed_dest]
-    
-    for dest_class in remaining_dest_list:
-      destStartTime = time.time()
-      chunkedLines = list()
-      # select destination points 
-      destination_selection = arcpy.SelectLayerByAttribute_management("destination_points_layer", where_clause = "dest_class = '{}'".format(dest_class))
-      # OD Matrix Setup
-      
-      # Make OD cost matrix layer
-      result_object = arcpy.MakeODCostMatrixLayer_na(in_network_dataset = in_network_dataset, 
-                                                     out_network_analysis_layer = "ODmatrix", 
-                                                     impedance_attribute = "Length",  
-                                                     default_cutoff = 3200,
-                                                     UTurn_policy = "ALLOW_UTURNS", 
-                                                     hierarchy = "NO_HIERARCHY", 
-                                                     output_path_shape = "NO_LINES")
-      outNALayer = result_object.getOutput(0)
-      
-      #Get the names of all the sublayers within the service area layer.
-      subLayerNames = arcpy.na.GetNAClassNames(outNALayer)
-      #Store the layer names that we will use later
-      originsLayerName = subLayerNames["Origins"]
-      destinationsLayerName = subLayerNames["Destinations"]
-      linesLayerName = subLayerNames["ODLines"]
-      
-      # you may have to do this later in the script - but try now....
-      ODLinesSubLayer = arcpy.mapping.ListLayers(outNALayer, linesLayerName)[0]
-      fields = ['Name', 'Total_Length']
-      
-      arcpy.AddLocations_na(in_network_analysis_layer = outNALayer, 
-          sub_layer                      = originsLayerName, 
-          in_table                       = origin_selection, 
-          field_mappings                 = "Name {} #".format(origin_pointsID), 
-          search_tolerance               = "{} Meters".format(tolerance), 
-          search_criteria                = "{} SHAPE;{} NONE".format(network_edges,network_junctions), 
-          append                         = "CLEAR", 
-          snap_to_position_along_network = "NO_SNAP", 
-          exclude_restricted_elements    = "INCLUDE",
-          search_query                   = "{} #;{} #".format(network_edges,network_junctions))
-      
-      arcpy.AddLocations_na(in_network_analysis_layer = outNALayer, 
-          sub_layer                      = destinationsLayerName, 
-          in_table                       = destination_selection, 
-          field_mappings                 = "Name {} #".format(destination_pointsID), 
-          search_tolerance               = "{} Meters".format(tolerance), 
-          search_criteria                = "{} SHAPE;{} NONE".format(network_edges,network_junctions), 
-          append                         = "CLEAR", 
-          snap_to_position_along_network = "NO_SNAP", 
-          exclude_restricted_elements    = "INCLUDE",
-          search_query                   = "{} #;{} #".format(network_edges,network_junctions))
-      
-      # Process: Solve
-      result = arcpy.Solve_na(outNALayer, terminate_on_solve_error = "CONTINUE")
-      if result[1] == u'false':
-        # If no results for this hex-destination combination, we record these zero counts
-        no_result_query = '''
-        INSERT INTO {result_table} AS o ({id},dest_class,count)
-        SELECT {id}, '{dest_class}','{s}{dest_name}{e}',{threshold},0 
-        FROM parcel_dwellings p
-        WHERE NOT EXISTS
-        (SELECT 1 FROM {result_table} o 
-          WHERE o.{id}=p.{id}  AND o.dest_name @> '{s}{dest_name}{e}' AND p.hex_id = {hex})
-        AND hex_id = {hex}
-        ON CONFLICT ({id},dest_class) 
-        DO UPDATE SET dest_name = o.dest_name || EXCLUDED.dest_name,
-        count  = o.count+EXCLUDED.count
-        WHERE NOT EXCLUDED.dest_name <@ o.dest_name;
-        ;
-        '''.format(result_table = result_table,
-                   dest_class = dest_class, 
-                   s = '{',
-                   dest_name = dest_name, 
-                   e = '}',
-                   threshold=threshold,
-                   id = origin_pointsID,
-                   hex = hex)
-        curs.execute(no_result_query)
+    if len(remaining_dest_list) == 0:
+        return(0)
+    place = 'before hex selection'
+    hex_selection = arcpy.SelectLayerByAttribute_management("hex_layer", where_clause = 'OBJECTID = {}'.format(hex))
+    dest_in_hex = arcpy.SelectLayerByLocation_management("destination_points_layer", 'WITHIN_A_DISTANCE',hex_selection,3200)
+    dest_in_hex_count = int(arcpy.GetCount_management(dest_in_hex).getOutput(0))
+    if dest_in_hex_count == 0: 
+        null_dest_insert = '''
+         INSERT INTO {table} ({id}, {hex}, dest_class, distances)  
+         SELECT gnaf_pid,{hex}, dest_class, '{}'::int[] 
+           FROM parcel_dwellings 
+         CROSS JOIN (SELECT DISTINCT(dest_class) dest_class 
+                       FROM dest_type 
+                      WHERE dest_class IN {dest_list}) d
+          WHERE hex_id = {hex};
+         '''.format(table = result_table,
+                    id = origin_pointsID.lower(), 
+                    hex = hex[0],
+                    dest_list = remaining_dest_list)    
+        curs.execute(null_dest_insert)
         conn.commit()
-        writeLog(hex,origin_point_count,dest_name,"none found",(time.time()-destStartTime)/60)
-      else:
-        # get dest_class for feature
-        # Extract lines layer, export to SQL database
-        df = arcpy.da.TableToNumPyArray(ODLinesSubLayer, 'Name')    
-        stripped_df = [f[0].encode('utf-8').split(' - ')[0] for f in df]
-        id_counts = np.unique(stripped_df, return_counts=True)
-        length  = len(id_counts[0])-1
-        count = 0
-        place = "before loop"
-        for x in range(0,length) :
-          count += 1
-          point_id = id_counts[0][x]
-          tally = id_counts[1][x]
-          chunkedLines.append('''('{point_id}','{dest_class}','{s}{dest_name}{e}',{threshold},{tally})'''.format(point_id=point_id,
-                                                                                                           dest_class=dest_class,
-                                                                                                           s = '{',
-                                                                                                           dest_name=dest_name,
-                                                                                                           e= '}',
-                                                                                                           threshold=threshold,
-                                                                                                           tally=tally))
-          if(count % sqlChunkify == 0):
-            place = "before postgresql out"
-            sql = '''
-            INSERT INTO {result_table} AS o VALUES {values} 
-            ON CONFLICT ({id},dest_class) 
-            DO UPDATE SET dest_name = o.dest_name || EXCLUDED.dest_name,
-            count  = o.count+EXCLUDED.count
-            WHERE NOT EXCLUDED.dest_name <@ o.dest_name;
-            '''.format(result_table=result_table, 
-                        values = ','.join(chunkedLines),
-                        id = origin_pointsID)
-            curs.execute(sql)
-            conn.commit()
-            chunkedLines = list() 
-        if(count % sqlChunkify != 0):
-          sql = '''
-          INSERT INTO {result_table} AS o VALUES {values} 
-          ON CONFLICT ({id},dest_class) 
-          DO UPDATE SET dest_name = o.dest_name || EXCLUDED.dest_name,
-          count  = o.count+EXCLUDED.count
-          WHERE NOT EXCLUDED.dest_name <@ o.dest_name;
-          '''.format(result_table=result_table, 
-                      values = ','.join(chunkedLines),
-                      id = origin_pointsID)
-          curs.execute(sql)
-          conn.commit()
-        # If no results for this hex-destination combination, we record these zero counts
-        no_result_query = '''
-        INSERT INTO {result_table} AS o ({id},dest_class,dest_name,cutoff,count)
-        SELECT {id}, '{dest_class}','{s}{dest_name}{e}',{threshold},0 
-        FROM parcel_dwellings p
-        WHERE NOT EXISTS
-        (SELECT 1 FROM {result_table} o 
-          WHERE o.{id}=p.{id}  AND o.dest_name @> '{s}{dest_name}{e}' AND p.hex_id = {hex})
-        AND hex_id = {hex}
-        ON CONFLICT ({id},dest_class) 
-        DO UPDATE SET dest_name = o.dest_name || EXCLUDED.dest_name,
-        count  = o.count+EXCLUDED.count
-        WHERE NOT EXCLUDED.dest_name <@ o.dest_name;
-        ;
-        '''.format(result_table = result_table,
-                   dest_class = dest_class, 
-                   s = '{',
-                   dest_name = dest_name, 
-                   e = '}',
-                   threshold=threshold,
-                   id = origin_pointsID,
-                   hex = hex)
-        curs.execute(no_result_query)
-        conn.commit()
-        writeLog(hex,origin_point_count,dest_name,"Solved",(time.time()-destStartTime)/60)
-    # return worker function as completed once all destinations processed
-    return 0
-  
+        count += origin_point_count * len(remaining_dest_list)
+    else: 
+        # We now know there are destinations to be processed remaining in this hex, so we proceed
+        for dest_class in remaining_dest_list:
+            destStartTime = time.time()
+            # select destination points 
+            destination_selection = arcpy.SelectLayerByAttribute_management(dest_in_hex, where_clause = "dest_class = '{}'".format(dest_class))
+            # OD Matrix Setup      
+            arcpy.AddLocations_na(in_network_analysis_layer = outNALayer, 
+                sub_layer                      = originsLayerName, 
+                in_table                       = origin_selection, 
+                field_mappings                 = "Name {} #".format(origin_pointsID), 
+                search_tolerance               = "{} Meters".format(tolerance), 
+                search_criteria                = "{} SHAPE;{} NONE".format(network_edges,network_junctions), 
+                append                         = "CLEAR", 
+                snap_to_position_along_network = "NO_SNAP", 
+                exclude_restricted_elements    = "INCLUDE",
+                search_query                   = "{} #;{} #".format(network_edges,network_junctions))
+            
+            arcpy.AddLocations_na(in_network_analysis_layer = outNALayer, 
+                sub_layer                      = destinationsLayerName, 
+                in_table                       = destination_selection, 
+                field_mappings                 = "Name {} #".format(destination_pointsID), 
+                search_tolerance               = "{} Meters".format(tolerance), 
+                search_criteria                = "{} SHAPE;{} NONE".format(network_edges,network_junctions), 
+                append                         = "CLEAR", 
+                snap_to_position_along_network = "NO_SNAP", 
+                exclude_restricted_elements    = "INCLUDE",
+                search_query                   = "{} #;{} #".format(network_edges,network_junctions))
+            
+            # Process: Solve
+            result = arcpy.Solve_na(outNALayer, terminate_on_solve_error = "CONTINUE")
+            if result[1] == u'false':
+              null_dest_insert = '''
+                INSERT INTO {table} ({id}, {hex}, dest_class, distances)  
+                SELECT gnaf_pid,{hex}, dest_class, '{}'::int[] 
+                  FROM parcel_dwellings 
+                CROSS JOIN (SELECT DISTINCT(dest_class) dest_class 
+                              FROM dest_type 
+                             WHERE dest_class = {dest_class}) d
+                 WHERE hex_id = {hex};
+                '''.format(table = result_table,
+                           id = origin_pointsID.lower(), 
+                           hex = hex,
+                           dest_class = dest_class)    
+              curs.execute(null_dest_insert)
+              conn.commit()
+            else:
+              # Extract lines layer, export to SQL database
+              outputLines = arcpy.da.SearchCursor(ODLinesSubLayer, fields)        
+              chunkedLines = list()
+              # Result table queries
+              place = 'before outputLine loop'
+              for outputLine in outputLines:
+                origin_id      = outputLine[0].split('-')[0].strip(' ')
+                dest_class = dest_id[0].strip(' ')
+                distance  = int(round(outputLine[1]))
+                place = "before chunk append, gnaf = {}".format(pid)
+                chunkedLines.append('''('{origin_id}',{dest_class},{distance})'''.format(origin_id = origin_id,
+                                                                                          dest_class = dest_class,
+                                                                                          distance  = distance))
+              place = "before execute sql, gnaf = {}".format(pid)
+              curs.execute('''{insert1}{hex}{insert2}{values}{insert3}{insert4}'''.format(insert1 = insert1,
+                                                                                          insert2 = insert2,
+                                                                                          values   = ','.join(chunkedLines),
+                                                                                          insert3 = insert3,
+                                                                                          insert4 = insert3))
+              place = "before commit, gnaf = {}".format(pid)
+              conn.commit()
+              # Where results don't exist for a destination class, ensure a null array is recorded
+              null_dest_insert = '''
+               INSERT INTO {table} ({id}, {hex}, dest_class, distances)  
+               SELECT gnaf_pid,{hex}, dest_class, '{}'::int[] 
+                 FROM parcel_dwellings 
+               WHERE hex = {hex}
+                 AND NOT EXISTS (SELECT 1 FROM {table} WHERE dest_class = {dest_class} and hex = {hex});
+               '''.format(table = result_table,
+                          id = origin_pointsID.lower(), 
+                          hex = hex,
+                          dest_class = dest_class)    
+              curs.execute(null_dest_insert)
+              conn.commit()
+            count += origin_point_count           
+    # update current progress
+    curs.execute('''UPDATE {progress_table} SET processed = processed+{count}'''.format(progress_table = progress_table,
+                                                                                                 count = A_pointCount))
+    conn.commit()
+    curs.execute('''SELECT processed from {progress_table}'''.format(progress_table = progress_table))
+    progress = int(list(curs)[0][0])
+    progressor(progress,
+               completion_goal,
+               start,
+               '''{}/{}; last hex processed: {}, at {}'''.format(progress,
+                                                                 completion_goal,
+                                                                 hex[0],
+                                                                 time.strftime("%Y%m%d-%H%M%S"))) 
   except:
-    print(sys.exc_info())
-    print(chunkedLines)
-    
+      print('''Error: {}\nPlace: {}'''.format( sys.exc_info(),place))  
   finally:
-    arcpy.CheckInExtension('Network')
-    # Report on progress
-    curs.execute('''SELECT count(*) FROM od_counts  WHERE dest_name && (SELECT array_agg(dest_name) FROM dest_type WHERE cutoff_count IS NOT NULL);''')
-    progress = int(list(curs)[0][0]) 
-    progressor(progress,completion_goal,start,"{numerator} / {denominator} categories processed (but nested sources may be added to results).".format(numerator = progress,denominator = completion_goal))
-    # Close SQL connection
-    conn.close()
-
+      arcpy.CheckInExtension('Network')
+      conn.close()
     
 # MAIN PROCESS
 if __name__ == '__main__':
-  # Task name is now defined
-  task = 'Count destinations within network buffer distance of origins'  # Do stuff
+  task = 'Record distances from origins to destinations within 3200m'
   print("Commencing task ({}): {} at {}".format(db,task,time.strftime("%Y%m%d-%H%M%S")))
 
-  # Define query to create table
-  createTable     = '''
+  create_table = '''
   --DROP TABLE IF EXISTS {0};
   CREATE TABLE IF NOT EXISTS {0}
   ({1} varchar NOT NULL ,
+   hex integer NOT NULL, 
    dest_class varchar NOT NULL ,
-   dest_name varchar[] NOT NULL ,
-   cutoff integer NOT NULL, 
-   count integer NOT NULL, 
+   distances integer NOT NULL, 
    PRIMARY KEY({1},dest_class)
    );
    '''.format(result_table, origin_pointsID)
-
-  # create OD matrix table
-  curs.execute(createTable)
+  curs.execute(create_table)
   conn.commit()
-   
-  print("Initialise log file..."),
-  writeLog(create='create')
-  print(" Done.")
+
+  print("Create a table for tracking progress... "), 
+  od_distances_3200_progress = '''
+    DROP TABLE IF EXISTS {table}_progress;
+    CREATE TABLE IF NOT EXISTS {table}_progress 
+       (processed int);
+    '''.format(table = result_table)
+  curs.execute(od_distances_3200_progress)
+  conn.commit()
+  print("Done.")
   
   print("Setup a pool of workers/child processes and split log output..."),
   # Parallel processing setting

@@ -306,14 +306,6 @@ def ODMatrixWorkerFunction(hex):
   finally:
     arcpy.CheckInExtension('Network')
     conn.close()
-
-# Create aggregated JSON table process
-def JSON_agg_function(hex):     
-  conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
-  curs = conn.cursor()
-  hex = hex[0]
-  to_do_points = hex[1]  
-  A_pointCount = len(to_do_points)    
   
 # MAIN PROCESS
 if __name__ == '__main__':
