@@ -44,7 +44,7 @@ for area in areas:
 print("Create area level destination counts... ")
 for area in areas:
   area_name = areas[area]['name_s']
-  print(area_name)
+  print("{}... ".format(areas[area]['name_f'])),
   query = '''
   DROP TABLE IF EXISTS {area_name}_dest_counts;
   CREATE TABLE {area_name}_dest_counts AS
@@ -57,19 +57,37 @@ for area in areas:
   '''.format(area_name = area_name,
              area_table = areas[area]['table'],
              area_id = areas[area]['id'])
-  print(query)
+  # print(query)
   curs.execute(query)
   conn.commit()
-  
-print("Done.")
+  print("Done.")
+
+# Legacy fallback code: Rename ABS IRSD table if it exists to ensure it works with future scripts
+curs.execute('''ALTER TABLE IF EXISTS abs_2016_irsd RENAME TO area_disadvantage;''')
+conn.commit()
 
 print('Creating or replacing threshold functions ... '),
 create_threshold_functions = '''
-CREATE OR REPLACE FUNCTION threshold_hard(in int, in int, out int) 
+-- Function for returning counts of values in an array less than a threshold distance
+-- e.g. an array of distances in m to destinations, evaluated against a threshold of 800m
+-- SELECT gnaf_pid, count_in_threshold(array_agg,1600) FROM test_sport;
+-- is equivalent to 
+-- SELECT gnaf_pid, count(*) 
+--   FROM (SELECT gnaf_pid,unnest(array_agg) distance FROM test_sport) t 
+-- WHERE distance < 1600 GROUP BY gnaf_pid;
+CREATE OR REPLACE FUNCTION count_in_threshold(distances int[],threshold int) returns bigint as $$
+    SELECT COUNT(*) 
+    FROM unnest(distances) dt(b)
+    WHERE b < threshold
+$$ language sql;
+
+-- a binary threshold indicator  (e.g. of access given distance and threshold)
+CREATE OR REPLACE FUNCTION threshold_hard(distance int, threshold int, out int) 
     RETURNS NULL ON NULL INPUT
-    AS $$ SELECT ($1 < $2)::int $$
+    AS $$ SELECT (distance < threshold)::int $$
     LANGUAGE SQL;
 
+-- a soft threshold indicator (e.g. of access given distance and threshold)
 CREATE OR REPLACE FUNCTION threshold_soft(distance int, threshold int) returns double precision AS 
 $$
 BEGIN
@@ -257,7 +275,29 @@ LEFT JOIN (SELECT p.{id},
                  WHERE pos.aos_id IS NOT NULL
                    AND aos_ha_public > 1.5
              GROUP BY p.{id}) pos_large ON p.{id} = pos_large.{id}
-'''.format(id = points_id)      
+'''.format(id = points_id),
+'''
+-- Create table indexing sport use within 3200m
+DROP TABLE IF EXISTS sport_3200m;
+CREATE TABLE sport_3200m AS
+SELECT p.{id}, 
+       array_agg(distance)
+  FROM parcel_dwellings p
+LEFT JOIN (SELECT {id},
+                  (obj->>'aos_id')::int AS aos_id,
+                  (obj->>'distance')::int AS distance
+             FROM od_aos_jsonb,
+                  jsonb_array_elements(attributes) obj
+            WHERE (obj->>'distance')::int < 3200) o ON p.{id} = o.{id}                  
+WHERE EXISTS -- we restrict our results to distances to AOS with sports facilities 
+            (SELECT 1 FROM open_space_areas sport,
+                           jsonb_array_elements(attributes) obj
+             WHERE (obj->>'leisure' IN ('golf_course','sports_club','sports_centre','fitness_centre','pitch','track','fitness_station','ice_rink','swimming_pool') 
+                OR (obj->>'sport' IS NOT NULL 
+               AND obj->>'sport' != 'no'))
+               AND  o.aos_id = sport.aos_id)
+GROUP BY p.{id};
+'''.format(id = points_id)
 ]
 
 for query in sql:
