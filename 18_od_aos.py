@@ -306,6 +306,7 @@ def ODMatrixWorkerFunction(hex):
   finally:
     arcpy.CheckInExtension('Network')
     conn.close()
+
   
 # MAIN PROCESS
 if __name__ == '__main__':

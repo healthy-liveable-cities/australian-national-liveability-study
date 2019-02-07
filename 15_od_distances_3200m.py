@@ -43,7 +43,7 @@ featureClasses = arcpy.ListFeatureClasses()
 
 # SQL Settings
 ## Note - this used to be 'dist_cl_od_parcel_dest' --- simplified to 'result_table'
-result_table = "od_counts_3200"
+result_table = "od_distances_3200m"
 
 sqlChunkify = 500
   
@@ -111,8 +111,6 @@ def ODMatrixWorkerFunction(hex):
   # Skip if hex was finished in previous run
   hexStartTime = time.time() 
   try:    
-    output_values = list()
-    count = 0
     # select origin points    
     origin_selection = arcpy.SelectLayerByAttribute_management("origin_points_layer", where_clause = 'HEX_ID = {}'.format(hex))
     origin_point_count = int(arcpy.GetCount_management(origin_selection).getOutput(0))
@@ -129,12 +127,14 @@ def ODMatrixWorkerFunction(hex):
         return(0)
     place = 'before hex selection'
     hex_selection = arcpy.SelectLayerByAttribute_management("hex_layer", where_clause = 'OBJECTID = {}'.format(hex))
+    place = 'before destination in hex selection'
     dest_in_hex = arcpy.SelectLayerByLocation_management("destination_points_layer", 'WITHIN_A_DISTANCE',hex_selection,3200)
     dest_in_hex_count = int(arcpy.GetCount_management(dest_in_hex).getOutput(0))
     if dest_in_hex_count == 0: 
+        place = 'zero dest in hex, so insert null records'
         null_dest_insert = '''
          INSERT INTO {table} ({id}, {hex}, dest_class, distances)  
-         SELECT gnaf_pid,{hex}, dest_class, '{}'::int[] 
+         SELECT gnaf_pid,{hex}, dest_class, '{curlyo}{curlyc}'::int[] 
            FROM parcel_dwellings 
          CROSS JOIN (SELECT DISTINCT(dest_class) dest_class 
                        FROM dest_type 
@@ -142,11 +142,28 @@ def ODMatrixWorkerFunction(hex):
           WHERE hex_id = {hex};
          '''.format(table = result_table,
                     id = origin_pointsID.lower(), 
-                    hex = hex[0],
-                    dest_list = remaining_dest_list)    
+                    hex = hex,
+                    curlyo = '{',
+                    curlyc = '}',
+                    dest_list = remaining_dest_list)  
+        print(null_dest_insert)                    
         curs.execute(null_dest_insert)
         conn.commit()
-        count += origin_point_count * len(remaining_dest_list)
+        # update current progress
+        place = "update progress (zero destinations)"
+        curs.execute('''UPDATE {progress_table} SET processed = processed+{count}'''.format(progress_table = progress_table,
+                                                                                             count = origin_point_count * len(remaining_dest_list)))
+        conn.commit()
+        curs.execute('''SELECT processed from {progress_table}'''.format(progress_table = progress_table))
+        progress = int(list(curs)[0][0])
+        place = 'initial progress - no destinations'
+        progressor(progress,
+                   completion_goal,
+                   start,
+                   '''{}/{}; last hex processed: {}, at {}'''.format(progress,
+                                                                     completion_goal,
+                                                                     hex,
+                                                                     time.strftime("%Y%m%d-%H%M%S"))) 
     else: 
         # We now know there are destinations to be processed remaining in this hex, so we proceed
         for dest_class in remaining_dest_list:
@@ -164,7 +181,7 @@ def ODMatrixWorkerFunction(hex):
                 snap_to_position_along_network = "NO_SNAP", 
                 exclude_restricted_elements    = "INCLUDE",
                 search_query                   = "{} #;{} #".format(network_edges,network_junctions))
-            
+
             arcpy.AddLocations_na(in_network_analysis_layer = outNALayer, 
                 sub_layer                      = destinationsLayerName, 
                 in_table                       = destination_selection, 
@@ -179,9 +196,10 @@ def ODMatrixWorkerFunction(hex):
             # Process: Solve
             result = arcpy.Solve_na(outNALayer, terminate_on_solve_error = "CONTINUE")
             if result[1] == u'false':
+              place = 'OD results processed, but no results recorded'
               null_dest_insert = '''
                 INSERT INTO {table} ({id}, {hex}, dest_class, distances)  
-                SELECT gnaf_pid,{hex}, dest_class, '{}'::int[] 
+                SELECT gnaf_pid,{hex}, dest_class, '{curlyo}{curlyc}'::int[] 
                   FROM parcel_dwellings 
                 CROSS JOIN (SELECT DISTINCT(dest_class) dest_class 
                               FROM dest_type 
@@ -190,10 +208,15 @@ def ODMatrixWorkerFunction(hex):
                 '''.format(table = result_table,
                            id = origin_pointsID.lower(), 
                            hex = hex,
-                           dest_class = dest_class)    
+                           curlyo = '{',
+                           curlyc = '}',
+                           dest_class = dest_class) 
+              print(null_dest_insert)                           
               curs.execute(null_dest_insert)
               conn.commit()
+              place = "update progress (post OD matrix results, no results)"
             else:
+              place = 'results were returned, now processing...'
               # Extract lines layer, export to SQL database
               outputLines = arcpy.da.SearchCursor(ODLinesSubLayer, fields)        
               chunkedLines = list()
@@ -203,45 +226,48 @@ def ODMatrixWorkerFunction(hex):
                 origin_id      = outputLine[0].split('-')[0].strip(' ')
                 dest_class = dest_id[0].strip(' ')
                 distance  = int(round(outputLine[1]))
-                place = "before chunk append, gnaf = {}".format(pid)
+                place = "before chunk append of returned and processed results"
                 chunkedLines.append('''('{origin_id}',{dest_class},{distance})'''.format(origin_id = origin_id,
                                                                                           dest_class = dest_class,
                                                                                           distance  = distance))
-              place = "before execute sql, gnaf = {}".format(pid)
+              place = "before execute returned results sql"
               curs.execute('''{insert1}{hex}{insert2}{values}{insert3}{insert4}'''.format(insert1 = insert1,
                                                                                           insert2 = insert2,
                                                                                           values   = ','.join(chunkedLines),
                                                                                           insert3 = insert3,
                                                                                           insert4 = insert3))
-              place = "before commit, gnaf = {}".format(pid)
+              place = "before commit of returned and processed results"
               conn.commit()
               # Where results don't exist for a destination class, ensure a null array is recorded
               null_dest_insert = '''
                INSERT INTO {table} ({id}, {hex}, dest_class, distances)  
-               SELECT gnaf_pid,{hex}, dest_class, '{}'::int[] 
+               SELECT gnaf_pid,{hex}, dest_class, '{curlyo}{curlyc}'::int[] 
                  FROM parcel_dwellings 
                WHERE hex = {hex}
                  AND NOT EXISTS (SELECT 1 FROM {table} WHERE dest_class = {dest_class} and hex = {hex});
                '''.format(table = result_table,
                           id = origin_pointsID.lower(), 
                           hex = hex,
+                          curlyo = '{',
+                          curlyc = '}',
                           dest_class = dest_class)    
               curs.execute(null_dest_insert)
-              conn.commit()
-            count += origin_point_count           
-    # update current progress
-    curs.execute('''UPDATE {progress_table} SET processed = processed+{count}'''.format(progress_table = progress_table,
-                                                                                                 count = A_pointCount))
-    conn.commit()
-    curs.execute('''SELECT processed from {progress_table}'''.format(progress_table = progress_table))
-    progress = int(list(curs)[0][0])
-    progressor(progress,
-               completion_goal,
-               start,
-               '''{}/{}; last hex processed: {}, at {}'''.format(progress,
-                                                                 completion_goal,
-                                                                 hex[0],
-                                                                 time.strftime("%Y%m%d-%H%M%S"))) 
+              conn.commit()       
+              place = "update progress (post OD matrix results, successful)"
+            # update current progress
+            curs.execute('''UPDATE {progress_table} SET processed = processed+{count}'''.format(progress_table = progress_table,
+                                                                                                 count = origin_point_count))
+            conn.commit()
+            curs.execute('''SELECT processed from {progress_table}'''.format(progress_table = progress_table))
+            progress = int(list(curs)[0][0])
+            place = 'final progress'
+            progressor(progress,
+                       completion_goal,
+                       start,
+                       '''{}/{}; last hex processed: {}, at {}'''.format(progress,
+                                                                         completion_goal,
+                                                                         hex,
+                                                                         time.strftime("%Y%m%d-%H%M%S"))) 
   except:
       print('''Error: {}\nPlace: {}'''.format( sys.exc_info(),place))  
   finally:
@@ -267,12 +293,11 @@ if __name__ == '__main__':
   conn.commit()
 
   print("Create a table for tracking progress... "), 
-  od_distances_3200_progress = '''
+  progress_table = '''
     DROP TABLE IF EXISTS {table}_progress;
-    CREATE TABLE IF NOT EXISTS {table}_progress 
-       (processed int);
+    CREATE TABLE IF NOT EXISTS {table}_progress AS SELECT 0::int AS processed;
     '''.format(table = result_table)
-  curs.execute(od_distances_3200_progress)
+  curs.execute(progress_table)
   conn.commit()
   print("Done.")
   
