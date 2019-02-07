@@ -1,7 +1,7 @@
-# Script:  09_od_count_in_buffer_distance.py
-# Purpose: This script counts the number of destinations within a threshold distance
-# Authors: Carl Higgs, Koen Simons
-# Date: 20180707
+# Script:  15_od_distances_3200m.py
+# Purpose: This script records the distances to all destinations within 3200m
+# Authors: Carl Higgs
+# Date: 20190208
 
 import arcpy, arcinfo
 import os

@@ -1,6 +1,6 @@
 # Script:  0_create_sql_db.py
 # Purpose: Facilitate creation of a PostgreSQL database 
-# Authors: Carl Higgs, Koen Simons
+# Authors: Carl Higgs
 # Context: Used to create database and related settings for creation of liveability indicators
 #
 ### Successful completion will look something like the following:
