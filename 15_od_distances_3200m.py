@@ -365,7 +365,6 @@ if __name__ == '__main__':
     print("Commence multiprocessing..."),
     # Parallel processing setting
     # (now set as parameter in ind_study_region_matrix xlsx file)
-    nWorkers = 2
     pool = multiprocessing.Pool(processes=nWorkers)
     # get list of hexes over which to iterate
     curs.execute("SELECT hex FROM hex_parcels;")

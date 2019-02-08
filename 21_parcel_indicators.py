@@ -31,11 +31,16 @@ engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_
 ind_matrix = df_inds[df_inds['locale'].str.contains('|'.join([locale,'\*']))]
 
 # Get a list of destinations processed within this region for distance to closest
-sql = '''SELECT DISTINCT(dest_name) FROM od_closest ORDER BY dest_name;'''
+sql = '''SELECT DISTINCT(dest_name) dest_name FROM od_closest ORDER BY dest_name;'''
 curs.execute(sql)
 categories = [x[0] for x in curs.fetchall()]
 category_list = ','.join(categories)
 category_types = '"{}" int'.format('" int, "'.join(categories))
+sql = '''SELECT DISTINCT(dest_class) FROM od_distances_3200m ORDER BY dest_class;'''
+curs.execute(sql)
+array_categories = [x[0] for x in curs.fetchall()]
+array_category_list = ','.join(array_categories)
+array_category_types = '"{}" int[]'.format('" int[], "'.join(array_categories))
 
 # get the set of distance to closest regions which match for this region
 destinations = df_inds[df_inds['ind'].str.contains('destinations')]
@@ -91,6 +96,27 @@ SELECT *
 curs.execute(crosstab)
 conn.commit()
 print("Done.")
+
+print("Create summary table of destination distance arrays... "),
+crosstab = '''
+DROP TABLE IF EXISTS dest_distances_3200m;
+CREATE TABLE dest_distances_3200m AS
+SELECT *
+  FROM   crosstab(
+   'SELECT gnaf_pid, dest_class, distances
+    FROM   od_distances_3200m
+    ORDER  BY 1,2'  -- could also just be "ORDER BY 1" here
+  ,$$SELECT unnest('{curly_o}{category_list}{curly_c}'::text[])$$
+   ) AS distances ("gnaf_pid" text, {category_types});
+'''.format(id = points_id.lower(),
+           curly_o = "{",
+           curly_c = "}",
+           category_list = array_category_list,
+           category_types = array_category_types)
+curs.execute(crosstab)
+conn.commit()
+print("Done.")
+
 
 print('Creating or replacing threshold functions ... '),
 create_threshold_functions = '''

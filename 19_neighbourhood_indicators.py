@@ -22,32 +22,40 @@ conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()
 
 print("Re-import areas to ensure proper indexing, and restrict other imported areas to study region.")
-for area in areas:
-  print('{}: '.format(areas[area]['name_f'])), 
-  command = 'ogr2ogr -overwrite -progress -f "PostgreSQL" -a_srs "EPSG:{srid}" '.format(srid = srid) \
-            + 'PG:"host={host} port=5432 dbname={db} '.format(host = db_host,db = db) \
-            + 'user={user} password = {pwd}" '.format(user = db_user,pwd = db_pwd) \
-            + '{shp} '.format(shp = areas[area]['data']) \
-            + '-lco geometry_name="geom"  -lco precision=NO ' \
-            + '-nlt MULTIPOLYGON' 
-  # print(command)
-  sp.call(command, shell=True) 
-  curs.execute('''
-  DELETE FROM  {area} a 
-        USING {buffered_study_region} b 
-    WHERE NOT ST_Intersects(a.geom,b.geom) 
-           OR a.geom IS NULL;
-  '''.format(area = areas[area]['table'],
-             buffered_study_region = buffered_study_region))
-  conn.commit()
+# Check if the table main_mb_2016_aust_full exists; if it does, these areas have previously been re-imported, so no need to re-do
+curs.execute('''SELECT 1 WHERE to_regclass('public.main_mb_2016_aust_full') IS NOT NULL;''')
+res = curs.fetchone()
+if res is None:
+  for area in areas:
+    print('{}: '.format(areas[area]['name_f'])), 
+    command = 'ogr2ogr -overwrite -progress -f "PostgreSQL" -a_srs "EPSG:{srid}" '.format(srid = srid) \
+              + 'PG:"host={host} port=5432 dbname={db} '.format(host = db_host,db = db) \
+              + 'user={user} password = {pwd}" '.format(user = db_user,pwd = db_pwd) \
+              + '{shp} '.format(shp = areas[area]['data']) \
+              + '-lco geometry_name="geom"  -lco precision=NO ' \
+              + '-nlt MULTIPOLYGON' 
+    # print(command)
+    sp.call(command, shell=True) 
+    curs.execute('''
+    DELETE FROM  {area} a 
+          USING {buffered_study_region} b 
+      WHERE NOT ST_Intersects(a.geom,b.geom) 
+             OR a.geom IS NULL;
+    '''.format(area = areas[area]['table'],
+               buffered_study_region = buffered_study_region))
+    conn.commit()
+else:
+  print('''It appears that area tables have previously been imported; nice one.\n''')
 
 print("Create area level destination counts... ")
+# We drop these tables first, since some destinations may have been processed since previously running.
+# These queries are quick to run, so not much cost to drop and create again.
 for area in areas:
   area_name = areas[area]['name_s']
   print("{}... ".format(areas[area]['name_f'])),
   query = '''
   DROP TABLE IF EXISTS {area_name}_dest_counts;
-  CREATE TABLE {area_name}_dest_counts AS
+  CREATE TABLE IF NOT EXISTS {area_name}_dest_counts AS
   SELECT a.{area_id}, dest_class, count(d.geom) AS count
   FROM {area_table} a
   LEFT JOIN 
@@ -118,7 +126,7 @@ print('Done.')
 # Define a series of neighbourhood indicator queries
 sql = ['''
 -- Daily living
-DROP TABLE IF EXISTS ind_daily_living;
+-- DROP TABLE IF EXISTS ind_daily_living;
 CREATE TABLE IF NOT EXISTS ind_daily_living AS
 SELECT p.{id}, 
        convenience_orig.ind_hard+ supermarket_orig.ind_hard + any_pt.ind_hard AS dl_orig_hard,
@@ -145,8 +153,8 @@ LEFT JOIN (SELECT {id}, ind_hard, ind_soft
 '''.format(id = points_id),
 '''
 -- Walkability
-DROP TABLE IF EXISTS ind_walkability;
-CREATE TABLE ind_walkability AS
+-- DROP TABLE IF EXISTS ind_walkability;
+CREATE TABLE IF NOT EXISTS ind_walkability AS
 SELECT dl.{id}, 
        z_dl_hard, 
        z_dl_soft, 
@@ -166,8 +174,8 @@ LEFT JOIN
 '''.format(id = points_id),
 '''
 -- Activity centre proximity
-DROP TABLE IF EXISTS ind_activity;
-CREATE TABLE ind_activity AS
+-- DROP TABLE IF EXISTS ind_activity;
+CREATE TABLE IF NOT EXISTS ind_activity AS
 SELECT {id},
        distance, 
        threshold_hard(distance,1000) AS ind_hard, 
@@ -189,15 +197,18 @@ GROUP BY {id};
 '''.format(id = points_id),
 '''
 -- Food ratio / proportion measures
-DROP TABLE IF EXISTS ind_foodratio;
-CREATE TABLE ind_foodratio AS
+-- DROP TABLE IF EXISTS ind_foodratio;
+CREATE TABLE IF NOT EXISTS ind_foodratio AS
 SELECT p.{id}, 
        COALESCE(supermarkets.count,0) AS supermarkets,
-       COALESCE(fastfood.count,0) AS fastfood,
-       (CASE
-        WHEN COALESCE(supermarkets.count,0) + COALESCE(fastfood.count,0) !=0 THEN  
-          COALESCE(supermarkets.count,0)/(COALESCE(supermarkets.count,0) + COALESCE(fastfood.count,0))::float
-        ELSE NULL END) AS supermarket_proportion 
+       COALESCE(fastfood.count,0) AS fastfood
+       -- ,
+       -- Commented out in order to speed things up
+       --
+       --(CASE
+       -- WHEN COALESCE(supermarkets.count,0) + COALESCE(fastfood.count,0) !=0 THEN  
+       --   COALESCE(supermarkets.count,0)/(COALESCE(supermarkets.count,0) + COALESCE(fastfood.count,0))::float
+       -- ELSE NULL END) AS supermarket_proportion 
 FROM parcel_dwellings p
 LEFT JOIN od_counts AS supermarkets ON p.{id} = supermarkets.{id}
 LEFT JOIN od_counts AS fastfood ON p.{id} = fastfood.{id}
@@ -206,8 +217,8 @@ LEFT JOIN od_counts AS fastfood ON p.{id} = fastfood.{id}
 '''.format(id = points_id),
 '''
 -- Public transport proximity
-DROP TABLE IF EXISTS ind_transport;
-CREATE TABLE ind_transport AS
+-- DROP TABLE IF EXISTS ind_transport;
+CREATE TABLE IF NOT EXISTS ind_transport AS
 SELECT p.{id},
        freq30.distance   AS freq30, 
        any_pt.distance   AS any_pt, 
@@ -243,8 +254,8 @@ LEFT JOIN (SELECT {id},distance
 '''.format(id = points_id)  ,
 '''
 -- Public open space proximity
-DROP TABLE IF EXISTS ind_pos_closest;
-CREATE TABLE ind_pos_closest AS
+-- DROP TABLE IF EXISTS ind_pos_closest;
+CREATE TABLE IF NOT EXISTS ind_pos_closest AS
 SELECT p.{id},
        pos_any.distance   AS pos_any_distance_m, 
        pos_large.distance   AS pos_15k_sqm_distance_m
@@ -279,8 +290,8 @@ LEFT JOIN (SELECT p.{id},
 '''
 -- Create table indexing sport use within 3200m
 -- Query these results like: SELECT gnaf_pid, count_in_threshold(distances,1600) FROM sport_3200m;
-DROP TABLE IF EXISTS sport_3200m;
-CREATE TABLE sport_3200m AS
+-- DROP TABLE IF EXISTS sport_3200m;
+CREATE TABLE IF NOT EXISTS sport_3200m AS
 SELECT p.{id}, 
        array_agg(distance) AS distances
   FROM parcel_dwellings p
