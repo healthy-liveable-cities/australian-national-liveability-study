@@ -117,9 +117,13 @@ def ODMatrixWorkerFunction(hex):
     if origin_point_count == 0:
         return(2)
     # fetch list of successfully processed destinations for this hex, if any
-    curs.execute('''SELECT DISTINCT(dest_class)
-                      FROM {table}
-                     WHERE hex = {hex}'''.format(table = result_table, hex = hex))
+    curs.execute('''SELECT dest_class 
+                    FROM (SELECT DISTINCT(dest_class),
+                                 COUNT(*)
+                            FROM {table}
+                           WHERE hex = {hex}
+                           GROUP BY dest_class) t
+                    WHERE count = (SELECT parcel_count FROM hex_parcels WHERE hex = {hex});'''.format(table = result_table, hex = hex))
     completed_dest = [x[0] for x in list(curs)]
     remaining_dest_list = [x[0] for x in destination_list if x[0] not in completed_dest]
     if len(remaining_dest_list) == 0:
@@ -131,6 +135,7 @@ def ODMatrixWorkerFunction(hex):
     dest_in_hex_count = int(arcpy.GetCount_management(dest_in_hex).getOutput(0))
     if dest_in_hex_count == 0: 
         place = 'zero dest in hex, so insert null records'
+        # print(place)
         null_dest_insert = '''
          INSERT INTO {table} ({id}, hex, dest_class, distances)  
          SELECT gnaf_pid,{hex}, dest_class, '{curlyo}{curlyc}'::int[] 
@@ -156,6 +161,15 @@ def ODMatrixWorkerFunction(hex):
     else: 
         # We now know there are destinations to be processed remaining in this hex, so we proceed
         for dest_class in remaining_dest_list:
+            # curs.execute('''SELECT count(*) 
+                              # FROM {table} 
+                             # WHERE hex = {hex} 
+                               # AND dest_class = '{dest_class}' '''.format(table = result_table,
+                                                                          # dest_class = dest_class)
+            # if int(list(curs)[0][0])!=0:
+               
+            # origin_selection = arcpy.SelectLayerByAttribute_management("origin_points_layer", where_clause = 'HEX_ID = {}'.format(hex))
+            # print(dest_class)
             destStartTime = time.time()
             # select destination points 
             destination_selection = arcpy.SelectLayerByAttribute_management(dest_in_hex, where_clause = "dest_class = '{}'".format(dest_class))
@@ -231,9 +245,12 @@ def ODMatrixWorkerFunction(hex):
               null_dest_insert = '''
                INSERT INTO {table} ({id}, hex, dest_class, distances)  
                SELECT gnaf_pid,{hex}, '{dest_class}', '{curlyo}{curlyc}'::int[] 
-                 FROM parcel_dwellings
+                 FROM parcel_dwellings p
                WHERE hex_id = {hex}
-                 AND NOT EXISTS (SELECT 1 FROM {table} WHERE dest_class = '{dest_class}' and hex = {hex});
+                 AND NOT EXISTS (SELECT 1 FROM {table} o 
+                                  WHERE dest_class = '{dest_class}' 
+                                    AND hex = {hex}
+                                    AND p.{id} = o.{id});
                '''.format(table = result_table,
                           id = origin_pointsID.lower(), 
                           hex = hex,
@@ -296,17 +313,59 @@ if __name__ == '__main__':
   curs.execute(create_progress_table)
   conn.commit()
   print("Done.")
-  
-  print("Commence multiprocessing..."),
-  # Parallel processing setting
-  # (now set as parameter in ind_study_region_matrix xlsx file)
-  pool = multiprocessing.Pool(processes=nWorkers)
-  # get list of hexes over which to iterate
-  curs.execute("SELECT hex FROM hex_parcels;")
-  iteration_list = np.asarray([x[0] for x in list(curs)])
-  # # Iterate process over hexes across nWorkers
-  pool.map(ODMatrixWorkerFunction, iteration_list, chunksize=1)
-  
+  evaluate_progress = '''
+   SELECT destinations.count * parcels.count, 
+          destinations.count, 
+          parcels.count, 
+          processed.processed
+   FROM (SELECT COUNT(DISTINCT(dest_class)) FROM dest_type WHERE cutoff_count IS NOT NULL and count > 0) destinations,
+        (SELECT COUNT(*) FROM parcel_dwellings) parcels,
+        (SELECT processed FROM od_distances_3200m_progress) processed;
+  '''
+  curs.execute(evaluate_progress)
+  results = list(curs)[0]
+  goal = results[0]
+  destinations = results[1]
+  parcels = results[2]
+  processed = results[3]
+  if processed < goal:
+    print("Commence multiprocessing..."),
+    # Parallel processing setting
+    # (now set as parameter in ind_study_region_matrix xlsx file)
+    pool = multiprocessing.Pool(processes=nWorkers)
+    # get list of hexes over which to iterate
+    curs.execute("SELECT hex FROM hex_parcels;")
+    iteration_list = np.asarray([x[0] for x in list(curs)])
+    # # Iterate process over hexes across nWorkers
+    pool.map(ODMatrixWorkerFunction, iteration_list, chunksize=1)
+    evaluate_progress = '''
+     SELECT destinations.count * parcels.count, 
+            destinations.count, 
+            parcels.count, 
+            processed.processed
+     FROM (SELECT COUNT(DISTINCT(dest_class)) FROM dest_type WHERE cutoff_count IS NOT NULL and count > 0) destinations,
+          (SELECT COUNT(*) FROM parcel_dwellings) parcels,
+          (SELECT processed FROM od_distances_3200m_progress) processed;
+    '''
+    curs.execute(evaluate_progress)
+    results = list(curs)[0]
+    goal = results[0]
+    destinations = results[1]
+    parcels = results[2]
+    processed = results[3]
+    if processed < goal:
+      print('''The script has finished running, however the number of results processed {} is still less than the goal{}.  There may be a bug, so please investigate how this has occurred in more depth.'''.format(processed,goal))
+  else: 
+    print('''It appears that {} destinations have already been processed for {} parcels, yielding {} results.'''.format(destinations,
+                                                                                                                        parcels,
+                                                                                                                        processed))
+    if processed > goal:
+      print('''The number of processed results is larger than the completion goal however ({})'''.format(goal))
+      print('''So it appears something has gone wrong. Please check how this might have occurred.  There may be a bug.''')
+    else:
+      print('''That appears to be equal to the completion goal of {} results; so all good!  It looks like this script is done.'''.format(goal))
   # output to completion log    
-  script_running_log(script, task, start, locale)
+  if processed == goal:
+    # this script will only be marked as successfully complete if the number of results processed matches the completion goal.
+    script_running_log(script, task, start, locale)
   conn.close()
