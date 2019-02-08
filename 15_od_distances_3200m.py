@@ -166,7 +166,8 @@ def ODMatrixWorkerFunction(hex):
     else: 
         # We now know there are destinations to be processed remaining in this hex, so we proceed
         for dest_class in remaining_dest_list:
-            print(dest_class)
+          if len(dest_class)>0:
+            # print(dest_class)
             dest_count = dest_class[1]
             origin_dest_point_count = origin_point_count - dest_count
             dest_class = dest_class[0]
