@@ -124,8 +124,16 @@ def ODMatrixWorkerFunction(hex):
                            WHERE hex = {hex}
                            GROUP BY dest_class) t
                     WHERE count = (SELECT parcel_count FROM hex_parcels WHERE hex = {hex});'''.format(table = result_table, hex = hex))
-    completed_dest = [x[0] for x in list(curs)]
-    remaining_dest_list = [x[0] for x in destination_list if x[0] not in completed_dest]
+    curs.execute('''SELECT DISTINCT(dest_class),
+                                 COUNT(*)
+                            FROM {table}
+                           WHERE hex = {hex}
+                           GROUP BY dest_class;'''.format(table = result_table, hex = hex))
+    hex_dests = list(curs)
+    completed_dest = [x[0] for x in hex_dests if x[1] == origin_point_count]
+    remaining_dest_list = [x for x in hex_dests if x[0] in [d[0] for d in destination_list] and x[0] not in completed_dest]
+    not_processed_dest = [(x[0],0) for x in destination_list if x[0] not in [d[0] for d in hex_dests]][0]
+    remaining_dest_list.append(not_processed_dest)
     if len(remaining_dest_list) == 0:
         return(0)
     place = 'before hex selection'
@@ -149,7 +157,7 @@ def ODMatrixWorkerFunction(hex):
                     hex = hex,
                     curlyo = '{',
                     curlyc = '}',
-                    dest_list = "','".join(remaining_dest_list))
+                    dest_list = "','".join([x[0] for x in remaining_dest_list]))
         # print(null_dest_insert)                    
         curs.execute(null_dest_insert)
         conn.commit()
@@ -161,30 +169,52 @@ def ODMatrixWorkerFunction(hex):
     else: 
         # We now know there are destinations to be processed remaining in this hex, so we proceed
         for dest_class in remaining_dest_list:
-            # curs.execute('''SELECT count(*) 
-                              # FROM {table} 
-                             # WHERE hex = {hex} 
-                               # AND dest_class = '{dest_class}' '''.format(table = result_table,
-                                                                          # dest_class = dest_class)
-            # if int(list(curs)[0][0])!=0:
-               
-            # origin_selection = arcpy.SelectLayerByAttribute_management("origin_points_layer", where_clause = 'HEX_ID = {}'.format(hex))
-            # print(dest_class)
+            dest_count = dest_class[1]
+            origin_dest_point_count = origin_point_count - dest_count
+            dest_class = dest_class[0]
             destStartTime = time.time()
+            if dest_count > 0:
+              curs.execute('''SELECT {id} 
+                              FROM parcel_dwellings p 
+                              WHERE hex_id = {hex}
+                              AND NOT EXISTS (SELECT 1 FROM {table} o 
+                                              WHERE hex = {hex}
+                                                AND dest_class = '{dest_class}' 
+                                                AND p.{id} = o.{id});
+                           '''.format(table = result_table,
+                                      id = origin_pointsID.lower(), 
+                                      hex = hex,
+                                      dest_class = dest_class)
+              remaining_parcels = [x[0] for x in list(curs)]
+              origin_subset = arcpy.SelectLayerByAttribute_management("origin_points_layer", 
+                                                                      where_clause = 'HEX_ID = {} AND {id} IN ('{}')'.format(hex,
+                                                                                                                             "','".join(remaining_parcels)))
+              # OD Matrix Setup      
+              arcpy.AddLocations_na(in_network_analysis_layer = outNALayer, 
+                  sub_layer                      = originsLayerName, 
+                  in_table                       = origin_subset, 
+                  field_mappings                 = "Name {} #".format(origin_pointsID), 
+                  search_tolerance               = "{} Meters".format(tolerance), 
+                  search_criteria                = "{} SHAPE;{} NONE".format(network_edges,network_junctions), 
+                  append                         = "CLEAR", 
+                  snap_to_position_along_network = "NO_SNAP", 
+                  exclude_restricted_elements    = "INCLUDE",
+                  search_query                   = "{} #;{} #".format(network_edges,network_junctions))
+            else:
+              # OD Matrix Setup      
+              arcpy.AddLocations_na(in_network_analysis_layer = outNALayer, 
+                  sub_layer                      = originsLayerName, 
+                  in_table                       = origin_selection, 
+                  field_mappings                 = "Name {} #".format(origin_pointsID), 
+                  search_tolerance               = "{} Meters".format(tolerance), 
+                  search_criteria                = "{} SHAPE;{} NONE".format(network_edges,network_junctions), 
+                  append                         = "CLEAR", 
+                  snap_to_position_along_network = "NO_SNAP", 
+                  exclude_restricted_elements    = "INCLUDE",
+                  search_query                   = "{} #;{} #".format(network_edges,network_junctions))
+
             # select destination points 
             destination_selection = arcpy.SelectLayerByAttribute_management(dest_in_hex, where_clause = "dest_class = '{}'".format(dest_class))
-            # OD Matrix Setup      
-            arcpy.AddLocations_na(in_network_analysis_layer = outNALayer, 
-                sub_layer                      = originsLayerName, 
-                in_table                       = origin_selection, 
-                field_mappings                 = "Name {} #".format(origin_pointsID), 
-                search_tolerance               = "{} Meters".format(tolerance), 
-                search_criteria                = "{} SHAPE;{} NONE".format(network_edges,network_junctions), 
-                append                         = "CLEAR", 
-                snap_to_position_along_network = "NO_SNAP", 
-                exclude_restricted_elements    = "INCLUDE",
-                search_query                   = "{} #;{} #".format(network_edges,network_junctions))
-
             arcpy.AddLocations_na(in_network_analysis_layer = outNALayer, 
                 sub_layer                      = destinationsLayerName, 
                 in_table                       = destination_selection, 
@@ -204,7 +234,8 @@ def ODMatrixWorkerFunction(hex):
                 INSERT INTO {table} ({id}, hex, dest_class, distances)  
                 SELECT gnaf_pid,{hex}, '{dest_class}', '{curlyo}{curlyc}'::int[] 
                   FROM parcel_dwellings 
-                 WHERE hex_id = {hex};
+                 WHERE hex_id = {hex} 
+                 ON CONFLICT DO NOTHING;
                 '''.format(table = result_table,
                            id = origin_pointsID.lower(), 
                            hex = hex,
@@ -263,7 +294,7 @@ def ODMatrixWorkerFunction(hex):
               place = "update progress (post OD matrix results, successful)"
             # update current progress
             curs.execute('''UPDATE {progress_table} SET processed = processed+{count}'''.format(progress_table = progress_table,
-                                                                                                 count = origin_point_count))
+                                                                                                 count = origin_dest_point_count))
             conn.commit()
     curs.execute('''SELECT processed from {progress_table}'''.format(progress_table = progress_table))
     progress = int(list(curs)[0][0])
