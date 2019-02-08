@@ -300,6 +300,8 @@ LEFT JOIN ind_walkability ON p.gnaf_pid = ind_walkability.gnaf_pid
 LEFT JOIN ind_transport ON p.gnaf_pid = ind_transport.gnaf_pid
 LEFT JOIN ind_pos_closest ON p.gnaf_pid = ind_pos_closest.gnaf_pid
 LEFT JOIN od_aos_jsonb ON p.gnaf_pid = od_aos_jsonb.gnaf_pid
+LEFT JOIN dest_distance_m ON p.gnaf_pid = dest_distance_m.gnaf_pid
+LEFT JOIN dest_distances_3200m ON p.gnaf_pid = dest_distance_3200m.gnaf_pid
 '''
 curs.execute(aedc_measures)
 conn.commit(aedc_measures)
