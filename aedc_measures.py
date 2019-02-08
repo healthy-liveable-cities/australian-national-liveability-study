@@ -102,17 +102,12 @@ sc_nh1600m.sc_nh1600m AS walk_15,
 dd_nh1600m.dd_nh1600m AS walk_16,
 ind_walkability.wa_soft AS walk_17_soft,
 ind_walkability.wa_hard AS walk_17_hard,
-dest_distance_m.alcohol_offlicence AS dist_cl_alcohol_offlicence,
-dest_distance_m.alcohol_onlicence AS dist_cl_alcohol_onlicence,
 dest_distance_m.conveniencestores_2014 AS dist_cl_conveniencestores_2014,
 dest_distance_m.newsagents_2014 AS dist_cl_newsagents_2014,
 dest_distance_m.petrolstations_2014 AS dist_cl_petrolstations_2014,
 dest_distance_m.fastfood_2017 AS dist_cl_fastfood_2017,
 dest_distance_m.supermarkets_2017 AS dist_cl_supermarkets_2017,
 dest_distance_m.activity_centres_2017 AS dist_cl_activity_centres_2017,
-dest_distance_m.childcare2018 AS dist_cl_childcare2018,
-dest_distance_m.childcare_oshc_2018 AS dist_cl_childcare_oshc_2018,
-dest_distance_m.preschool_childcare_2018 AS dist_cl_preschool_childcare_2018,
 dest_distance_m.supermarket_osm AS dist_cl_supermarket_osm,
 dest_distance_m.bakery_osm AS dist_cl_bakery_osm,
 dest_distance_m.meat_seafood_osm AS dist_cl_meat_seafood_osm,
@@ -194,17 +189,20 @@ dest_distance_m.MentalHealth_Psychology AS dist_cl_MentalHealth_Psychology,
 dest_distance_m.toilets_2018 AS dist_cl_toilets_2018,
 dest_distance_m.playgrounds_2018 AS dist_cl_playgrounds_2018,
 dest_distance_m.centrelink_2018 AS dist_cl_centrelink_2018,
-dest_distances_3200m.alcohol_offlicence AS dist_3200m_alcohol_offlicence,
-dest_distances_3200m.alcohol_onlicence AS dist_3200m_alcohol_onlicence,
+-- you could add in new destinations here; be sure to remember to end the line(s) with a comma!! eg.
+-- dest_distance_m.destination AS dist_cl_destination,
+-- Please uncomment below for alchol!!
+-- dest_distance_m.alcohol_offlicence AS dist_cl_alcohol_offlicence,
+-- dest_distance_m.alcohol_onlicence AS dist_cl_alcohol_onlicence,
+-- dest_distance_m.childcare2018 AS dist_cl_childcare2018,
+-- dest_distance_m.childcare_oshc_2018 AS dist_cl_childcare_oshc_2018,
+-- dest_distance_m.preschool_childcare_2018 AS dist_cl_preschool_childcare_2018,
 dest_distances_3200m.conveniencestores_2014 AS dist_3200m_convenience,
 dest_distances_3200m.newsagents_2014 AS dist_3200m_newsagent,
 dest_distances_3200m.petrolstations_2014 AS dist_3200m_petrolstation,
 dest_distances_3200m.fastfood_2017 AS dist_3200m_fast_food,
 dest_distances_3200m.supermarkets_2017 AS dist_3200m_supermarket,
 dest_distances_3200m.activity_centres_2017 AS dist_3200m_activity_centres,
-dest_distances_3200m.childcare2018 AS dist_3200m_childcare_all,
-dest_distances_3200m.childcare_oshc_2018 AS dist_3200m_childcare_oshc,
-dest_distances_3200m.preschool_childcare_2018 AS dist_3200m_childcare_preschool,
 dest_distances_3200m.supermarket_osm AS dist_3200m_supermarket_osm,
 dest_distances_3200m.bakery_osm AS dist_3200m_bakery_osm,
 dest_distances_3200m.meat_seafood_osm AS dist_3200m_meat_seafood_osm,
@@ -287,6 +285,13 @@ dest_distances_3200m.toilets_2018 AS dist_3200m_toilets,
 dest_distances_3200m.playgrounds_2018 AS dist_3200m_playgrounds,
 dest_distances_3200m.centrelink_2018 AS dist_3200m_centrelink,
 -- you could add in new destinations here; be sure to remember to end the line(s) with a comma!!
+-- dest_distances_3200m.destination AS dist_3200m_destination,
+-- PLEASE UNCOMMENT BELOW FOR ALCOHOL and childcare!
+-- dest_distances_3200m.alcohol_offlicence AS dist_3200m_alcohol_offlicence,
+-- dest_distances_3200m.alcohol_onlicence AS dist_3200m_alcohol_onlicence,
+-- dest_distances_3200m.childcare2018 AS dist_3200m_childcare_all,
+-- dest_distances_3200m.childcare_oshc_2018 AS dist_3200m_childcare_oshc,
+-- dest_distances_3200m.preschool_childcare_2018 AS dist_3200m_childcare_preschool,
 od_aos_jsonb.attributes AS aos_distances,
 p.geom
 FROM
@@ -306,6 +311,11 @@ LEFT JOIN dest_distances_3200m ON p.gnaf_pid = dest_distances_3200m.gnaf_pid
 '''
 curs.execute(aedc_measures)
 conn.commit(aedc_measures)
+
+print("Can you please run the following from the command prompt in the following directory: {local_dir}".format(local_dir = local_dir))
+print('''
+pg_dump -U postgres -h localhost -W  -t "li_map_sa1_{locale}_{year}" -t "li_map_ssc_{locale}_{year}" -t "li_map_lga_{locale}_{year}" -t "ind_description_{locale}_{year}" -t "boundaries_sa1_{locale}_{year}" -t "boundaries_ssc_{locale}_{year}" -t "boundaries_lga_{locale}_{year}" -t "urban_sos_{locale}_{year}" {db} > li_map_{db}.sql
+'''.format(locale = locale.lower(), year = year,db = db))
 
 # output to completion log    
 script_running_log(script, task, start, locale)
