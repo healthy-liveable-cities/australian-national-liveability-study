@@ -13,7 +13,7 @@ from script_running_log import script_running_log
 from config_ntnl_li_process import *
 
 # simple timer for log file
-start = time.time()
+start_beginning = time.time()
 script = os.path.basename(sys.argv[0])
 task = 'Import OSM'
 
@@ -82,6 +82,6 @@ curs.execute(grant_query)
 conn.commit()    
   
 # output to completion log    
-script_running_log(script, task, start, locale)
+script_running_log(script, task, start_beginning, locale)
 conn.close()
  
