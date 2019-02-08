@@ -53,6 +53,105 @@ curs.execute(crosstab)
 conn.commit()
 print("Done.")
 
+print("Ensure dest distance table has all required fields (you may have to edit the script on from line 57!"),
+required_dest_names = '''
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS alcohol_offlicence int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS alcohol_onlicence int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS conveniencestores_2014 int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS newsagents_2014 int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS petrolstations_2014 int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS fastfood_2017 int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS supermarkets_2017 int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS activity_centres_2017 int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS childcare2018 int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS childcare_oshc_2018 int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS preschool_childcare_2018 int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS supermarket_osm int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS bakery_osm int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS meat_seafood_osm int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS fruit_veg_osm int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS deli_osm int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS convenience_osm int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS petrolstation_osm int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS newsagent_osm int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS food_other_osm int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS food_health_osm int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS market_osm int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS community_centre_osm int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS place_of_worship_osm int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS museum_osm int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS theatre_osm int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS cinema_osm int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS art_gallery_osm int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS art_centre_osm int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS artwork_osm int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS fountain_osm int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS viewpoint_osm int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS picnic_site_osm int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS pharmacy_osm int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS restaurant_osm int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS cafe_osm int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS eatery_osm int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS food_court_osm int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS fastfood_osm int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS pub_osm int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS bar_osm int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS nightclub_osm int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS gambling_osm int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS alcohol_osm int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS tobacco_osm int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS swimming_pool_osm int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS all_schools2018 int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS P_12_Schools2018 int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS primary_schools2018 int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS secondary_schools2018 int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS special_schools2018 int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS libraries_2018 int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS gtfs_2018_stop_30_mins_final int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS gtfs_2018_stops int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS gtfs_2018_stops_bus int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS gtfs_2018_stops_ferry int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS gtfs_2018_stops_train int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS gtfs_2018_stops_tram int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS gtfs_nsw_stop_30_mins_bus int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS gtfs_nsw_stop_15_mins_train int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS Hospital int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS PhysicalActivity_Recreation int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS ChildcareKinder_LongDayChildCare int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS ChildcareKinder_Kinder_Preschool int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS ChildcareKinder_HolidayProgram int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS ChildcareKinder_KinderDisability int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS ChildcareKinder_OSHC int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS ChildcareKinder_OccasionalCare int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS ChildcareKinder_FamilyDayCare int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS ChildDevelopment_Playgroup int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS ChildDevelopment_ParentingFamilySupport int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS ChildDevelopment_ChildPlayProgram int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS ChildDevelopment_EarlyParentingSupport int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS ChildDevelopment_ToyLibrary int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS ChildDevelopment_SchoolNursing int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS ChildProtectionFamilyServices_Integrated int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS CommunityHealthCare_Pharmacy int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS CommunityHealthCare_MCH int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS CommunityHealthCare_Immunisation int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS Counselling_CounsellingFamilyTherapy int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS Counselling_GeneralCounselling int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS DisabilitySupport_EarlyChildhoodIntervention int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS EducationLearning_Library int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS GeneralPracticeGP_GP int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS MentalHealth_ChildMentalHealth int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS SpecialistPaediatric_PaediatricMedicine int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS MentalHealth_GeneralMentalHealthService int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS MentalHealth_AdultMentalHealthService int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS MentalHealth_Psychology int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS toilets_2018 int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS playgrounds_2018 int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS centrelink_2018 int ;
+'''
+curs.execute(required_dest_names)
+conn.commit()
+print("Done.")
+
 print("Create summary table of destination distance arrays... "),
 crosstab = '''
 DROP TABLE IF EXISTS dest_distances_3200m;
@@ -70,6 +169,105 @@ SELECT *
            category_list = array_category_list,
            category_types = array_category_types)
 curs.execute(crosstab)
+conn.commit()
+print("Done.")
+
+print("Ensure dest distances 3200 table has all required fields (you may have to edit the script on from line 176!"),
+required_dest_classes = '''
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS alcohol_offlicence int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS alcohol_onlicence int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS convenience int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS newsagent int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS petrolstation int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS fast_food int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS supermarket int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS activity_centres int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS childcare_all int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS childcare_oshc int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS childcare_preschool int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS supermarket_osm int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS bakery_osm int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS meat_seafood_osm int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS fruit_veg_osm int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS deli_osm int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS convenience_osm int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS petrolstation_osm int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS newsagent_osm int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS food_other_osm int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS food_health_osm int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS market_osm int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS community_centre_osm int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS place_of_worship_osm int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS museum_osm int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS theatre_osm int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS cinema_osm int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS art_gallery_osm int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS art_centre_osm int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS artwork_osm int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS fountain_osm int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS viewpoint_osm int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS picnic_site_osm int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS pharmacy_osm int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS restaurant_osm int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS cafe_osm int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS eatery_osm int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS food_court_osm int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS fastfood_osm int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS pub_osm int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS bar_osm int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS nightclub_osm int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS gambling_osm int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS alcohol_osm int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS tobacco_osm int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS swimming_pool_osm int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS all_schools int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS P_12_Schools int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS primary_schools int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS secondary_schools int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS special_schools int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS libraries int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS gtfs_2018_stop_30_mins_final int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS gtfs_2018_stops int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS gtfs_2018_stops_bus int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS gtfs_2018_stops_ferry int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS gtfs_2018_stops_train int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS gtfs_2018_stops_tram int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS gtfs_nsw_stop_30_mins_bus int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS gtfs_nsw_stop_15_mins_train int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS Hospital int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS PhysicalActivity_Recreation int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS ChildcareKinder_LongDayChildCare int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS ChildcareKinder_Kinder_Preschool int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS ChildcareKinder_HolidayProgram int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS ChildcareKinder_KinderDisability int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS ChildcareKinder_OSHC int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS ChildcareKinder_OccasionalCare int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS ChildcareKinder_FamilyDayCare int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS ChildDevelopment_Playgroup int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS ChildDevelopment_ParentingFamilySupport int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS ChildDevelopment_ChildPlayProgram int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS ChildDevelopment_EarlyParentingSupport int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS ChildDevelopment_ToyLibrary int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS ChildDevelopment_SchoolNursing int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS ChildProtectionFamilyServices_Integrated int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS CommunityHealthCare_Pharmacy int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS CommunityHealthCare_MCH int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS CommunityHealthCare_Immunisation int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS Counselling_CounsellingFamilyTherapy int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS Counselling_GeneralCounselling int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS DisabilitySupport_EarlyChildhoodIntervention int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS EducationLearning_Library int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS GeneralPracticeGP_GP int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS MentalHealth_ChildMentalHealth int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS SpecialistPaediatric_PaediatricMedicine int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS MentalHealth_GeneralMentalHealthService int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS MentalHealth_AdultMentalHealthService int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS MentalHealth_Psychology int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS toilets int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS playgrounds int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS centrelink int[] ;
+'''
+curs.execute(required_dest_classes)
 conn.commit()
 print("Done.")
 
@@ -197,12 +395,12 @@ dest_distance_m.centrelink_2018 AS dist_cl_centrelink_2018,
 -- dest_distance_m.childcare2018 AS dist_cl_childcare2018,
 -- dest_distance_m.childcare_oshc_2018 AS dist_cl_childcare_oshc_2018,
 -- dest_distance_m.preschool_childcare_2018 AS dist_cl_preschool_childcare_2018,
-dest_distances_3200m.conveniencestores_2014 AS dist_3200m_convenience,
-dest_distances_3200m.newsagents_2014 AS dist_3200m_newsagent,
-dest_distances_3200m.petrolstations_2014 AS dist_3200m_petrolstation,
-dest_distances_3200m.fastfood_2017 AS dist_3200m_fast_food,
-dest_distances_3200m.supermarkets_2017 AS dist_3200m_supermarket,
-dest_distances_3200m.activity_centres_2017 AS dist_3200m_activity_centres,
+dest_distances_3200m.convenience AS dist_3200m_convenience,
+dest_distances_3200m.newsagent AS dist_3200m_newsagent,
+dest_distances_3200m.petrolstation AS dist_3200m_petrolstation,
+dest_distances_3200m.fast_food AS dist_3200m_fast_food,
+dest_distances_3200m.supermarket AS dist_3200m_supermarket,
+dest_distances_3200m.activity_centres AS dist_3200m_activity_centres,
 dest_distances_3200m.supermarket_osm AS dist_3200m_supermarket_osm,
 dest_distances_3200m.bakery_osm AS dist_3200m_bakery_osm,
 dest_distances_3200m.meat_seafood_osm AS dist_3200m_meat_seafood_osm,
@@ -238,12 +436,12 @@ dest_distances_3200m.gambling_osm AS dist_3200m_gambling_osm,
 dest_distances_3200m.alcohol_osm AS dist_3200m_alcohol_osm,
 dest_distances_3200m.tobacco_osm AS dist_3200m_tobacco_osm,
 dest_distances_3200m.swimming_pool_osm AS dist_3200m_swimming_pool_osm,
-dest_distances_3200m.all_schools2018 AS dist_3200m_all_schools,
-dest_distances_3200m.P_12_Schools2018 AS dist_3200m_P_12_Schools,
-dest_distances_3200m.primary_schools2018 AS dist_3200m_primary_schools,
-dest_distances_3200m.secondary_schools2018 AS dist_3200m_secondary_schools,
-dest_distances_3200m.special_schools2018 AS dist_3200m_special_schools,
-dest_distances_3200m.libraries_2018 AS dist_3200m_libraries,
+dest_distances_3200m.all_schools AS dist_3200m_all_schools,
+dest_distances_3200m.P_12_Schools AS dist_3200m_P_12_Schools,
+dest_distances_3200m.primary_schools AS dist_3200m_primary_schools,
+dest_distances_3200m.secondary_schools AS dist_3200m_secondary_schools,
+dest_distances_3200m.special_schools AS dist_3200m_special_schools,
+dest_distances_3200m.libraries AS dist_3200m_libraries,
 dest_distances_3200m.gtfs_2018_stop_30_mins_final AS dist_3200m_gtfs_2018_stop_30_mins_final,
 dest_distances_3200m.gtfs_2018_stops AS dist_3200m_gtfs_2018_stops,
 dest_distances_3200m.gtfs_2018_stops_bus AS dist_3200m_gtfs_2018_stops_bus,
@@ -281,9 +479,9 @@ dest_distances_3200m.SpecialistPaediatric_PaediatricMedicine AS dist_3200m_Speci
 dest_distances_3200m.MentalHealth_GeneralMentalHealthService AS dist_3200m_MentalHealth_GeneralMentalHealthService,
 dest_distances_3200m.MentalHealth_AdultMentalHealthService AS dist_3200m_MentalHealth_AdultMentalHealthService,
 dest_distances_3200m.MentalHealth_Psychology AS dist_3200m_MentalHealth_Psychology,
-dest_distances_3200m.toilets_2018 AS dist_3200m_toilets,
-dest_distances_3200m.playgrounds_2018 AS dist_3200m_playgrounds,
-dest_distances_3200m.centrelink_2018 AS dist_3200m_centrelink,
+dest_distances_3200m.toilets AS dist_3200m_toilets,
+dest_distances_3200m.playgrounds AS dist_3200m_playgrounds,
+dest_distances_3200m.centrelink AS dist_3200m_centrelink,
 -- you could add in new destinations here; be sure to remember to end the line(s) with a comma!!
 -- dest_distances_3200m.destination AS dist_3200m_destination,
 -- PLEASE UNCOMMENT BELOW FOR ALCOHOL and childcare!
