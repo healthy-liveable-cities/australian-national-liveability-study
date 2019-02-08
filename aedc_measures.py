@@ -299,7 +299,7 @@ LEFT JOIN dd_nh1600m ON p.gnaf_pid = dd_nh1600m.gnaf_pid
 LEFT JOIN ind_walkability ON p.gnaf_pid = ind_walkability.gnaf_pid
 LEFT JOIN ind_transport ON p.gnaf_pid = ind_transport.gnaf_pid
 LEFT JOIN ind_pos_closest ON p.gnaf_pid = ind_pos_closest.gnaf_pid
-LEFT JOIN od_aos_jsonb ON p.gnaf_pid = od_aos_jsonb
+LEFT JOIN od_aos_jsonb ON p.gnaf_pid = od_aos_jsonb.gnaf_pid
 '''
 curs.execute(aedc_measures)
 conn.commit(aedc_measures)
