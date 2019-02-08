@@ -36,7 +36,7 @@ array_category_types = '"{}" int[]'.format('" int[], "'.join(array_categories))
 print("Create summary table of destination distances... "),
 crosstab = '''
 DROP TABLE IF EXISTS dest_distance_m;
-CREATE TABLE dest_distance_m AS
+CREATE TABLE IF NOT EXISTS dest_distance_m AS
 SELECT *
   FROM   crosstab(
    'SELECT gnaf_pid, dest_name, distance
@@ -155,7 +155,7 @@ print("Done.")
 print("Create summary table of destination distance arrays... "),
 crosstab = '''
 DROP TABLE IF EXISTS dest_distances_3200m;
-CREATE TABLE dest_distances_3200m AS
+CREATE TABLE IF NOT EXISTS dest_distances_3200m AS
 SELECT *
   FROM   crosstab(
    'SELECT gnaf_pid, dest_class, distances
@@ -508,11 +508,11 @@ LEFT JOIN dest_distance_m ON p.gnaf_pid = dest_distance_m.gnaf_pid
 LEFT JOIN dest_distances_3200m ON p.gnaf_pid = dest_distances_3200m.gnaf_pid
 '''
 curs.execute(aedc_measures)
-conn.commit(aedc_measures)
+conn.commit()
 
-print("Can you please run the following from the command prompt in the following directory: {local_dir}".format(local_dir = local_dir))
+print("Can you please run the following from the command prompt in the data directory?")
 print('''
-pg_dump -U postgres -h localhost -W  -t "li_map_sa1_{locale}_{year}" -t "li_map_ssc_{locale}_{year}" -t "li_map_lga_{locale}_{year}" -t "ind_description_{locale}_{year}" -t "boundaries_sa1_{locale}_{year}" -t "boundaries_ssc_{locale}_{year}" -t "boundaries_lga_{locale}_{year}" -t "urban_sos_{locale}_{year}" {db} > li_map_{db}.sql
+pg_dump -U postgres -h localhost -W  -t "aedc_measures" -t "open_space_areas" {db} > aedc_{db}.sql
 '''.format(locale = locale.lower(), year = year,db = db))
 
 # output to completion log    
