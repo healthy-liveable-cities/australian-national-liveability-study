@@ -94,9 +94,9 @@ print("Done.")
 
 print('Creating or replacing threshold functions ... '),
 create_threshold_functions = '''
-CREATE OR REPLACE FUNCTION threshold_hard(in int, in int, out int) 
+CREATE OR REPLACE FUNCTION threshold_hard(distance int, threshold int, out int) 
     RETURNS NULL ON NULL INPUT
-    AS $$ SELECT ($1 < $2)::int $$
+    AS $$ SELECT (distance < threshold)::int $$
     LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION threshold_soft(distance int, threshold int) returns double precision AS 

@@ -109,21 +109,15 @@ def ODMatrixWorkerFunction(hex):
   # Worker Task is hex-specific by definition/parallel
   # Skip if hex was finished in previous run
   hexStartTime = time.time() 
-  try:    
+  try:   
+    place = "origin selection"  
     # select origin points    
     origin_selection = arcpy.SelectLayerByAttribute_management("origin_points_layer", where_clause = 'HEX_ID = {}'.format(hex))
     origin_point_count = int(arcpy.GetCount_management(origin_selection).getOutput(0))
     # Skip hexes with zero adresses
     if origin_point_count == 0:
         return(2)
-    # fetch list of successfully processed destinations for this hex, if any
-    curs.execute('''SELECT dest_class 
-                    FROM (SELECT DISTINCT(dest_class),
-                                 COUNT(*)
-                            FROM {table}
-                           WHERE hex = {hex}
-                           GROUP BY dest_class) t
-                    WHERE count = (SELECT parcel_count FROM hex_parcels WHERE hex = {hex});'''.format(table = result_table, hex = hex))
+    # fetch list of successfully processed destinations for this hex, if any, along with counts
     curs.execute('''SELECT DISTINCT(dest_class),
                                  COUNT(*)
                             FROM {table}
@@ -131,11 +125,14 @@ def ODMatrixWorkerFunction(hex):
                            GROUP BY dest_class;'''.format(table = result_table, hex = hex))
     hex_dests = list(curs)
     completed_dest = [x[0] for x in hex_dests if x[1] == origin_point_count]
-    remaining_dest_list = [x for x in hex_dests if x[0] in [d[0] for d in destination_list] and x[0] not in completed_dest]
-    not_processed_dest = [(x[0],0) for x in destination_list if x[0] not in [d[0] for d in hex_dests]][0]
-    remaining_dest_list.append(not_processed_dest)
-    if len(remaining_dest_list) == 0:
+    if len(completed_dest) == len(destination_list):
         return(0)
+    place = "before remaining_dest_list init"
+    remaining_dest_list = [x for x in hex_dests if x[0] in [d[0] for d in destination_list] and x[0] not in completed_dest]
+    place = "before not_processed_dest"
+    not_processed_dest = [(x[0],0) for x in destination_list if x[0] not in [d[0] for d in hex_dests]]
+    remaining_dest_list.append(not_processed_dest)
+    place = "before evaluate remaining dest list length"
     place = 'before hex selection'
     hex_selection = arcpy.SelectLayerByAttribute_management("hex_layer", where_clause = 'OBJECTID = {}'.format(hex))
     place = 'before destination in hex selection'
@@ -169,6 +166,7 @@ def ODMatrixWorkerFunction(hex):
     else: 
         # We now know there are destinations to be processed remaining in this hex, so we proceed
         for dest_class in remaining_dest_list:
+            print(dest_class)
             dest_count = dest_class[1]
             origin_dest_point_count = origin_point_count - dest_count
             dest_class = dest_class[0]
@@ -184,11 +182,12 @@ def ODMatrixWorkerFunction(hex):
                            '''.format(table = result_table,
                                       id = origin_pointsID.lower(), 
                                       hex = hex,
-                                      dest_class = dest_class)
+                                      dest_class = dest_class))
               remaining_parcels = [x[0] for x in list(curs)]
               origin_subset = arcpy.SelectLayerByAttribute_management("origin_points_layer", 
-                                                                      where_clause = 'HEX_ID = {} AND {id} IN ('{}')'.format(hex,
-                                                                                                                             "','".join(remaining_parcels)))
+                                                                      where_clause = "HEX_ID = {hex} AND {id} IN ('{parcels}')".format(hex = hex,
+                                                                                                                                       id = origin_pointsID.lower(),
+                                                                                                                                       parcels = "','".join(remaining_parcels)))
               # OD Matrix Setup      
               arcpy.AddLocations_na(in_network_analysis_layer = outNALayer, 
                   sub_layer                      = originsLayerName, 
@@ -296,6 +295,7 @@ def ODMatrixWorkerFunction(hex):
             curs.execute('''UPDATE {progress_table} SET processed = processed+{count}'''.format(progress_table = progress_table,
                                                                                                  count = origin_dest_point_count))
             conn.commit()
+    place = "check progress"
     curs.execute('''SELECT processed from {progress_table}'''.format(progress_table = progress_table))
     progress = int(list(curs)[0][0])
     place = 'final progress'
