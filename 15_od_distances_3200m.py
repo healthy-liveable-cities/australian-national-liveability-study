@@ -131,7 +131,8 @@ def ODMatrixWorkerFunction(hex):
     remaining_dest_list = [x for x in hex_dests if x[0] in [d[0] for d in destination_list] and x[0] not in completed_dest]
     place = "before not_processed_dest"
     not_processed_dest = [(x[0],0) for x in destination_list if x[0] not in [d[0] for d in hex_dests]]
-    remaining_dest_list.append(not_processed_dest)
+    for x in not_processed_dest:
+      remaining_dest_list.append(x)
     place = "before evaluate remaining dest list length"
     place = 'before hex selection'
     hex_selection = arcpy.SelectLayerByAttribute_management("hex_layer", where_clause = 'OBJECTID = {}'.format(hex))
@@ -364,6 +365,7 @@ if __name__ == '__main__':
     print("Commence multiprocessing..."),
     # Parallel processing setting
     # (now set as parameter in ind_study_region_matrix xlsx file)
+    nWorkers = 2
     pool = multiprocessing.Pool(processes=nWorkers)
     # get list of hexes over which to iterate
     curs.execute("SELECT hex FROM hex_parcels;")
