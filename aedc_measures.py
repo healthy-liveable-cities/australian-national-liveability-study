@@ -276,6 +276,7 @@ DROP TABLE IF EXISTS aedc_measures;
 CREATE TABLE aedc_measures AS
 SELECT
 p.gnaf_pid               ,
+'{locale}' AS locale,
 p.count_objectid         ,
 p.point_x                ,
 p.point_y                ,
@@ -506,7 +507,7 @@ LEFT JOIN ind_pos_closest ON p.gnaf_pid = ind_pos_closest.gnaf_pid
 LEFT JOIN od_aos_jsonb ON p.gnaf_pid = od_aos_jsonb.gnaf_pid
 LEFT JOIN dest_distance_m ON p.gnaf_pid = dest_distance_m.gnaf_pid
 LEFT JOIN dest_distances_3200m ON p.gnaf_pid = dest_distances_3200m.gnaf_pid
-'''
+'''.format(locale=locale)
 curs.execute(aedc_measures)
 conn.commit()
 
