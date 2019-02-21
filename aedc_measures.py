@@ -63,9 +63,15 @@ ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS petrolstations_2014 int ;
 ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS fastfood_2017 int ;
 ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS supermarkets_2017 int ;
 ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS activity_centres_2017 int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS childcare2018 int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS childcare_2018 int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS childcare_meet_2018 int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS childcare_exc_2018 int ;
 ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS childcare_oshc_2018 int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS childcare_oshc_meet_2018 int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS childcare_oshc_exc_2018 int ;
 ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS preschool_childcare_2018 int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS preschool_childcare_meet_2018 int ;
+ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS preschool_childcare_exc_2018 int ;
 ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS supermarket_osm int ;
 ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS bakery_osm int ;
 ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS meat_seafood_osm int ;
@@ -183,8 +189,14 @@ ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS fast_food int[] ;
 ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS supermarket int[] ;
 ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS activity_centres int[] ;
 ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS childcare_all int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS childcare_all_meet int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS childcare_all_exc int[] ;
 ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS childcare_oshc int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS childcare_oshc_meet int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS childcare_oshc_exc int[] ;
 ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS childcare_preschool int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS childcare_preschool_meet int[] ;
+ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS childcare_preschool_exc int[] ;
 ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS supermarket_osm int[] ;
 ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS bakery_osm int[] ;
 ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS meat_seafood_osm int[] ;
@@ -393,9 +405,15 @@ dest_distance_m.centrelink_2018 AS dist_cl_centrelink_2018,
 -- Please uncomment below for alchol!!
 dest_distance_m.alcohol_offlicence AS dist_cl_alcohol_offlicence,
 dest_distance_m.alcohol_onlicence AS dist_cl_alcohol_onlicence,
-dest_distance_m.childcare2018 AS dist_cl_childcare2018,
+dest_distance_m.childcare_2018 AS dist_cl_childcare_2018,
+dest_distance_m.childcare_meet_2018 AS dist_cl_childcare_meet_2018,
+dest_distance_m.childcare_exc_2018 AS dist_cl_childcare_exc_2018,
 dest_distance_m.childcare_oshc_2018 AS dist_cl_childcare_oshc_2018,
+dest_distance_m.childcare_oshc_meet_2018 AS dist_cl_childcare_oshc_meet_2018,
+dest_distance_m.childcare_oshc_exc_2018 AS dist_cl_childcare_oshc_exc_2018,
 dest_distance_m.preschool_childcare_2018 AS dist_cl_preschool_childcare_2018,
+dest_distance_m.preschool_childcare_meet_2018 AS dist_cl_preschool_childcare_meet_2018,
+dest_distance_m.preschool_childcare_exc_2018 AS dist_cl_preschool_childcare_exc_2018,
 dest_distances_3200m.convenience AS dist_3200m_convenience,
 dest_distances_3200m.newsagent AS dist_3200m_newsagent,
 dest_distances_3200m.petrolstation AS dist_3200m_petrolstation,
@@ -488,9 +506,15 @@ dest_distances_3200m.centrelink AS dist_3200m_centrelink,
 -- PLEASE UNCOMMENT BELOW FOR ALCOHOL and childcare!
 dest_distances_3200m.alcohol_offlicence AS dist_3200m_alcohol_offlicence,
 dest_distances_3200m.alcohol_onlicence AS dist_3200m_alcohol_onlicence,
-dest_distances_3200m.childcare2018 AS dist_3200m_childcare_all,
-dest_distances_3200m.childcare_oshc_2018 AS dist_3200m_childcare_oshc,
-dest_distances_3200m.preschool_childcare_2018 AS dist_3200m_childcare_preschool,
+dest_distances_3200m.childcare_all AS dist_3200m_childcare_all,
+dest_distances_3200m.childcare_all_meet AS dist_3200m_childcare_all_meet,
+dest_distances_3200m.childcare_all_exc AS dist_3200m_childcare_all_exc,
+dest_distances_3200m.childcare_oshc AS dist_3200m_childcare_oshc,
+dest_distances_3200m.childcare_oshc_meet AS dist_3200m_childcare_oshc_meet,
+dest_distances_3200m.childcare_oshc_exc AS dist_3200m_childcare_oshc_exc,
+dest_distances_3200m.childcare_preschool AS dist_3200m_childcare_preschool,
+dest_distances_3200m.childcare_preschool_meet AS dist_3200m_childcare_preschool_meet,
+dest_distances_3200m.childcare_preschool_exc AS dist_3200m_childcare_preschool_exc,
 od_aos_jsonb.attributes AS aos_distances,
 p.geom
 FROM
