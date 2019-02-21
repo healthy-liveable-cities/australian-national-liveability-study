@@ -391,11 +391,11 @@ dest_distance_m.centrelink_2018 AS dist_cl_centrelink_2018,
 -- you could add in new destinations here; be sure to remember to end the line(s) with a comma!! eg.
 -- dest_distance_m.destination AS dist_cl_destination,
 -- Please uncomment below for alchol!!
--- dest_distance_m.alcohol_offlicence AS dist_cl_alcohol_offlicence,
--- dest_distance_m.alcohol_onlicence AS dist_cl_alcohol_onlicence,
--- dest_distance_m.childcare2018 AS dist_cl_childcare2018,
--- dest_distance_m.childcare_oshc_2018 AS dist_cl_childcare_oshc_2018,
--- dest_distance_m.preschool_childcare_2018 AS dist_cl_preschool_childcare_2018,
+dest_distance_m.alcohol_offlicence AS dist_cl_alcohol_offlicence,
+dest_distance_m.alcohol_onlicence AS dist_cl_alcohol_onlicence,
+dest_distance_m.childcare2018 AS dist_cl_childcare2018,
+dest_distance_m.childcare_oshc_2018 AS dist_cl_childcare_oshc_2018,
+dest_distance_m.preschool_childcare_2018 AS dist_cl_preschool_childcare_2018,
 dest_distances_3200m.convenience AS dist_3200m_convenience,
 dest_distances_3200m.newsagent AS dist_3200m_newsagent,
 dest_distances_3200m.petrolstation AS dist_3200m_petrolstation,
@@ -486,11 +486,11 @@ dest_distances_3200m.centrelink AS dist_3200m_centrelink,
 -- you could add in new destinations here; be sure to remember to end the line(s) with a comma!!
 -- dest_distances_3200m.destination AS dist_3200m_destination,
 -- PLEASE UNCOMMENT BELOW FOR ALCOHOL and childcare!
--- dest_distances_3200m.alcohol_offlicence AS dist_3200m_alcohol_offlicence,
--- dest_distances_3200m.alcohol_onlicence AS dist_3200m_alcohol_onlicence,
--- dest_distances_3200m.childcare2018 AS dist_3200m_childcare_all,
--- dest_distances_3200m.childcare_oshc_2018 AS dist_3200m_childcare_oshc,
--- dest_distances_3200m.preschool_childcare_2018 AS dist_3200m_childcare_preschool,
+dest_distances_3200m.alcohol_offlicence AS dist_3200m_alcohol_offlicence,
+dest_distances_3200m.alcohol_onlicence AS dist_3200m_alcohol_onlicence,
+dest_distances_3200m.childcare2018 AS dist_3200m_childcare_all,
+dest_distances_3200m.childcare_oshc_2018 AS dist_3200m_childcare_oshc,
+dest_distances_3200m.preschool_childcare_2018 AS dist_3200m_childcare_preschool,
 od_aos_jsonb.attributes AS aos_distances,
 p.geom
 FROM
