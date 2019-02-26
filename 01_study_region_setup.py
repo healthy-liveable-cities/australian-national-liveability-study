@@ -77,14 +77,6 @@ command = 'ogr2ogr -overwrite -progress -f "PostgreSQL" ' \
         + '-lco geometry_name="geom"'
 sp.call(command, shell=True)
 
-print("Copy buffered study region to postgis...")
-command = 'ogr2ogr -overwrite -progress -f "PostgreSQL" ' \
-        + 'PG:"host={host} port=5432 dbname={db} '.format(host = db_host,db = db) \
-        + 'user={user} password = {pwd}" '.format(user = db_user,pwd = db_pwd) \
-        + '{gdb} "{feature}" '.format(gdb = gdb_path,feature = buffered_study_region) \
-        + '-lco geometry_name="geom"'
-sp.call(command, shell=True)
-
 # connect to the PostgreSQL server and ensure privileges are granted for all public tables
 conn = psycopg2.connect(dbname=db, user=db_user, password=db_pwd)
 curs = conn.cursor()
