@@ -176,6 +176,7 @@ os.environ['PGUSER']     = db_user
 os.environ['PGPASSWORD'] = db_pwd
 os.environ['PGDATABASE'] = db
 
+osm_data = df_parameters.loc['osm_data']['value'].encode('utf')
 osm2pgsql_exe = os.path.join(folderPath,df_parameters.loc['osm2pgsql_exe']['value'].encode('utf'))
 osm2pgsql_style = os.path.join(folderPath,df_parameters.loc['osm2pgsql_style']['value'].encode('utf'))
 osm_source = df_studyregion.loc[locale]['osm_source'].encode('utf')
