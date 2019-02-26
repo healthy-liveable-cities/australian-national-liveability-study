@@ -92,14 +92,14 @@ suffix = osm_prefix.strip('osm')
 print("Create poly file, using command:")
 command = 'python ogr2poly.py {feature}'.format(feature = locale_4326_shp)
 print('\t{}'.format(command))
-# sp.call(command, shell=True)
+sp.call(command, shell=True)
 print('Done')
 print('Store poly file in study region folder, using command: ')
 locale_poly = '{}.poly'.format(locale_stub)
 command = 'move {old_place} {proper_place}'.format(old_place = os.path.split('{}_0.poly'.format(locale_stub))[1],
                                                  proper_place = locale_poly)
 print('\t{}'.format(command))
-# sp.call(command, shell=True)
+sp.call(command, shell=True)
 print("Done.")
 
 print("Extract OSM for studyregion... "),
@@ -114,7 +114,7 @@ if not os.path.isfile('{}'.format(studyregion)):
                                                                  osm = osm_data,
                                                                  poly = locale_poly,
                                                                  studyregion = studyregion)
-  # sp.call(command, shell=True)
+  sp.call(command, shell=True)
   
 print('Done.')
 
@@ -134,30 +134,31 @@ else:
   # Extract pedestrian network
   c = fiona.open(locale_4326_shp)   
   polygon = shape(next(iter(c))['geometry'])
-  # W = ox.graph_from_polygon(polygon,  network_type= 'all', retain_all = retain_all)
-  # ox.save_graphml(W, 
-     # filename=os.path.join(root,
-                           # 'osm_{studyregion}_all{suffix}.graphml'.format(studyregion = filename,
-                           # suffix = suffix)), 
-     # folder=None, 
-     # gephi=False)
-  # ox.save_graph_shapefile(W, 
-     # filename=os.path.join(root,
-                           # 'osm_{studyregion}_all{suffix}'.format(studyregion = filename,
-                                                                       # suffix = suffix)))
+  print('Creating and saving all roads network... '),
+  W = ox.graph_from_polygon(polygon,  network_type= 'all', retain_all = retain_all)
+  ox.save_graphml(W, 
+     filename=os.path.join(root,
+                           'osm_{studyregion}_all{suffix}.graphml'.format(studyregion = filename,
+                           suffix = suffix)), 
+     folder=None, 
+     gephi=False)
+  ox.save_graph_shapefile(W, 
+     filename=os.path.join(root,
+                           'osm_{studyregion}_all{suffix}'.format(studyregion = filename,
+                                                                       suffix = suffix)))
+  print('Done.')
+  print('Creating and saving pedestrian roads network... '),
   W = ox.graph_from_polygon(polygon,  custom_filter= pedestrian, retain_all = retain_all)
-  # ox.save_graphml(W, filename=os.path.join(root,
-      # 'osm_{studyregion}_pedestrian{suffix}.graphml'.format(studyregion = filename,
-                                                            # suffix = suffix)), 
-      # folder=None, 
-      # gephi=False)
-  # ox.save_graph_shapefile(W, 
-      # filename=os.path.join(root,
-      # 'osm_{studyregion}_pedestrian{suffix}'.format(studyregion = filename,
-                                                    # suffix = suffix)))  
-  print('Saved graph object and shapefile for {} in {:.1f} minutes.'.format(filename,
-                                        (datetime.now() - subtime).total_seconds()/60))         
-       
+  ox.save_graphml(W, filename=os.path.join(root,
+      'osm_{studyregion}_pedestrian{suffix}.graphml'.format(studyregion = filename,
+                                                            suffix = suffix)), 
+      folder=None, 
+      gephi=False)
+  ox.save_graph_shapefile(W, 
+      filename=os.path.join(root,
+      'osm_{studyregion}_pedestrian{suffix}'.format(studyregion = filename,
+                                                    suffix = suffix)))
+  print('Done.')                                                            
 
 # Clean intersections
 print("Prepare cleaned intersections... "),
@@ -166,7 +167,7 @@ G_proj = ox.project_graph(W)
 intersections = ox.clean_intersections(G_proj, tolerance=12, dead_ends=False)
 intersections.crs = G_proj.graph['crs']
 intersections_latlon = intersections.to_crs(epsg=4326)
-
+intersections_table = "clean_intersections_12m"
 # to sql  - works well!
 engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_user,
                                                                       pwd  = db_pwd,
@@ -180,8 +181,19 @@ statement = '''
   ALTER TABLE {table} ADD COLUMN geom geometry;
   UPDATE {table} SET geom = ST_Transform(point_4326,{srid});
   ALTER TABLE {table} DROP COLUMN point_4326;
-'''.format(table = 'clean_intersections_{}m'.format(intersection_tolerance),
+'''.format(table = intersections_table,
            points = ', '.join(["(ST_GeometryFromText('{}',4326))".format(x.wkt) for x in intersections_latlon]),
            srid = srid)  
 conn.execute(statement)      
 print("Done.")
+  
+# Copy joined, cropped Urban Metro meshblock + dwellings feature from postgis to project geodatabase
+arcpy.env.workspace = db_sde_path
+arcpy.CopyFeatures_management('public.{}'.format(intersections_table), 
+                               os.path.join(gdb_path,intersections_table))  
+  
+# output to completion log    
+script_running_log(script, task, start)
+
+# clean up
+conn.close()
