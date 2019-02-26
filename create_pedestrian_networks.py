@@ -187,11 +187,13 @@ statement = '''
 conn.execute(statement)      
 print("Done.")
   
-# Copy joined, cropped Urban Metro meshblock + dwellings feature from postgis to project geodatabase
-arcpy.env.workspace = db_sde_path
-arcpy.CopyFeatures_management('public.{}'.format(intersections_table), 
-                               os.path.join(gdb_path,intersections_table))  
-  
+# # Copy joined, cropped Urban Metro meshblock + dwellings feature from postgis to project geodatabase
+# print("Copy intersections to project geodatabase for legacy convenience... "),
+# import arcpy  # This won't work as arcpy is not installed!
+# arcpy.env.workspace = db_sde_path
+# arcpy.CopyFeatures_management('public.{}'.format(intersections_table), 
+                               # os.path.join(gdb_path,intersections_table))  
+# print("Done.")
 # output to completion log    
 script_running_log(script, task, start)
 
