@@ -284,6 +284,9 @@ in_network_dataset_path = os.path.join(gdb_path,in_network_dataset)
 # sausage buffer network size  -- in units specified above
 distance = df_parameters.loc['distance']['value']
 
+# intersection tolerance
+intersection_tolerance = df_parameters.loc['intersection_tolerance']['value']
+
 # search tolderance (in units specified above; features outside tolerance not located when adding locations)
 # NOTE: may need to increase if no locations are found
 tolerance = df_parameters.loc['tolerance']['value']

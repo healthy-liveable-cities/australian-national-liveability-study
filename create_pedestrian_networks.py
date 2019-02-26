@@ -52,7 +52,7 @@ import subprocess as sp
 from datetime import datetime
 import networkx as nx
 import osmnx as ox
-ox.config(use_cache=True, log_console=True)
+ox.config(use_cache=True, log_console=False)
 import requests
 import fiona
 from shapely.geometry import shape, MultiPolygon, Polygon
@@ -123,66 +123,65 @@ retain_all = False
 root,filename = os.path.split(locale_stub)
 
 if os.path.isfile(os.path.join(root,
-        'osm_{studyregion}_pedestrian{suffix}'.format(studyregion = filename,suffix = suffix))):
-  print('Pedestrian road network for {} has already been processed'.format(filename))
+      'osm_{studyregion}_pedestrian{suffix}.graphml'.format(studyregion = filename,
+                                                            suffix = suffix))):
+  print('Pedestrian road network for {} has already been processed; loading this up.'.format(filename))
+  W = ox.load_graphml(os.path.join(root,
+      'osm_{studyregion}_pedestrian{suffix}.graphml'.format(studyregion = filename,
+                                                            suffix = suffix)))
 else:
   subtime = datetime.now()
   # Extract pedestrian network
   c = fiona.open(locale_4326_shp)   
   polygon = shape(next(iter(c))['geometry'])
-  W = ox.graph_from_polygon(polygon,  network_type= 'all', retain_all = retain_all)
-  ox.save_graphml(W, 
-     filename=os.path.join(root,
-                           'osm_{studyregion}_all{suffix}.graphml'.format(studyregion = filename,
-                           suffix = suffix)), 
-     folder=None, 
-     gephi=False)
-  ox.save_graph_shapefile(W, 
-     filename=os.path.join(root,
-                           'osm_{studyregion}_all{suffix}'.format(studyregion = filename,
-                                                                       suffix = suffix)))
+  # W = ox.graph_from_polygon(polygon,  network_type= 'all', retain_all = retain_all)
+  # ox.save_graphml(W, 
+     # filename=os.path.join(root,
+                           # 'osm_{studyregion}_all{suffix}.graphml'.format(studyregion = filename,
+                           # suffix = suffix)), 
+     # folder=None, 
+     # gephi=False)
+  # ox.save_graph_shapefile(W, 
+     # filename=os.path.join(root,
+                           # 'osm_{studyregion}_all{suffix}'.format(studyregion = filename,
+                                                                       # suffix = suffix)))
   W = ox.graph_from_polygon(polygon,  custom_filter= pedestrian, retain_all = retain_all)
-  ox.save_graphml(W, filename=os.path.join(root,
-      'osm_{studyregion}_pedestrian{suffix}.graphml'.format(studyregion = filename,
-                                                            suffix = suffix)), 
-      folder=None, 
-      gephi=False)
-  ox.save_graph_shapefile(W, 
-      filename=os.path.join(root,
-      'osm_{studyregion}_pedestrian{suffix}'.format(studyregion = filename,
-                                                    suffix = suffix)))  
+  # ox.save_graphml(W, filename=os.path.join(root,
+      # 'osm_{studyregion}_pedestrian{suffix}.graphml'.format(studyregion = filename,
+                                                            # suffix = suffix)), 
+      # folder=None, 
+      # gephi=False)
+  # ox.save_graph_shapefile(W, 
+      # filename=os.path.join(root,
+      # 'osm_{studyregion}_pedestrian{suffix}'.format(studyregion = filename,
+                                                    # suffix = suffix)))  
   print('Saved graph object and shapefile for {} in {:.1f} minutes.'.format(filename,
                                         (datetime.now() - subtime).total_seconds()/60))         
        
 
 # Clean intersections
-print("Prepare cleaned intersections")
-from sqlalchemy import *
-from geoalchemy2 import Geometry
-import subprocess as sp
-# location of boundary files to iterate over
-search_dir = 'D:/ntnl_li_2018_template/data/study_region/ballarat'
-# output suffix
-suffix = '_20181001'
-stub = '_pedestrian{suffix}.graphml'.format(suffix = suffix)
-
-engine = create_engine('postgresql://{}:{}@localhost:5432/{}'.format(db_user,db_pwd,db))
-conn = engine.connect()
+print("Prepare cleaned intersections... "),
 
 G_proj = ox.project_graph(W)
 intersections = ox.clean_intersections(G_proj, tolerance=12, dead_ends=False)
 intersections.crs = G_proj.graph['crs']
 intersections_latlon = intersections.to_crs(epsg=4326)
-             # to sql  - works well!
 
-             statement = '''
-               DROP TABLE IF EXISTS {studyregion};
-               CREATE TABLE {studyregion} (point_4326 geometry);
-               INSERT INTO {studyregion} (point_4326) VALUES {points};
-               ALTER TABLE {studyregion} ADD COLUMN geom geometry;
-               UPDATE {studyregion} SET geom = ST_Transform(point_4326,7845);
-               ALTER TABLE {studyregion} DROP COLUMN point_4326;
-             '''.format(studyregion = studyregion,
-                        points = ', '.join(["(ST_GeometryFromText('{}',4326))".format(x.wkt) for x in intersections_latlon]))  
-             conn.execute(statement)   
-             places.append('"{}"'.format(studyregion))       
+# to sql  - works well!
+engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_user,
+                                                                      pwd  = db_pwd,
+                                                                      host = db_host,
+                                                                      db   = db))
+conn = engine.connect()
+statement = '''
+  DROP TABLE IF EXISTS {table};
+  CREATE TABLE {table} (point_4326 geometry);
+  INSERT INTO {table} (point_4326) VALUES {points};
+  ALTER TABLE {table} ADD COLUMN geom geometry;
+  UPDATE {table} SET geom = ST_Transform(point_4326,{srid});
+  ALTER TABLE {table} DROP COLUMN point_4326;
+'''.format(table = 'clean_intersections_{}m'.format(intersection_tolerance),
+           points = ', '.join(["(ST_GeometryFromText('{}',4326))".format(x.wkt) for x in intersections_latlon]),
+           srid = srid)  
+conn.execute(statement)      
+print("Done.")
