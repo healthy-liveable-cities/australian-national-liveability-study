@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 
 # Sourced from https://trac.openstreetmap.org/export/HEAD/subversion/applications/utils/osm-extract/polygons/ogr2poly.py
+# NOTE: modified by Carl Higgs 20190226 to work with Python 3
+# Specifically 'print >> f, string' syntax was replaced with 'f.write(string)' syntax
+
 # Usage: ogr2poly.py [options] src_datasource [layer]
 
 # options:
@@ -91,7 +94,7 @@ def createPolys(inOgr, options):
 
         logging.info('Creating ' + polyName + '.poly')
         f = open(polyName + '.poly', 'wt')
-        print >>f, polyName
+        f.write(polyName)
 
         # this will be a polygon, TODO: handle linestrings (must be buffered)
         geom = feat.GetGeometryRef()
@@ -138,10 +141,10 @@ def createPolys(inOgr, options):
             for i in range(0, g.GetGeometryCount()):
                 if i == 0:
                     # outer ring
-                    print >>f, i + 1
+                    f.write('{}'.format(i + 1))
                 else:
                     # inner ring
-                    print >>f, '!%d' % (i + 1)
+                    f.write('!{}'.format(i + 1))
                 ring = g.GetGeometryRef(i)
 
                 if ring.GetPointCount() > 0:
@@ -152,9 +155,10 @@ def createPolys(inOgr, options):
                 # output all points in the ring
                 for j in range(0, ring.GetPointCount()):
                     (x, y, z) = ring.GetPoint(j)
-                    print >>f, '   %.6E   %.6E' % (x, y)
-                print >>f, 'END'
-        print >>f, 'END'
+                    # f.write('   %.6E   %.6E' % (x, y))
+                    f.write('   {:.6E}   {:.6E}'.format(x, y))
+                f.write('END')
+        f.write('END')
         f.close()
     return True
 

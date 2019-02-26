@@ -24,7 +24,24 @@ Pedestrian street networks for specified city (2019)
  We should change this in the medium term, so all can run this script.
  
  Carl Higgs
- 26 February 2019
+ 26 February 2019pip 
+ 
+ EXTRA BITS:
+ To set up the environment some of the following could be used eventually:
+    conda create --override-channels -c conda-forge -n ntnl_li ^
+                 python=3                                      ^ 
+                 gdal vs2015_runtime=14                        ^
+                 osmnx=0.8.2                                   ^
+                 rasterstats=0.13.0                            ^
+                 geoalchemy2=0.5.0
+    activate ntnl_li
+    pip install altair
+    pip install rasterio
+    pip install osmnx
+    pip install rasterstats
+    pip install xlrd
+    pip install geoalchemy2
+    conda upgrade numpy
  '''
 print(about)
 
@@ -61,48 +78,82 @@ pedestrian = (
              '["access"!~"private"]'
              )
              
-# iterate of files within root or otherwise specified directory, noting all poly files
 
-# location of source OSM file
-osm_dir = 'D:/osm/planet_archives/planet-latest_20181001.osm.pbf'
-
-# location of boundary files to iterate over
-search_dir = 'D:/ntnl_li_2018_template/data/study_region/'
+# location of buffered boundary file
+locale_4326_shp = os.path.join(locale_dir,'{}_{}_{}m_epsg4326.shp'.format(locale.lower(),study_region,study_buffer))
+locale_stub = os.path.splitext(locale_4326_shp)[0]
 
 # conversion settings
-exe = 'osmconvert64-0.8.8p.exe'
-exepath = 'D:/osm/'
 osm_format = 'osm'
 
 # output suffix
-suffix = '_20181001'
+suffix = osm_prefix.strip('osm')
 
-count = 0
-# Start timing the code
-start_time = datetime.now()
-for root, dirs, files in os.walk(search_dir):
-    for file in files:
-        if file.endswith(".poly"):
-           # Extract OSM
-           subtime = datetime.now()
-           fullfile = os.path.join(root,file)
-           filename = os.path.splitext(file)[0]
-           studyregion = '{root}/{filename}{suffix}.{osm_format}'.format(root = root,
-                                                                         filename = filename,
-                                                                         suffix = suffix,
-                                                                         osm_format = osm_format)
-           if os.path.isfile('{}'.format(studyregion)):
-             print('.osm file {} already exists'.format(studyregion))
-            
-           if not os.path.isfile('{}'.format(studyregion)):
-             command = '{osmconvert} {osm} -B={poly} -o={studyregion}'.format(osmconvert = exe, 
-                                                                            osm = osm_dir,
-                                                                            poly = fullfile,
-                                                                            studyregion = studyregion)
-             sp.call(command, shell=True, cwd=exepath)
-             count+=1
-             print(' Extraction of .osm file for {} complete in {:.1f} minutes.'.format(filename,
-                                                                                  (datetime.now() - subtime).total_seconds()/60))
-            
-print('\nExtracted (or attempted to extract) {} OSM portions.'.format(count))            
-print("Elapsed time was {:.1f} minutes".format((datetime.now() - start_time).total_seconds()/60.0))
+print("Create poly file, using command:")
+command = 'python ogr2poly.py {feature}'.format(feature = locale_4326_shp)
+print('\t{}'.format(command))
+sp.call(command, shell=True)
+print('Done')
+print('Store poly file in study region folder, using command: ')
+locale_poly = '{}.poly'.format(locale_stub)
+command = 'move {old_place} {proper_place}'.format(old_place = os.path.split('{}_0.poly'.format(locale_stub))[1],
+                                                 proper_place = locale_poly)
+print('\t{}'.format(command))
+sp.call(command, shell=True)
+print("Done.")
+
+print("Extract OSM for studyregion... "),
+studyregion = '{locale_stub}{suffix}.{osm_format}'.format(locale_stub = locale_stub,
+                                                              suffix = suffix,
+                                                              osm_format = osm_format)
+if os.path.isfile('{}'.format(studyregion)):
+  print('.osm file {} already exists'.format(studyregion))
+ 
+if not os.path.isfile('{}'.format(studyregion)):
+  command = '{osmconvert} {osm} -B={poly} -o={studyregion}'.format(osmconvert = osmconvert, 
+                                                                 osm = osm_data,
+                                                                 poly = locale_poly,
+                                                                 studyregion = studyregion)
+  sp.call(command, shell=True)
+  
+print('Done.')
+
+print('Get networks and save as graphs (retain_all = False*** ie. only main network segment is retained).  Ensure this is appropriate for your study region.  In future, we could make this an optional parameter (false by default, but true if a region is known to have islands.  The problem with network islands is that, in many cases they are artifacts of cartography, not true islands.')
+retain_all = False
+root,filename = os.path.split(locale_stub)
+
+if os.path.isfile(os.path.join(root,
+        'osm_{studyregion}_pedestrian{suffix}'.format(studyregion = filename,suffix = suffix))):
+  print('Pedestrian road network for {} has already been processed'.format(filename))
+else:
+  subtime = datetime.now()
+  # Extract pedestrian network
+  # c = fiona.open(locale_4326_shp)   
+  # polygon = shape(next(iter(c))['geometry'])
+  # Extract  complete non-private OSM network: "all (non-private) OSM streets and paths"
+  # W = ox.graph_from_polygon(polygon,  network_type= 'all', retain_all = retain_all)
+  W = ox.graph_from_file(studyregion,  network_type= 'all', retain_all = retain_all)
+  ox.save_graphml(W, 
+     filename=os.path.join(root,
+                           'osm_{studyregion}_all{suffix}.graphml'.format(studyregion = filename,
+                           suffix = suffix)), 
+     folder=None, 
+     gephi=False)
+  ox.save_graph_shapefile(W, 
+     filename=os.path.join(root,
+                           'osm_{studyregion}_all{suffix}'.format(studyregion = filename,
+                                                                       suffix = suffix)))
+  W = ox.graph_from_file(studyregion,  custom_filter= pedestrian, retain_all = retain_all)
+  ox.save_graphml(W, filename=os.path.join(root,
+      'osm_{studyregion}_pedestrian{suffix}.graphml'.format(studyregion = filename,
+                                                            suffix = suffix)), 
+      folder=None, 
+      gephi=False)
+  ox.save_graph_shapefile(W, 
+      filename=os.path.join(root,
+      'osm_{studyregion}_pedestrian{suffix}'.format(studyregion = filename,
+                                                    suffix = suffix)))  
+  print('Saved graph object and shapefile for {} in {:.1f} minutes.'.format(filename,
+                                        (datetime.now() - subtime).total_seconds()/60))         
+       
+                 
