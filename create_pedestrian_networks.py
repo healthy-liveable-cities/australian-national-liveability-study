@@ -92,14 +92,14 @@ suffix = osm_prefix.strip('osm')
 print("Create poly file, using command:")
 command = 'python ogr2poly.py {feature}'.format(feature = locale_4326_shp)
 print('\t{}'.format(command))
-sp.call(command, shell=True)
+# sp.call(command, shell=True)
 print('Done')
 print('Store poly file in study region folder, using command: ')
 locale_poly = '{}.poly'.format(locale_stub)
 command = 'move {old_place} {proper_place}'.format(old_place = os.path.split('{}_0.poly'.format(locale_stub))[1],
                                                  proper_place = locale_poly)
 print('\t{}'.format(command))
-sp.call(command, shell=True)
+# sp.call(command, shell=True)
 print("Done.")
 
 print("Extract OSM for studyregion... "),
@@ -114,7 +114,7 @@ if not os.path.isfile('{}'.format(studyregion)):
                                                                  osm = osm_data,
                                                                  poly = locale_poly,
                                                                  studyregion = studyregion)
-  sp.call(command, shell=True)
+  # sp.call(command, shell=True)
   
 print('Done.')
 
@@ -128,11 +128,9 @@ if os.path.isfile(os.path.join(root,
 else:
   subtime = datetime.now()
   # Extract pedestrian network
-  # c = fiona.open(locale_4326_shp)   
-  # polygon = shape(next(iter(c))['geometry'])
-  # Extract  complete non-private OSM network: "all (non-private) OSM streets and paths"
-  # W = ox.graph_from_polygon(polygon,  network_type= 'all', retain_all = retain_all)
-  W = ox.graph_from_file(studyregion,  network_type= 'all', retain_all = retain_all)
+  c = fiona.open(locale_4326_shp)   
+  polygon = shape(next(iter(c))['geometry'])
+  W = ox.graph_from_polygon(polygon,  network_type= 'all', retain_all = retain_all)
   ox.save_graphml(W, 
      filename=os.path.join(root,
                            'osm_{studyregion}_all{suffix}.graphml'.format(studyregion = filename,
@@ -143,7 +141,7 @@ else:
      filename=os.path.join(root,
                            'osm_{studyregion}_all{suffix}'.format(studyregion = filename,
                                                                        suffix = suffix)))
-  W = ox.graph_from_file(studyregion,  custom_filter= pedestrian, retain_all = retain_all)
+  W = ox.graph_from_polygon(polygon,  custom_filter= pedestrian, retain_all = retain_all)
   ox.save_graphml(W, filename=os.path.join(root,
       'osm_{studyregion}_pedestrian{suffix}.graphml'.format(studyregion = filename,
                                                             suffix = suffix)), 
@@ -156,4 +154,35 @@ else:
   print('Saved graph object and shapefile for {} in {:.1f} minutes.'.format(filename,
                                         (datetime.now() - subtime).total_seconds()/60))         
        
-                 
+
+# Clean intersections
+print("Prepare cleaned intersections")
+from sqlalchemy import *
+from geoalchemy2 import Geometry
+import subprocess as sp
+# location of boundary files to iterate over
+search_dir = 'D:/ntnl_li_2018_template/data/study_region/ballarat'
+# output suffix
+suffix = '_20181001'
+stub = '_pedestrian{suffix}.graphml'.format(suffix = suffix)
+
+engine = create_engine('postgresql://{}:{}@localhost:5432/{}'.format(db_user,db_pwd,db))
+conn = engine.connect()
+
+G_proj = ox.project_graph(W)
+intersections = ox.clean_intersections(G_proj, tolerance=12, dead_ends=False)
+intersections.crs = G_proj.graph['crs']
+intersections_latlon = intersections.to_crs(epsg=4326)
+             # to sql  - works well!
+
+             statement = '''
+               DROP TABLE IF EXISTS {studyregion};
+               CREATE TABLE {studyregion} (point_4326 geometry);
+               INSERT INTO {studyregion} (point_4326) VALUES {points};
+               ALTER TABLE {studyregion} ADD COLUMN geom geometry;
+               UPDATE {studyregion} SET geom = ST_Transform(point_4326,7845);
+               ALTER TABLE {studyregion} DROP COLUMN point_4326;
+             '''.format(studyregion = studyregion,
+                        points = ', '.join(["(ST_GeometryFromText('{}',4326))".format(x.wkt) for x in intersections_latlon]))  
+             conn.execute(statement)   
+             places.append('"{}"'.format(studyregion))       
