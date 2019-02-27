@@ -41,7 +41,7 @@ At command prompt, run as administrator:
 conda update -n base -c defaults conda
 conda create -c conda-forge -n ntnl_li python=3 gdal vs2015_runtime=14 osmnx=0.8.2 rasterstats=0.13.0 geoalchemy2=0.5.0
 
-Now, enter 'y' to procede with installation.
+Now, enter 'y' to proceed with installation.
 
 Finally, to get things fully working, we enter the newly created virtual environment to make sure some more packages are installed (as they don't seem to be fully installed from purely running the above):
 activate ntnl_li
@@ -52,7 +52,7 @@ pip install rasterstats
 pip install xlrd
 pip install geoalchemy2
 conda upgrade numpy
-(click 'y' if required to procede)
+(click 'y' if required to proceed)
 
 Now, you can close this command window, and relaunch it (you don't need administrator mode necessarily now).
 
