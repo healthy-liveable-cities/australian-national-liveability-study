@@ -26,22 +26,51 @@ Pedestrian street networks for specified city (2019)
  Carl Higgs
  26 February 2019pip 
  
- EXTRA BITS:
- To set up the environment some of the following could be used eventually:
-    conda create --override-channels -c conda-forge -n ntnl_li ^
-                 python=3                                      ^ 
-                 gdal vs2015_runtime=14                        ^
-                 osmnx=0.8.2                                   ^
-                 rasterstats=0.13.0                            ^
-                 geoalchemy2=0.5.0
-    activate ntnl_li
-    pip install altair
-    pip install rasterio
-    pip install osmnx
-    pip install rasterstats
-    pip install xlrd
-    pip install geoalchemy2
-    conda upgrade numpy
+***EXTRA BITS***
+To set up the environment for Windows, please do the following:
+Download the 64-bit Windows installation package for Anaconda (https://www.anaconda.com/distribution/#windows)
+install, checking the box to include in path variable (it will give a warning, but please disregard this)
+In the windows search box, type in 'environment variables', and click on the option to edit the system environment variables.
+Click on the box 'environment variables'
+In the system variables scroll box, scroll down and select the variables 'Path'; click on 'Edit...'
+The Anaconda variables should currently be at the top -- however, we want to change this.
+Move the top 'Anaconda' path entry to the bottom of the list (select it and click 'Move Down' until it is at the bottom)
+Repeat the above step until the Anaconda path entries are at the bottom of the list, but in the same order they were at the top of the list.
+
+At command prompt, run as administrator:
+conda update -n base -c defaults conda
+conda create -c conda-forge -n ntnl_li python=3 gdal vs2015_runtime=14 osmnx=0.8.2 rasterstats=0.13.0 geoalchemy2=0.5.0
+
+Now, enter 'y' to procede with installation.
+
+Finally, to get things fully working, we enter the newly created virtual environment to make sure some more packages are installed (as they don't seem to be fully installed from purely running the above):
+activate ntnl_li
+pip install altair
+pip install rasterio
+pip install osmnx
+pip install rasterstats
+pip install xlrd
+pip install geoalchemy2
+conda upgrade numpy
+(click 'y' if required to procede)
+
+Now, you can close this command window, and relaunch it (you don't need administrator mode necessarily now).
+
+Re-open cmd.exe and navigate to the project script folder, D:\ntnl_li_2018_template\process
+
+To use the create_pedestrian_networks.py script it is assumed that you have
+set up your new study region in the project configuration file (ind_study_region_matrix.xlsx)
+run the following, say for Mildura:
+  python 00_create_database.py mildura 
+  python 01_study_region_setup.py mildura
+  
+Now we need to make sure you have the required OSM data; please copy the folder 'osm' from the network drive GIS/data/ folder to your D: drive  (not the most elegant solution, but this is what we currently do).  This contains a 'planet_archives' sub-folder, within which is the OSM data we use in our project.  The project config file points to  'D:/osm/planet_archives/planet-latest_20181001.osm.pbf' to find this.
+  
+Now, you activate the virtual environment and then run the new script with this special version of Python which contains all the project-specific dependencies we set up before
+  activate ntnl_li
+  python create_pedestrian_networks.py mildura 
+
+For larger cities in particular, this script will take some time.
  '''
 print(about)
 
