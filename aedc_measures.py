@@ -5,6 +5,7 @@
 
 import time
 import psycopg2 
+import subprocess as sp     # for executing external commands (e.g. pgsql2shp or ogr2ogr)
 from sqlalchemy import create_engine
 
 from script_running_log import script_running_log
@@ -528,15 +529,42 @@ LEFT JOIN ind_transport ON p.gnaf_pid = ind_transport.gnaf_pid
 LEFT JOIN ind_pos_closest ON p.gnaf_pid = ind_pos_closest.gnaf_pid
 LEFT JOIN od_aos_jsonb ON p.gnaf_pid = od_aos_jsonb.gnaf_pid
 LEFT JOIN dest_distance_m ON p.gnaf_pid = dest_distance_m.gnaf_pid
-LEFT JOIN dest_distances_3200m ON p.gnaf_pid = dest_distances_3200m.gnaf_pid
+LEFT JOIN dest_distances_3200m ON p.gnaf_pid = dest_distances_3200m.gnaf_pid;
 '''.format(locale=locale)
 curs.execute(aedc_measures)
 conn.commit()
 
-print("Can you please run the following from the command prompt in the data directory?")
+print('''Analyse the AEDC measures table... '''),
+curs.execute('''ANALYZE aedc_measures;''')
+conn.commit()
+print("Done.")
+
 print('''
-pg_dump -U postgres -h localhost -W  -t "aedc_measures" -t "open_space_areas" {db} > aedc_{db}.sql
-'''.format(locale = locale.lower(), year = year,db = db))
+Prepare report table (aedc_null_fraction) on proportion of rows that are null.  That is,
+  - if null_fract is 1 for a variable, then 100% are null.  Please check:
+      - perhaps no destinations of this type in your region?
+      - or some processing stage has been missed?
+  - if null_fract is .01 for a variable, then 1% are null  (which is still quite large and worth investigating)
+  - if null_fract is .0001 for a variable, then 1 in 10000 are null which may be realistic
+''')
+null_check = '''
+SELECT locale.locale, 
+       attname,
+       null_frac 
+FROM pg_stats,
+     (SELECT locale FROM aedc_measures LIMIT 1) locale 
+WHERE pg_stats."tablename" = 'aedc_measures';
+'''
+curs.execute("ANALYZE aedc_measures;")
+conn.commit()
+print("Done.")
+
+print("Exporting aedc measures to data directory..."),
+command = '''
+pg_dump -U postgres -h localhost -W  -t "aedc_measures" -t "aedc_null_fraction" -t "open_space_areas" {db} > aedc_{db}.sql
+'''.format(locale = locale.lower(), year = year,db = db)
+sp.call(command, shell=True, cwd=folderPath)                           
+print("Done.")
 
 # output to completion log    
 script_running_log(script, task, start, locale)
