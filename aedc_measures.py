@@ -530,6 +530,7 @@ LEFT JOIN ind_pos_closest ON p.gnaf_pid = ind_pos_closest.gnaf_pid
 LEFT JOIN od_aos_jsonb ON p.gnaf_pid = od_aos_jsonb.gnaf_pid
 LEFT JOIN dest_distance_m ON p.gnaf_pid = dest_distance_m.gnaf_pid
 LEFT JOIN dest_distances_3200m ON p.gnaf_pid = dest_distances_3200m.gnaf_pid;
+CREATE UNIQUE INDEX aedc__measures_idx ON aedc_measures (gnaf_pid);  
 '''.format(locale=locale)
 curs.execute(aedc_measures)
 conn.commit()
@@ -548,6 +549,8 @@ Prepare report table (aedc_null_fraction) on proportion of rows that are null.  
   - if null_fract is .0001 for a variable, then 1 in 10000 are null which may be realistic
 ''')
 null_check = '''
+DROP TABLE IF EXISTS aedc_null_fraction;
+CREATE TABLE aedc_null_fraction AS
 SELECT locale.locale, 
        attname,
        null_frac 
@@ -568,11 +571,17 @@ curs.execute(aos_locale)
 conn.commit()
 print("Done.")
 
-print("Exporting aedc measures to data directory..."),
-command = '''
-pg_dump -U postgres -h localhost -W  -t "aedc_measures" -t "aedc_null_fraction" -t "open_space_areas" {db} > aedc_{db}.sql
-'''.format(locale = locale.lower(), year = year,db = db)
-sp.call(command, shell=True, cwd=folderPath)                           
+print("Exporting aedc measures, null fraction check, and open space areas to study region's data directory..."),
+# command = '''
+# pg_dump -U postgres -h localhost -W  -t "aedc_measures" -t "aedc_null_fraction" -t "open_space_areas" {db} > aedc_{db}.sql
+# '''.format(locale = locale.lower(), year = year,db = db)
+# sp.call(command, shell=True, cwd=folderPath)                           
+for table in ['aedc_measures','aedc_null_fraction','open_space_areas']:
+  file = os.path.join(locale_dir,'{db}_{table}.csv'.format(db = db,table = table))
+  with open(file, 'w') as f:
+    sql = '''COPY {table} TO STDOUT WITH DELIMITER ';' CSV HEADER;'''.format(table = table)
+    curs.copy_expert(sql,f)
+  
 print("Done.")
 
 # output to completion log    

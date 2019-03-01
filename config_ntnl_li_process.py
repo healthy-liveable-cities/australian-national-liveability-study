@@ -47,8 +47,8 @@ df_housekeeping = pandas.read_excel(xls, 'housekeeping')
 
 df_parameters.value = df_parameters.value.fillna('')
 
+study_regions = [x.encode() for x in df_studyregion.index.tolist() if x not in ['testing','australia']]
 responsible = df_studyregion['responsible']
-
 year   = df_parameters.loc['year']['value']
 
 # The main directory for data
