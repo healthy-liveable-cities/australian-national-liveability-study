@@ -555,7 +555,16 @@ FROM pg_stats,
      (SELECT locale FROM aedc_measures LIMIT 1) locale 
 WHERE pg_stats."tablename" = 'aedc_measures';
 '''
-curs.execute("ANALYZE aedc_measures;")
+curs.execute(null_check)
+conn.commit()
+print("Done.")
+
+print('''Add locale column to open_space_areas in preparation for merge with other data... '''),
+aos_locale = '''
+ALTER TABLE open_space_areas ADD COLUMN IF NOT EXISTS locale;
+UPDATE open_space_areas SET locale = {};
+'''.format(locale.lower())
+curs.execute(aos_locale)
 conn.commit()
 print("Done.")
 
