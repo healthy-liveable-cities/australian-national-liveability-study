@@ -54,7 +54,7 @@ curs.execute(crosstab)
 conn.commit()
 print("Done.")
 
-print("Ensure dest distance table has all required fields (you may have to edit the script on from line 57!"),
+print("Ensure dest distance table has all required fields (you may have to edit the script on from line 57!)... "),
 required_dest_names = '''
 ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS alcohol_offlicence int ;
 ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS alcohol_onlicence int ;
@@ -179,7 +179,7 @@ curs.execute(crosstab)
 conn.commit()
 print("Done.")
 
-print("Ensure dest distances 3200 table has all required fields (you may have to edit the script on from line 176!"),
+print("Ensure dest distances 3200 table has all required fields (you may have to edit the script on from line 182!)... "),
 required_dest_classes = '''
 ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS alcohol_offlicence int[] ;
 ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS alcohol_onlicence int[] ;
@@ -561,8 +561,8 @@ print("Done.")
 
 print('''Add locale column to open_space_areas in preparation for merge with other data... '''),
 aos_locale = '''
-ALTER TABLE open_space_areas ADD COLUMN IF NOT EXISTS locale;
-UPDATE open_space_areas SET locale = {};
+ALTER TABLE open_space_areas ADD COLUMN IF NOT EXISTS locale text;
+UPDATE open_space_areas SET locale = '{}' ;
 '''.format(locale.lower())
 curs.execute(aos_locale)
 conn.commit()
