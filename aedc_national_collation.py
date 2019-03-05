@@ -264,6 +264,40 @@ create table aedc_null_fraction
 
 --alter table aedc_null_fraction owner to python;
 
+-- CREATE TABLE aedc_null_summary AS
+-- select * from crosstab (
+--     'select DISTINCT
+--       attname,
+--       locale,
+--       null_frac
+--     from aedc_null_fraction
+--     order by attname,locale',
+--     'select distinct locale from aedc_null_fraction order by 1'
+--    ) AS null_frac ("attname" text,
+--                    "adelaide" real,
+--                    "bris" real,
+--                    "canberra" real,
+--                    "darwin" real,
+--                    "hobart" real,
+--                    "melb" real,
+--                    "perth" real,
+--                    "syd" real,
+--                    "mitchell" real,
+--                    "albury_wodonga" real,
+--                    "ballarat" real,
+--                    "bendigo" real,
+--                    "cairns" real,
+--                    "geelong" real,
+--                    "goldcoast_tweedheads" real,
+--                    "launceston" real,
+--                    "mackay" real,
+--                    "newcastle_maitland" real,
+--                    "sunshine_coast" real,
+--                    "toowoomba" real,
+--                    "townsville" real,
+--                    "wollongong" real
+--                   );
+
 DROP TABLE IF EXISTS  open_space_areas;
 create table open_space_areas
 (
