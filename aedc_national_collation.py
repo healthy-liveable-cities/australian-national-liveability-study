@@ -257,7 +257,7 @@ create unique index aedc_measures_idx
 DROP TABLE IF EXISTS aedc_null_fraction;
 create table aedc_null_fraction
 (
-	locale unknown,
+	locale text,
 	attname name,
 	null_frac real
 );
