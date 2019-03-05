@@ -555,7 +555,7 @@ SELECT locale.locale,
        attname,
        null_frac 
 FROM pg_stats,
-     (SELECT locale FROM aedc_measures LIMIT 1) locale 
+     (SELECT locale::text FROM aedc_measures LIMIT 1) locale 
 WHERE pg_stats."tablename" = 'aedc_measures';
 '''
 curs.execute(null_check)
