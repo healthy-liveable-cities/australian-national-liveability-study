@@ -1,0 +1,22 @@
+### AS per: https://www.knime.com/forum/knime-general/using-git-or-another-revision-control-system-for-knime-workflows
+## KNIME files
+.knimeLock
+.project
+.savedWithData
+workflowset.meta
+
+## KNIME directories containing node data
+internal/
+port_*/
+.metadata/
+internalTables/
+
+# Packages #
+*.7z
+*.dmg
+*.gz
+*.iso
+*.jar
+*.rar
+*.tar
+*.zip
