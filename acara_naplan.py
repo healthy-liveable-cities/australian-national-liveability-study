@@ -128,15 +128,22 @@ df.to_sql(name='acara_schools',con=engine,if_exists='replace')
 
 # The following sql queries were run interactively
 additional_sql = '''
+-- collect statistics about the acara_schools table (we're primarily interested in null counts)
 ANALYSE acara_schools;
+
+-- create null fraction table
 CREATE TABLE acara_null_fraction AS
 SELECT attname,
        null_frac
 FROM pg_stats
 WHERE pg_stats."tablename" = 'acara_schools';
+
+-- get some data summaries 
 SELECT * FROM acara_null_fraction;
 SELECT naplan_status, COUNT(*) FROM acara_schools GROUP BY naplan_status;
 SELECT "School_Sec", naplan_status,COUNT(*) FROM acara_schools GROUP BY "School_Sec",naplan_status ORDER BY "School_Sec",naplan_status;
+
+-- create and populate a summary statistic table
 CREATE TABLE acara_summary
 (year int,
  trait text,
@@ -167,5 +174,6 @@ INSERT INTO acara_summary SELECT 9 AS year, 'spelling' AS trait,COUNT(year9_spel
 INSERT INTO acara_summary SELECT 9 AS year, 'grammar' AS trait, COUNT(year9_grammar ), min(year9_grammar ),max(year9_grammar ) ,avg(year9_grammar ), stddev(year9_grammar )  FROM acara_schools;
 INSERT INTO acara_summary SELECT 9 AS year, 'numeracy' AS trait,COUNT(year9_numeracy), min(year9_numeracy),max(year9_numeracy) ,avg(year9_numeracy), stddev(year9_numeracy)  FROM acara_schools;
 
+-- view the summary statistics
 SELECT year, trait, count, min, max, round(avg::numeric,2) AS avg, round(stddev::numeric,2) AS sd FROM acara_summary;
 '''
