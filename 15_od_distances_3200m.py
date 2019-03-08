@@ -366,8 +366,8 @@ if __name__ == '__main__':
     # Parallel processing setting
     # (now set as parameter in ind_study_region_matrix xlsx file)
     # TEMPORARILY REDUCED WORKERS TO 2 FOR SYDNEY!! 
-    print("Temporarily reduced workers to 2 for sydney to mitigate memory issues; if this warning comes up and you need more workers, lets undo this temporary reduction!")
-    nWorkers = 2
+    # print("Temporarily reduced workers to 2 for sydney to mitigate memory issues; if this warning comes up and you need more workers, lets undo this temporary reduction!")
+    # nWorkers = 2
     pool = multiprocessing.Pool(processes=nWorkers)
     # get list of hexes over which to iterate
     curs.execute("SELECT hex FROM hex_parcels;")
