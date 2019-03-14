@@ -10,6 +10,7 @@ import multiprocessing
 import sys
 import psycopg2 
 import numpy as np
+from sqlalchemy import create_engine
 from progressor import progressor
 
 from script_running_log import script_running_log
@@ -45,7 +46,7 @@ featureClasses = arcpy.ListFeatureClasses()
 ## Note - this used to be 'dist_cl_od_parcel_dest' --- simplified to 'result_table'
 result_table = "od_distances_3200m"
 progress_table = "{table}_progress".format(table = result_table)
-
+                                                                      
 # SQL insert queries
 insert1 = '''INSERT INTO {table} ({id}, hex, dest_class, distances) SELECT {id},'''.format(table = result_table,
                                                                                        id = origin_pointsID.lower())
@@ -93,12 +94,26 @@ if pid !='MainProcess':
   completion_goal = list(curs)[0][0] * len(set([x[0] for x in destination_list]))
   conn.close()
 
+# Custom pandas group by function using numpy 
+# Sorts values 'b' as lists grouped by values 'a'  
+def f(df,a,b):
+         df = df[[a,b]]
+         keys, values = df.sort_values(a).values.T
+         ukeys, index = np.unique(keys,True)
+         arrays = np.split(values,index[1:])
+         df2 = pandas.DataFrame({a:ukeys,b:[sorted(list(u)) for u in arrays]})
+         return df2  
+  
 # Worker/Child PROCESS
 def ODMatrixWorkerFunction(hex): 
   # Connect to SQL database 
   try:
     conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
     curs = conn.cursor()
+    engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_user,
+                                                                      pwd  = db_pwd,
+                                                                      host = db_host,
+                                                                      db   = db))
   except:
     print("SQL connection error")
     print(sys.exc_info()[1])
@@ -251,28 +266,17 @@ def ODMatrixWorkerFunction(hex):
               place = 'results were returned, now processing...'
               # Extract lines layer, export to SQL database
               outputLines = arcpy.da.SearchCursor(ODLinesSubLayer, fields)        
-              chunkedLines = list()
-              # Result table queries
-              place = 'before outputLine loop'
-              for outputLine in outputLines:
-                origin_id      = outputLine[0].split('-')[0].strip(' ')
-                dest_id   = outputLine[0].split('-')[1].split(',')
-                dest_class = dest_id[0].strip(' ')
-                distance  = int(round(outputLine[1]))
-                place = "before chunk append of returned and processed results"
-                chunkedLines.append('''('{origin_id}','{dest_class}',{distance})'''.format(origin_id = origin_id,
-                                                                                          dest_class = dest_class,
-                                                                                          distance  = distance))
-              place = "before execute returned results sql"
-              sql_query = '''{insert1}{hex}{insert2}{values}{insert3}{insert4}'''.format(insert1 = insert1,
-                                                                                          hex = hex,
-                                                                                          insert2 = insert2,
-                                                                                          values   = ','.join(chunkedLines),
-                                                                                          insert3 = insert3,
-                                                                                          insert4 = insert4)
-              curs.execute(sql_query)
-              place = "before commit of returned and processed results"
-              conn.commit()
+              # new pandas approach to od counts
+              data = [x for x in outputLines]
+              df = pandas.DataFrame(data = data, columns = ['od','distances'])
+              df[[origin_pointsID,'d']] = df['od'].str.split(' - ',expand=True)
+              # custom group function
+              df = f(df,origin_pointsID,'distances')
+              df["dest_class"] = dest_class
+              df["hex"] = hex
+              df = df[[origin_pointsID,'hex','dest_class','distances']]
+              # append to pre-existing table
+              df.to_sql("test_od",con = engine,index = False, if_exists='append')
               # Where results don't exist for a destination class, ensure a null array is recorded
               null_dest_insert = '''
                INSERT INTO {table} ({id}, hex, dest_class, distances)  
@@ -364,10 +368,6 @@ if __name__ == '__main__':
   if processed < goal:
     print("Commence multiprocessing..."),
     # Parallel processing setting
-    # (now set as parameter in ind_study_region_matrix xlsx file)
-    # TEMPORARILY REDUCED WORKERS TO 2 FOR SYDNEY!! 
-    # print("Temporarily reduced workers to 2 for sydney to mitigate memory issues; if this warning comes up and you need more workers, lets undo this temporary reduction!")
-    # nWorkers = 2
     pool = multiprocessing.Pool(processes=nWorkers)
     # get list of hexes over which to iterate
     curs.execute("SELECT hex FROM hex_parcels;")
