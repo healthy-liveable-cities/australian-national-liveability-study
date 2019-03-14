@@ -276,7 +276,7 @@ def ODMatrixWorkerFunction(hex):
               df["hex"] = hex
               df = df[[origin_pointsID,'hex','dest_class','distances']]
               # append to pre-existing table
-              df.to_sql("test_od",con = engine,index = False, if_exists='append')
+              df.to_sql(result_table,con = engine,index = False, if_exists='append')
               # Where results don't exist for a destination class, ensure a null array is recorded
               null_dest_insert = '''
                INSERT INTO {table} ({id}, hex, dest_class, distances)  
@@ -357,8 +357,8 @@ if __name__ == '__main__':
           processed.processed
    FROM (SELECT COUNT(DISTINCT(dest_class)) FROM dest_type WHERE cutoff_count IS NOT NULL and count > 0) destinations,
         (SELECT COUNT(*) FROM parcel_dwellings) parcels,
-        (SELECT processed FROM od_distances_3200m_progress) processed;
-  '''
+        (SELECT processed FROM {}) processed;
+  '''.format(progress_table)
   curs.execute(evaluate_progress)
   results = list(curs)[0]
   goal = results[0]
@@ -381,8 +381,8 @@ if __name__ == '__main__':
             processed.processed
      FROM (SELECT COUNT(DISTINCT(dest_class)) FROM dest_type WHERE cutoff_count IS NOT NULL and count > 0) destinations,
           (SELECT COUNT(*) FROM parcel_dwellings) parcels,
-          (SELECT processed FROM od_distances_3200m_progress) processed;
-    '''
+          (SELECT processed FROM {}) processed;
+    '''.format(progress_table)
     curs.execute(evaluate_progress)
     results = list(curs)[0]
     goal = results[0]
