@@ -54,111 +54,6 @@ curs.execute(crosstab)
 conn.commit()
 print("Done.")
 
-print("Ensure dest distance table has all required fields (you may have to edit the script on from line 57!)... "),
-required_dest_names = '''
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS alcohol_offlicence int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS alcohol_onlicence int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS conveniencestores_2014 int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS newsagents_2014 int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS petrolstations_2014 int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS fastfood_2017 int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS supermarkets_2017 int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS activity_centres_2017 int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS childcare_2018 int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS childcare_meet_2018 int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS childcare_exc_2018 int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS childcare_oshc_2018 int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS childcare_oshc_meet_2018 int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS childcare_oshc_exc_2018 int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS preschool_childcare_2018 int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS preschool_childcare_meet_2018 int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS preschool_childcare_exc_2018 int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS supermarket_osm int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS bakery_osm int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS meat_seafood_osm int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS fruit_veg_osm int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS deli_osm int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS convenience_osm int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS petrolstation_osm int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS newsagent_osm int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS food_other_osm int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS food_health_osm int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS market_osm int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS community_centre_osm int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS place_of_worship_osm int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS museum_osm int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS theatre_osm int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS cinema_osm int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS art_gallery_osm int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS art_centre_osm int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS artwork_osm int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS fountain_osm int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS viewpoint_osm int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS picnic_site_osm int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS pharmacy_osm int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS restaurant_osm int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS cafe_osm int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS eatery_osm int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS food_court_osm int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS fastfood_osm int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS pub_osm int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS bar_osm int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS nightclub_osm int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS gambling_osm int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS alcohol_osm int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS tobacco_osm int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS swimming_pool_osm int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS all_schools2018 int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS p_12_schools2018 int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS primary_schools2018 int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS secondary_schools2018 int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS special_schools2018 int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS libraries_2018 int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS gtfs_2018_stop_30_mins_final int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS gtfs_2018_stops int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS gtfs_2018_stops_bus int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS gtfs_2018_stops_ferry int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS gtfs_2018_stops_train int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS gtfs_2018_stops_tram int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS gtfs_nsw_stop_30_mins_bus int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS gtfs_nsw_stop_15_mins_train int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS hospital int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS physicalactivity_recreation int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS childcarekinder_longdaychildcare int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS childcarekinder_kinder_preschool int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS childcarekinder_holidayprogram int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS childcarekinder_kinderdisability int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS childcarekinder_oshc int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS childcarekinder_occasionalcare int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS childcarekinder_familydaycare int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS childdevelopment_playgroup int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS childdevelopment_parentingfamilysupport int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS childdevelopment_childplayprogram int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS childdevelopment_earlyparentingsupport int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS childdevelopment_toylibrary int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS childdevelopment_schoolnursing int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS childprotectionfamilyservices_integrated int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS communityhealthcare_pharmacy int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS communityhealthcare_mch int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS communityhealthcare_immunisation int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS counselling_counsellingfamilytherapy int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS counselling_generalcounselling int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS disabilitysupport_earlychildhoodintervention int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS educationlearning_library int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS generalpracticegp_gp int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS mentalhealth_childmentalhealth int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS specialistpaediatric_paediatricmedicine int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS mentalhealth_generalmentalhealthservice int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS mentalhealth_adultmentalhealthservice int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS mentalhealth_psychology int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS toilets_2018 int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS playgrounds_2018 int ;
-ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS centrelink_2018 int ;
-'''
-curs.execute(required_dest_names)
-conn.commit()
-print("Done.")
-
 print("Create summary table of destination distance arrays... "),
 crosstab = '''
 DROP TABLE IF EXISTS dest_distances_3200m;
@@ -179,109 +74,22 @@ curs.execute(crosstab)
 conn.commit()
 print("Done.")
 
+print("Ensure dest distance table has all required fields (you may have to edit the script on from line 57!)... "),
+dest_distance_m = []
+for dest in df_destinations.destination.tolist():
+  sql = '''ALTER TABLE dest_distance_m ADD COLUMN IF NOT EXISTS {} int;'''.format(dest)
+  curs.execute(sql)
+  conn.commit()
+  dest_distance_m.append(''' dest_distance_m.{dest} as dist_cl_{dest}, '''.format(dest = dest))
+print("Done.")
+
 print("Ensure dest distances 3200 table has all required fields (you may have to edit the script on from line 182!)... "),
-required_dest_classes = '''
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS alcohol_offlicence int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS alcohol_onlicence int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS convenience int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS newsagent int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS petrolstation int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS fast_food int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS supermarket int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS activity_centres int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS childcare_all int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS childcare_all_meet int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS childcare_all_exc int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS childcare_oshc int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS childcare_oshc_meet int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS childcare_oshc_exc int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS childcare_preschool int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS childcare_preschool_meet int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS childcare_preschool_exc int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS supermarket_osm int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS bakery_osm int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS meat_seafood_osm int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS fruit_veg_osm int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS deli_osm int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS convenience_osm int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS petrolstation_osm int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS newsagent_osm int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS food_other_osm int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS food_health_osm int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS market_osm int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS community_centre_osm int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS place_of_worship_osm int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS museum_osm int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS theatre_osm int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS cinema_osm int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS art_gallery_osm int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS art_centre_osm int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS artwork_osm int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS fountain_osm int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS viewpoint_osm int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS picnic_site_osm int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS pharmacy_osm int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS restaurant_osm int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS cafe_osm int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS eatery_osm int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS food_court_osm int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS fastfood_osm int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS pub_osm int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS bar_osm int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS nightclub_osm int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS gambling_osm int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS alcohol_osm int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS tobacco_osm int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS swimming_pool_osm int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS all_schools int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS p_12_schools int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS primary_schools int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS secondary_schools int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS special_schools int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS libraries int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS gtfs_2018_stop_30_mins_final int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS gtfs_2018_stops int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS gtfs_2018_stops_bus int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS gtfs_2018_stops_ferry int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS gtfs_2018_stops_train int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS gtfs_2018_stops_tram int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS gtfs_nsw_stop_30_mins_bus int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS gtfs_nsw_stop_15_mins_train int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS hospital int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS physicalactivity_recreation int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS childcarekinder_longdaychildcare int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS childcarekinder_kinder_preschool int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS childcarekinder_holidayprogram int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS childcarekinder_kinderdisability int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS childcarekinder_oshc int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS childcarekinder_occasionalcare int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS childcarekinder_familydaycare int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS childdevelopment_playgroup int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS childdevelopment_parentingfamilysupport int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS childdevelopment_childplayprogram int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS childdevelopment_earlyparentingsupport int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS childdevelopment_toylibrary int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS childdevelopment_schoolnursing int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS childprotectionfamilyservices_integrated int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS communityhealthcare_pharmacy int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS communityhealthcare_mch int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS communityhealthcare_immunisation int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS counselling_counsellingfamilytherapy int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS counselling_generalcounselling int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS disabilitysupport_earlychildhoodintervention int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS educationlearning_library int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS generalpracticegp_gp int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS mentalhealth_childmentalhealth int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS specialistpaediatric_paediatricmedicine int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS mentalhealth_generalmentalhealthservice int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS mentalhealth_adultmentalhealthservice int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS mentalhealth_psychology int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS toilets int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS playgrounds int[] ;
-ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS centrelink int[] ;
-'''
-curs.execute(required_dest_classes)
-conn.commit()
+dest_distances_3200m = []
+for dest_class in df_destinations.destination_class.tolist():
+  sql = '''ALTER TABLE dest_distances_3200m ADD COLUMN IF NOT EXISTS {} int[] ;'''.format(dest_class)
+  curs.execute(sql)
+  conn.commit()
+  dest_distances_3200m.append(' dest_distances_3200m.{dest_class} as dist_3200m_{dest_class}, '.format(dest_class))
 print("Done.")
 
 aedc_measures = '''
@@ -314,6 +122,8 @@ sc_nh1600m.sc_nh1600m as walk_15,
 dd_nh1600m.dd_nh1600m as walk_16,
 ind_walkability.wa_soft as walk_17_soft,
 ind_walkability.wa_hard as walk_17_hard,
+{dest_distance_m}
+{dest_distnces_3200m}
 dest_distance_m.conveniencestores_2014 as dist_cl_conveniencestores_2014,
 dest_distance_m.newsagents_2014 as dist_cl_newsagents_2014,
 dest_distance_m.petrolstations_2014 as dist_cl_petrolstations_2014,

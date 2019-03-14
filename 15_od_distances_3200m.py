@@ -124,7 +124,7 @@ def ODMatrixWorkerFunction(hex):
                            WHERE hex = {hex}
                            GROUP BY dest_class;'''.format(table = result_table, hex = hex))
     hex_dests = list(curs)
-    completed_dest = [x[0] for x in hex_dests if x[1] == origin_point_count]
+    completed_dest = [x[0] for x in hex_dests if int(x[1]) == origin_point_count]
     if len(completed_dest) == len(destination_list):
         return(0)
     place = "before remaining_dest_list init"
