@@ -44,7 +44,7 @@ featureClasses = arcpy.ListFeatureClasses()
 
 # SQL Settings
 ## Note - this used to be 'dist_cl_od_parcel_dest' --- simplified to 'result_table'
-result_table = "od_distances_3200m"
+result_table = "od_distances_3200m_test"
 progress_table = "{table}_progress".format(table = result_table)
                                                                       
 # SQL insert queries

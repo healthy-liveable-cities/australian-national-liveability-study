@@ -39,24 +39,33 @@ if not os.path.exists(gdb_path):
   print("File geodatabase created: {}".format(gdb_path))
 
 print("Feature: {}".format(region_shape))
-print("Query: {}".format(region_where_clause))
 arcpy.MakeFeatureLayer_management(r"{}".format(region_shape),'feature') 
 
-# select subset of features to be included
-arcpy.SelectLayerByAttribute_management(in_layer_or_view  = 'feature', 
-                                          selection_type    = "NEW_SELECTION", 
-                                          where_clause      = "{}".format(region_where_clause))  
+# If a 'region where clause' query has been defined in project file, 
+#  use that query to select a subset of feature to define study region
+if not pandas.np.isnan(region_where_clause):
+  print("Query: {}".format(region_where_clause))
+  # select subset of features to be included
+  arcpy.SelectLayerByAttribute_management(in_layer_or_view  = 'feature', 
+                                            selection_type    = "NEW_SELECTION", 
+                                            where_clause      = "{}".format(region_where_clause))  
 # create copy of selected features as new feature class
 # in gdb
+print("Copy feature to geodatabase... "),
 arcpy.CopyFeatures_management('feature',os.path.join(gdb,study_region))
+print("Done.")
 
-## Buffer study region
+print("Buffer study region... "),
 arcpy.env.workspace = gdb
 arcpy.env.overwriteOutput = True 
-# make buffer
-arcpy.Buffer_analysis(study_region, buffered_study_region, study_buffer)
+if df_studyregion.loc[locale]['full_locale'] == df_studyregion.loc[locale]['region']:
+  print("Study region is identical to broader region, so to avoid bug with buffering Australia, we allow that no buffer is required.  Please note that this could cause issues where the region is not a self-contained island like Australia.")
+  arcpy.CopyFeatures_management(study_region,buffered_study_region)
+else:
+  arcpy.Buffer_analysis(study_region, buffered_study_region, study_buffer)
+print("Done.")
 
-print("copy study region to postgis...")
+print("Copy study region to postgis...")
 command = 'ogr2ogr -overwrite -progress -f "PostgreSQL" ' \
         + 'PG:"host={host} port=5432 dbname={db} '.format(host = db_host,db = db) \
         + 'user={user} password = {pwd}" '.format(user = db_user,pwd = db_pwd) \
