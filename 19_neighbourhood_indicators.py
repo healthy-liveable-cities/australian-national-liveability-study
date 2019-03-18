@@ -152,6 +152,73 @@ LEFT JOIN (SELECT {id}, ind_hard, ind_soft
            FROM od_closest WHERE dest_class = 'gtfs_2018_stops') any_pt ON p.{id} = any_pt.{id};
 '''.format(id = points_id),
 '''
+DROP TABLE ind_local_living_hard;
+CREATE TABLE ind_local_living_hard AS
+SELECT {0}, (COALESCE(communitycentre_1000m, 0) + 
+             COALESCE(libraries_2014_1000m, 0) + 
+			 (CASE WHEN COALESCE(childcareoutofschool_1600m, 0) + 
+                        COALESCE(childcare_800m, 0) > 0 THEN 1
+			  ELSE 0 END) + 
+             COALESCE(dentists_1000m, 0) + 
+             COALESCE(gp_clinics_1000m, 0) + 
+             COALESCE(supermarkets_1000m, 0) + 
+             (CASE WHEN COALESCE(conveniencestores_1000m, 0) + 
+                        COALESCE(petrolstations_1000m, 0) + 
+                        COALESCE(newsagents_1000m, 0) > 0 THEN 1
+			  ELSE 0 END) +  
+             (CASE WHEN COALESCE(fishmeatpoultryshops_1600m, 0) + 
+                        COALESCE(fruitvegeshops_1600m, 0) > 0 THEN 1
+			  ELSE 0 END) + 
+             COALESCE(pharmacy_1000m, 0) + 
+             COALESCE(postoffice_1600m, 0) + 
+             COALESCE(banksfinance_1600m, 0) + 
+             (CASE WHEN COALESCE(busstop2012_400m, 0) + 
+                        COALESCE(tramstops2012_600m, 0) + 
+                        COALESCE(trainstations2012_800m,0) > 0 THEN 1
+			  ELSE 0 END)) AS local_living 
+FROM parcel_dwellings p  
+LEFT JOIN (SELECT {id}, 
+                  (CASE WHEN SUM(COALESCE(ind_hard,0)) > 0 THEN 1 ELSE 0 END) AS ind_hard,
+                  MAX(COALESCE(ind_soft,0)) AS ind_soft
+          FROM od_closest WHERE dest_class IN ('community_centre_osm','place_of_worship_osm') GROUP BY {id}) community ON p.{id} = community.{id}
+LEFT JOIN (SELECT {id}, 
+                  (CASE WHEN SUM(COALESCE(ind_hard,0)) > 0 THEN 1 ELSE 0 END) AS ind_hard,
+                  MAX(COALESCE(ind_soft,0)) AS ind_soft
+          FROM od_closest WHERE dest_class IN ('convenience_osm','newsagent_osm','petrolstation_osm') GROUP BY {id}) convenience ON p.{id} = convenience.{id}
+LEFT JOIN (SELECT {id}, 
+                  (CASE WHEN SUM(COALESCE(ind_hard,0)) > 0 THEN 1 ELSE 0 END) AS ind_hard,
+                  MAX(COALESCE(ind_soft,0)) AS ind_soft
+          FROM od_closest WHERE dest_class IN ('bakery_osm','meat_seafood_osm','fruit_veg_osm','deli_osm') GROUP BY {id}) specialty_food ON p.{id} = specialty_food.{id}
+LEFT JOIN (SELECT {id}, 
+                  (CASE WHEN SUM(COALESCE(ind_hard,0)) > 0 THEN 1 ELSE 0 END) AS ind_hard,
+                  MAX(COALESCE(ind_soft,0)) AS ind_soft
+          FROM od_closest WHERE dest_class IN ('childcare_all_meet','childcare_oshc_meet') GROUP BY {id}) childcare ON p.{id} = childcare.{id}
+LEFT JOIN (SELECT {id}, ind_hard, ind_soft FROM od_closest WHERE dest_class = 'libraries') libraries ON p.{id} = libraries.{id}
+LEFT JOIN (SELECT {id}, ind_hard, ind_soft FROM od_closest WHERE dest_class = 'libraries') libraries ON p.{id} = libraries.{id}
+LEFT JOIN (SELECT {id}, ind_hard, ind_soft FROM od_closest WHERE dest_class = 'CommunityHealthCare_Pharmacy') pharmacy ON p.{id} = pharmacy.{id}
+LEFT JOIN (SELECT {id}, ind_hard, ind_soft FROM od_closest WHERE dest_class = 'supermarket_osm') supermarket_osm ON p.{id} = supermarket_osm.{id}
+LEFT JOIN (SELECT {id}, ind_hard, ind_soft FROM od_closest WHERE dest_class = 'gtfs_2018_stops') any_pt ON p.{id} = any_pt.{id};
+''',
+'''
+DROP TABLE ind_local_living_soft;
+CREATE TABLE ind_local_living_soft AS
+SELECT {0}, (COALESCE(communitycentre_1000m, 0) + 
+             COALESCE(libraries_2014_1000m, 0) + 
+			 GREATEST(COALESCE(childcareoutofschool_1600m,0), COALESCE(childcare_800m, 0), COALESCE(dentists_1000m, 0)) + 
+             COALESCE(gp_clinics_1000m, 0) + 
+             COALESCE(supermarkets_1000m, 0) + 
+             GREATEST(COALESCE(conveniencestores_1000m, 0),COALESCE(petrolstations_1000m, 0),COALESCE(newsagents_1000m, 0))+
+			 GREATEST(COALESCE(fishmeatpoultryshops_1600m, 0) + 
+                        COALESCE(fruitvegeshops_1600m, 0)) +
+             COALESCE(pharmacy_1000m, 0) + 
+             COALESCE(postoffice_1600m, 0) + 
+             COALESCE(banksfinance_1600m, 0) + 
+             GREATEST(COALESCE(busstop2012_400m, 0) + 
+                        COALESCE(tramstops2012_600m, 0) + 
+                        COALESCE(trainstations2012_800m,0))) AS local_living
+FROM ind_dest_soft;
+''',
+'''
 -- Walkability
 -- DROP TABLE IF EXISTS ind_walkability;
 CREATE TABLE IF NOT EXISTS ind_walkability AS
