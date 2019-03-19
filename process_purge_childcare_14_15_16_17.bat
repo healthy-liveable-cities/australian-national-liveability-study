@@ -3,6 +3,7 @@ echo  Purge childcare destinations and process destination setup scripts and upd
 
 FOR %%A  IN (%*) DO (
   python purge_childcare_destinations.py %%A
+  python 11_import_osm_and_edges_to_db.py %%A
   python 14_recompile_destinations.py %%A
   python 15_od_distances_3200m.py %%A
   python 16_od_distances_closest_in_study_region.py %%A
