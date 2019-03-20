@@ -46,19 +46,20 @@ print("Done.")
 
 old_name = 'ChildProtectionFamilyServices_IntegratedFamilyServices'
 new_name = 'ChildProtectionFamilyServices_Integrated'
-print("Ensure any results previously processed under (too long) name '{old}' have their dest_class variable renamed to '{new}'")
-for table in ['od_distances_3200m']:
+print("Ensure any results previously processed under (too long) name '{old}' have their dest_class variable renamed to '{new}'... ".format(old = old_name, new = new_name)),
+for table in ['dest_type','od_counts','od_closest','od_distances_3200m']:
     sql = '''
     UPDATE {table} SET dest_class = '{new}' WHERE dest_class = '{old}'
     '''.format(table = table, old = old_name, new = new_name)
     curs.execute(sql)
     conn.commit()
-for table in ['dest_type','od_counts','od_closest']:
+for table in ['dest_type','od_closest']:
     sql = '''
     UPDATE {table} SET dest_class = '{new}', dest_name = '{new}' WHERE dest_class = '{old}'
     '''.format(table = table, old = old_name, new = new_name)
     curs.execute(sql)
     conn.commit()
+print("Done.")
 
 # output to completion log    
 script_running_log(script, task, start, locale)
