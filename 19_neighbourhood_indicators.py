@@ -45,7 +45,7 @@ if res is None:
                buffered_study_region = buffered_study_region))
     conn.commit()
 else:
-  print('''It appears that area tables have previously been imported; nice one.\n''')
+  print('''It appears that area linkage tables have previously been imported; nice one.\n''')
 
 print("Create area level destination counts... ")
 # We drop these tables first, since some destinations may have been processed since previously running.
