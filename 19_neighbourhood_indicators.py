@@ -236,9 +236,9 @@ for threshold_type in ['hard','soft']:
         threshold_{threshold_type}(supermarket_osm_2018          ,{nh_threshold}) AS supermarket_osm_2018          , 
         threshold_{threshold_type}(pt_any_gtfs_hlc_2018          ,{nh_threshold}) AS pt_any_gtfs_hlc_2018          ,
         threshold_{threshold_type}(pt_freq_gtfs_hlc_2018         ,{nh_threshold}) AS pt_freq_gtfs_hlc_2018         ,
-        threshold_{threshold_type}(childcare_meets_2019          ,{nh_threshold}) AS childcare_meets_2019          ,
-        threshold_{threshold_type}(primary_school_acequa_2017    ,{nh_threshold}) AS primary_school_acequa_2017    ,
-        threshold_{threshold_type}(secondary_school_acequa_2017  ,{nh_threshold}) AS secondary_school_acequa_2017  ,
+        threshold_{threshold_type}(childcare_meets_acequa_2019   ,{nh_threshold}) AS childcare_meets_acequa_2019   ,
+        threshold_{threshold_type}(primary_school_acara_2017     ,{nh_threshold}) AS primary_school_acara_2017     ,
+        threshold_{threshold_type}(secondary_school_acara_2017   ,{nh_threshold}) AS secondary_school_acara_2017   ,
         threshold_{threshold_type}(community_pow_osm_2018        ,{nh_threshold}) AS community_pow_osm_2018        ,
         threshold_{threshold_type}(libraries_hlc_2018            ,{nh_threshold}) AS libraries_hlc_2018            ,
         threshold_{threshold_type}(postoffice_osm_2018           ,{nh_threshold}) AS postoffice_osm_2018           ,
@@ -312,7 +312,7 @@ for threshold_type in ['hard','soft']:
         UPDATE {table} t SET 
            {abbrev}_{threshold_type}_{nh_threshold}m = COALESCE(community_pow_osm_2018,0) + 
                                                        COALESCE(libraries_hlc_2018,0) +
-                                                       COALESCE(childcare_meets_2019,0) +
+                                                       COALESCE(childcare_meets_acequa_2019,0) +
                                                        COALESCE(dentist_nhsd_2017,0) +
                                                        COALESCE(gp_nhsd_2017,0) +
                                                        COALESCE(pharmacy_nhsd_2017,0) +
