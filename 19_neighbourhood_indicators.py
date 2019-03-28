@@ -181,14 +181,14 @@ curs = conn.cursor()
 # conn.commit()
 # print("Done.")
 
-Neighbourhood_indicators
+# Neighbourhood_indicators
 print("Create nh_inds_distance (curated distance to closest table for re-use by other indicators)... "),
 nh_distance = '''
-DROP TABLE IF EXISTS nh_inds_distance;
-CREATE TABLE IF NOT EXISTS nh_inds_distance AS
+DROP TABLE IF EXISTS {table};
+CREATE TABLE IF NOT EXISTS {table} AS
 SELECT 
        {id},
-       activity_centres                                                            AS activity_centres_hlc_2017     , 
+       activity_centres_2017                                                       AS activity_centres_hlc_2017     , 
        LEAST(convenience_osm,newsagent_osm,petrolstation_osm,market_osm)           AS convenience_osm_2018          , 
        supermarkets_2017                                                           AS supermarket_hlc_2017          , 
        supermarket_osm                                                             AS supermarket_osm_2018          , 
@@ -214,11 +214,12 @@ SELECT
        alcohol_onlicence                                                           AS alcohol_onlicence_hlc_2017_19 ,  
        tobacco_osm                                                                 AS tobacco_osm_2018              ,
        gambling_osm                                                                AS gambling_osm_2018           
-FROM dest_distance_m
-'''.format(id = points_id.lower())
+FROM dest_distance_m;
+CREATE UNIQUE INDEX {table}_idx ON  {table} ({id}); 
+'''.format(id = points_id.lower(),table = 'nh_inds_distance')
 curs.execute(nh_distance)
 conn.commit()
-print("Done/")
+print("Done.")
 
 print("Create hard and soft threshold indicators for curated destination categories...")
 for threshold_type in ['hard','soft']:
@@ -256,10 +257,11 @@ for threshold_type in ['hard','soft']:
         threshold_{threshold_type}(tobacco_osm_2018              ,{nh_threshold}) AS tobacco_osm_2018              ,
         threshold_{threshold_type}(gambling_osm_2018             ,{nh_threshold}) AS gambling_osm_2018           
         FROM nh_inds_distance ;
+        CREATE UNIQUE INDEX nh_inds_{threshold_type}_{nh_threshold}m_idx ON  nh_inds_{threshold_type}_{nh_threshold}m ({id}); 
         '''.format(id = points_id.lower(),threshold_type = threshold_type, nh_threshold = nh_threshold)
         curs.execute(sql)
         conn.commit()
-print("Done")
+print("Done.")
 
 
 # Define table name and abbreviation
@@ -290,6 +292,8 @@ for threshold_type in ['hard','soft']:
         curs.execute(populate_table)
         conn.commit()
         print("."),
+create_index = '''CREATE UNIQUE INDEX {table}_idx ON  {table} ({id});  '''.format(table = table[0], id = points_id.lower())
+curs.execute(create_index)
 print(" Done.")
 
 table = ['local_living','ll']
@@ -326,6 +330,8 @@ for threshold_type in ['hard','soft']:
         curs.execute(populate_table)
         conn.commit()
         print("."),
+create_index = '''CREATE UNIQUE INDEX {table}_idx ON  {table} ({id});  '''.format(table = table[0], id = points_id.lower())
+curs.execute(create_index)
 print(" Done.")
 
 
@@ -334,34 +340,18 @@ print("Processing indicators for {table}".format(table = table[0])),
 create_table = '''CREATE TABLE IF NOT EXISTS {table} AS SELECT {id} FROM parcel_dwellings;'''.format(table = table[0], id = points_id.lower())
 curs.execute(create_table)
 conn.commit()
-
+# we just calculate walkability at 1600m, so we'll set nh_threshold to that value
+nh_threshold = 1600
 for threshold_type in ['hard','soft']:
     populate_table = '''
     -- Note that we take NULL for distance to closest in this context to mean absence of presence
     -- Error checking at other stages of processing should confirm whether this is the case.
     ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {abbrev}_{threshold_type}_{nh_threshold}m int;
     UPDATE {table} t SET 
-       {abbrev}_{threshold_type}_{nh_threshold}m = COALESCE(community_pow_osm_2018,0) + 
-                                                   COALESCE(libraries_hlc_2018,0) +
-                                                   COALESCE(childcare_meets_2019,0) +
-                                                   COALESCE(dentist_nhsd_2017,0) +
-                                                   COALESCE(gp_nhsd_2017,0) +
-                                                   COALESCE(pharmacy_nhsd_2017,0) +
-                                                   GREATEST(COALESCE(supermarket_hlc_2017,0),COALESCE(supermarket_osm_2018,0)) + 
-                                                   COALESCE(convenience_osm_2018,0) +
-                                                   COALESCE(food_fresh_specialty_osm_2018,0) +
-                                                   COALESCE(postoffice_osm_2018,0) + 
-                                                   COALESCE(pt_any_gtfs_hlc_2018,0)
-    FROM (SELECT {id},
-                 (dl_hard_1600 - AVG(dl_hard_1600) OVER())/stddev_pop(dl_hard_1600) OVER() as z_dl_hard,
-                 (dl_soft_1600 - AVG(dl_hard_1600) OVER())/stddev_pop(dl_hard_1600) OVER() as z_dl_hard,
-                 (dl_hyb_soft - AVG(dl_hyb_soft) OVER())/stddev_pop(dl_hyb_soft) OVER() as z_dl_soft FROM ind_daily_living) dl
-    LEFT JOIN
-        (SELECT {id}, (sc_nh1600m - AVG(sc_nh1600m) OVER())/stddev_pop(sc_nh1600m) OVER() as z_sc FROM sc_nh1600m) sc
-      ON sc.{id} = dl.{id}
-    LEFT JOIN
-        (SELECT {id}, (dd_nh1600m - AVG(dd_nh1600m) OVER())/stddev_pop(dd_nh1600m) OVER() as z_dd FROM dd_nh1600m) AS dd
-      ON dd.{id} = dl.{id};
+       {abbrev}_{threshold_type}_{nh_threshold}m = z_dl + z_sc + z_dd
+    FROM (SELECT {id}, (dl_{threshold_type}_{nh_threshold}m - AVG(dl_{threshold_type}_{nh_threshold}m) OVER())/stddev_pop(dl_{threshold_type}_{nh_threshold}m) OVER() as z_dl FROM daily_living
+    LEFT JOIN (SELECT {id}, (sc_nh1600m - AVG(sc_nh1600m) OVER())/stddev_pop(sc_nh1600m) OVER() as z_sc FROM sc_nh1600m) sc ON sc.{id} = dl.{id}
+    LEFT JOIN (SELECT {id}, (dd_nh1600m - AVG(dd_nh1600m) OVER())/stddev_pop(dd_nh1600m) OVER() as z_dd FROM dd_nh1600m) AS dd ON dd.{id} = dl.{id};
     WHERE t.{id} = nh.{id};
     '''.format(table = table[0], 
                abbrev = table[1], 
@@ -371,10 +361,16 @@ for threshold_type in ['hard','soft']:
     curs.execute(populate_table)
     conn.commit()
     print("."),
+create_index = '''CREATE UNIQUE INDEX {table}_idx ON  {table} ({id});  '''.format(table = table[0], id = points_id.lower())
+curs.execute(create_index)
 print(" Done.")
 
-        
-# -- Walkabilityg
+# table = ['walkability','wa']
+# print("Processing indicators for {table}".format(table = table[0])),
+# create_table = '''CREATE TABLE IF NOT EXISTS {table} AS SELECT {id} FROM parcel_dwellings;'''.format(table = table[0], id = points_id.lower())
+# curs.execute(create_table)
+# conn.commit()       
+# -- Walkability
 # -- DROP TABLE IF EXISTS ind_walkability;
 # CREATE TABLE IF NOT EXISTS ind_walkability AS
 # SELECT dl.{id}, 
@@ -384,15 +380,15 @@ print(" Done.")
        # z_dd,
        # z_dl_hard + z_sc + z_dd AS wa_hard,
        # z_dl_soft + z_sc + z_dd AS wa_soft
-FROM (SELECT {id},
-             (dl_hyb_hard - AVG(dl_hyb_hard) OVER())/stddev_pop(dl_hyb_hard) OVER() as z_dl_hard,
-             (dl_hyb_soft - AVG(dl_hyb_soft) OVER())/stddev_pop(dl_hyb_soft) OVER() as z_dl_soft FROM ind_daily_living) dl
-LEFT JOIN
-    (SELECT {id}, (sc_nh1600m - AVG(sc_nh1600m) OVER())/stddev_pop(sc_nh1600m) OVER() as z_sc FROM sc_nh1600m) sc
-  ON sc.{id} = dl.{id}
-LEFT JOIN
-    (SELECT {id}, (dd_nh1600m - AVG(dd_nh1600m) OVER())/stddev_pop(dd_nh1600m) OVER() as z_dd FROM dd_nh1600m) AS dd
-  ON dd.{id} = dl.{id};
+# FROM (SELECT {id},
+             # (dl_hyb_hard - AVG(dl_hyb_hard) OVER())/stddev_pop(dl_hyb_hard) OVER() as z_dl_hard,
+             # (dl_hyb_soft - AVG(dl_hyb_soft) OVER())/stddev_pop(dl_hyb_soft) OVER() as z_dl_soft FROM ind_daily_living) dl
+# LEFT JOIN
+    # (SELECT {id}, (sc_nh1600m - AVG(sc_nh1600m) OVER())/stddev_pop(sc_nh1600m) OVER() as z_sc FROM sc_nh1600m) sc
+  # ON sc.{id} = dl.{id}
+# LEFT JOIN
+    # (SELECT {id}, (dd_nh1600m - AVG(dd_nh1600m) OVER())/stddev_pop(dd_nh1600m) OVER() as z_dd FROM dd_nh1600m) AS dd
+  # ON dd.{id} = dl.{id};
 # '''.format(id = points_id),
 # '''
 # -- Activity centre proximity
