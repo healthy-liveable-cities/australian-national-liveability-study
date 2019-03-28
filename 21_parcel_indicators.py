@@ -34,13 +34,6 @@ ind_matrix = df_inds[df_inds['locale'].str.contains('|'.join([locale,'\*']))]
 sql = '''SELECT DISTINCT(dest_name) dest_name FROM od_closest ORDER BY dest_name;'''
 curs.execute(sql)
 categories = [x[0] for x in curs.fetchall()]
-category_list = ','.join(categories)
-category_types = '"{}" int'.format('" int, "'.join(categories))
-sql = '''SELECT DISTINCT(dest_class) FROM od_distances_3200m ORDER BY dest_class;'''
-curs.execute(sql)
-array_categories = [x[0] for x in curs.fetchall()]
-array_category_list = ','.join(array_categories)
-array_category_types = '"{}" int[]'.format('" int[], "'.join(array_categories))
 
 # get the set of distance to closest regions which match for this region
 destinations = df_inds[df_inds['ind'].str.contains('destinations')]
@@ -77,93 +70,7 @@ ind_sources = '\n'.join(ind_matrix['Source'].unique())
 null_query_summary = ',\n'.join("SUM(" + ind_matrix['indicators'] + " IS NULL::int) AS " + ind_matrix['indicators'])
 null_query_combined = '+\n'.join("(" + ind_matrix['indicators'] + " IS NULL::int)")
 
-print("Create summary table of destination distances... "),
-crosstab = '''
-DROP TABLE IF EXISTS dest_distance_m;
-CREATE TABLE dest_distance_m AS
-SELECT *
-  FROM   crosstab(
-   'SELECT gnaf_pid, dest_name, distance
-    FROM   od_closest
-    ORDER  BY 1,2'  -- could also just be "ORDER BY 1" here
-  ,$$SELECT unnest('{curly_o}{category_list}{curly_c}'::text[])$$
-   ) AS distance ("gnaf_pid" text, {category_types});
-'''.format(id = points_id.lower(),
-           curly_o = "{",
-           curly_c = "}",
-           category_list = category_list,
-           category_types = category_types)
-curs.execute(crosstab)
-conn.commit()
-print("Done.")
-
-print("Create summary table of destination distance arrays... "),
-crosstab = '''
-DROP TABLE IF EXISTS dest_distances_3200m;
-CREATE TABLE dest_distances_3200m AS
-SELECT *
-  FROM   crosstab(
-   'SELECT gnaf_pid, dest_class, distances
-    FROM   od_distances_3200m
-    ORDER  BY 1,2'  -- could also just be "ORDER BY 1" here
-  ,$$SELECT unnest('{curly_o}{category_list}{curly_c}'::text[])$$
-   ) AS distances ("gnaf_pid" text, {category_types});
-'''.format(id = points_id.lower(),
-           curly_o = "{",
-           curly_c = "}",
-           category_list = array_category_list,
-           category_types = array_category_types)
-curs.execute(crosstab)
-conn.commit()
-print("Done.")
-
-
-print('Creating or replacing threshold functions ... '),
-create_threshold_functions = '''
-CREATE OR REPLACE FUNCTION threshold_hard(distance int, threshold int, out int) 
-    RETURNS NULL ON NULL INPUT
-    AS $$ SELECT (distance < threshold)::int $$
-    LANGUAGE SQL;
-
-CREATE OR REPLACE FUNCTION threshold_soft(distance int, threshold int) returns double precision AS 
-$$
-BEGIN
-  -- We check to see if the value we are exponentiation is more or less than 100; if so,
-  -- if so the result will be more or less either 1 or 0, respectively. 
-  -- If the value we are exponentiating is much > abs(700) then we risk overflow/underflow error
-  -- due to the value exceeding the numerical limits of postgresql
-  -- If the value we are exponentiating is based on a positive distance, then we know it is invalid!
-  -- For reference, a 10km distance with 400m threshold yields a check value of -120, 
-  -- the exponent of which is 1.30418087839363e+052 and 1 - 1/(1+exp(-120)) is basically 1 - 1 = 0
-  -- Using a check value of -100, the point at which zero is returned with a threshold of 400 
-  -- is for distance of 3339km
-  IF (distance < 0) 
-      THEN RETURN NULL;
-  ELSIF (-5*(distance-threshold)/(threshold::float) < -100) 
-    THEN RETURN 0;
-  ELSE 
-    RETURN 1 - 1/(1+exp(-5*(distance-threshold)/(threshold::float)));
-  END IF;
-END;
-$$
-LANGUAGE plpgsql
-RETURNS NULL ON NULL INPUT;  
-  '''
-curs.execute(create_threshold_functions)
-print('Done.')
-
-# # Compile destination distance queries
-# ind_sources = '''{}\nLEFT JOIN  dest_distance_m ON p.gnaf_pid = dest_distance_m.gnaf_pid'''.format(ind_sources)
-# ind=0
-# for dest in categories:
-  # ind+=1 
-  # ind_queries = '''{queries}\ndest_distance_m.{dest}/1000.0 AS dist_{dest},'''.format(queries = ind_queries,
-                                                                                              # dest = dest)
-# null_query_summary = '''{summary},\nSUM(dist_{dest} IS NULL::int) AS dist_{dest}'''.format(summary = null_query_summary,
-                                                                                              # dest = dest)
-# null_query_combined = '''{summary}+\n(dist_{dest} IS NULL::int) '''.format(summary = null_query_summary,
-                                                                                              # dest = dest)
-                                                                                              
+                                                                                
 # Define parcel level indicator table creation query
 # Note that we modify inds slightly later when aggregated to reflect cutoffs etc
 create_parcel_indicators = '''

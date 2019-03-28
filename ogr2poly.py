@@ -141,10 +141,10 @@ def createPolys(inOgr, options):
             for i in range(0, g.GetGeometryCount()):
                 if i == 0:
                     # outer ring
-                    f.write('{}'.format(i + 1))
+                    f.write('\n{}'.format(i + 1))
                 else:
                     # inner ring
-                    f.write('!{}'.format(i + 1))
+                    f.write('\n!{}'.format(i + 1))
                 ring = g.GetGeometryRef(i)
 
                 if ring.GetPointCount() > 0:
@@ -155,10 +155,10 @@ def createPolys(inOgr, options):
                 # output all points in the ring
                 for j in range(0, ring.GetPointCount()):
                     (x, y, z) = ring.GetPoint(j)
-                    # f.write('   %.6E   %.6E' % (x, y))
-                    f.write('   {:.6E}   {:.6E}'.format(x, y))
-                f.write('END')
-        f.write('END')
+                    # f.write('\n   %.6E   %.6E' % (x, y))
+                    f.write('\n   {}   {}'.format(x, y))
+                f.write('\nEND')
+        f.write('\nEND\n')
         f.close()
     return True
 
