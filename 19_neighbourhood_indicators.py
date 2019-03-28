@@ -194,9 +194,9 @@ SELECT
        supermarket_osm                                                             AS supermarket_osm_2018          , 
        gtfs_2018_stops                                                             AS pt_any_gtfs_hlc_2018          ,
        gtfs_2018_stop_30_mins_final                                                AS pt_freq_gtfs_hlc_2018         ,
-       childcare_all_meet_2019                                                     AS childcare_meets_2019          ,
-       primary_schools2018                                                         AS primary_school_acequa_2017    ,
-       secondary_schools2018                                                       AS secondary_school_acequa_2017  ,
+       childcare_all_meet_2019                                                     AS childcare_meets_acequa_2019          ,
+       primary_schools2018                                                         AS primary_school_acara_2017    ,
+       secondary_schools2018                                                       AS secondary_school_acara_2017  ,
        LEAST(community_centre_osm,place_of_worship_osm)                            AS community_pow_osm_2018        ,
        libraries_2018                                                              AS libraries_hlc_2018            ,
        postoffice_osm                                                              AS postoffice_osm_2018           ,
@@ -438,7 +438,7 @@ table = ['ind_pos_distance','pc']
 print(" - {table}".format(table = table[0])),
 sql = '''
 -- Public open space proximity
--- DROP TABLE IF EXISTS {table};
+DROP TABLE IF EXISTS {table};
 CREATE TABLE IF NOT EXISTS {table} AS
 SELECT p.{id},
        pos_any.distance   AS pos_any_distance_m, 
@@ -482,7 +482,7 @@ table = ['ind_sport_distances_3200m','sp']
 print(" - {table}".format(table = table[0])),
 sql = '''
 -- Public open space proximity
--- DROP TABLE IF EXISTS {table};
+DROP TABLE IF EXISTS {table};
 CREATE TABLE IF NOT EXISTS {table} AS
 SELECT p.{id}, 
        array_agg(distance) AS distances
