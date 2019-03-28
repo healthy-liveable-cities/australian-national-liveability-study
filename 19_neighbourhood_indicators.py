@@ -21,165 +21,165 @@ task = 'create destination indicator tables'
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()
 
-# print("Re-import areas to ensure proper indexing, and restrict other imported areas to study region.")
-# # Check if the table main_mb_2016_aust_full exists; if it does, these areas have previously been re-imported, so no need to re-do
-# curs.execute('''SELECT 1 WHERE to_regclass('public.main_mb_2016_aust_full') IS NOT NULL;''')
-# res = curs.fetchone()
-# if res is None:
-  # for area in areas:
-    # print('{}: '.format(areas[area]['name_f'])), 
-    # command = 'ogr2ogr -overwrite -progress -f "PostgreSQL" -a_srs "EPSG:{srid}" '.format(srid = srid) \
-              # + 'PG:"host={host} port=5432 dbname={db} '.format(host = db_host,db = db) \
-              # + 'user={user} password = {pwd}" '.format(user = db_user,pwd = db_pwd) \
-              # + '{shp} '.format(shp = areas[area]['data']) \
-              # + '-lco geometry_name="geom"  -lco precision=NO ' \
-              # + '-nlt MULTIPOLYGON' 
-    # # print(command)
-    # sp.call(command, shell=True) 
-    # curs.execute('''
-    # DELETE FROM  {area} a 
-          # USING {buffered_study_region} b 
-      # WHERE NOT ST_Intersects(a.geom,b.geom) 
-             # OR a.geom IS NULL;
-    # '''.format(area = areas[area]['table'],
-               # buffered_study_region = buffered_study_region))
-    # conn.commit()
-# else:
-  # print('''It appears that area tables have previously been imported; nice one.\n''')
+print("Re-import areas to ensure proper indexing, and restrict other imported areas to study region.")
+# Check if the table main_mb_2016_aust_full exists; if it does, these areas have previously been re-imported, so no need to re-do
+curs.execute('''SELECT 1 WHERE to_regclass('public.main_mb_2016_aust_full') IS NOT NULL;''')
+res = curs.fetchone()
+if res is None:
+  for area in areas:
+    print('{}: '.format(areas[area]['name_f'])), 
+    command = 'ogr2ogr -overwrite -progress -f "PostgreSQL" -a_srs "EPSG:{srid}" '.format(srid = srid) \
+              + 'PG:"host={host} port=5432 dbname={db} '.format(host = db_host,db = db) \
+              + 'user={user} password = {pwd}" '.format(user = db_user,pwd = db_pwd) \
+              + '{shp} '.format(shp = areas[area]['data']) \
+              + '-lco geometry_name="geom"  -lco precision=NO ' \
+              + '-nlt MULTIPOLYGON' 
+    # print(command)
+    sp.call(command, shell=True) 
+    curs.execute('''
+    DELETE FROM  {area} a 
+          USING {buffered_study_region} b 
+      WHERE NOT ST_Intersects(a.geom,b.geom) 
+             OR a.geom IS NULL;
+    '''.format(area = areas[area]['table'],
+               buffered_study_region = buffered_study_region))
+    conn.commit()
+else:
+  print('''It appears that area tables have previously been imported; nice one.\n''')
 
-# print("Create area level destination counts... ")
-# # We drop these tables first, since some destinations may have been processed since previously running.
-# # These queries are quick to run, so not much cost to drop and create again.
-# for area in areas:
-  # area_name = areas[area]['name_s']
-  # print("{}... ".format(areas[area]['name_f'])),
-  # query = '''
-  # DROP TABLE IF EXISTS {area_name}_dest_counts;
-  # CREATE TABLE IF NOT EXISTS {area_name}_dest_counts AS
-  # SELECT a.{area_id}, dest_class, count(d.geom) AS count
-  # FROM {area_table} a
-  # LEFT JOIN 
-       # study_destinations d ON st_contains(a.geom,d.geom)
-  # GROUP BY a.{area_id},dest_class
-  # ORDER BY a.{area_id},dest_class;  
-  # '''.format(area_name = area_name,
-             # area_table = areas[area]['table'],
-             # area_id = areas[area]['id'])
-  # # print(query)
-  # curs.execute(query)
-  # conn.commit()
-  # print("Done.")
+print("Create area level destination counts... ")
+# We drop these tables first, since some destinations may have been processed since previously running.
+# These queries are quick to run, so not much cost to drop and create again.
+for area in areas:
+  area_name = areas[area]['name_s']
+  print("{}... ".format(areas[area]['name_f'])),
+  query = '''
+  DROP TABLE IF EXISTS {area_name}_dest_counts;
+  CREATE TABLE IF NOT EXISTS {area_name}_dest_counts AS
+  SELECT a.{area_id}, dest_class, count(d.geom) AS count
+  FROM {area_table} a
+  LEFT JOIN 
+       study_destinations d ON st_contains(a.geom,d.geom)
+  GROUP BY a.{area_id},dest_class
+  ORDER BY a.{area_id},dest_class;  
+  '''.format(area_name = area_name,
+             area_table = areas[area]['table'],
+             area_id = areas[area]['id'])
+  # print(query)
+  curs.execute(query)
+  conn.commit()
+  print("Done.")
 
-# # Legacy fallback code: Rename ABS IRSD table if it exists to ensure it works with future scripts
-# curs.execute('''ALTER TABLE IF EXISTS abs_2016_irsd RENAME TO area_disadvantage;''')
-# conn.commit()
+# Legacy fallback code: Rename ABS IRSD table if it exists to ensure it works with future scripts
+curs.execute('''ALTER TABLE IF EXISTS abs_2016_irsd RENAME TO area_disadvantage;''')
+conn.commit()
 
-# print('Creating or replacing threshold functions ... '),
-# create_threshold_functions = '''
-# -- Function for returning counts of values in an array less than a threshold distance
-# -- e.g. an array of distances in m to destinations, evaluated against a threshold of 800m
-# -- SELECT gnaf_pid, count_in_threshold(distances,1600) FROM sport_3200m;
-# -- is equivalent to 
-# -- SELECT gnaf_pid, count(distances) 
-# --   FROM (SELECT gnaf_pid,unnest(array_agg) distances FROM sport_3200m) t 
-# -- WHERE distance < 1600 GROUP BY gnaf_pid;
-# CREATE OR REPLACE FUNCTION count_in_threshold(distances int[],threshold int) returns bigint as $$
-    # SELECT COUNT(*) 
-    # FROM unnest(distances) dt(b)
-    # WHERE b < threshold
-# $$ language sql;
+print('Creating or replacing threshold functions ... '),
+create_threshold_functions = '''
+-- Function for returning counts of values in an array less than a threshold distance
+-- e.g. an array of distances in m to destinations, evaluated against a threshold of 800m
+-- SELECT gnaf_pid, count_in_threshold(distances,1600) FROM sport_3200m;
+-- is equivalent to 
+-- SELECT gnaf_pid, count(distances) 
+--   FROM (SELECT gnaf_pid,unnest(array_agg) distances FROM sport_3200m) t 
+-- WHERE distance < 1600 GROUP BY gnaf_pid;
+CREATE OR REPLACE FUNCTION count_in_threshold(distances int[],threshold int) returns bigint as $$
+    SELECT COUNT(*) 
+    FROM unnest(distances) dt(b)
+    WHERE b < threshold
+$$ language sql;
 
-# -- a binary threshold indicator  (e.g. of access given distance and threshold)
-# CREATE OR REPLACE FUNCTION threshold_hard(distance int, threshold int, out int) 
-    # RETURNS NULL ON NULL INPUT
-    # AS $$ SELECT (distance < threshold)::int $$
-    # LANGUAGE SQL;
+-- a binary threshold indicator  (e.g. of access given distance and threshold)
+CREATE OR REPLACE FUNCTION threshold_hard(distance int, threshold int, out int) 
+    RETURNS NULL ON NULL INPUT
+    AS $$ SELECT (distance < threshold)::int $$
+    LANGUAGE SQL;
 
-# -- a soft threshold indicator (e.g. of access given distance and threshold)
-# CREATE OR REPLACE FUNCTION threshold_soft(distance int, threshold int) returns double precision AS 
-# $$
-# BEGIN
-  # -- We check to see if the value we are exponentiation is more or less than 100; if so,
-  # -- if so the result will be more or less either 1 or 0, respectively. 
-  # -- If the value we are exponentiating is much > abs(700) then we risk overflow/underflow error
-  # -- due to the value exceeding the numerical limits of postgresql
-  # -- If the value we are exponentiating is based on a positive distance, then we know it is invalid!
-  # -- For reference, a 10km distance with 400m threshold yields a check value of -120, 
-  # -- the exponent of which is 1.30418087839363e+052 and 1 - 1/(1+exp(-120)) is basically 1 - 1 = 0
-  # -- Using a check value of -100, the point at which zero is returned with a threshold of 400 
-  # -- is for distance of 3339km
-  # IF (distance < 0) 
-      # THEN RETURN NULL;
-  # ELSIF (-5*(distance-threshold)/(threshold::float) < -100) 
-    # THEN RETURN 0;
-  # ELSE 
-    # RETURN 1 - 1/(1+exp(-5*(distance-threshold)/(threshold::float)));
-  # END IF;
-# END;
-# $$
-# LANGUAGE plpgsql
-# RETURNS NULL ON NULL INPUT;  
-  # '''
-# curs.execute(create_threshold_functions)
-# print('Done.')
+-- a soft threshold indicator (e.g. of access given distance and threshold)
+CREATE OR REPLACE FUNCTION threshold_soft(distance int, threshold int) returns float AS 
+$$
+BEGIN
+  -- We check to see if the value we are exponentiation is more or less than 100; if so,
+  -- if so the result will be more or less either 1 or 0, respectively. 
+  -- If the value we are exponentiating is much > abs(700) then we risk overflow/underflow error
+  -- due to the value exceeding the numerical limits of postgresql
+  -- If the value we are exponentiating is based on a positive distance, then we know it is invalid!
+  -- For reference, a 10km distance with 400m threshold yields a check value of -120, 
+  -- the exponent of which is 1.30418087839363e+052 and 1 - 1/(1+exp(-120)) is basically 1 - 1 = 0
+  -- Using a check value of -100, the point at which zero is returned with a threshold of 400 
+  -- is for distance of 3339km
+  IF (distance < 0) 
+      THEN RETURN NULL;
+  ELSIF (-5*(distance-threshold)/(threshold::float) < -100) 
+    THEN RETURN 0;
+  ELSE 
+    RETURN 1 - 1/(1+exp(-5*(distance-threshold)/(threshold::float)));
+  END IF;
+END;
+$$
+LANGUAGE plpgsql
+RETURNS NULL ON NULL INPUT;  
+  '''
+curs.execute(create_threshold_functions)
+print('Done.')
 
-# # Restrict to indicators associated with study region (except distance to closest dest indicators)
-# ind_matrix = df_inds[df_inds['locale'].str.contains('|'.join([locale,'\*']))]
+# Restrict to indicators associated with study region (except distance to closest dest indicators)
+ind_matrix = df_inds[df_inds['locale'].str.contains('|'.join([locale,'\*']))]
 
-# # Get a list of destinations processed within this region for distance to closest
-# sql = '''SELECT DISTINCT(dest_name) dest_name FROM od_closest ORDER BY dest_name;'''
-# curs.execute(sql)
-# categories = [x[0] for x in curs.fetchall()]
-# category_list = ','.join(categories)
-# category_types = '"{}" int'.format('" int, "'.join(categories))
-# sql = '''SELECT DISTINCT(dest_class) FROM od_distances_3200m ORDER BY dest_class;'''
-# curs.execute(sql)
-# array_categories = [x[0] for x in curs.fetchall()]
-# array_category_list = ','.join(array_categories)
-# array_category_types = '"{}" int[]'.format('" int[], "'.join(array_categories))
+# Get a list of destinations processed within this region for distance to closest
+sql = '''SELECT DISTINCT(dest_name) dest_name FROM od_closest ORDER BY dest_name;'''
+curs.execute(sql)
+categories = [x[0] for x in curs.fetchall()]
+category_list = ','.join(categories)
+category_types = '"{}" int'.format('" int, "'.join(categories))
+sql = '''SELECT DISTINCT(dest_class) FROM od_distances_3200m ORDER BY dest_class;'''
+curs.execute(sql)
+array_categories = [x[0] for x in curs.fetchall()]
+array_category_list = ','.join(array_categories)
+array_category_types = '"{}" int[]'.format('" int[], "'.join(array_categories))
 
-# # get the set of distance to closest regions which match for this region
-# destinations = df_inds[df_inds['ind'].str.contains('destinations')]
+# get the set of distance to closest regions which match for this region
+destinations = df_inds[df_inds['ind'].str.contains('destinations')]
 
-# print("Create summary table of destination distances... "),
-# crosstab = '''
-# DROP TABLE IF EXISTS dest_distance_m;
-# CREATE TABLE dest_distance_m AS
-# SELECT *
-  # FROM   crosstab(
-   # 'SELECT {id}, dest_name, distance
-    # FROM   od_closest
-    # ORDER  BY 1,2'  -- could also just be "ORDER BY 1" here
-  # ,$$SELECT unnest('{curly_o}{category_list}{curly_c}'::text[])$$
-   # ) AS distance ("{id}" text, {category_types});
-# '''.format(id = points_id.lower(),
-           # curly_o = "{",
-           # curly_c = "}",
-           # category_list = category_list,
-           # category_types = category_types)
-# curs.execute(crosstab)
-# conn.commit()
-# print("Done.")
+print("Create summary table of destination distances... "),
+crosstab = '''
+DROP TABLE IF EXISTS dest_distance_m;
+CREATE TABLE dest_distance_m AS
+SELECT *
+  FROM   crosstab(
+   'SELECT {id}, dest_name, distance
+    FROM   od_closest
+    ORDER  BY 1,2'  -- could also just be "ORDER BY 1" here
+  ,$$SELECT unnest('{curly_o}{category_list}{curly_c}'::text[])$$
+   ) AS distance ("{id}" text, {category_types});
+'''.format(id = points_id.lower(),
+           curly_o = "{",
+           curly_c = "}",
+           category_list = category_list,
+           category_types = category_types)
+curs.execute(crosstab)
+conn.commit()
+print("Done.")
 
-# print("Create summary table of destination distance arrays... "),
-# crosstab = '''
-# DROP TABLE IF EXISTS dest_distances_3200m;
-# CREATE TABLE dest_distances_3200m AS
-# SELECT *
-  # FROM   crosstab(
-   # 'SELECT {id}, dest_class, distances
-    # FROM   od_distances_3200m
-    # ORDER  BY 1,2'  -- could also just be "ORDER BY 1" here
-  # ,$$SELECT unnest('{curly_o}{category_list}{curly_c}'::text[])$$
-   # ) AS distances ("{id}" text, {category_types});
-# '''.format(id = points_id.lower(),
-           # curly_o = "{",
-           # curly_c = "}",
-           # category_list = array_category_list,
-           # category_types = array_category_types)
-# curs.execute(crosstab)
-# conn.commit()
-# print("Done.")
+print("Create summary table of destination distance arrays... "),
+crosstab = '''
+DROP TABLE IF EXISTS dest_distances_3200m;
+CREATE TABLE dest_distances_3200m AS
+SELECT *
+  FROM   crosstab(
+   'SELECT {id}, dest_class, distances
+    FROM   od_distances_3200m
+    ORDER  BY 1,2'  -- could also just be "ORDER BY 1" here
+  ,$$SELECT unnest('{curly_o}{category_list}{curly_c}'::text[])$$
+   ) AS distances ("{id}" text, {category_types});
+'''.format(id = points_id.lower(),
+           curly_o = "{",
+           curly_c = "}",
+           category_list = array_category_list,
+           category_types = array_category_types)
+curs.execute(crosstab)
+conn.commit()
+print("Done.")
 
 # Neighbourhood_indicators
 print("Create nh_inds_distance (curated distance to closest table for re-use by other indicators)... "),
@@ -263,12 +263,13 @@ for threshold_type in ['hard','soft']:
         conn.commit()
 print("Done.")
 
+print("Processing neighbourhood indicators:")
 
 # Define table name and abbreviation
 # This saves us having to retype these values, and allows the code to be more easily re-used
-table = ['daily_living','dl']
-print("Processing indicators for {table}".format(table = table[0])),
-create_table = '''CREATE TABLE IF NOT EXISTS {table} AS SELECT {id} FROM parcel_dwellings;'''.format(table = table[0], id = points_id.lower())
+table = ['ind_daily_living','dl']
+print(" - {table}".format(table = table[0])),
+create_table = '''DROP TABLE IF EXISTS {table}; CREATE TABLE {table} AS SELECT {id} FROM parcel_dwellings;'''.format(table = table[0], id = points_id.lower())
 curs.execute(create_table)
 conn.commit()
 
@@ -277,7 +278,7 @@ for threshold_type in ['hard','soft']:
         populate_table = '''
         -- Note that we take NULL for distance to closest in this context to mean absence of presence
         -- Error checking at other stages of processing should confirm whether this is the case.
-        ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {abbrev}_{threshold_type}_{nh_threshold}m int;
+        ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {abbrev}_{threshold_type}_{nh_threshold}m float;
         UPDATE {table} t SET 
            {abbrev}_{threshold_type}_{nh_threshold}m = COALESCE(convenience_osm_2018,0) + 
                                                        GREATEST(COALESCE(supermarket_hlc_2017,0),COALESCE(supermarket_osm_2018,0)) + 
@@ -296,9 +297,9 @@ create_index = '''CREATE UNIQUE INDEX {table}_idx ON  {table} ({id});  '''.forma
 curs.execute(create_index)
 print(" Done.")
 
-table = ['local_living','ll']
-print("Processing indicators for {table}".format(table = table[0])),
-create_table = '''CREATE TABLE IF NOT EXISTS {table} AS SELECT {id} FROM parcel_dwellings;'''.format(table = table[0], id = points_id.lower())
+table = ['ind_local_living','ll']
+print(" - {table}".format(table = table[0])),
+create_table = '''DROP TABLE IF EXISTS {table}; CREATE TABLE {table} AS SELECT {id} FROM parcel_dwellings;'''.format(table = table[0], id = points_id.lower())
 curs.execute(create_table)
 conn.commit()
 
@@ -307,7 +308,7 @@ for threshold_type in ['hard','soft']:
         populate_table = '''
         -- Note that we take NULL for distance to closest in this context to mean absence of presence
         -- Error checking at other stages of processing should confirm whether this is the case.
-        ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {abbrev}_{threshold_type}_{nh_threshold}m int;
+        ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {abbrev}_{threshold_type}_{nh_threshold}m float;
         UPDATE {table} t SET 
            {abbrev}_{threshold_type}_{nh_threshold}m = COALESCE(community_pow_osm_2018,0) + 
                                                        COALESCE(libraries_hlc_2018,0) +
@@ -335,9 +336,9 @@ curs.execute(create_index)
 print(" Done.")
 
 
-table = ['walkability','wa']
-print("Processing indicators for {table}".format(table = table[0])),
-create_table = '''CREATE TABLE IF NOT EXISTS {table} AS SELECT {id} FROM parcel_dwellings;'''.format(table = table[0], id = points_id.lower())
+table = ['ind_walkability','wa']
+print(" - {table}".format(table = table[0])),
+create_table = '''DROP TABLE IF EXISTS {table}; CREATE TABLE {table} AS SELECT {id} FROM parcel_dwellings;'''.format(table = table[0], id = points_id.lower())
 curs.execute(create_table)
 conn.commit()
 # we just calculate walkability at 1600m, so we'll set nh_threshold to that value
@@ -346,13 +347,13 @@ for threshold_type in ['hard','soft']:
     populate_table = '''
     -- Note that we take NULL for distance to closest in this context to mean absence of presence
     -- Error checking at other stages of processing should confirm whether this is the case.
-    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {abbrev}_{threshold_type}_{nh_threshold}m int;
+    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {abbrev}_{threshold_type}_{nh_threshold}m float;
     UPDATE {table} t SET 
-       {abbrev}_{threshold_type}_{nh_threshold}m = z_dl + z_sc + z_dd
-    FROM (SELECT {id}, (dl_{threshold_type}_{nh_threshold}m - AVG(dl_{threshold_type}_{nh_threshold}m) OVER())/stddev_pop(dl_{threshold_type}_{nh_threshold}m) OVER() as z_dl FROM daily_living
+       {abbrev}_{threshold_type}_{nh_threshold}m = dl.z_dl + sc.z_sc + dd.z_dd
+    FROM (SELECT {id}, (dl_{threshold_type}_{nh_threshold}m - AVG(dl_{threshold_type}_{nh_threshold}m) OVER())/stddev_pop(dl_{threshold_type}_{nh_threshold}m) OVER() as z_dl FROM daily_living) dl
     LEFT JOIN (SELECT {id}, (sc_nh1600m - AVG(sc_nh1600m) OVER())/stddev_pop(sc_nh1600m) OVER() as z_sc FROM sc_nh1600m) sc ON sc.{id} = dl.{id}
-    LEFT JOIN (SELECT {id}, (dd_nh1600m - AVG(dd_nh1600m) OVER())/stddev_pop(dd_nh1600m) OVER() as z_dd FROM dd_nh1600m) AS dd ON dd.{id} = dl.{id};
-    WHERE t.{id} = nh.{id};
+    LEFT JOIN (SELECT {id}, (dd_nh1600m - AVG(dd_nh1600m) OVER())/stddev_pop(dd_nh1600m) OVER() as z_dd FROM dd_nh1600m) dd ON dd.{id} = dl.{id}
+    WHERE t.{id} = dl.{id};
     '''.format(table = table[0], 
                abbrev = table[1], 
                id = points_id.lower(),
@@ -365,178 +366,149 @@ create_index = '''CREATE UNIQUE INDEX {table}_idx ON  {table} ({id});  '''.forma
 curs.execute(create_index)
 print(" Done.")
 
-# table = ['walkability','wa']
-# print("Processing indicators for {table}".format(table = table[0])),
-# create_table = '''CREATE TABLE IF NOT EXISTS {table} AS SELECT {id} FROM parcel_dwellings;'''.format(table = table[0], id = points_id.lower())
-# curs.execute(create_table)
-# conn.commit()       
-# -- Walkability
-# -- DROP TABLE IF EXISTS ind_walkability;
-# CREATE TABLE IF NOT EXISTS ind_walkability AS
-# SELECT dl.{id}, 
-       # z_dl_hard, 
-       # z_dl_soft, 
-       # z_sc,
-       # z_dd,
-       # z_dl_hard + z_sc + z_dd AS wa_hard,
-       # z_dl_soft + z_sc + z_dd AS wa_soft
-# FROM (SELECT {id},
-             # (dl_hyb_hard - AVG(dl_hyb_hard) OVER())/stddev_pop(dl_hyb_hard) OVER() as z_dl_hard,
-             # (dl_hyb_soft - AVG(dl_hyb_soft) OVER())/stddev_pop(dl_hyb_soft) OVER() as z_dl_soft FROM ind_daily_living) dl
-# LEFT JOIN
-    # (SELECT {id}, (sc_nh1600m - AVG(sc_nh1600m) OVER())/stddev_pop(sc_nh1600m) OVER() as z_sc FROM sc_nh1600m) sc
-  # ON sc.{id} = dl.{id}
-# LEFT JOIN
-    # (SELECT {id}, (dd_nh1600m - AVG(dd_nh1600m) OVER())/stddev_pop(dd_nh1600m) OVER() as z_dd FROM dd_nh1600m) AS dd
-  # ON dd.{id} = dl.{id};
-# '''.format(id = points_id),
-# '''
-# -- Activity centre proximity
-# -- DROP TABLE IF EXISTS ind_activity;
-# CREATE TABLE IF NOT EXISTS ind_activity AS
-# SELECT {id},
-       # distance, 
-       # threshold_hard(distance,1000) AS ind_hard, 
-       # threshold_soft(distance,1000) AS ind_soft
- # FROM od_closest 
-# WHERE dest_class = 'activity_centres';
-# '''.format(id = points_id),
-# '''
-# -- Supermarkets (1000m)
-# DROP TABLE IF EXISTS ind_supermarket1000;
-# CREATE TABLE ind_supermarket1000 AS
-# SELECT {id}, 
-       # array_agg(distance) AS distance_array,
-       # MIN(distance) AS distance,
-       # threshold_hard(MIN(distance),1000) AS ind_hard, 
-       # threshold_soft(MIN(distance),1000) AS ind_soft
-# FROM od_closest WHERE dest_class IN ('supermarket','supermarket_osm')
-# GROUP BY {id};
-# '''.format(id = points_id),
-# '''
-# -- Food ratio / proportion measures
-# -- DROP TABLE IF EXISTS ind_foodratio;
-# CREATE TABLE IF NOT EXISTS ind_foodratio AS
-# SELECT p.{id}, 
-       # COALESCE(supermarkets.count,0) AS supermarkets,
-       # COALESCE(fastfood.count,0) AS fastfood
-       # -- ,
-       # -- Commented out in order to speed things up
-       # --
-       # --(CASE
-       # -- WHEN COALESCE(supermarkets.count,0) + COALESCE(fastfood.count,0) !=0 THEN  
-       # --   COALESCE(supermarkets.count,0)/(COALESCE(supermarkets.count,0) + COALESCE(fastfood.count,0))::float
-       # -- ELSE NULL END) AS supermarket_proportion 
-# FROM parcel_dwellings p
-# LEFT JOIN od_counts AS supermarkets ON p.{id} = supermarkets.{id}
-# LEFT JOIN od_counts AS fastfood ON p.{id} = fastfood.{id}
-  # WHERE supermarkets.dest_class = 'supermarket_osm'
-    # AND fastfood.dest_class = 'fastfood_osm';
-# '''.format(id = points_id),
-# '''
-# -- Public transport proximity
-# -- DROP TABLE IF EXISTS ind_transport;
-# CREATE TABLE IF NOT EXISTS ind_transport AS
-# SELECT p.{id},
-       # freq30.distance   AS freq30, 
-       # any_pt.distance   AS any_pt, 
-       # bus.distance   AS bus, 
-       # tram.distance  AS tram,
-       # train.distance AS train,
-       # ferry.distance AS ferry
-# FROM parcel_dwellings p
-# LEFT JOIN (SELECT {id},distance 
-             # FROM od_closest 
-            # WHERE dest_class = 'gtfs_2018_stop_30_mins_final') freq30 
-       # ON p.{id} = freq30.{id} 
-# LEFT JOIN (SELECT {id},distance 
-             # FROM od_closest 
-            # WHERE dest_class = 'gtfs_2018_stops') any_pt 
-       # ON p.{id} = any_pt.{id} 
-# LEFT JOIN (SELECT {id},distance 
-             # FROM od_closest 
-            # WHERE dest_class = 'gtfs_2018_stops_bus') bus 
-       # ON p.{id} = bus.{id} 
-# LEFT JOIN (SELECT {id},distance 
-             # FROM od_closest 
-            # WHERE dest_class = 'gtfs_2018_stops_tram') tram 
-       # ON p.{id} = tram.{id} 
-# LEFT JOIN (SELECT {id},distance 
-             # FROM od_closest 
-            # WHERE dest_class = 'gtfs_2018_stops_train') train 
-       # ON p.{id} = train.{id} 
-# LEFT JOIN (SELECT {id},distance 
-             # FROM od_closest 
-            # WHERE dest_class = 'gtfs_2018_stops_ferry') ferry 
-       # ON p.{id} = ferry.{id}
-# '''.format(id = points_id)  ,
-# '''
-# -- Public open space proximity
-# -- DROP TABLE IF EXISTS ind_pos_closest;
-# CREATE TABLE IF NOT EXISTS ind_pos_closest AS
-# SELECT p.{id},
-       # pos_any.distance   AS pos_any_distance_m, 
-       # pos_large.distance   AS pos_15k_sqm_distance_m
-# FROM parcel_dwellings p
-# LEFT JOIN (SELECT p.{id}, 
-                  # min(distance) AS distance
-             # FROM parcel_dwellings p
-             # LEFT JOIN 
-             # (SELECT {id},
-                    # (obj->>'aos_id')::int AS aos_id,
-                    # (obj->>'distance')::int AS distance
-              # FROM od_aos_jsonb,
-                   # jsonb_array_elements(attributes) obj) o ON p.{id} = o.{id}
-             # LEFT JOIN open_space_areas pos ON o.aos_id = pos.aos_id
-                 # WHERE pos.aos_id IS NOT NULL
-                   # AND aos_ha_public > 0
-             # GROUP BY p.{id}) pos_any ON p.{id} = pos_any.{id}
-# LEFT JOIN (SELECT p.{id}, 
-                  # min(distance) AS distance
-             # FROM parcel_dwellings p
-             # LEFT JOIN 
-             # (SELECT {id},
-                    # (obj->>'aos_id')::int AS aos_id,
-                    # (obj->>'distance')::int AS distance
-              # FROM od_aos_jsonb,
-                   # jsonb_array_elements(attributes) obj) o ON p.{id} = o.{id}
-             # LEFT JOIN open_space_areas pos ON o.aos_id = pos.aos_id
-                 # WHERE pos.aos_id IS NOT NULL
-                   # AND aos_ha_public > 1.5
-             # GROUP BY p.{id}) pos_large ON p.{id} = pos_large.{id}
-# '''.format(id = points_id),
-# '''
-# -- Create table indexing sport use within 3200m
-# -- Query these results like: SELECT gnaf_pid, count_in_threshold(distances,1600) FROM sport_3200m;
-# -- DROP TABLE IF EXISTS sport_3200m;
-# CREATE TABLE IF NOT EXISTS sport_3200m AS
-# SELECT p.{id}, 
-       # array_agg(distance) AS distances
-  # FROM parcel_dwellings p
-# LEFT JOIN (SELECT {id},
-                  # (obj->>'aos_id')::int AS aos_id,
-                  # (obj->>'distance')::int AS distance
-             # FROM od_aos_jsonb,
-                  # jsonb_array_elements(attributes) obj
-            # WHERE (obj->>'distance')::int < 3200) o ON p.{id} = o.{id}                  
-# WHERE EXISTS -- we restrict our results to distances to AOS with sports facilities 
-            # (SELECT 1 FROM open_space_areas sport,
-                           # jsonb_array_elements(attributes) obj
-             # WHERE (obj->>'leisure' IN ('golf_course','sports_club','sports_centre','fitness_centre','pitch','track','fitness_station','ice_rink','swimming_pool') 
-                # OR (obj->>'sport' IS NOT NULL 
-               # AND obj->>'sport' != 'no'))
-               # AND  o.aos_id = sport.aos_id)
-# GROUP BY p.{id};
-# '''.format(id = points_id)
-# ]
+table = ['ind_food_proportion','fp']
+print(" - {table}".format(table = table[0])),
+create_table = '''DROP TABLE IF EXISTS {table}; CREATE TABLE {table} AS SELECT {id} FROM parcel_dwellings;'''.format(table = table[0], id = points_id.lower())
+curs.execute(create_table)
+conn.commit()
+# we just calculate food ratio at 1600m, so we'll set nh_threshold to that value
+nh_threshold = 1600
+sql = '''
+ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {abbrev}_{nh_threshold}m float;
+-- We can't use both the OSM and scraped data as we would expect this to lead to double counting
+-- However, we can take the larger of the two values under the assumption that this represents
+-- the more comprehensive record of neighbourhood information.
+UPDATE {table} t SET 
+   {abbrev}_{nh_threshold}m = d.supermarkets / (d.supermarkets + d.fastfood):: float
+FROM (SELECT 
+        {id},
+        GREATEST(COALESCE(count_in_threshold(supermarket,1600),0),COALESCE(count_in_threshold(supermarket_osm,1600),0)) AS supermarkets,
+        GREATEST(COALESCE(count_in_threshold(fast_food,1600),0),COALESCE(count_in_threshold(fastfood_osm,1600),0)) AS fastfood
+      FROM dest_distances_3200m) d
+WHERE t.{id} = d.{id} AND (d.supermarkets + d.fastfood) > 0;
+'''.format(table = table[0], 
+           abbrev = table[1], 
+           id = points_id.lower(),
+           nh_threshold = nh_threshold)
+curs.execute(sql)
+conn.commit()
+print("."),
+create_index = '''CREATE UNIQUE INDEX {table}_idx ON  {table} ({id});  '''.format(table = table[0], id = points_id.lower())
+curs.execute(create_index)
+print(" Done.")
 
-# for query in sql:
-  # print('{}... '.format(query.splitlines()[1])),
-  # curs.execute(query)
-  # conn.commit()
-  # print("Done.")
 
-conn.close()
+table = ['ind_food_ratio','fr']
+print(" - {table}".format(table = table[0])),
+create_table = '''DROP TABLE IF EXISTS {table}; CREATE TABLE {table} AS SELECT {id} FROM parcel_dwellings;'''.format(table = table[0], id = points_id.lower())
+curs.execute(create_table)
+conn.commit()
+# we just calculate food ratio at 1600m, so we'll set nh_threshold to that value
+nh_threshold = 1600
+sql = '''
+ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {abbrev}_{nh_threshold}m float;
+-- We can't use both the OSM and scraped data as we would expect this to lead to double counting
+-- However, we can take the larger of the two values under the assumption that this represents
+-- the more comprehensive record of neighbourhood information.
+--
+-- Note, this measure is only meaningful if there is at least one proximal fast food destination counted
+-- else, it is null. (ie. can't divide by zero)
+--
+UPDATE {table} t SET 
+   {abbrev}_{nh_threshold}m = d.supermarkets / d.fastfood:: float
+FROM (SELECT 
+        {id},
+        GREATEST(COALESCE(count_in_threshold(supermarket,1600),0),COALESCE(count_in_threshold(supermarket_osm,1600),0)) AS supermarkets,
+        GREATEST(COALESCE(count_in_threshold(fast_food,1600),0),COALESCE(count_in_threshold(fastfood_osm,1600),0)) AS fastfood
+      FROM dest_distances_3200m) d
+WHERE t.{id} = d.{id} AND d.fastfood > 0;
+'''.format(table = table[0], 
+           abbrev = table[1], 
+           id = points_id.lower(),
+           nh_threshold = nh_threshold)
+curs.execute(sql)
+conn.commit()
+print("."),
+create_index = '''CREATE UNIQUE INDEX {table}_idx ON  {table} ({id});  '''.format(table = table[0], id = points_id.lower())
+curs.execute(create_index)
+print(" Done.")
+
+
+table = ['ind_pos_distance','pc']
+print(" - {table}".format(table = table[0])),
+sql = '''
+-- Public open space proximity
+-- DROP TABLE IF EXISTS {table};
+CREATE TABLE IF NOT EXISTS {table} AS
+SELECT p.{id},
+       pos_any.distance   AS pos_any_distance_m, 
+       pos_large.distance   AS pos_15k_sqm_distance_m
+FROM parcel_dwellings p
+LEFT JOIN (SELECT p.{id}, 
+                  min(distance) AS distance
+             FROM parcel_dwellings p
+             LEFT JOIN 
+             (SELECT {id},
+                    (obj->>'aos_id')::int AS aos_id,
+                    (obj->>'distance')::int AS distance
+              FROM od_aos_jsonb,
+                   jsonb_array_elements(attributes) obj) o ON p.{id} = o.{id}
+             LEFT JOIN open_space_areas pos ON o.aos_id = pos.aos_id
+                 WHERE pos.aos_id IS NOT NULL
+                   AND aos_ha_public > 0
+             GROUP BY p.{id}) pos_any ON p.{id} = pos_any.{id}
+LEFT JOIN (SELECT p.{id}, 
+                  min(distance) AS distance
+             FROM parcel_dwellings p
+             LEFT JOIN 
+             (SELECT {id},
+                    (obj->>'aos_id')::int AS aos_id,
+                    (obj->>'distance')::int AS distance
+              FROM od_aos_jsonb,
+                   jsonb_array_elements(attributes) obj) o ON p.{id} = o.{id}
+             LEFT JOIN open_space_areas pos ON o.aos_id = pos.aos_id
+                 WHERE pos.aos_id IS NOT NULL
+                   AND aos_ha_public > 1.5
+             GROUP BY p.{id}) pos_large ON p.{id} = pos_large.{id}
+'''.format(id = points_id, table = table[0])
+curs.execute(sql)
+conn.commit()
+create_index = '''CREATE UNIQUE INDEX {table}_idx ON  {table} ({id});  '''.format(table = table[0], id = points_id.lower())
+curs.execute(create_index)
+print(" Done.")
+
+
+table = ['ind_sport_distances_3200m','sp']
+print(" - {table}".format(table = table[0])),
+sql = '''
+-- Public open space proximity
+-- DROP TABLE IF EXISTS {table};
+CREATE TABLE IF NOT EXISTS {table} AS
+SELECT p.{id}, 
+       array_agg(distance) AS distances
+  FROM parcel_dwellings p
+LEFT JOIN (SELECT {id},
+                  (obj->>'aos_id')::int AS aos_id,
+                  (obj->>'distance')::int AS distance
+             FROM od_aos_jsonb,
+                  jsonb_array_elements(attributes) obj
+            WHERE (obj->>'distance')::int < 3200) o ON p.{id} = o.{id}                  
+WHERE EXISTS -- we restrict our results to distances to AOS with sports facilities 
+            (SELECT 1 FROM open_space_areas sport,
+                           jsonb_array_elements(attributes) obj
+             WHERE (obj->>'leisure' IN ('golf_course','sports_club','sports_centre','fitness_centre','pitch','track','fitness_station','ice_rink','swimming_pool') 
+                OR (obj->>'sport' IS NOT NULL 
+               AND obj->>'sport' != 'no'))
+               AND  o.aos_id = sport.aos_id)
+GROUP BY p.{id};
+'''.format(id = points_id, table = table[0])
+curs.execute(sql)
+conn.commit()
+create_index = '''CREATE UNIQUE INDEX {table}_idx ON  {table} ({id});  '''.format(table = table[0], id = points_id.lower())
+curs.execute(create_index)
+print(" Done.")
+
 
 # output to completion log    
-# script_running_log(script, task, start, locale)
+script_running_log(script, task, start, locale)
+conn.close()
