@@ -509,6 +509,9 @@ curs.execute(create_index)
 print(" Done.")
 
 
+# print("Create ISO37120 indicator (hard threshold is native version; soft threshold is novel...")
+# to do... could base on the nh_inds with specific thresholds
+
 # output to completion log    
 script_running_log(script, task, start, locale)
 conn.close()
