@@ -37,5 +37,5 @@ df['employment_diversity'] = df['entropy_basic']/np.log(len(industries))
 # Write result to csv file 
 df.to_csv (os.path.join(sys.path[0],
                         '../data/employment/employment_diversity_2011.csv'), 
-          index = None, 
+          index = True, 
           header=True) 
