@@ -126,15 +126,15 @@ print('Done.')
 # Restrict to indicators associated with study region (except distance to closest dest indicators)
 ind_matrix = df_inds[df_inds['locale'].str.contains('|'.join([locale,'\*']))]
 
-# Get a list of destinations processed within this region for distance to closest
-sql = '''SELECT DISTINCT(dest_name) dest_name FROM od_closest ORDER BY dest_name;'''
-curs.execute(sql)
-categories = [x[0] for x in curs.fetchall()]
+# Get a list of all potential destinations for distance to closest 
+# (some may not be present in region, will be null, so we can refer to them in later queries)
+# destination names
+categories = [x for x in df_destinations.destination.tolist()]
 category_list = ','.join(categories)
 category_types = '"{}" int'.format('" int, "'.join(categories))
-sql = '''SELECT DISTINCT(dest_class) FROM od_distances_3200m ORDER BY dest_class;'''
-curs.execute(sql)
-array_categories = [x[0] for x in curs.fetchall()]
+
+# destination classes
+array_categories = [x for x in df_destinations.destination_class.tolist()]
 array_category_list = ','.join(array_categories)
 array_category_types = '"{}" int[]'.format('" int[], "'.join(array_categories))
 
@@ -303,6 +303,10 @@ create_table = '''DROP TABLE IF EXISTS {table}; CREATE TABLE {table} AS SELECT {
 curs.execute(create_table)
 conn.commit()
 
+clean_up = '''DROP TABLE IF EXISTS dailyliving; DROP TABLE IF EXISTS daily_living; DROP TABLE IF EXISTS ind_dailyliving;'''
+curs.execute(clean_up)
+conn.commit()
+
 for threshold_type in ['hard','soft']:
     for nh_threshold in [400,800,1000,1600]:
         populate_table = '''
@@ -350,7 +354,7 @@ for threshold_type in ['hard','soft']:
     ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {abbrev}_{threshold_type}_{nh_threshold}m float;
     UPDATE {table} t SET 
        {abbrev}_{threshold_type}_{nh_threshold}m = dl.z_dl + sc.z_sc + dd.z_dd
-    FROM (SELECT {id}, (dl_{threshold_type}_{nh_threshold}m - AVG(dl_{threshold_type}_{nh_threshold}m) OVER())/stddev_pop(dl_{threshold_type}_{nh_threshold}m) OVER() as z_dl FROM daily_living) dl
+    FROM (SELECT {id}, (dl_{threshold_type}_{nh_threshold}m - AVG(dl_{threshold_type}_{nh_threshold}m) OVER())/stddev_pop(dl_{threshold_type}_{nh_threshold}m) OVER() as z_dl FROM ind_daily_living) dl
     LEFT JOIN (SELECT {id}, (sc_nh1600m - AVG(sc_nh1600m) OVER())/stddev_pop(sc_nh1600m) OVER() as z_sc FROM sc_nh1600m) sc ON sc.{id} = dl.{id}
     LEFT JOIN (SELECT {id}, (dd_nh1600m - AVG(dd_nh1600m) OVER())/stddev_pop(dd_nh1600m) OVER() as z_dd FROM dd_nh1600m) dd ON dd.{id} = dl.{id}
     WHERE t.{id} = dl.{id};

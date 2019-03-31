@@ -57,7 +57,7 @@ query = '''
 {insert} 'no network buffer'    {table} sausagebuffer_1600 {match} b.geom      {null};
 {insert} 'null sc_nh1600m'      {table} sc_nh1600m         {match} sc_nh1600m  {null};
 {insert} 'null dd_nh1600m'      {table} dd_nh1600m         {match} dd_nh1600m  {null};
-{insert} 'null daily living'    {table} ind_daily_living   {match} {island_exception} dl_hyb_hard {null};
+{insert} 'null daily living'    {table} ind_daily_living   {match} {island_exception} dl_hard_1600m {null};
 {insert} 'not urban parcel_sos' {table} parcel_sos         {match} sos_name_2016 NOT IN ('Major Urban','Other Urban');
 {insert} 'no IRSD sa1_maincode' {table} abs_linkage ON a.mb_code_20 = abs_linkage.mb_code_2016 
     WHERE abs_linkage.sa1_maincode NOT IN (SELECT sa1_maincode FROM area_disadvantage)
