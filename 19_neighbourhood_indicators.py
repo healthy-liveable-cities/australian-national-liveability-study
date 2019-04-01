@@ -398,7 +398,7 @@ UPDATE {table} t
 SET supermarket_count = d.supermarkets, 
     fastfood_count    = d.fastfood,
     food_proportion_{nh_threshold}m =  d.supermarkets / (d.supermarkets + d.fastfood):: float,
-    food_proportion_{nh_threshold}m =  d.supermarkets / d.fastfood:: float
+    food_ratio_{nh_threshold}m =  d.supermarkets / d.fastfood:: float
 FROM (SELECT 
         {id},
         GREATEST(COALESCE(count_in_threshold(supermarket,1600),0),COALESCE(count_in_threshold(supermarket_osm,1600),0)) AS supermarkets,
