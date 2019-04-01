@@ -265,6 +265,19 @@ print("Done.")
 
 print("Processing neighbourhood indicators:")
 
+clean_up = '''
+-- remove previous versions of indicators which could be confusing if persisting
+DROP TABLE IF EXISTS dailyliving; 
+DROP TABLE IF EXISTS daily_living; 
+DROP TABLE IF EXISTS ind_dailyliving;
+DROP TABLE IF EXISTS ind_foodratio;
+DROP TABLE IF EXISTS ind_food_ratio;
+DROP TABLE IF EXISTS ind_food_proportion;
+DROP TABLE IF EXISTS ind_supermarket1000;
+'''
+curs.execute(clean_up)
+conn.commit()
+
 # Define table name and abbreviation
 # This saves us having to retype these values, and allows the code to be more easily re-used
 table = ['ind_daily_living','dl']
@@ -301,10 +314,6 @@ table = ['ind_local_living','ll']
 print(" - {table}".format(table = table[0])),
 create_table = '''DROP TABLE IF EXISTS {table}; CREATE TABLE {table} AS SELECT {id} FROM parcel_dwellings;'''.format(table = table[0], id = points_id.lower())
 curs.execute(create_table)
-conn.commit()
-
-clean_up = '''DROP TABLE IF EXISTS dailyliving; DROP TABLE IF EXISTS daily_living; DROP TABLE IF EXISTS ind_dailyliving;'''
-curs.execute(clean_up)
 conn.commit()
 
 for threshold_type in ['hard','soft']:
@@ -370,7 +379,7 @@ create_index = '''CREATE UNIQUE INDEX {table}_idx ON  {table} ({id});  '''.forma
 curs.execute(create_index)
 print(" Done.")
 
-table = ['ind_food_proportion','fp']
+table = ['ind_food','f']
 print(" - {table}".format(table = table[0])),
 create_table = '''DROP TABLE IF EXISTS {table}; CREATE TABLE {table} AS SELECT {id} FROM parcel_dwellings;'''.format(table = table[0], id = points_id.lower())
 curs.execute(create_table)
@@ -378,12 +387,18 @@ conn.commit()
 # we just calculate food ratio at 1600m, so we'll set nh_threshold to that value
 nh_threshold = 1600
 sql = '''
-ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {abbrev}_{nh_threshold}m float;
+ALTER TABLE {table} ADD COLUMN IF NOT EXISTS supermarket_count int;
+ALTER TABLE {table} ADD COLUMN IF NOT EXISTS fastfood_count int;
+ALTER TABLE {table} ADD COLUMN IF NOT EXISTS food_proportion_{nh_threshold}m float;
+ALTER TABLE {table} ADD COLUMN IF NOT EXISTS food_ratio_{nh_threshold}m float;
 -- We can't use both the OSM and scraped data as we would expect this to lead to double counting
 -- However, we can take the larger of the two values under the assumption that this represents
 -- the more comprehensive record of neighbourhood information.
-UPDATE {table} t SET 
-   {abbrev}_{nh_threshold}m = d.supermarkets / (d.supermarkets + d.fastfood):: float
+UPDATE {table} t 
+SET supermarket_count = d.supermarkets, 
+    fastfood_count    = d.fastfood,
+    food_proportion_{nh_threshold}m =  d.supermarkets / (d.supermarkets + d.fastfood):: float,
+    food_proportion_{nh_threshold}m =  d.supermarkets / d.fastfood:: float
 FROM (SELECT 
         {id},
         GREATEST(COALESCE(count_in_threshold(supermarket,1600),0),COALESCE(count_in_threshold(supermarket_osm,1600),0)) AS supermarkets,
@@ -400,43 +415,6 @@ print("."),
 create_index = '''CREATE UNIQUE INDEX {table}_idx ON  {table} ({id});  '''.format(table = table[0], id = points_id.lower())
 curs.execute(create_index)
 print(" Done.")
-
-
-table = ['ind_food_ratio','fr']
-print(" - {table}".format(table = table[0])),
-create_table = '''DROP TABLE IF EXISTS {table}; CREATE TABLE {table} AS SELECT {id} FROM parcel_dwellings;'''.format(table = table[0], id = points_id.lower())
-curs.execute(create_table)
-conn.commit()
-# we just calculate food ratio at 1600m, so we'll set nh_threshold to that value
-nh_threshold = 1600
-sql = '''
-ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {abbrev}_{nh_threshold}m float;
--- We can't use both the OSM and scraped data as we would expect this to lead to double counting
--- However, we can take the larger of the two values under the assumption that this represents
--- the more comprehensive record of neighbourhood information.
---
--- Note, this measure is only meaningful if there is at least one proximal fast food destination counted
--- else, it is null. (ie. can't divide by zero)
---
-UPDATE {table} t SET 
-   {abbrev}_{nh_threshold}m = d.supermarkets / d.fastfood:: float
-FROM (SELECT 
-        {id},
-        GREATEST(COALESCE(count_in_threshold(supermarket,1600),0),COALESCE(count_in_threshold(supermarket_osm,1600),0)) AS supermarkets,
-        GREATEST(COALESCE(count_in_threshold(fast_food,1600),0),COALESCE(count_in_threshold(fastfood_osm,1600),0)) AS fastfood
-      FROM dest_distances_3200m) d
-WHERE t.{id} = d.{id} AND d.fastfood > 0;
-'''.format(table = table[0], 
-           abbrev = table[1], 
-           id = points_id.lower(),
-           nh_threshold = nh_threshold)
-curs.execute(sql)
-conn.commit()
-print("."),
-create_index = '''CREATE UNIQUE INDEX {table}_idx ON  {table} ({id});  '''.format(table = table[0], id = points_id.lower())
-curs.execute(create_index)
-print(" Done.")
-
 
 table = ['ind_pos_distance','pc']
 print(" - {table}".format(table = table[0])),
