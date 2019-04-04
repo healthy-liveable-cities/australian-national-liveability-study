@@ -142,6 +142,7 @@ array_category_types = '"{}" int[]'.format('" int[], "'.join(array_categories))
 destinations = df_inds[df_inds['ind'].str.contains('destinations')]
 
 print("Create summary table of destination distances (dest_distance_m)... "),
+table = 'dest_distance_m'
 crosstab = '''
 DROP TABLE IF EXISTS dest_distance_m;
 CREATE TABLE dest_distance_m AS
@@ -158,6 +159,9 @@ SELECT *
            category_list = category_list,
            category_types = category_types)
 curs.execute(crosstab)
+conn.commit()
+create_index = '''CREATE UNIQUE INDEX {table}_idx ON  {table} ({id}); '''.format(table = table, id = points_id.lower())
+curs.execute(create_index)
 conn.commit()
 print("Done.")
 
