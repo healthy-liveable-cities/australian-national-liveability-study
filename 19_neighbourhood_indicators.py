@@ -141,7 +141,7 @@ array_category_types = '"{}" int[]'.format('" int[], "'.join(array_categories))
 # get the set of distance to closest regions which match for this region
 destinations = df_inds[df_inds['ind'].str.contains('destinations')]
 
-print("Create summary table of destination distances... "),
+print("Create summary table of destination distances (dest_distance_m)... "),
 crosstab = '''
 DROP TABLE IF EXISTS dest_distance_m;
 CREATE TABLE dest_distance_m AS
@@ -161,25 +161,42 @@ curs.execute(crosstab)
 conn.commit()
 print("Done.")
 
-print("Create summary table of destination distance arrays... "),
-crosstab = '''
-DROP TABLE IF EXISTS dest_distances_3200m;
-CREATE TABLE dest_distances_3200m AS
-SELECT *
-  FROM   crosstab(
-   'SELECT {id}, dest_class, distances
-    FROM   od_distances_3200m
-    ORDER  BY 1,2'  -- could also just be "ORDER BY 1" here
-  ,$$SELECT unnest('{curly_o}{category_list}{curly_c}'::text[])$$
-   ) AS distances ("{id}" text, {category_types});
-'''.format(id = points_id.lower(),
-           curly_o = "{",
-           curly_c = "}",
-           category_list = array_category_list,
-           category_types = array_category_types)
-curs.execute(crosstab)
+
+table = 'dest_distances_3200m'
+print("Create summary table of distances to destinations in 3.2km ({table})".format(table = table)),
+sql = '''SELECT dest_class FROM dest_type ORDER BY dest_class;'''
+curs.execute(sql)
+dest_class_in_region = [x[0] for x in curs.fetchall()]
+create_table = '''
+DROP TABLE IF EXISTS {table}; 
+CREATE TABLE {table} AS SELECT {id} FROM parcel_dwellings;
+'''.format(table = table, id = points_id.lower())
+curs.execute(create_table)
 conn.commit()
-print("Done.")
+create_index = '''CREATE UNIQUE INDEX {table}_idx ON  {table} ({id}); '''.format(table = table, id = points_id.lower())
+curs.execute(create_index)
+conn.commit()
+for dest_class in array_categories:
+    add_field = '''
+    -- Note that we take NULL for distance to closest in this context to mean absence of presence
+    -- Error checking at other stages of processing should confirm whether this is the case.
+    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {dest_class} int[];
+    '''.format(table = table, dest_class = dest_class)
+    curs.execute(add_field)
+    conn.commit()
+    if dest_class in dest_class_in_region:
+        update_field = '''
+                       UPDATE {table} t SET 
+                         {dest_class} = distances
+                       FROM od_distances_3200m o
+                       WHERE t.{id} = o.{id} AND dest_class = '{dest_class}';
+                       '''.format(id = points_id.lower(),
+                                  table = table, 
+                                  dest_class = dest_class)
+        curs.execute(update_field)
+        conn.commit()
+        print("."),
+print(" Done.")
 
 # Neighbourhood_indicators
 print("Create nh_inds_distance (curated distance to closest table for re-use by other indicators)... "),

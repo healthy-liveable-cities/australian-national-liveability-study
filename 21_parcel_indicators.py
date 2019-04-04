@@ -31,7 +31,8 @@ engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_
 ind_matrix = df_inds[df_inds['locale'].str.contains('|'.join([locale,'\*']))]
 
 # Get a list of destinations processed within this region for distance to closest
-sql = '''SELECT DISTINCT(dest_name) dest_name FROM od_closest ORDER BY dest_name;'''
+# sql = '''SELECT DISTINCT(dest_name) dest_name FROM od_closest ORDER BY dest_name;'''
+sql = '''SELECT dest_name FROM dest_type ORDER BY dest_name;'''
 curs.execute(sql)
 categories = [x[0] for x in curs.fetchall()]
 
