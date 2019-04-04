@@ -79,7 +79,7 @@ if pid !='MainProcess':
   ODLinesSubLayer = arcpy.mapping.ListLayers(outNALayer, linesLayerName)[0]
   fields = ['Name', 'Total_Length']
   arcpy.MakeFeatureLayer_management (origin_points, "origin_points_layer")
-  arcpy.MakeFeatureLayer_management (outCombinedFeature, "destination_points_layer")       
+  arcpy.MakeFeatureLayer_management (study_destinations, "destination_points_layer")       
   arcpy.MakeFeatureLayer_management(hex_grid, "hex_layer")   
   # initial postgresql connection
   conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)

@@ -178,7 +178,7 @@ def ODMatrixWorkerFunction(hex):
         return(2)
     
     # make destination feature layer
-    arcpy.MakeFeatureLayer_management (outCombinedFeature, "destination_points_layer")        
+    arcpy.MakeFeatureLayer_management (study_destinations, "destination_points_layer")        
     
     # fetch list of successfully processed destinations for this hex, if any
     curs.execute("SELECT dest_name FROM {} WHERE hex = {}".format(log_table,hex))
