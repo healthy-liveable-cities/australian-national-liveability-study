@@ -26,7 +26,7 @@ from progressor import progressor
 from script_running_log import script_running_log
 
 # Import custom variables for National Liveability indicator process
-from config_ntnl_li_process import *
+from _project_setup import *
 
 # simple timer for log file
 start = time.time()
@@ -339,7 +339,7 @@ if __name__ == '__main__':
   
   print("Setup a pool of workers/child processes and split log output..."),
   # Parallel processing setting
-  # (now set as parameter in ind_study_region_matrix xlsx file)
+  # (now set as parameter in _project_configuration xlsx file)
   pool = multiprocessing.Pool(processes=nWorkers)
   print(" Done.")
 

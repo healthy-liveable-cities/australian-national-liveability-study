@@ -4,8 +4,7 @@
 #          Buffer area is referenced in SQL table nh1600m
 # Author:  Carl Higgs
 
-# import arcpy
-import subprocess as sp     # for executing external commands (e.g. pgsql2shp or ogr2ogr)
+# import subprocess as sp     # for executing external commands (e.g. pgsql2shp or ogr2ogr)
 import time
 import os
 import sys
@@ -16,7 +15,7 @@ from progressor import progressor
 from script_running_log import script_running_log
 
 # Import custom variables for National Liveability indicator process
-from config_ntnl_li_process import *
+from _project_setup import *
 
 # simple timer for log file
 start = time.time()

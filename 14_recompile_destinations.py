@@ -11,14 +11,13 @@
 # Author:  Carl Higgs
 # Date:    05/07/2018
 
-import arcpy
 import time
 import psycopg2
 
 from script_running_log import script_running_log
 
 # Import custom variables for National Liveability indicator process
-from config_ntnl_li_process import *
+from _project_setup import *
 
 # simple timer for log file
 start = time.time()
@@ -31,7 +30,7 @@ print("Commencing task: {} at {}".format(task,time.strftime("%Y%m%d-%H%M%S")))
 
 # check that all destination names are unique; if not we'll have problems:
 if df_destinations.destination.is_unique is not True:
-  sys.exit("Destination names in 'destinations' tab of ind_study_region_matrix.xlsx are not unique, but they should be.  Please fix this, push the change to all users alerting them to the issue, and try again.");
+  sys.exit("Destination names in 'destinations' tab of _project_configuration.xlsx are not unique, but they should be.  Please fix this, push the change to all users alerting them to the issue, and try again.");
 
 ### New idea for processing in PostGIS
 # list features for which we appear to have data
