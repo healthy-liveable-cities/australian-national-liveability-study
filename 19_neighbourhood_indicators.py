@@ -160,7 +160,7 @@ SELECT *
            category_types = category_types)
 curs.execute(crosstab)
 conn.commit()
-create_index = '''CREATE UNIQUE INDEX {table}_idx ON  {table} ({id}); '''.format(table = table, id = points_id.lower())
+create_index = '''CREATE UNIQUE INDEX {table}_idx ON {table} ({id});'''.format(table = table, id = points_id.lower())
 curs.execute(create_index)
 conn.commit()
 print("Done.")
@@ -177,7 +177,7 @@ CREATE TABLE {table} AS SELECT {id} FROM parcel_dwellings;
 '''.format(table = table, id = points_id.lower())
 curs.execute(create_table)
 conn.commit()
-create_index = '''CREATE UNIQUE INDEX {table}_idx ON  {table} ({id}); '''.format(table = table, id = points_id.lower())
+create_index = '''CREATE UNIQUE INDEX {table}_idx ON {table} ({id});'''.format(table = table, id = points_id.lower())
 curs.execute(create_index)
 conn.commit()
 for dest_class in array_categories:
