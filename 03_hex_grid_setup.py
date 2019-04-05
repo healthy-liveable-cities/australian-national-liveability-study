@@ -10,13 +10,14 @@
 #
 #       It assumes that the units of analysis are in metres.
 
+import arcpy
 import time
 import psycopg2
 import subprocess as sp     # for executing external commands (e.g. pgsql2shp or ogr2ogr)
 from script_running_log import script_running_log
 
 # Import custom variables for National Liveability indicator process
-from _project_setup import *
+from config_ntnl_li_process import *
 
 # simple timer for log file
 start  = time.time()
