@@ -16,30 +16,12 @@ start = time.time()
 script = os.path.basename(sys.argv[0])
 task = 'create study region boundary files in new geodatabase'
 
+print("Import administrative boundaries for study region... "),
 
-# ArcGIS environment settings
-arcpy.env.workspace = locale_dir  
-# create project specific folder in temp dir for scratch.gdb, if not exists
-if not os.path.exists(os.path.join(temp,db)):
-    os.makedirs(os.path.join(temp,db))
-    
-arcpy.env.scratchWorkspace = os.path.join(temp,db)  
-arcpy.env.overwriteOutput = True 
+print("Done.")
 
-# define spatial reference
-SpatialRef = arcpy.SpatialReference(SpatialRef)
-
-# OUTPUT PROCESS
-# Create output gdb if not already existing
-if os.path.exists(gdb_path):
-  print("Using extant file geodatabase: {}".format(gdb_path)) 
-if not os.path.exists(gdb_path):
-  arcpy.CreateFileGDB_management(locale_dir,gdb)
-  print("File geodatabase created: {}".format(gdb_path))
 
 print("Feature: {}".format(region_shape))
-arcpy.MakeFeatureLayer_management(r"{}".format(region_shape),'feature') 
-
 # If a 'region where clause' query has been defined in project file, 
 #  use that query to select a subset of feature to define study region
 if not pandas.np.isnan(region_where_clause):
@@ -48,11 +30,6 @@ if not pandas.np.isnan(region_where_clause):
   arcpy.SelectLayerByAttribute_management(in_layer_or_view  = 'feature', 
                                             selection_type    = "NEW_SELECTION", 
                                             where_clause      = "{}".format(region_where_clause))  
-# create copy of selected features as new feature class
-# in gdb
-print("Copy feature to geodatabase... "),
-arcpy.CopyFeatures_management('feature',os.path.join(gdb,study_region))
-print("Done.")
 
 print("Buffer study region... "),
 arcpy.env.workspace = gdb
@@ -86,24 +63,10 @@ command = 'ogr2ogr -overwrite -progress -f "PostgreSQL" ' \
 sp.call(command, shell=True)
 
 # connect to the PostgreSQL server and ensure privileges are granted for all public tables
-conn = psycopg2.connect(dbname=db, user=db_user, password=db_pwd)
+conn = psycopg2.connect(dbname=db, user=db_user, password=db_pwd, host = db_host,  port = db_port)
 curs = conn.cursor()
 curs.execute(grant_query)
 conn.commit()
-
-
-## The below step projects buffered study region from GDA2020 GA LCC to a WGS84 shape file
-# This buffered study region polygon is used to source OSMnx Pedestrian network
-locale_4326_shp = os.path.join(locale_dir,'{}_{}_{}m_epsg4326.shp'.format(locale.lower(),study_region,study_buffer))
-arcpy.Project_management(in_dataset=os.path.join(locale_dir,'{}.gdb/{}_{}m'.format(db,study_region,study_buffer)), 
-                         out_dataset=locale_4326_shp, 
-                         out_coor_system="GEOGCS['GCS_WGS_1984',DATUM['D_WGS_1984',SPHEROID['WGS_1984',6378137.0,298.257223563]],PRIMEM['Greenwich',0.0],UNIT['Degree',0.0174532925199433]]", 
-                         transform_method="'GDA_1994_To_GDA2020_NTv2_CD + GDA_1994_To_WGS_1984'", 
-                         in_coor_system="PROJCS['GDA2020_GA_LCC',GEOGCS['GDA2020',DATUM['GDA2020',SPHEROID['GRS_1980',6378137.0,298.257222101]],PRIMEM['Greenwich',0.0],UNIT['Degree',0.0174532925199433]],PROJECTION['Lambert_Conformal_Conic'],PARAMETER['False_Easting',0.0],PARAMETER['False_Northing',0.0],PARAMETER['Central_Meridian',134.0],PARAMETER['Standard_Parallel_1',-18.0],PARAMETER['Standard_Parallel_2',-36.0],PARAMETER['Latitude_Of_Origin',0.0],UNIT['Meter',1.0]]", 
-                         preserve_shape="NO_PRESERVE_SHAPE",
-                         max_deviation="", 
-                         vertical="NO_VERTICAL")                          
-                   
 
 # output to completion log					
 script_running_log(script, task, start, locale)
