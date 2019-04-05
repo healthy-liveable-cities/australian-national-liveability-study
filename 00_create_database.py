@@ -5,7 +5,7 @@
 
 import psycopg2
 import time
-# import getpass
+import getpass
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 
 # Import custom variables for National Liveability indicator process
@@ -24,46 +24,25 @@ if not os.path.exists(locale_dir):
 
 # INPUT PARAMETERS
 # default database
-# print("Please enter default PostgreSQL database details to procede with new database creation, or close terminal to abort.")
-# admin_db   = input("Database: ")    
-# admin_user_name = input("Username: ")
-# admin_pwd = getpass.getpass("Password for user {} on database {}: ".format(admin_user_name, admin_db))
-admin_db   = 'postgres'
-admin_user_name = 'postgres'
-admin_pwd = db_pwd
-
-print("Connecting to default database to action queries.")
-conn = psycopg2.connect(dbname=admin_db, user=admin_user_name, password=admin_pwd, host = db_host, port = db_port)
-conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
-curs = conn.cursor()
+print("Please enter default PostgreSQL database details to procede with new database creation, or close terminal to abort.")
+admin_db   = raw_input("Database: ")    
+admin_user_name = raw_input("Username: ")
+admin_pwd = getpass.getpass("Password for user {} on database {}: ".format(admin_user_name, admin_db))
 
 # SQL queries
-create_database = '''
+createDB = '''
 -- Create database
 CREATE DATABASE {db}
 WITH OWNER = {admin_user_name} 
 ENCODING = 'UTF8' 
+LC_COLLATE = 'English_Australia.1252' 
+LC_CTYPE = 'English_Australia.1252' 
 TABLESPACE = pg_default 
 CONNECTION LIMIT = -1
 TEMPLATE template0;
-'''.format(db = db, admin_user_name = admin_user_name)
-
-print('Creating database if not exists {}... '.format(db)),
-curs.execute("SELECT COUNT(*) = 0 FROM pg_catalog.pg_database WHERE datname = '{}'".format(db))
-not_exists_row = curs.fetchone()
-not_exists = not_exists_row[0]
-if not_exists:
-  curs.execute(create_database) 
-print('Done.')
-
-comment_database = '''
 COMMENT ON DATABASE {db} IS '{dbComment}';
-'''.format(db = db, dbComment = dbComment) 
-print('Adding comment "{}"... '.format(comment_database)),
-curs.execute(comment_database)
-print('Done.')
 
-create_user = '''
+-- Create user
 DO
 $do$
 BEGIN
@@ -76,15 +55,27 @@ BEGIN
    END IF;
 END
 $do$;
-'''.format(db_user = db_user,
+'''.format(db = db,
+           admin_user_name = admin_user_name,
+           dbComment = dbComment,
+           db_user = db_user,
            db_pwd = db_pwd)  
-           
-print('Creating user {}  if not exists... '.format(db_user)),
-curs.execute(create_user)
+
+print("Connecting to default database to action queries.")
+conn = psycopg2.connect(dbname=admin_db, user=admin_user_name, password=admin_pwd)
+conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+curs = conn.cursor()
+
+print('Creating database if not exists {}... '.format(db)),
+curs.execute("SELECT COUNT(*) = 0 FROM pg_catalog.pg_database WHERE datname = '{}'".format(db))
+not_exists_row = curs.fetchone()
+not_exists = not_exists_row[0]
+if not_exists:
+  curs.execute(createDB) 
 print('Done.')
-          
+
 print("Connecting to {}.".format(db))
-conn = psycopg2.connect(dbname=db, user=admin_user_name, password=admin_pwd, host = db_host,  port = db_port)
+conn = psycopg2.connect(dbname=db, user=admin_user_name, password=admin_pwd)
 conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
 curs = conn.cursor()
  
@@ -113,8 +104,6 @@ LANGUAGE SQL;
 '''.format(slope = soft_threshold_slope)
 curs.execute(create_threshold_functions)
 print('Done.')
-
-curs.execute(grant_query)
 
 # output to completion log		
 from script_running_log import script_running_log			
