@@ -25,7 +25,7 @@ script = os.path.basename(sys.argv[0])
 
 # OUTPUT PROCESS
 # Compile restricted gdb of destination features
-task = 'Recompile destinations from {} to study region gdb as combined feature {}'.format(dest_gdb,os.path.join(gdb,study_destinations))
+task = 'Recompile destinations from {} to study region gdb as combined feature {}'.format(dest_gdb,os.path.join(gdb,outCombinedFeature))
 print("Commencing task: {} at {}".format(task,time.strftime("%Y%m%d-%H%M%S")))
 
 # check that all destination names are unique; if not we'll have problems:
