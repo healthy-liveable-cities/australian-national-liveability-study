@@ -64,7 +64,7 @@ ind_matrix.sort_values('order', inplace=True)
 ind_list = ind_matrix['indicators'].tolist()
 
 # Compile string of queries, and of unique sources to plug in SQL table creation query
-ind_queries = '\n'.join(ind_matrix['Query'])
+ind_queries = '\n'.join(ind_matrix['Query'] +' AS ' + ind_matrix['indicators']+',')
 ind_sources = '\n'.join(ind_matrix['Source'].unique())
 
 # Generate strings for checking nulls: by column (indicator), and by row
