@@ -54,7 +54,7 @@ for area in areas:
   area_name = areas[area]['name_s']
   print("{}... ".format(areas[area]['name_f'])),
   query = '''
-  DROP TABLE IF EXISTS {area_name}_dest_counts;
+  -- DROP TABLE IF EXISTS {area_name}_dest_counts;
   CREATE TABLE IF NOT EXISTS {area_name}_dest_counts AS
   SELECT a.{area_id}, dest_class, count(d.geom) AS count
   FROM {area_table} a
@@ -144,8 +144,8 @@ destinations = df_inds[df_inds['ind'].str.contains('destinations')]
 print("Create summary table of destination distances (dest_distance_m)... "),
 table = 'dest_distance_m'
 crosstab = '''
-DROP TABLE IF EXISTS dest_distance_m;
-CREATE TABLE dest_distance_m AS
+-- DROP TABLE IF EXISTS dest_distance_m;
+CREATE TABLE IF NOT EXISTS dest_distance_m AS
 SELECT *
   FROM   crosstab(
    'SELECT {id}, dest_name, distance
@@ -160,7 +160,7 @@ SELECT *
            category_types = category_types)
 curs.execute(crosstab)
 conn.commit()
-create_index = '''CREATE UNIQUE INDEX {table}_idx ON {table} ({id});'''.format(table = table, id = points_id.lower())
+create_index = '''CREATE UNIQUE INDEX IF NOT EXISTS {table}_idx ON {table} ({id});'''.format(table = table, id = points_id.lower())
 curs.execute(create_index)
 conn.commit()
 print("Done.")
@@ -172,12 +172,12 @@ sql = '''SELECT dest_class FROM dest_type ORDER BY dest_class;'''
 curs.execute(sql)
 dest_class_in_region = [x[0] for x in curs.fetchall()]
 create_table = '''
-DROP TABLE IF EXISTS {table}; 
-CREATE TABLE {table} AS SELECT {id} FROM parcel_dwellings;
+-- DROP TABLE IF EXISTS {table}; 
+CREATE TABLE IF NOT EXISTS {table} AS SELECT {id} FROM parcel_dwellings;
 '''.format(table = table, id = points_id.lower())
 curs.execute(create_table)
 conn.commit()
-create_index = '''CREATE UNIQUE INDEX {table}_idx ON {table} ({id});'''.format(table = table, id = points_id.lower())
+create_index = '''CREATE UNIQUE INDEX IF NOT EXISTS {table}_idx ON {table} ({id});'''.format(table = table, id = points_id.lower())
 curs.execute(create_index)
 conn.commit()
 for dest_class in array_categories:
@@ -193,7 +193,9 @@ for dest_class in array_categories:
                        UPDATE {table} t SET 
                          {dest_class} = distances
                        FROM od_distances_3200m o
-                       WHERE t.{id} = o.{id} AND dest_class = '{dest_class}';
+                       WHERE t.{id} = o.{id} 
+                         AND o.dest_class = '{dest_class}'
+                         AND t.{dest_class} IS NULL;
                        '''.format(id = points_id.lower(),
                                   table = table, 
                                   dest_class = dest_class)
