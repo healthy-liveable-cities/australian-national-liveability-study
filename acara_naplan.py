@@ -176,4 +176,28 @@ INSERT INTO acara_summary SELECT 9 AS year, 'numeracy' AS trait,COUNT(year9_nume
 
 -- view the summary statistics
 SELECT year, trait, count, min, max, round(avg::numeric,2) AS avg, round(stddev::numeric,2) AS sd FROM acara_summary;
+
+--- output data
+COPY acara_schools TO 'D:/ntnl_li_2018_template/data/destinations/acara_schools_naplan_2018.csv' WITH DELIMITER ',' CSV HEADER;                                         
 '''
+
+
+# # copy dataframe to sql table using previously defined connection
+# db_user = raw_input("Username: ")
+# db_pwd = getpass.getpass("Password for user {}: ".format(db_user))
+# db = 'li_australia_2018'
+# db_host = 'localhost'
+# engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_user,
+                                                                 # pwd  = db_pwd,
+                                                                 # host = db_host,
+                                                                 # db   = db))
+# df = pandas.read_sql(sql='acara_schools',con=engine)
+# db = 'li_albury_wodonga_2018'
+# db_host = 'localhost'
+# engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_user,
+                                                                 # pwd  = db_pwd,
+                                                                 # host = db_host,
+                                                                 # db   = db))
+# df.to_sql(name='acara_schools',con=engine,if_exists='replace')
+
+# df = pandas.read_csv('D:/ntnl_li_2018_template/data/destinations/acara_schools_naplan_2018.csv', index_col=0)
