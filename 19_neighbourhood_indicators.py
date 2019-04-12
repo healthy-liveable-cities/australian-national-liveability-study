@@ -789,7 +789,8 @@ print("Create Open space areas - ACARA / NAPLAN linkage table for school queries
 sql = '''
 DROP TABLE IF EXISTS aos_acara_naplan;
 CREATE TABLE aos_acara_naplan AS 
-SELECT aos_id,  
+SELECT  DISTINCT ON (aos_id,acara_school_id)
+       aos_id,  
        os_acara.acara_school_id, 
        -- get the seperate potential naplan scores (not all are recorded)
        year3_reading , 
@@ -870,7 +871,7 @@ FROM
 LEFT JOIN {table} ON os_acara.acara_school_id = {table}.acara_school_id 
 WHERE os_acara.acara_school_id IS NOT NULL; 
 -- create index 
-CREATE UNIQUE INDEX aos_acara_naplan_idx ON  aos_acara_naplan (aos_id,acara_school_id);  
+CREATE UNIQUE INDEX IF NOT EXISTS aos_acara_naplan_idx ON  aos_acara_naplan (aos_id,acara_school_id);  
 '''.format(table = school_table)
 curs.execute(sql)
 conn.commit()
@@ -879,7 +880,7 @@ print("Done.")
 for nh_distance in [800,1600]:
     print(" Get NAPLAN average of all schools within {}m of address... ".format(nh_distance)),
     sql = '''
-    CREATE TABLE ind_school_naplan_avg_{nh_distance}m AS
+    CREATE TABLE IF NOT EXISTS ind_school_naplan_avg_{nh_distance}m AS
     SELECT p.{id},  
         COUNT(acara_school_id) AS school_count_{nh_distance}m, 
         AVG(o.distance)::int AS average_distance_{nh_distance}m, 
@@ -900,7 +901,7 @@ for nh_distance in [800,1600]:
         AND o.distance < {nh_distance}
     GROUP BY p.{id} ;
     -- create index 
-    CREATE UNIQUE INDEX ind_school_naplan_avg_{nh_distance}m_idx
+    CREATE UNIQUE INDEX IF NOT EXISTS ind_school_naplan_avg_{nh_distance}m_idx
                      ON  ind_school_naplan_avg_{nh_distance}m ({id});  
     '''.format(nh_distance = nh_distance, id = points_id.lower())
     curs.execute(sql)
