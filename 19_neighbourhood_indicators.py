@@ -141,7 +141,7 @@ array_category_types = '"{}" int[]'.format('" int[], "'.join(array_categories))
 # get the set of distance to closest regions which match for this region
 destinations = df_inds[df_inds['ind'].str.contains('destinations')]
 
-print("Create summary table of destination distances (dest_distance_m)... "),
+print("Create summary table of destination distances (dest_distance_m), if not already existing... "),
 table = 'dest_distance_m'
 crosstab = '''
 -- DROP TABLE IF EXISTS dest_distance_m;
@@ -167,42 +167,48 @@ print("Done.")
 
 
 table = 'dest_distances_3200m'
-print("Create summary table of distances to destinations in 3.2km ({table})".format(table = table)),
-sql = '''SELECT dest_class FROM dest_type ORDER BY dest_class;'''
-curs.execute(sql)
-dest_class_in_region = [x[0] for x in curs.fetchall()]
-create_table = '''
--- DROP TABLE IF EXISTS {table}; 
-CREATE TABLE IF NOT EXISTS {table} AS SELECT {id} FROM parcel_dwellings;
-'''.format(table = table, id = points_id.lower())
-curs.execute(create_table)
-conn.commit()
-create_index = '''CREATE UNIQUE INDEX IF NOT EXISTS {table}_idx ON {table} ({id});'''.format(table = table, id = points_id.lower())
-curs.execute(create_index)
-conn.commit()
-for dest_class in array_categories:
-    add_field = '''
-    -- Note that we take NULL for distance to closest in this context to mean absence of presence
-    -- Error checking at other stages of processing should confirm whether this is the case.
-    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {dest_class} int[];
-    '''.format(table = table, dest_class = dest_class)
-    curs.execute(add_field)
+print("Create summary table of distances to destinations in 3.2km ({table}), if not already existing... ".format(table = table)),
+# Check if the table exists; if it does, these areas have previously been re-imported, so no need to re-do
+curs.execute('''SELECT 1 WHERE to_regclass('public.{table}') IS NOT NULL;'''.format(table = table))
+res = curs.fetchone()
+if res:
+    print("Table exists.")
+if res is None:
+    sql = '''SELECT dest_class FROM dest_type ORDER BY dest_class;'''
+    curs.execute(sql)
+    dest_class_in_region = [x[0] for x in curs.fetchall()]
+    create_table = '''
+    -- DROP TABLE IF EXISTS {table}; 
+    CREATE TABLE IF NOT EXISTS {table} AS SELECT {id} FROM parcel_dwellings;
+    '''.format(table = table, id = points_id.lower())
+    curs.execute(create_table)
     conn.commit()
-    if dest_class in dest_class_in_region:
-        update_field = '''
-                       UPDATE {table} t SET 
-                         {dest_class} = distances
-                       FROM od_distances_3200m o
-                       WHERE t.{id} = o.{id} 
-                         AND o.dest_class = '{dest_class}'
-                         AND t.{dest_class} IS NULL;
-                       '''.format(id = points_id.lower(),
-                                  table = table, 
-                                  dest_class = dest_class)
-        curs.execute(update_field)
+    create_index = '''CREATE UNIQUE INDEX IF NOT EXISTS {table}_idx ON {table} ({id});'''.format(table = table, id = points_id.lower())
+    curs.execute(create_index)
+    conn.commit()
+    for dest_class in array_categories:
+        add_field = '''
+        -- Note that we take NULL for distance to closest in this context to mean absence of presence
+        -- Error checking at other stages of processing should confirm whether this is the case.
+        ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {dest_class} int[];
+        '''.format(table = table, dest_class = dest_class)
+        curs.execute(add_field)
         conn.commit()
-        print("."),
-print(" Done.")
+        if dest_class in dest_class_in_region:
+            update_field = '''
+                        UPDATE {table} t SET 
+                            {dest_class} = distances
+                        FROM od_distances_3200m o
+                        WHERE t.{dest_class} IS NULL
+                            AND t.{id} = o.{id} 
+                            AND o.dest_class = '{dest_class}';
+                        '''.format(id = points_id.lower(),
+                                    table = table, 
+                                    dest_class = dest_class)
+            curs.execute(update_field)
+            conn.commit()
+            print("."),
+    print(" Table created and processed.")
 
 # Neighbourhood_indicators
 print("Create nh_inds_distance (curated distance to closest table for re-use by other indicators)... "),
@@ -409,33 +415,51 @@ create_table = '''DROP TABLE IF EXISTS {table}; CREATE TABLE {table} AS SELECT {
 curs.execute(create_table)
 conn.commit()
 # we just calculate food ratio at 1600m, so we'll set nh_threshold to that value
-nh_threshold = 1600
-sql = '''
-ALTER TABLE {table} ADD COLUMN IF NOT EXISTS supermarket_count int;
-ALTER TABLE {table} ADD COLUMN IF NOT EXISTS fastfood_count int;
-ALTER TABLE {table} ADD COLUMN IF NOT EXISTS food_proportion_{nh_threshold}m float;
-ALTER TABLE {table} ADD COLUMN IF NOT EXISTS food_ratio_{nh_threshold}m float;
--- We can't use both the OSM and scraped data as we would expect this to lead to double counting
--- However, we can take the larger of the two values under the assumption that this represents
--- the more comprehensive record of neighbourhood information.
-UPDATE {table} t 
-SET supermarket_count = d.supermarkets, 
-    fastfood_count    = d.fastfood,
-    food_proportion_{nh_threshold}m =  d.supermarkets / (d.supermarkets + d.fastfood):: float,
-    food_ratio_{nh_threshold}m =  d.supermarkets / NULLIF(d.fastfood:: float,0)
-FROM (SELECT 
-        {id},
-        GREATEST(COALESCE(count_in_threshold(supermarket,1600),0),COALESCE(count_in_threshold(supermarket_osm,1600),0)) AS supermarkets,
-        GREATEST(COALESCE(count_in_threshold(fast_food,1600),0),COALESCE(count_in_threshold(fastfood_osm,1600),0)) AS fastfood
-      FROM dest_distances_3200m) d
-WHERE t.{id} = d.{id} AND (d.supermarkets + d.fastfood) > 0;
-'''.format(table = table[0], 
-           abbrev = table[1], 
-           id = points_id.lower(),
-           nh_threshold = nh_threshold)
-curs.execute(sql)
-conn.commit()
-print("."),
+for nh_threshold in [1600,3200]:
+    sql = '''
+    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS food_supermarkets_{nh_threshold}m              int;
+    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS food_fruit_veg_{nh_threshold}m                 int;
+    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS food_other_specialty_{nh_threshold}m           int;
+    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS food_healthier_count_{nh_threshold}m           int;
+    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS food_fast_count_{nh_threshold}m                int;
+    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS food_healthy_proportion_{nh_threshold}m        float;
+    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS food_healthy_ratio_{nh_threshold}m             float;
+    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS food_fresh_proportion_{nh_threshold}m          float;
+    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS food_fresh_ratio_{nh_threshold}m               float;
+    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS food_no_healthy_unhealthy_food_{nh_threshold}m float;
+    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS food_no_food_{nh_threshold}m                   float;
+    -- We can't use both the OSM and scraped data as we would expect this to lead to double counting
+    -- However, we can take the larger of the two values under the assumption that this represents
+    -- the more comprehensive record of neighbourhood information.
+    UPDATE {table} t 
+    SET food_supermarkets_{nh_threshold}m       = d.supermarkets,
+        food_fruit_veg_{nh_threshold}m          = d.fruit_veg,
+        food_other_specialty_{nh_threshold}m    = d.specialty,
+        food_healthier_count_{nh_threshold}m    = d.supermarkets+d.fruit_veg, 
+        food_fast_count_{nh_threshold}m         = d.fastfood,
+        food_healthy_proportion_{nh_threshold}m = (d.supermarkets+d.fruit_veg)             / NULLIF((d.supermarkets+d.fruit_veg+ d.fastfood):: float,0),
+        food_healthy_ratio_{nh_threshold}m      = (d.supermarkets+d.fruit_veg)             / NULLIF(d.fastfood:: float,0),
+        food_fresh_proportion_{nh_threshold}m   = (d.supermarkets+d.fruit_veg+d.specialty) / NULLIF((d.supermarkets+d.fruit_veg+ d.fastfood++d.specialty):: float,0),
+        food_fresh_ratio_{nh_threshold}m        = (d.supermarkets+d.fruit_veg+d.specialty) / NULLIF(d.fastfood:: float,0)
+    FROM (SELECT 
+            {id},
+            GREATEST(COALESCE(count_in_threshold(supermarket,{nh_threshold}),0),
+                     COALESCE(count_in_threshold(supermarket_osm,{nh_threshold}),0)) AS supermarkets,
+            COALESCE(count_in_threshold(fruit_veg_osm,{nh_threshold}),0) AS fruit_veg,
+            (COALESCE(count_in_threshold(bakery_osm,{nh_threshold}),0) +       
+             COALESCE(count_in_threshold(meat_seafood_osm,{nh_threshold}),0) +          
+             COALESCE(count_in_threshold(deli_osm,{nh_threshold}),0)) AS specialty,         
+            GREATEST(COALESCE(count_in_threshold(fast_food,{nh_threshold}),0),
+                     COALESCE(count_in_threshold(fastfood_osm,{nh_threshold}),0)) AS fastfood
+        FROM dest_distances_3200m) d
+    '''.format(table = table[0], 
+            abbrev = table[1], 
+            id = points_id.lower(),
+            nh_threshold = nh_threshold)
+    curs.execute(sql)
+    conn.commit()
+    print("."),
+    
 create_index = '''CREATE UNIQUE INDEX {table}_idx ON  {table} ({id});  '''.format(table = table[0], id = points_id.lower())
 curs.execute(create_index)
 print(" Done.")

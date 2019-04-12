@@ -181,23 +181,58 @@ SELECT year, trait, count, min, max, round(avg::numeric,2) AS avg, round(stddev:
 COPY acara_schools TO 'D:/ntnl_li_2018_template/data/destinations/acara_schools_naplan_2018.csv' WITH DELIMITER ',' CSV HEADER;                                         
 '''
 
+# post hoc modifications i made
 
-# # copy dataframe to sql table using previously defined connection
-# db_user = raw_input("Username: ")
-# db_pwd = getpass.getpass("Password for user {}: ".format(db_user))
-# db = 'li_australia_2018'
-# db_host = 'localhost'
-# engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_user,
-                                                                 # pwd  = db_pwd,
-                                                                 # host = db_host,
-                                                                 # db   = db))
-# df = pandas.read_sql(sql='acara_schools',con=engine)
-# db = 'li_albury_wodonga_2018'
-# db_host = 'localhost'
-# engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_user,
-                                                                 # pwd  = db_pwd,
-                                                                 # host = db_host,
-                                                                 # db   = db))
-# df.to_sql(name='acara_schools',con=engine,if_exists='replace')
+# copy dataframe to sql table using previously defined connection
+db_user = raw_input("Username: ")
+db_pwd = getpass.getpass("Password for user {}: ".format(db_user))
+db = 'li_australia_2018'
+db_host = 'localhost'
+engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_user,
+                                                                 pwd  = db_pwd,
+                                                                 host = db_host,
+                                                                 db   = db))
+sql='''
+SELECT           
+ "ACARA_Scho" AS acara_school_id,
+ "Calendar_Y"  AS calendar_year , 
+ "AGE_ID"        AS age_id      ,
+ "School_Nam"  AS school_name   ,
+ "Suburb"      AS suburb        ,
+ "State"       AS state         ,
+ "Postcode"    AS postcode      ,
+ "School_Sec"  AS school_sector ,
+ "School_Typ"  AS school_type   ,
+ "Campus_Typ"  AS campus_type   ,
+ "Rolled_Rep"  AS rolled_rep    ,
+ "Latitude"    AS latitude      ,
+ "Longitude"   AS longitude     ,
+ "ABS_Remote"                   ,
+ year3_reading                  ,  
+ year3_writing                  ,
+ year3_spelling                 ,
+ year3_grammar                  ,
+ year3_numeracy                 ,
+ year5_reading                  ,
+ year5_writing                  ,
+ year5_spelling                 ,
+ year5_grammar                  ,
+ year5_numeracy                 ,
+ year7_reading                  ,
+ year7_writing                  ,
+ year7_spelling                 ,
+ year7_grammar                  ,
+ year7_numeracy                 ,
+ year9_reading                  ,
+ year9_writing                  ,
+ year9_spelling                 ,
+ year9_grammar                  ,
+ year9_numeracy                 ,
+ naplan_status               
+ FROM acara_schools
+'''
+df = pandas.read_sql(sql,con=engine)
+df = df.set_index('acara_school_id')
+df.to_sql(name='acara_schools',con=engine,if_exists='replace',index=True)
 
 # df = pandas.read_csv('D:/ntnl_li_2018_template/data/destinations/acara_schools_naplan_2018.csv', index_col=0)
