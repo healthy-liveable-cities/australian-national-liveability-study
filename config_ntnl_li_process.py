@@ -362,6 +362,12 @@ school_destinations = df_parameters.loc['school_destinations']['value']
 school_id = df_parameters.loc['school_id']['value']
 school_id_type = df_parameters.loc['school_id_type']['value']
 
+school_ratings = df_parameters.loc['school_ratings']['value']
+school_table = os.path.splitext(os.path.basename(school_ratings))[0]
+
+childcare_ratings = df_parameters.loc['childcare_ratings']['value']
+childcare_table = os.path.splitext(os.path.basename(childcare_ratings))[0]
+
 # When destinations are imported for study region, we don't want to retain all of these; now, purge
 purge_dest_list = [x.lower() for x in list(set(destination_list+df_housekeeping.destinations_to_purge_after_import.tolist()))]
 

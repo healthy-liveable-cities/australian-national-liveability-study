@@ -1,7 +1,7 @@
 # Script:  16_neighbourhood_indicators.py
 # Purpose: Compile destinations results and neighbourhood indicator tables
 # Author:  Carl Higgs 
-# Date:    20180712
+# Date:    20190412
 
 import os
 import sys
@@ -17,6 +17,19 @@ from config_ntnl_li_process import *
 start = time.time()
 script = os.path.basename(sys.argv[0])
 task = 'create destination indicator tables'
+
+print('''
+This script will create a number of destination indicator tables, 
+which can later be drawn on in other scripts, or used as final 
+outputs.
+
+But, please note: numerous clauses to only create tables if they 
+do not already exist have been added.  If tables are wanted to be 
+modified or recreated, some additional tweaking in script or 
+interactively (eg to manually drop the table) will be required.
+
+All good? Great - go!
+''')
 
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()
@@ -213,7 +226,7 @@ if res is None:
 # Neighbourhood_indicators
 print("Create nh_inds_distance (curated distance to closest table for re-use by other indicators)... "),
 nh_distance = '''
-DROP TABLE IF EXISTS {table};
+-- DROP TABLE IF EXISTS {table};
 CREATE TABLE IF NOT EXISTS {table} AS
 SELECT 
        {id},
@@ -244,7 +257,7 @@ SELECT
        tobacco_osm                                                                 AS tobacco_osm_2018              ,
        gambling_osm                                                                AS gambling_osm_2018           
 FROM dest_distance_m;
-CREATE UNIQUE INDEX {table}_idx ON  {table} ({id}); 
+CREATE UNIQUE INDEX IF NOT EXISTS {table}_idx ON  {table} ({id}); 
 '''.format(id = points_id.lower(),table = 'nh_inds_distance')
 curs.execute(nh_distance)
 conn.commit()
@@ -255,7 +268,7 @@ for threshold_type in ['hard','soft']:
     for nh_threshold in [400,800,1000,1600]:
         print("  - nh_inds_{threshold_type}_{nh_threshold}m".format(threshold_type = threshold_type, nh_threshold = nh_threshold))
         sql = '''
-        DROP TABLE IF EXISTS nh_inds_{threshold_type}_{nh_threshold}m;
+        -- DROP TABLE IF EXISTS nh_inds_{threshold_type}_{nh_threshold}m;
         CREATE TABLE IF NOT EXISTS nh_inds_{threshold_type}_{nh_threshold}m AS
         SELECT  
         {id},
@@ -286,7 +299,7 @@ for threshold_type in ['hard','soft']:
         threshold_{threshold_type}(tobacco_osm_2018              ,{nh_threshold}) AS tobacco_osm_2018              ,
         threshold_{threshold_type}(gambling_osm_2018             ,{nh_threshold}) AS gambling_osm_2018           
         FROM nh_inds_distance ;
-        CREATE UNIQUE INDEX nh_inds_{threshold_type}_{nh_threshold}m_idx ON  nh_inds_{threshold_type}_{nh_threshold}m ({id}); 
+        CREATE UNIQUE INDEX IF NOT EXISTS nh_inds_{threshold_type}_{nh_threshold}m_idx ON  nh_inds_{threshold_type}_{nh_threshold}m ({id}); 
         '''.format(id = points_id.lower(),threshold_type = threshold_type, nh_threshold = nh_threshold)
         curs.execute(sql)
         conn.commit()
@@ -312,60 +325,105 @@ conn.commit()
 # This saves us having to retype these values, and allows the code to be more easily re-used
 table = ['ind_daily_living','dl']
 print(" - {table}".format(table = table[0])),
-create_table = '''DROP TABLE IF EXISTS {table}; CREATE TABLE {table} AS SELECT {id} FROM parcel_dwellings;'''.format(table = table[0], id = points_id.lower())
-curs.execute(create_table)
-conn.commit()
-
-for threshold_type in ['hard','soft']:
-    for nh_threshold in [400,800,1000,1600]:
-        populate_table = '''
-        -- Note that we take NULL for distance to closest in this context to mean absence of presence
-        -- Error checking at other stages of processing should confirm whether this is the case.
-        ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {abbrev}_{threshold_type}_{nh_threshold}m float;
-        UPDATE {table} t SET 
-           {abbrev}_{threshold_type}_{nh_threshold}m = COALESCE(convenience_osm_2018,0) + 
-                                                       GREATEST(COALESCE(supermarket_hlc_2017,0),COALESCE(supermarket_osm_2018,0)) + 
-                                                       COALESCE(pt_any_gtfs_hlc_2018,0)
-        FROM nh_inds_{threshold_type}_{nh_threshold}m nh
-        WHERE t.{id} = nh.{id};
-        '''.format(table = table[0], 
-                   abbrev = table[1], 
-                   id = points_id.lower(),
-                   threshold_type = threshold_type, 
-                   nh_threshold = nh_threshold)
-        curs.execute(populate_table)
-        conn.commit()
-        print("."),
-create_index = '''CREATE UNIQUE INDEX {table}_idx ON  {table} ({id});  '''.format(table = table[0], id = points_id.lower())
-curs.execute(create_index)
-print(" Done.")
+curs.execute('''SELECT 1 WHERE to_regclass('public.{table}') IS NOT NULL;'''.format(table = table[0]))
+res = curs.fetchone()
+if res:
+    print("Table exists.")
+if res is None:
+    create_table = '''DROP TABLE IF EXISTS {table}; CREATE TABLE {table} AS SELECT {id} FROM parcel_dwellings;'''.format(table = table[0], id = points_id.lower())
+    curs.execute(create_table)
+    conn.commit()
+    for threshold_type in ['hard','soft']:
+        for nh_threshold in [400,800,1000,1600]:
+            populate_table = '''
+            -- Note that we take NULL for distance to closest in this context to mean absence of presence
+            -- Error checking at other stages of processing should confirm whether this is the case.
+            ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {abbrev}_{threshold_type}_{nh_threshold}m float;
+            UPDATE {table} t SET 
+            {abbrev}_{threshold_type}_{nh_threshold}m = COALESCE(convenience_osm_2018,0) + 
+                                                        GREATEST(COALESCE(supermarket_hlc_2017,0),COALESCE(supermarket_osm_2018,0)) + 
+                                                        COALESCE(pt_any_gtfs_hlc_2018,0)
+            FROM nh_inds_{threshold_type}_{nh_threshold}m nh
+            WHERE t.{id} = nh.{id};
+            '''.format(table = table[0], 
+                    abbrev = table[1], 
+                    id = points_id.lower(),
+                    threshold_type = threshold_type, 
+                    nh_threshold = nh_threshold)
+            curs.execute(populate_table)
+            conn.commit()
+            print("."),
+    create_index = '''CREATE UNIQUE INDEX {table}_idx ON  {table} ({id});  '''.format(table = table[0], id = points_id.lower())
+    curs.execute(create_index)
+    print(" Done.")
 
 table = ['ind_local_living','ll']
 print(" - {table}".format(table = table[0])),
-create_table = '''DROP TABLE IF EXISTS {table}; CREATE TABLE {table} AS SELECT {id} FROM parcel_dwellings;'''.format(table = table[0], id = points_id.lower())
-curs.execute(create_table)
-conn.commit()
+curs.execute('''SELECT 1 WHERE to_regclass('public.{table}') IS NOT NULL;'''.format(table = table[0]))
+res = curs.fetchone()
+if res:
+    print("Table exists.")
+if res is None:
+    create_table = '''DROP TABLE IF EXISTS {table}; CREATE TABLE {table} AS SELECT {id} FROM parcel_dwellings;'''.format(table = table[0], id = points_id.lower())
+    curs.execute(create_table)
+    conn.commit()
+    
+    for threshold_type in ['hard','soft']:
+        for nh_threshold in [400,800,1000,1600]:
+            populate_table = '''
+            -- Note that we take NULL for distance to closest in this context to mean absence of presence
+            -- Error checking at other stages of processing should confirm whether this is the case.
+            ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {abbrev}_{threshold_type}_{nh_threshold}m float;
+            UPDATE {table} t SET 
+            {abbrev}_{threshold_type}_{nh_threshold}m = COALESCE(community_pow_osm_2018,0) + 
+                                                        COALESCE(libraries_hlc_2018,0) +
+                                                        COALESCE(childcare_meets_acequa_2019,0) +
+                                                        COALESCE(dentist_nhsd_2017,0) +
+                                                        COALESCE(gp_nhsd_2017,0) +
+                                                        COALESCE(pharmacy_nhsd_2017,0) +
+                                                        GREATEST(COALESCE(supermarket_hlc_2017,0),COALESCE(supermarket_osm_2018,0)) + 
+                                                        COALESCE(convenience_osm_2018,0) +
+                                                        COALESCE(food_fresh_specialty_osm_2018,0) +
+                                                        COALESCE(postoffice_osm_2018,0) + 
+                                                        COALESCE(pt_any_gtfs_hlc_2018,0)
+            FROM nh_inds_{threshold_type}_{nh_threshold}m nh
+            WHERE t.{id} = nh.{id};
+            '''.format(table = table[0], 
+                    abbrev = table[1], 
+                    id = points_id.lower(),
+                    threshold_type = threshold_type, 
+                    nh_threshold = nh_threshold)
+            curs.execute(populate_table)
+            conn.commit()
+            print("."),
+    create_index = '''CREATE UNIQUE INDEX {table}_idx ON  {table} ({id});  '''.format(table = table[0], id = points_id.lower())
+    curs.execute(create_index)
+    print(" Done.")
+    
 
-for threshold_type in ['hard','soft']:
-    for nh_threshold in [400,800,1000,1600]:
+table = ['ind_walkability','wa']
+print(" - {table}".format(table = table[0])),
+curs.execute('''SELECT 1 WHERE to_regclass('public.{table}') IS NOT NULL;'''.format(table = table[0]))
+res = curs.fetchone()
+if res:
+    print("Table exists.")
+if res is None:
+    create_table = '''DROP TABLE IF EXISTS {table}; CREATE TABLE {table} AS SELECT {id} FROM parcel_dwellings;'''.format(table = table[0], id = points_id.lower())
+    curs.execute(create_table)
+    conn.commit()
+    # we just calculate walkability at 1600m, so we'll set nh_threshold to that value
+    nh_threshold = 1600
+    for threshold_type in ['hard','soft']:
         populate_table = '''
         -- Note that we take NULL for distance to closest in this context to mean absence of presence
         -- Error checking at other stages of processing should confirm whether this is the case.
         ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {abbrev}_{threshold_type}_{nh_threshold}m float;
         UPDATE {table} t SET 
-           {abbrev}_{threshold_type}_{nh_threshold}m = COALESCE(community_pow_osm_2018,0) + 
-                                                       COALESCE(libraries_hlc_2018,0) +
-                                                       COALESCE(childcare_meets_acequa_2019,0) +
-                                                       COALESCE(dentist_nhsd_2017,0) +
-                                                       COALESCE(gp_nhsd_2017,0) +
-                                                       COALESCE(pharmacy_nhsd_2017,0) +
-                                                       GREATEST(COALESCE(supermarket_hlc_2017,0),COALESCE(supermarket_osm_2018,0)) + 
-                                                       COALESCE(convenience_osm_2018,0) +
-                                                       COALESCE(food_fresh_specialty_osm_2018,0) +
-                                                       COALESCE(postoffice_osm_2018,0) + 
-                                                       COALESCE(pt_any_gtfs_hlc_2018,0)
-        FROM nh_inds_{threshold_type}_{nh_threshold}m nh
-        WHERE t.{id} = nh.{id};
+        {abbrev}_{threshold_type}_{nh_threshold}m = dl.z_dl + sc.z_sc + dd.z_dd
+        FROM (SELECT {id}, (dl_{threshold_type}_{nh_threshold}m - AVG(dl_{threshold_type}_{nh_threshold}m) OVER())/stddev_pop(dl_{threshold_type}_{nh_threshold}m) OVER() as z_dl FROM ind_daily_living) dl
+        LEFT JOIN (SELECT {id}, (sc_nh1600m - AVG(sc_nh1600m) OVER())/stddev_pop(sc_nh1600m) OVER() as z_sc FROM sc_nh1600m) sc ON sc.{id} = dl.{id}
+        LEFT JOIN (SELECT {id}, (dd_nh1600m - AVG(dd_nh1600m) OVER())/stddev_pop(dd_nh1600m) OVER() as z_dd FROM dd_nh1600m) dd ON dd.{id} = dl.{id}
+        WHERE t.{id} = dl.{id};
         '''.format(table = table[0], 
                    abbrev = table[1], 
                    id = points_id.lower(),
@@ -374,54 +432,24 @@ for threshold_type in ['hard','soft']:
         curs.execute(populate_table)
         conn.commit()
         print("."),
-create_index = '''CREATE UNIQUE INDEX {table}_idx ON  {table} ({id});  '''.format(table = table[0], id = points_id.lower())
-curs.execute(create_index)
-print(" Done.")
-
-
-table = ['ind_walkability','wa']
-print(" - {table}".format(table = table[0])),
-create_table = '''DROP TABLE IF EXISTS {table}; CREATE TABLE {table} AS SELECT {id} FROM parcel_dwellings;'''.format(table = table[0], id = points_id.lower())
-curs.execute(create_table)
-conn.commit()
-# we just calculate walkability at 1600m, so we'll set nh_threshold to that value
-nh_threshold = 1600
-for threshold_type in ['hard','soft']:
-    populate_table = '''
-    -- Note that we take NULL for distance to closest in this context to mean absence of presence
-    -- Error checking at other stages of processing should confirm whether this is the case.
-    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {abbrev}_{threshold_type}_{nh_threshold}m float;
-    UPDATE {table} t SET 
-       {abbrev}_{threshold_type}_{nh_threshold}m = dl.z_dl + sc.z_sc + dd.z_dd
-    FROM (SELECT {id}, (dl_{threshold_type}_{nh_threshold}m - AVG(dl_{threshold_type}_{nh_threshold}m) OVER())/stddev_pop(dl_{threshold_type}_{nh_threshold}m) OVER() as z_dl FROM ind_daily_living) dl
-    LEFT JOIN (SELECT {id}, (sc_nh1600m - AVG(sc_nh1600m) OVER())/stddev_pop(sc_nh1600m) OVER() as z_sc FROM sc_nh1600m) sc ON sc.{id} = dl.{id}
-    LEFT JOIN (SELECT {id}, (dd_nh1600m - AVG(dd_nh1600m) OVER())/stddev_pop(dd_nh1600m) OVER() as z_dd FROM dd_nh1600m) dd ON dd.{id} = dl.{id}
-    WHERE t.{id} = dl.{id};
-    '''.format(table = table[0], 
-               abbrev = table[1], 
-               id = points_id.lower(),
-               threshold_type = threshold_type, 
-               nh_threshold = nh_threshold)
-    curs.execute(populate_table)
-    conn.commit()
-    print("."),
-create_index = '''CREATE UNIQUE INDEX {table}_idx ON  {table} ({id});  '''.format(table = table[0], id = points_id.lower())
-curs.execute(create_index)
-print(" Done.")
+    create_index = '''CREATE UNIQUE INDEX {table}_idx ON  {table} ({id});  '''.format(table = table[0], id = points_id.lower())
+    curs.execute(create_index)
+    print(" Done.")
 
 # we just calculate food ratio at 1600m, so we'll set nh_threshold to that value
 for nh_threshold in [1600,3200]:
     table = ['ind_food_{nh_threshold}m'.format(nh_threshold = nh_threshold),'f']
     print(" - {table}... ".format(table = table[0])),
     sql = '''
+    -- DROP TABLE IF EXISTS {table};
     CREATE TABLE IF NOT EXISTS {table} AS
     SELECT
         {id},
-        d.supermarkets             AS food_supermarkets_{nh_threshold}m     ,
-        d.fruit_veg                AS food_fruit_veg_{nh_threshold}m        ,
-        d.specialty                AS food_other_specialty_{nh_threshold}m  ,
-        d.supermarkets+d.fruit_veg AS food_healthier_count_{nh_threshold}m  ,
-        d.fastfood                 AS food_fast_count_{nh_threshold}m       ,
+        d.supermarkets             AS food_count_supermarkets_{nh_threshold}m     ,
+        d.fruit_veg                AS food_count_fruit_veg_{nh_threshold}m        ,
+        d.specialty                AS food_count_other_specialty_{nh_threshold}m  ,
+        d.supermarkets+d.fruit_veg AS food_count_healthier_{nh_threshold}m  ,
+        d.fastfood                 AS food_count_fastfood_{nh_threshold}m       ,
         (d.supermarkets+d.fruit_veg)             
           / NULLIF((d.supermarkets+d.fruit_veg+ d.fastfood):: float,0) AS food_healthy_proportion_{nh_threshold}m,
         (d.supermarkets+d.fruit_veg)            
@@ -429,7 +457,9 @@ for nh_threshold in [1600,3200]:
         (d.supermarkets+d.fruit_veg+d.specialty) 
          / NULLIF((d.supermarkets+d.fruit_veg+ d.fastfood++d.specialty):: float,0) AS food_fresh_proportion_{nh_threshold}m,
         (d.supermarkets+d.fruit_veg+d.specialty) 
-         / NULLIF(d.fastfood:: float,0) AS food_fresh_ratio_{nh_threshold}m
+         / NULLIF(d.fastfood:: float,0) AS food_fresh_ratio_{nh_threshold}m,
+        (d.supermarkets+d.fruit_veg+d.fastfood = 0)::int AS no_healthy_unhealthy_food_{nh_threshold}m,
+        (d.supermarkets+d.fruit_veg+d.fastfood+d.specialty = 0)::int AS no_food_{nh_threshold}m
     FROM (SELECT 
             {id},
             GREATEST(COALESCE(count_in_threshold(supermarket,{nh_threshold}),0),
@@ -456,270 +486,446 @@ for nh_threshold in [1600,3200]:
 # In addition to public open space (pos), also includes sport areas and blue space
 table = ['ind_os_distance','os']
 print(" - {table}".format(table = table[0])),
-create_table = '''DROP TABLE IF EXISTS {table}; CREATE TABLE {table} AS SELECT {id} FROM parcel_dwellings;'''.format(table = table[0], id = points_id.lower())
-curs.execute(create_table)
+curs.execute('''SELECT 1 WHERE to_regclass('public.{table}') IS NOT NULL;'''.format(table = table[0]))
+res = curs.fetchone()
+if res:
+    print("Table exists.")
+if res is None:
+    create_table = '''DROP TABLE IF EXISTS {table}; CREATE TABLE {table} AS SELECT {id} FROM parcel_dwellings;'''.format(table = table[0], id = points_id.lower())
+    curs.execute(create_table)
+    conn.commit()
+    
+    create_index = '''CREATE UNIQUE INDEX {table}_idx ON  {table} ({id});  '''.format(table = table[0], id = points_id.lower())
+    curs.execute(create_index)
+    print("."),
+    
+    measure = 'pos_any_distance_m'
+    add_and_update_measure = '''
+    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {measure} int;
+    UPDATE {table} t 
+    SET {measure} = os_filtered.distance
+    FROM parcel_dwellings orig
+    LEFT JOIN (SELECT p.{id}, 
+                    min(distance) AS distance
+                FROM parcel_dwellings p
+                LEFT JOIN 
+                (SELECT {id},
+                        (obj->>'aos_id')::int AS aos_id,
+                        (obj->>'distance')::int AS distance
+                FROM od_aos_jsonb,
+                    jsonb_array_elements(attributes) obj) o ON p.{id} = o.{id}
+                LEFT JOIN open_space_areas pos ON o.aos_id = pos.aos_id
+                    WHERE pos.aos_id IS NOT NULL
+                    AND aos_ha_public > 0
+                GROUP BY p.{id}) os_filtered ON orig.{id} = os_filtered.{id}
+    WHERE t.{id} = orig.{id};
+    '''.format(id = points_id, table = table[0], measure = measure)
+    curs.execute(add_and_update_measure)
+    conn.commit()
+    print("."),
+    
+    measure = 'pos_5k_sqm_distance_m'
+    add_and_update_measure = '''
+    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {measure} int;
+    UPDATE {table} t 
+    SET {measure} = os_filtered.distance
+    FROM parcel_dwellings orig
+    LEFT JOIN (SELECT p.{id}, 
+                    min(distance) AS distance
+                FROM parcel_dwellings p
+                LEFT JOIN 
+                (SELECT {id},
+                        (obj->>'aos_id')::int AS aos_id,
+                        (obj->>'distance')::int AS distance
+                FROM od_aos_jsonb,
+                    jsonb_array_elements(attributes) obj) o ON p.{id} = o.{id}
+                LEFT JOIN open_space_areas pos ON o.aos_id = pos.aos_id
+                    WHERE pos.aos_id IS NOT NULL
+                    AND aos_ha_public > 0.5
+                GROUP BY p.{id}) os_filtered ON orig.{id} = os_filtered.{id}
+    WHERE t.{id} = orig.{id};
+    '''.format(id = points_id, table = table[0], measure = measure)
+    curs.execute(add_and_update_measure)
+    conn.commit()
+    print("."),
+    
+    measure = 'pos_15k_sqm_distance_m'
+    add_and_update_measure = '''
+    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {measure} int;
+    UPDATE {table} t 
+    SET {measure} = os_filtered.distance
+    FROM parcel_dwellings orig
+    LEFT JOIN (SELECT p.{id}, 
+                    min(distance) AS distance
+                FROM parcel_dwellings p
+                LEFT JOIN 
+                (SELECT {id},
+                        (obj->>'aos_id')::int AS aos_id,
+                        (obj->>'distance')::int AS distance
+                FROM od_aos_jsonb,
+                    jsonb_array_elements(attributes) obj) o ON p.{id} = o.{id}
+                LEFT JOIN open_space_areas pos ON o.aos_id = pos.aos_id
+                    WHERE pos.aos_id IS NOT NULL
+                    AND aos_ha_public > 1.5
+                GROUP BY p.{id}) os_filtered ON orig.{id} = os_filtered.{id}
+    WHERE t.{id} = orig.{id};
+    '''.format(id = points_id, table = table[0], measure = measure)
+    curs.execute(add_and_update_measure)
+    conn.commit()
+    print("."),
+    
+    measure = 'pos_20k_sqm_distance_m'
+    add_and_update_measure = '''
+    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {measure} int;
+    UPDATE {table} t 
+    SET {measure} = os_filtered.distance
+    FROM parcel_dwellings orig
+    LEFT JOIN (SELECT p.{id}, 
+                    min(distance) AS distance
+                FROM parcel_dwellings p
+                LEFT JOIN 
+                (SELECT {id},
+                        (obj->>'aos_id')::int AS aos_id,
+                        (obj->>'distance')::int AS distance
+                FROM od_aos_jsonb,
+                    jsonb_array_elements(attributes) obj) o ON p.{id} = o.{id}
+                LEFT JOIN open_space_areas pos ON o.aos_id = pos.aos_id
+                    WHERE pos.aos_id IS NOT NULL
+                    AND aos_ha_public > 2
+                GROUP BY p.{id}) os_filtered ON orig.{id} = os_filtered.{id}
+    WHERE t.{id} = orig.{id};
+    '''.format(id = points_id, table = table[0], measure = measure)
+    curs.execute(add_and_update_measure)
+    conn.commit()
+    print("."),
+    
+    measure = 'pos_4k_10k_sqm_distance_m'
+    add_and_update_measure = '''
+    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {measure} int;
+    UPDATE {table} t 
+    SET {measure} = os_filtered.distance
+    FROM parcel_dwellings orig
+    LEFT JOIN (SELECT p.{id}, 
+                    min(distance) AS distance
+                FROM parcel_dwellings p
+                LEFT JOIN 
+                (SELECT {id},
+                        (obj->>'aos_id')::int AS aos_id,
+                        (obj->>'distance')::int AS distance
+                FROM od_aos_jsonb,
+                    jsonb_array_elements(attributes) obj) o ON p.{id} = o.{id}
+                LEFT JOIN open_space_areas pos ON o.aos_id = pos.aos_id
+                    WHERE pos.aos_id IS NOT NULL
+                    AND aos_ha_public > 0.4
+                    AND aos_ha_public <= 1
+                GROUP BY p.{id}) os_filtered ON orig.{id} = os_filtered.{id}
+    WHERE t.{id} = orig.{id};
+    '''.format(id = points_id, table = table[0], measure = measure)
+    curs.execute(add_and_update_measure)
+    conn.commit()
+    print("."),
+    
+    measure = 'pos_10k_50k_sqm_distance_m'
+    add_and_update_measure = '''
+    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {measure} int;
+    UPDATE {table} t 
+    SET {measure} = os_filtered.distance
+    FROM parcel_dwellings orig
+    LEFT JOIN (SELECT p.{id}, 
+                    min(distance) AS distance
+                FROM parcel_dwellings p
+                LEFT JOIN 
+                (SELECT {id},
+                        (obj->>'aos_id')::int AS aos_id,
+                        (obj->>'distance')::int AS distance
+                FROM od_aos_jsonb,
+                    jsonb_array_elements(attributes) obj) o ON p.{id} = o.{id}
+                LEFT JOIN open_space_areas pos ON o.aos_id = pos.aos_id
+                    WHERE pos.aos_id IS NOT NULL
+                    AND aos_ha_public > 1
+                    AND aos_ha_public <= 5
+                GROUP BY p.{id}) os_filtered ON orig.{id} = os_filtered.{id}
+    WHERE t.{id} = orig.{id};
+    '''.format(id = points_id, table = table[0], measure = measure)
+    curs.execute(add_and_update_measure)
+    conn.commit()
+    print("."),
+    
+    measure = 'pos_50k_200k_sqm_distance_m'
+    add_and_update_measure = '''
+    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {measure} int;
+    UPDATE {table} t 
+    SET {measure} = os_filtered.distance
+    FROM parcel_dwellings orig
+    LEFT JOIN (SELECT p.{id}, 
+                    min(distance) AS distance
+                FROM parcel_dwellings p
+                LEFT JOIN 
+                (SELECT {id},
+                        (obj->>'aos_id')::int AS aos_id,
+                        (obj->>'distance')::int AS distance
+                FROM od_aos_jsonb,
+                    jsonb_array_elements(attributes) obj) o ON p.{id} = o.{id}
+                LEFT JOIN open_space_areas pos ON o.aos_id = pos.aos_id
+                    WHERE pos.aos_id IS NOT NULL
+                    AND aos_ha_public > 5
+                    AND aos_ha_public <= 20
+                GROUP BY p.{id}) os_filtered ON orig.{id} = os_filtered.{id}
+    WHERE t.{id} = orig.{id};
+    '''.format(id = points_id, table = table[0], measure = measure)
+    curs.execute(add_and_update_measure)
+    conn.commit()
+    print("."),
+    
+    measure = 'pos_50k_sqm_distance_m'
+    add_and_update_measure = '''
+    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {measure} int;
+    UPDATE {table} t 
+    SET {measure} = os_filtered.distance
+    FROM parcel_dwellings orig
+    LEFT JOIN (SELECT p.{id}, 
+                    min(distance) AS distance
+                FROM parcel_dwellings p
+                LEFT JOIN 
+                (SELECT {id},
+                        (obj->>'aos_id')::int AS aos_id,
+                        (obj->>'distance')::int AS distance
+                FROM od_aos_jsonb,
+                    jsonb_array_elements(attributes) obj) o ON p.{id} = o.{id}
+                LEFT JOIN open_space_areas pos ON o.aos_id = pos.aos_id
+                    WHERE pos.aos_id IS NOT NULL
+                    AND aos_ha_public > 5
+                GROUP BY p.{id}) os_filtered ON orig.{id} = os_filtered.{id}
+    WHERE t.{id} = orig.{id};
+    '''.format(id = points_id, table = table[0], measure = measure)
+    curs.execute(add_and_update_measure)
+    conn.commit()
+    print("."),
+    
+    measure = 'sport_distances_3200m'
+    add_and_update_measure = '''
+    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {measure} int[];
+    UPDATE {table} t 
+    SET {measure} = os_filtered.distances
+    FROM parcel_dwellings orig
+    LEFT JOIN (SELECT p.{id}, 
+                    array_agg(distance) AS distances
+            FROM parcel_dwellings p
+            LEFT JOIN (SELECT {id},
+                                (obj->>'aos_id')::int AS aos_id,
+                                (obj->>'distance')::int AS distance
+                            FROM od_aos_jsonb,
+                                jsonb_array_elements(attributes) obj
+                        WHERE (obj->>'distance')::int < 3200) o ON p.{id} = o.{id}                  
+            WHERE EXISTS -- we restrict our results to distances to AOS with sports facilities 
+                        (SELECT 1 FROM open_space_areas sport,
+                                        jsonb_array_elements(attributes) obj
+                            WHERE (obj->>'leisure' IN ('golf_course','sports_club','sports_centre','fitness_centre','pitch','track','fitness_station','ice_rink','swimming_pool') 
+                            OR (obj->>'sport' IS NOT NULL 
+                            AND obj->>'sport' != 'no'))
+                            AND  o.aos_id = sport.aos_id)
+            GROUP BY p.{id} ) os_filtered ON orig.{id} = os_filtered.{id}
+    WHERE t.{id} = orig.{id};
+    '''.format(id = points_id, table = table[0], measure = measure)
+    curs.execute(add_and_update_measure)
+    conn.commit()
+    print("."),
+    
+    
+    measure = 'pos_toilet_distance_m'
+    add_and_update_measure = '''
+    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {measure} int;
+    UPDATE {table} t 
+    SET {measure} = os_filtered.distance
+    FROM parcel_dwellings orig
+    LEFT JOIN (SELECT DISTINCT ON (p.{id}) p.{id}, distance
+            FROM parcel_dwellings p
+            LEFT JOIN   
+                        (SELECT {id},  
+                        (obj->>'aos_id')::int AS aos_id, 
+                        (obj->>'distance')::int AS distance 
+                        FROM od_aos_jsonb, 
+                        jsonb_array_elements(attributes) obj) o ON p.{id} = o.{id} 
+            LEFT JOIN open_space_areas pos ON o.aos_id = pos.aos_id 
+                WHERE pos.aos_id IS NOT NULL  
+                    AND co_location_100m ? 'toilets'
+            ORDER BY {id}, distance asc) os_filtered ON orig.{id} = os_filtered.{id}
+    WHERE t.{id} = orig.{id};
+    '''.format(id = points_id, table = table[0], measure = measure)
+    curs.execute(add_and_update_measure)
+    conn.commit()
+    print(" Done.")
+
+print("Import ACARA schools look up table with NAPLAN results and area linkage codes... "),
+# Check if the table main_mb_2016_aust_full exists; if it does, these areas have previously been re-imported, so no need to re-do
+command = (
+          ' ogr2ogr -overwrite -progress -f "PostgreSQL" ' 
+          ' PG:"host={host} port=5432 dbname={db}'
+          ' user={user} password = {pwd}" '
+          ' {gpkg} "{feature}" '
+          ' -nln {name} '
+          ' -lco geometry_name="geom" '
+          ' -lco  FID=acara_school_id ' .format(host = db_host,
+                                                db = db,
+                                                user = db_user,
+                                                pwd = db_pwd,
+                                                gpkg = os.path.join(folderPath,school_ratings),
+                                                feature =  school_table,
+                                                name =  school_table) 
+          )
+# print(command)
+sp.call(command, shell=True) 
+
+curs.execute('''
+DELETE FROM  {area} a 
+      USING {buffered_study_region} b 
+  WHERE NOT ST_Intersects(a.geom,b.geom) 
+         OR a.geom IS NULL;
+'''.format(area = areas[area]['table'],
+           buffered_study_region = buffered_study_region))
 conn.commit()
 
-create_index = '''CREATE UNIQUE INDEX {table}_idx ON  {table} ({id});  '''.format(table = table[0], id = points_id.lower())
-curs.execute(create_index)
-print("."),
-
-measure = 'pos_any_distance_m'
-add_and_update_measure = '''
-ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {measure} int;
-UPDATE {table} t 
-SET {measure} = os_filtered.distance
-FROM parcel_dwellings orig
-LEFT JOIN (SELECT p.{id}, 
-                  min(distance) AS distance
-             FROM parcel_dwellings p
-             LEFT JOIN 
-             (SELECT {id},
-                    (obj->>'aos_id')::int AS aos_id,
-                    (obj->>'distance')::int AS distance
-              FROM od_aos_jsonb,
-                   jsonb_array_elements(attributes) obj) o ON p.{id} = o.{id}
-             LEFT JOIN open_space_areas pos ON o.aos_id = pos.aos_id
-                 WHERE pos.aos_id IS NOT NULL
-                   AND aos_ha_public > 0
-             GROUP BY p.{id}) os_filtered ON orig.{id} = os_filtered.{id}
-WHERE t.{id} = orig.{id};
-'''.format(id = points_id, table = table[0], measure = measure)
-curs.execute(add_and_update_measure)
+print("Create Open space areas - ACARA / NAPLAN linkage table for school queries... "),
+sql = '''
+DROP TABLE IF EXISTS aos_acara_naplan;
+CREATE TABLE aos_acara_naplan AS 
+SELECT aos_id,  
+       os_acara.acara_school_id, 
+       -- get the seperate potential naplan scores (not all are recorded)
+       year3_reading , 
+       year3_writing , 
+       year3_spelling, 
+       year3_grammar , 
+       year3_numeracy, 
+       year5_reading , 
+       year5_writing , 
+       year5_spelling, 
+       year5_grammar , 
+       year5_numeracy, 
+       year7_reading , 
+       year7_writing , 
+       year7_spelling, 
+       year7_grammar , 
+       year7_numeracy, 
+       year9_reading , 
+       year9_writing , 
+       year9_spelling, 
+       year9_grammar , 
+       year9_numeracy, 
+       -- take the sum of naplan scores for a school
+       COALESCE(year3_reading ,0)+ 
+       COALESCE(year3_writing ,0)+ 
+       COALESCE(year3_spelling,0)+ 
+       COALESCE(year3_grammar ,0)+ 
+       COALESCE(year3_numeracy,0)+ 
+       COALESCE(year5_reading ,0)+ 
+       COALESCE(year5_writing ,0)+ 
+       COALESCE(year5_spelling,0)+ 
+       COALESCE(year5_grammar ,0)+ 
+       COALESCE(year5_numeracy,0)+ 
+       COALESCE(year7_reading ,0)+ 
+       COALESCE(year7_writing ,0)+ 
+       COALESCE(year7_spelling,0)+ 
+       COALESCE(year7_grammar ,0)+ 
+       COALESCE(year7_numeracy,0)+ 
+       COALESCE(year9_reading ,0)+ 
+       COALESCE(year9_writing ,0)+ 
+       COALESCE(year9_spelling,0)+ 
+       COALESCE(year9_grammar ,0)+ 
+       COALESCE(year9_numeracy,0) AS sum, 
+       -- take the non-null count of naplan scores for a school
+       (select count(*) 
+        from (values  
+                    (year3_reading ), 
+                    (year3_writing ), 
+                    (year3_spelling), 
+                    (year3_grammar ), 
+                    (year3_numeracy), 
+                    (year5_reading ), 
+                    (year5_writing ), 
+                    (year5_spelling), 
+                    (year5_grammar ), 
+                    (year5_numeracy), 
+                    (year7_reading ), 
+                    (year7_writing ), 
+                    (year7_spelling), 
+                    (year7_grammar ), 
+                    (year7_numeracy), 
+                    (year9_reading ), 
+                    (year9_writing ), 
+                    (year9_spelling), 
+                    (year9_grammar ), 
+                    (year9_numeracy) 
+        ) as v(col) 
+        where v.col is not null 
+       ) as non_null_count 
+FROM     
+   -- extract school ids from open space table 
+   (SELECT aos_id,  
+         (tags.value->>'acara_scho')::int AS acara_school_id  
+    FROM open_space_areas schools, 
+         jsonb_array_elements(schools.attributes) obj, 
+         jsonb_array_elements((obj ->>'school_tags')::jsonb) tags) os_acara 
+    -- join schools with their naplan scores 
+LEFT JOIN {table} ON os_acara.acara_school_id = {table}.acara_school_id 
+WHERE os_acara.acara_school_id IS NOT NULL; 
+-- create index 
+CREATE UNIQUE INDEX aos_acara_naplan_idx ON  aos_acara_naplan (aos_id,acara_school_id);  
+'''.format(table = school_table)
+curs.execute(sql)
 conn.commit()
-print("."),
+print("Done.")
 
-measure = 'pos_5k_sqm_distance_m'
-add_and_update_measure = '''
-ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {measure} int;
-UPDATE {table} t 
-SET {measure} = os_filtered.distance
-FROM parcel_dwellings orig
-LEFT JOIN (SELECT p.{id}, 
-                  min(distance) AS distance
-             FROM parcel_dwellings p
-             LEFT JOIN 
-             (SELECT {id},
-                    (obj->>'aos_id')::int AS aos_id,
-                    (obj->>'distance')::int AS distance
-              FROM od_aos_jsonb,
-                   jsonb_array_elements(attributes) obj) o ON p.{id} = o.{id}
-             LEFT JOIN open_space_areas pos ON o.aos_id = pos.aos_id
-                 WHERE pos.aos_id IS NOT NULL
-                   AND aos_ha_public > 0.5
-             GROUP BY p.{id}) os_filtered ON orig.{id} = os_filtered.{id}
-WHERE t.{id} = orig.{id};
-'''.format(id = points_id, table = table[0], measure = measure)
-curs.execute(add_and_update_measure)
-conn.commit()
-print("."),
+for nh_distance in [800,1600]:
+    print(" Get NAPLAN average of all schools within {}m of address... ".format(nh_distance)),
+    sql = '''
+    CREATE TABLE ind_school_naplan_avg_{nh_distance}m AS
+    SELECT p.{id},  
+        COUNT(acara_school_id) AS school_count_{nh_distance}m, 
+        AVG(o.distance)::int AS average_distance_{nh_distance}m, 
+        AVG(sum) AS average_sum_of_naplan_{nh_distance}m, 
+        AVG(non_null_count) AS average_test_count_{nh_distance}m, 
+        AVG(sum/ nullif(non_null_count::float,0)) AS naplan_average_{nh_distance}m 
+    FROM parcel_dwellings p 
+    LEFT JOIN  
+        -- get the distances and ids for all parks within 3.2km 
+        (SELECT {id}, 
+                (obj->>'aos_id')::int AS aos_id, 
+                (obj->>'distance')::int AS distance 
+        FROM od_aos_jsonb, 
+            jsonb_array_elements(attributes) obj) o  
+    ON p.{id} = o.{id} 
+    LEFT JOIN aos_acara_naplan naplan ON o.aos_id = naplan.aos_id 
+    WHERE naplan.acara_school_id IS NOT NULL 
+        AND o.distance < {nh_distance}
+    GROUP BY p.{id} ;
+    -- create index 
+    CREATE UNIQUE INDEX ind_school_naplan_avg_{nh_distance}m_idx
+                     ON  ind_school_naplan_avg_{nh_distance}m ({id});  
+    '''.format(nh_distance = nh_distance, id = points_id.lower())
+    curs.execute(sql)
+    conn.commit()
+    print("Done")
 
-measure = 'pos_15k_sqm_distance_m'
-add_and_update_measure = '''
-ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {measure} int;
-UPDATE {table} t 
-SET {measure} = os_filtered.distance
-FROM parcel_dwellings orig
-LEFT JOIN (SELECT p.{id}, 
-                  min(distance) AS distance
-             FROM parcel_dwellings p
-             LEFT JOIN 
-             (SELECT {id},
-                    (obj->>'aos_id')::int AS aos_id,
-                    (obj->>'distance')::int AS distance
-              FROM od_aos_jsonb,
-                   jsonb_array_elements(attributes) obj) o ON p.{id} = o.{id}
-             LEFT JOIN open_space_areas pos ON o.aos_id = pos.aos_id
-                 WHERE pos.aos_id IS NOT NULL
-                   AND aos_ha_public > 1.5
-             GROUP BY p.{id}) os_filtered ON orig.{id} = os_filtered.{id}
-WHERE t.{id} = orig.{id};
-'''.format(id = points_id, table = table[0], measure = measure)
-curs.execute(add_and_update_measure)
-conn.commit()
-print("."),
-
-measure = 'pos_20k_sqm_distance_m'
-add_and_update_measure = '''
-ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {measure} int;
-UPDATE {table} t 
-SET {measure} = os_filtered.distance
-FROM parcel_dwellings orig
-LEFT JOIN (SELECT p.{id}, 
-                  min(distance) AS distance
-             FROM parcel_dwellings p
-             LEFT JOIN 
-             (SELECT {id},
-                    (obj->>'aos_id')::int AS aos_id,
-                    (obj->>'distance')::int AS distance
-              FROM od_aos_jsonb,
-                   jsonb_array_elements(attributes) obj) o ON p.{id} = o.{id}
-             LEFT JOIN open_space_areas pos ON o.aos_id = pos.aos_id
-                 WHERE pos.aos_id IS NOT NULL
-                   AND aos_ha_public > 2
-             GROUP BY p.{id}) os_filtered ON orig.{id} = os_filtered.{id}
-WHERE t.{id} = orig.{id};
-'''.format(id = points_id, table = table[0], measure = measure)
-curs.execute(add_and_update_measure)
-conn.commit()
-print("."),
-
-measure = 'pos_4k_10k_sqm_distance_m'
-add_and_update_measure = '''
-ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {measure} int;
-UPDATE {table} t 
-SET {measure} = os_filtered.distance
-FROM parcel_dwellings orig
-LEFT JOIN (SELECT p.{id}, 
-                  min(distance) AS distance
-             FROM parcel_dwellings p
-             LEFT JOIN 
-             (SELECT {id},
-                    (obj->>'aos_id')::int AS aos_id,
-                    (obj->>'distance')::int AS distance
-              FROM od_aos_jsonb,
-                   jsonb_array_elements(attributes) obj) o ON p.{id} = o.{id}
-             LEFT JOIN open_space_areas pos ON o.aos_id = pos.aos_id
-                 WHERE pos.aos_id IS NOT NULL
-                   AND aos_ha_public > 0.4
-                   AND aos_ha_public <= 1
-             GROUP BY p.{id}) os_filtered ON orig.{id} = os_filtered.{id}
-WHERE t.{id} = orig.{id};
-'''.format(id = points_id, table = table[0], measure = measure)
-curs.execute(add_and_update_measure)
-conn.commit()
-print("."),
-
-measure = 'pos_10k_50k_sqm_distance_m'
-add_and_update_measure = '''
-ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {measure} int;
-UPDATE {table} t 
-SET {measure} = os_filtered.distance
-FROM parcel_dwellings orig
-LEFT JOIN (SELECT p.{id}, 
-                  min(distance) AS distance
-             FROM parcel_dwellings p
-             LEFT JOIN 
-             (SELECT {id},
-                    (obj->>'aos_id')::int AS aos_id,
-                    (obj->>'distance')::int AS distance
-              FROM od_aos_jsonb,
-                   jsonb_array_elements(attributes) obj) o ON p.{id} = o.{id}
-             LEFT JOIN open_space_areas pos ON o.aos_id = pos.aos_id
-                 WHERE pos.aos_id IS NOT NULL
-                   AND aos_ha_public > 1
-                   AND aos_ha_public <= 5
-             GROUP BY p.{id}) os_filtered ON orig.{id} = os_filtered.{id}
-WHERE t.{id} = orig.{id};
-'''.format(id = points_id, table = table[0], measure = measure)
-curs.execute(add_and_update_measure)
-conn.commit()
-print("."),
-
-measure = 'pos_50k_200k_sqm_distance_m'
-add_and_update_measure = '''
-ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {measure} int;
-UPDATE {table} t 
-SET {measure} = os_filtered.distance
-FROM parcel_dwellings orig
-LEFT JOIN (SELECT p.{id}, 
-                  min(distance) AS distance
-             FROM parcel_dwellings p
-             LEFT JOIN 
-             (SELECT {id},
-                    (obj->>'aos_id')::int AS aos_id,
-                    (obj->>'distance')::int AS distance
-              FROM od_aos_jsonb,
-                   jsonb_array_elements(attributes) obj) o ON p.{id} = o.{id}
-             LEFT JOIN open_space_areas pos ON o.aos_id = pos.aos_id
-                 WHERE pos.aos_id IS NOT NULL
-                   AND aos_ha_public > 5
-                   AND aos_ha_public <= 20
-             GROUP BY p.{id}) os_filtered ON orig.{id} = os_filtered.{id}
-WHERE t.{id} = orig.{id};
-'''.format(id = points_id, table = table[0], measure = measure)
-curs.execute(add_and_update_measure)
-conn.commit()
-print("."),
-
-measure = 'pos_50k_sqm_distance_m'
-add_and_update_measure = '''
-ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {measure} int;
-UPDATE {table} t 
-SET {measure} = os_filtered.distance
-FROM parcel_dwellings orig
-LEFT JOIN (SELECT p.{id}, 
-                  min(distance) AS distance
-             FROM parcel_dwellings p
-             LEFT JOIN 
-             (SELECT {id},
-                    (obj->>'aos_id')::int AS aos_id,
-                    (obj->>'distance')::int AS distance
-              FROM od_aos_jsonb,
-                   jsonb_array_elements(attributes) obj) o ON p.{id} = o.{id}
-             LEFT JOIN open_space_areas pos ON o.aos_id = pos.aos_id
-                 WHERE pos.aos_id IS NOT NULL
-                   AND aos_ha_public > 5
-             GROUP BY p.{id}) os_filtered ON orig.{id} = os_filtered.{id}
-WHERE t.{id} = orig.{id};
-'''.format(id = points_id, table = table[0], measure = measure)
-curs.execute(add_and_update_measure)
-conn.commit()
-print("."),
-
-measure = 'sport_distances_3200m'
-add_and_update_measure = '''
-ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {measure} int[];
-UPDATE {table} t 
-SET {measure} = os_filtered.distances
-FROM parcel_dwellings orig
-LEFT JOIN (SELECT p.{id}, 
-                  array_agg(distance) AS distances
-           FROM parcel_dwellings p
-           LEFT JOIN (SELECT {id},
-                             (obj->>'aos_id')::int AS aos_id,
-                             (obj->>'distance')::int AS distance
-                        FROM od_aos_jsonb,
-                             jsonb_array_elements(attributes) obj
-                       WHERE (obj->>'distance')::int < 3200) o ON p.{id} = o.{id}                  
-           WHERE EXISTS -- we restrict our results to distances to AOS with sports facilities 
-                       (SELECT 1 FROM open_space_areas sport,
-                                      jsonb_array_elements(attributes) obj
-                        WHERE (obj->>'leisure' IN ('golf_course','sports_club','sports_centre','fitness_centre','pitch','track','fitness_station','ice_rink','swimming_pool') 
-                           OR (obj->>'sport' IS NOT NULL 
-                          AND obj->>'sport' != 'no'))
-                          AND  o.aos_id = sport.aos_id)
-           GROUP BY p.{id} ) os_filtered ON orig.{id} = os_filtered.{id}
-WHERE t.{id} = orig.{id};
-'''.format(id = points_id, table = table[0], measure = measure)
-curs.execute(add_and_update_measure)
-conn.commit()
-print("."),
-
-
-measure = 'pos_toilet_distance_m'
-add_and_update_measure = '''
-ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {measure} int;
-UPDATE {table} t 
-SET {measure} = os_filtered.distance
-FROM parcel_dwellings orig
-LEFT JOIN (SELECT DISTINCT ON (p.gnaf_pid) p.gnaf_pid, distance
-           FROM parcel_dwellings p
-           LEFT JOIN   
-                    (SELECT gnaf_pid,  
-                    (obj->>'aos_id')::int AS aos_id, 
-                    (obj->>'distance')::int AS distance 
-                    FROM od_aos_jsonb, 
-                    jsonb_array_elements(attributes) obj) o ON p.gnaf_pid = o.gnaf_pid 
-           LEFT JOIN open_space_areas pos ON o.aos_id = pos.aos_id 
-               WHERE pos.aos_id IS NOT NULL  
-                 AND co_location_100m ? 'toilets'
-           ORDER BY gnaf_pid, distance asc) os_filtered ON orig.{id} = os_filtered.{id}
-WHERE t.{id} = orig.{id};
-'''.format(id = points_id, table = table[0], measure = measure)
-curs.execute(add_and_update_measure)
-conn.commit()
-print(" Done.")
+print("Import ACEQUA database with average ratings and area linkage codes... "),
+# Check if the table main_mb_2016_aust_full exists; if it does, these areas have previously been re-imported, so no need to re-do
+command = (
+          ' ogr2ogr -overwrite -progress -f "PostgreSQL" ' 
+          ' PG:"host={host} port=5432 dbname={db}'
+          ' user={user} password = {pwd}" '
+          ' {gpkg} "{feature}" '
+          ' -nln {name} '
+          ' -lco geometry_name="geom" '
+          ' -lco  FID=acara_school_id ' .format(host = db_host,
+                                                db   = db,
+                                                user = db_user,
+                                                pwd  = db_pwd,
+                                                gpkg = os.path.join(folderPath,childcare_ratings),
+                                                feature =  childcare_table,
+                                                name    =  childcare_table) 
+          )
+# print(command)
+sp.call(command, shell=True)     
 
 # print("Create ISO37120 indicator (hard threshold is native version; soft threshold is novel...")
 # to do... could base on the nh_inds with specific thresholds
