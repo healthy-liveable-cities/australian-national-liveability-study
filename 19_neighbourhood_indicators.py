@@ -409,38 +409,27 @@ create_index = '''CREATE UNIQUE INDEX {table}_idx ON  {table} ({id});  '''.forma
 curs.execute(create_index)
 print(" Done.")
 
-table = ['ind_food','f']
-print(" - {table}".format(table = table[0])),
-create_table = '''DROP TABLE IF EXISTS {table}; CREATE TABLE {table} AS SELECT {id} FROM parcel_dwellings;'''.format(table = table[0], id = points_id.lower())
-curs.execute(create_table)
-conn.commit()
 # we just calculate food ratio at 1600m, so we'll set nh_threshold to that value
 for nh_threshold in [1600,3200]:
+    table = ['ind_food_{nh_threshold}m'.format(nh_threshold = nh_threshold),'f']
+    print(" - {table}... ".format(table = table[0])),
     sql = '''
-    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS food_supermarkets_{nh_threshold}m              int;
-    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS food_fruit_veg_{nh_threshold}m                 int;
-    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS food_other_specialty_{nh_threshold}m           int;
-    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS food_healthier_count_{nh_threshold}m           int;
-    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS food_fast_count_{nh_threshold}m                int;
-    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS food_healthy_proportion_{nh_threshold}m        float;
-    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS food_healthy_ratio_{nh_threshold}m             float;
-    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS food_fresh_proportion_{nh_threshold}m          float;
-    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS food_fresh_ratio_{nh_threshold}m               float;
-    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS food_no_healthy_unhealthy_food_{nh_threshold}m float;
-    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS food_no_food_{nh_threshold}m                   float;
-    -- We can't use both the OSM and scraped data as we would expect this to lead to double counting
-    -- However, we can take the larger of the two values under the assumption that this represents
-    -- the more comprehensive record of neighbourhood information.
-    UPDATE {table} t 
-    SET food_supermarkets_{nh_threshold}m       = d.supermarkets,
-        food_fruit_veg_{nh_threshold}m          = d.fruit_veg,
-        food_other_specialty_{nh_threshold}m    = d.specialty,
-        food_healthier_count_{nh_threshold}m    = d.supermarkets+d.fruit_veg, 
-        food_fast_count_{nh_threshold}m         = d.fastfood,
-        food_healthy_proportion_{nh_threshold}m = (d.supermarkets+d.fruit_veg)             / NULLIF((d.supermarkets+d.fruit_veg+ d.fastfood):: float,0),
-        food_healthy_ratio_{nh_threshold}m      = (d.supermarkets+d.fruit_veg)             / NULLIF(d.fastfood:: float,0),
-        food_fresh_proportion_{nh_threshold}m   = (d.supermarkets+d.fruit_veg+d.specialty) / NULLIF((d.supermarkets+d.fruit_veg+ d.fastfood++d.specialty):: float,0),
-        food_fresh_ratio_{nh_threshold}m        = (d.supermarkets+d.fruit_veg+d.specialty) / NULLIF(d.fastfood:: float,0)
+    CREATE TABLE IF NOT EXISTS {table} AS
+    SELECT
+        {id},
+        d.supermarkets             AS food_supermarkets_{nh_threshold}m     ,
+        d.fruit_veg                AS food_fruit_veg_{nh_threshold}m        ,
+        d.specialty                AS food_other_specialty_{nh_threshold}m  ,
+        d.supermarkets+d.fruit_veg AS food_healthier_count_{nh_threshold}m  ,
+        d.fastfood                 AS food_fast_count_{nh_threshold}m       ,
+        (d.supermarkets+d.fruit_veg)             
+          / NULLIF((d.supermarkets+d.fruit_veg+ d.fastfood):: float,0) AS food_healthy_proportion_{nh_threshold}m,
+        (d.supermarkets+d.fruit_veg)            
+         / NULLIF(d.fastfood:: float,0) AS food_healthy_ratio_{nh_threshold}m,
+        (d.supermarkets+d.fruit_veg+d.specialty) 
+         / NULLIF((d.supermarkets+d.fruit_veg+ d.fastfood++d.specialty):: float,0) AS food_fresh_proportion_{nh_threshold}m,
+        (d.supermarkets+d.fruit_veg+d.specialty) 
+         / NULLIF(d.fastfood:: float,0) AS food_fresh_ratio_{nh_threshold}m
     FROM (SELECT 
             {id},
             GREATEST(COALESCE(count_in_threshold(supermarket,{nh_threshold}),0),
@@ -453,16 +442,15 @@ for nh_threshold in [1600,3200]:
                      COALESCE(count_in_threshold(fastfood_osm,{nh_threshold}),0)) AS fastfood
         FROM dest_distances_3200m) d
     '''.format(table = table[0], 
-            abbrev = table[1], 
             id = points_id.lower(),
             nh_threshold = nh_threshold)
     curs.execute(sql)
     conn.commit()
-    print("."),
+    create_index = '''CREATE UNIQUE INDEX IF NOT EXISTS {table}_idx ON  {table} ({id});  '''.format(table = table[0],id = points_id.lower())
+    curs.execute(create_index)
+    print(" Done.")
     
-create_index = '''CREATE UNIQUE INDEX {table}_idx ON  {table} ({id});  '''.format(table = table[0], id = points_id.lower())
-curs.execute(create_index)
-print(" Done.")
+
 
 # Create Open Space measures (distances, which can later be considered with regard to thresholds)
 # In addition to public open space (pos), also includes sport areas and blue space
