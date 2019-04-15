@@ -102,6 +102,12 @@ CREATE OR REPLACE FUNCTION count_in_threshold(distances int[],threshold int) ret
     WHERE b < threshold
 $$ language sql;
 
+-- return minimum value of an integer array (specifically here, used for distance to closest within 3200m)
+CREATE OR REPLACE FUNCTION array_min(integers int[]) returns int as $$
+    SELECT min(integers) 
+    FROM unnest(integers) integers
+$$ language sql;
+
 -- a binary threshold indicator  (e.g. of access given distance and threshold)
 CREATE OR REPLACE FUNCTION threshold_hard(distance int, threshold int, out int) 
     RETURNS NULL ON NULL INPUT
@@ -441,7 +447,7 @@ for nh_threshold in [1600,3200]:
     table = ['ind_food_{nh_threshold}m'.format(nh_threshold = nh_threshold),'f']
     print(" - {table}... ".format(table = table[0])),
     sql = '''
-    -- DROP TABLE IF EXISTS {table};
+    DROP TABLE IF EXISTS {table};
     CREATE TABLE IF NOT EXISTS {table} AS
     SELECT
         {id},
@@ -484,12 +490,14 @@ for nh_threshold in [1600,3200]:
 
 # Create Open Space measures (distances, which can later be considered with regard to thresholds)
 # In addition to public open space (pos), also includes sport areas and blue space
-table = ['ind_os_distance','os']
+table = ['ind_os_distances_3200m','os']
 print(" - {table}".format(table = table[0])),
 curs.execute('''SELECT 1 WHERE to_regclass('public.{table}') IS NOT NULL;'''.format(table = table[0]))
 res = curs.fetchone()
 if res:
     print("Table exists.")
+# adding in a line to force reconstruction of this table
+# we need to calculate the arrays
 if res is None:
     create_table = '''DROP TABLE IF EXISTS {table}; CREATE TABLE {table} AS SELECT {id} FROM parcel_dwellings;'''.format(table = table[0], id = points_id.lower())
     curs.execute(create_table)
@@ -499,14 +507,14 @@ if res is None:
     curs.execute(create_index)
     print("."),
     
-    measure = 'pos_any_distance_m'
+    measure = 'pos_any_distances_3200m'
     add_and_update_measure = '''
-    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {measure} int;
+    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {measure} int[];
     UPDATE {table} t 
-    SET {measure} = os_filtered.distance
+    SET {measure} = os_filtered.distances
     FROM parcel_dwellings orig
     LEFT JOIN (SELECT p.{id}, 
-                    min(distance) AS distance
+                      array_agg(distance) AS distances
                 FROM parcel_dwellings p
                 LEFT JOIN 
                 (SELECT {id},
@@ -524,14 +532,14 @@ if res is None:
     conn.commit()
     print("."),
     
-    measure = 'pos_5k_sqm_distance_m'
+    measure = 'pos_5k_sqm_distances_3200m'
     add_and_update_measure = '''
-    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {measure} int;
+    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {measure} int[];
     UPDATE {table} t 
-    SET {measure} = os_filtered.distance
+    SET {measure} = os_filtered.distances
     FROM parcel_dwellings orig
     LEFT JOIN (SELECT p.{id}, 
-                    min(distance) AS distance
+                      array_agg(distance) AS distances
                 FROM parcel_dwellings p
                 LEFT JOIN 
                 (SELECT {id},
@@ -549,14 +557,14 @@ if res is None:
     conn.commit()
     print("."),
     
-    measure = 'pos_15k_sqm_distance_m'
+    measure = 'pos_15k_sqm_distances_3200m'
     add_and_update_measure = '''
-    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {measure} int;
+    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {measure} int[];
     UPDATE {table} t 
-    SET {measure} = os_filtered.distance
+    SET {measure} = os_filtered.distances
     FROM parcel_dwellings orig
     LEFT JOIN (SELECT p.{id}, 
-                    min(distance) AS distance
+                      array_agg(distance) AS distances
                 FROM parcel_dwellings p
                 LEFT JOIN 
                 (SELECT {id},
@@ -574,14 +582,14 @@ if res is None:
     conn.commit()
     print("."),
     
-    measure = 'pos_20k_sqm_distance_m'
+    measure = 'pos_20k_sqm_distances_3200m'
     add_and_update_measure = '''
-    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {measure} int;
+    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {measure} int[];
     UPDATE {table} t 
-    SET {measure} = os_filtered.distance
+    SET {measure} = os_filtered.distances
     FROM parcel_dwellings orig
     LEFT JOIN (SELECT p.{id}, 
-                    min(distance) AS distance
+                      array_agg(distance) AS distances
                 FROM parcel_dwellings p
                 LEFT JOIN 
                 (SELECT {id},
@@ -599,14 +607,14 @@ if res is None:
     conn.commit()
     print("."),
     
-    measure = 'pos_4k_10k_sqm_distance_m'
+    measure = 'pos_4k_10k_sqm_distances_3200m'
     add_and_update_measure = '''
-    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {measure} int;
+    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {measure} int[];
     UPDATE {table} t 
-    SET {measure} = os_filtered.distance
+    SET {measure} = os_filtered.distances
     FROM parcel_dwellings orig
     LEFT JOIN (SELECT p.{id}, 
-                    min(distance) AS distance
+                      array_agg(distance) AS distances
                 FROM parcel_dwellings p
                 LEFT JOIN 
                 (SELECT {id},
@@ -625,14 +633,14 @@ if res is None:
     conn.commit()
     print("."),
     
-    measure = 'pos_10k_50k_sqm_distance_m'
+    measure = 'pos_10k_50k_sqm_distances_3200m'
     add_and_update_measure = '''
-    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {measure} int;
+    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {measure} int[];
     UPDATE {table} t 
-    SET {measure} = os_filtered.distance
+    SET {measure} = os_filtered.distances
     FROM parcel_dwellings orig
     LEFT JOIN (SELECT p.{id}, 
-                    min(distance) AS distance
+                      array_agg(distance) AS distances
                 FROM parcel_dwellings p
                 LEFT JOIN 
                 (SELECT {id},
@@ -651,14 +659,14 @@ if res is None:
     conn.commit()
     print("."),
     
-    measure = 'pos_50k_200k_sqm_distance_m'
+    measure = 'pos_50k_200k_sqm_distances_3200m'
     add_and_update_measure = '''
-    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {measure} int;
+    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {measure} int[];
     UPDATE {table} t 
-    SET {measure} = os_filtered.distance
+    SET {measure} = os_filtered.distances
     FROM parcel_dwellings orig
     LEFT JOIN (SELECT p.{id}, 
-                    min(distance) AS distance
+                      array_agg(distance) AS distances
                 FROM parcel_dwellings p
                 LEFT JOIN 
                 (SELECT {id},
@@ -677,14 +685,14 @@ if res is None:
     conn.commit()
     print("."),
     
-    measure = 'pos_50k_sqm_distance_m'
+    measure = 'pos_50k_sqm_distances_3200m'
     add_and_update_measure = '''
-    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {measure} int;
+    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {measure} int[];
     UPDATE {table} t 
-    SET {measure} = os_filtered.distance
+    SET {measure} = os_filtered.distances
     FROM parcel_dwellings orig
     LEFT JOIN (SELECT p.{id}, 
-                    min(distance) AS distance
+                      array_agg(distance) AS distances
                 FROM parcel_dwellings p
                 LEFT JOIN 
                 (SELECT {id},
@@ -732,13 +740,15 @@ if res is None:
     print("."),
     
     
-    measure = 'pos_toilet_distance_m'
+    measure = 'pos_toilet_distances_3200m'
     add_and_update_measure = '''
-    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {measure} int;
+    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {measure} int[];
     UPDATE {table} t 
-    SET {measure} = os_filtered.distance
+    SET {measure} = os_filtered.distances
     FROM parcel_dwellings orig
-    LEFT JOIN (SELECT DISTINCT ON (p.{id}) p.{id}, distance
+    LEFT JOIN (SELECT DISTINCT ON (p.{id}) 
+                      p.{id}, 
+                      array_agg(distance) AS distances
             FROM parcel_dwellings p
             LEFT JOIN   
                         (SELECT {id},  
@@ -749,13 +759,38 @@ if res is None:
             LEFT JOIN open_space_areas pos ON o.aos_id = pos.aos_id 
                 WHERE pos.aos_id IS NOT NULL  
                     AND co_location_100m ? 'toilets'
-            ORDER BY {id}, distance asc) os_filtered ON orig.{id} = os_filtered.{id}
+            GROUP BY p.{id} ) os_filtered ON orig.{id} = os_filtered.{id}
     WHERE t.{id} = orig.{id};
     '''.format(id = points_id, table = table[0], measure = measure)
     curs.execute(add_and_update_measure)
     conn.commit()
     print(" Done.")
 
+table = ['ind_os_distance','os']
+print(" - {table}".format(table = table[0])),    
+sql = '''
+DROP TABLE IF EXISTS ind_os_distance;
+CREATE TABLE IF NOT EXISTS ind_os_distance AS
+SELECT 
+    {id},
+    array_min(pos_any_distances_3200m) AS pos_any_distance_m,
+    array_min(pos_5k_sqm_distances_3200m) AS pos_5k_sqm_distance_m,
+    array_min(pos_15k_sqm_distances_3200m) AS pos_15k_sqm_distance_m,
+    array_min(pos_20k_sqm_distances_3200m) AS pos_20k_sqm_distance_m,
+    array_min(pos_4k_10k_sqm_distances_3200m) AS pos_4k_10k_sqm_distance_m,
+    array_min(pos_10k_50k_sqm_distances_3200m) AS pos_10k_50k_sqm_distance_m,
+    array_min(pos_50k_200k_sqm_distances_3200m) AS pos_50k_200k_sqm_distance_m,
+    array_min(pos_50k_sqm_distances_3200m) AS pos_50k_sqm_distance_m,
+    array_min(sport_distances_3200m) AS sport_distance_m,
+    array_min(pos_toilet_distances_3200m) AS pos_toilet_distance_m
+FROM ind_os_distances_3200m;
+'''.format(id = points_id.lower())    
+curs.execute(sql)
+conn.commit()
+create_index = '''CREATE UNIQUE INDEX IF NOT EXISTS {table}_idx ON  {table} ({id});  '''.format(table = table[0], id = points_id.lower())
+curs.execute(create_index)
+print("Done.")
+    
 print("Import ACARA schools look up table with NAPLAN results and area linkage codes... "),
 # Check if the table main_mb_2016_aust_full exists; if it does, these areas have previously been re-imported, so no need to re-do
 command = (
