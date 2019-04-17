@@ -492,6 +492,7 @@ for nh_threshold in [1600,3200]:
 
 # combine food tables
 sql = '''
+DROP TABLE IF EXISTS ind_food;
 CREATE TABLE ind_food AS
 SELECT * FROM ind_food_1600m LEFT JOIN ind_food_3200m USING (gnaf_pid);
 CREATE UNIQUE INDEX IF NOT EXISTS ind_food_idx ON  ind_food ({id});
