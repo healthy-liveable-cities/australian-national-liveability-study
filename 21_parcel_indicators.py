@@ -67,11 +67,7 @@ ind_list = ind_matrix['indicators'].tolist()
 ind_queries = '\n'.join(ind_matrix['Query'] +' AS ' + ind_matrix['indicators']+',')
 ind_sources = '\n'.join(ind_matrix['Source'].unique())
 
-# Generate strings for checking nulls: by column (indicator), and by row
-null_query_summary = ',\n'.join("SUM(" + ind_matrix['indicators'] + " IS NULL::int) AS " + ind_matrix['indicators'])
-null_query_combined = '+\n'.join("(" + ind_matrix['indicators'] + " IS NULL::int)")
-
-                                                                                
+print("Creating compiled set of parcel level indicators...")   
 # Define parcel level indicator table creation query
 # Note that we modify inds slightly later when aggregated to reflect cutoffs etc
 create_parcel_indicators = '''
@@ -108,13 +104,71 @@ LEFT JOIN parcel_sos sos ON p.{id} = sos.{id}
 {sources}
 '''.format(id = points_id, indicators = ind_queries, sources = ind_sources)
 
-# Define null query tables
-null_query_summary_table = '''
-DROP TABLE IF EXISTS parcel_inds_null_summary; 
-CREATE TABLE parcel_inds_null_summary AS
-SELECT {null_query_summary} 
-FROM parcel_indicators;
-'''.format(null_query_summary = null_query_summary)
+# print("SQL query:")
+# print(create_parcel_indicators)
+curs.execute(create_parcel_indicators)
+conn.commit()
+print("Done.")
+
+# Create an indicators summary table
+print("Data checking\n")
+ind_summary = ind_matrix.set_index('indicators')
+ind_summary_urban = ind_matrix.set_index('indicators')['unit_level_description'].to_frame()
+ind_summary_not_urban = ind_summary_urban
+
+print("Create tables for data checking purposes...")
+# Generate strings for checking nulls: by column (indicator), and by row
+# null_query_summary = ',\n'.join("SUM(" + ind_matrix['indicators'] + " IS NULL::int) AS " + ind_matrix['indicators'])
+query_summaries = {
+   'mean' :',\n'.join("ROUND(AVG("    + ind_matrix['indicators'] + ")::numeric,2) AS " + ind_matrix['indicators']),
+   'sd'   :',\n'.join("ROUND(STDDEV(" + ind_matrix['indicators'] + ")::numeric,2) AS " + ind_matrix['indicators']),
+   'min'  :',\n'.join("ROUND(MIN("    + ind_matrix['indicators'] + ")::numeric,2) AS " + ind_matrix['indicators']),
+   'max'  :',\n'.join("ROUND(MAX("    + ind_matrix['indicators'] + ")::numeric,2) AS " + ind_matrix['indicators']),
+   'count':',\n'.join("TO_CHAR(COUNT("+ ind_matrix['indicators'] + "),'9,999,999') AS " + ind_matrix['indicators']),
+   'nulls':',\n'.join("TO_CHAR(SUM("  + ind_matrix['indicators'] + " IS NULL::int),'9,999,999') AS " + ind_matrix['indicators']),
+    }
+
+for summary in query_summaries:
+    # get null values
+    df = pandas.read_sql_query('''SELECT {} FROM parcel_indicators;'''.format(query_summaries[summary]),con=engine)
+    df = df.transpose()
+    df.columns=[summary]
+    ind_summary = ind_summary.join(df, how='left')
+    # get urban null values
+    df = pandas.read_sql_query('''SELECT {} FROM parcel_indicators WHERE sos_name_2016 IN ('Urban','Other Urban');'''.format(query_summaries[summary]),con=engine)
+    df = df.transpose()
+    df.columns=[summary]
+    ind_summary_urban = ind_summary_urban.join(df, how='left')
+    # get not urban null values
+    df = pandas.read_sql_query('''SELECT {} FROM parcel_indicators WHERE sos_name_2016 NOT IN ('Urban','Other Urban');'''.format(query_summaries[summary]),con=engine)
+    df = df.transpose()
+    df.columns=[summary]
+    ind_summary_not_urban = ind_summary_not_urban.join(df, how='left')
+
+df.to_sql(name='ind_summary',con=engine,if_exists='replace')
+print('     - ind_summary')
+df.to_sql(name='ind_summary_urban',con=engine,if_exists='replace')
+print('     - ind_summary_urban')
+df.to_sql(name='ind_summary_not_urban',con=engine,if_exists='replace')
+print('     - ind_summary_not_urban')
+print("Done.")
+
+print("\nPlease review the following indicator summary and consider any oddities:"),
+# print for diagnostic purposes
+variables = ['mean','sd','min','max','nulls','count']
+for i in ind_summary.index:
+    print('\n{}:'.format(ind_summary.loc[i]['unit_level_description']))
+    print('     {}'.format(i))
+    summary = list(ind_summary.loc[i,variables].values)
+    summary_urban = list(ind_summary_urban.loc[i,variables].values)
+    summary_not_urban = list(ind_summary_not_urban.loc[i,variables].values)
+    print('            {:>10} {:>10} {:>10} {:>10} {:>10} {:>10}'.format(*variables))
+    print('Overall     {:10} {:10} {:10} {:10} {:10} {:10}'.format(*summary))
+    print('Urban       {:10} {:10} {:10} {:10} {:10} {:10}'.format(*summary_urban))
+    print('Not urban   {:10} {:10} {:10} {:10} {:10} {:10}'.format(*summary_not_urban))
+
+print("Creating row-wise tally of nulls for each parcel...")
+null_query_combined = '+\n'.join("(" + ind_matrix['indicators'] + " IS NULL::int)")
 
 null_query_combined_table = '''
 DROP TABLE IF EXISTS parcel_inds_null_tally; 
@@ -127,64 +181,12 @@ FROM parcel_indicators;
            null_query_combined = null_query_combined,
            total_inds = len(ind_list))
 
- 
-print("Creating compiled set of parcel level indicators...")
-print("SQL query:")
-print(create_parcel_indicators)
-curs.execute(create_parcel_indicators)
-conn.commit()
-print("Done.")
 
-print("Creating summary of nulls per indicator... ")
-print("SQL query:")
-print(null_query_summary_table)
-curs.execute(null_query_summary_table)
-conn.commit()
-print("Done.")
-
-print("Creating row-wise tally of nulls for each parcel...")
-print("SQL query:")
-print(null_query_combined_table)
+# print("SQL query:")
+# print(null_query_combined_table)
 curs.execute(null_query_combined_table)
 conn.commit()
 print("Done.\n")
-
-# Generate some summary information to print to screen
-df = pandas.read_sql_query('SELECT * FROM "parcel_inds_null_summary";',con=engine)
-df = df.transpose()
-df.columns = ['Null count']
-print("Summary of nulls by {} variables for {} of {} in state of {}:".format(len(ind_list),region,locale,state))
-print(df)
-
-df2 = pandas.read_sql_query('SELECT * FROM "parcel_inds_null_tally";',con=engine)
-print("Summary of row-wise null values across {} variables:".format(len(ind_list)))
-print(df2['null_tally'].describe().round(2))
-
-df.to_sql(name='parcel_ind_null_summary_t',con=engine,if_exists='replace')
-df2['null_tally'].describe().round(2).to_sql(name='parcel_inds_null_tally_summary',con=engine,if_exists='replace')
-
-# Drop index for ind_description table if it exists; 
-# this causes an error when (re-)creating the ind_description table if index exists
-curs.execute('DROP INDEX IF EXISTS ix_ind_description_index;')
-conn.commit()
-ind_matrix.to_sql(name='ind_description',con=engine,if_exists='replace')
-
-print("\n Nulls by indicator and Section of state")
-for ind in ind_list:
-  print("\n{}".format(ind))
-  null_ind = pandas.read_sql_query("SELECT sos_name_2016, COUNT(*) null_count FROM parcel_indicators p WHERE {ind} IS NULL GROUP BY sos_name_2016;".format(ind = ind),con=engine)
-  if len(null_ind) != 0:
-    print(null_ind)
-  if len(null_ind) == 0:
-    print("No null values")
-
-
-print("\nPostgresql summary tables containing the above were created:")
-print("To view a description of all indicators for your region: SELECT * FROM ind_description;")
-print("To view a summary of by variable name: SELECT * FROM parcel_ind_null_summary_t;")
-print("To view a summary of row-wise null values: SELECT * FROM parcel_inds_null_tally_summary;")
-print("To view a summary of null values for a particular indicator stratified by section of state:")
-print(" SELECT sos_name_2016, COUNT(*) indicator_null_count FROM parcel_indicators p LEFT JOIN parcel_sos sos ON p.{id} = sos.{id} WHERE indicator IS NULL GROUP BY sos_name_2016;".format(id = points_id))
 
 # output to completion log    
 script_running_log(script, task, start, locale)

@@ -140,6 +140,7 @@ LANGUAGE plpgsql
 RETURNS NULL ON NULL INPUT;  
   '''
 curs.execute(create_threshold_functions)
+conn.commit()
 print('Done.')
 
 # Restrict to indicators associated with study region (except distance to closest dest indicators)
@@ -361,6 +362,7 @@ if res is None:
             print("."),
     create_index = '''CREATE UNIQUE INDEX {table}_idx ON  {table} ({id});  '''.format(table = table[0], id = points_id.lower())
     curs.execute(create_index)
+    conn.commit()
     print(" Done.")
 
 table = ['ind_local_living','ll']
@@ -404,6 +406,7 @@ if res is None:
             print("."),
     create_index = '''CREATE UNIQUE INDEX {table}_idx ON  {table} ({id});  '''.format(table = table[0], id = points_id.lower())
     curs.execute(create_index)
+    conn.commit()
     print(" Done.")
     
 
@@ -440,12 +443,13 @@ if res is None:
         print("."),
     create_index = '''CREATE UNIQUE INDEX {table}_idx ON  {table} ({id});  '''.format(table = table[0], id = points_id.lower())
     curs.execute(create_index)
+    conn.commit()
     print(" Done.")
 
-# we just calculate food ratio at 1600m, so we'll set nh_threshold to that value
+# calculate food indicators at both 1.6km and 3.2km
+print(" - ind_food... "),
 for nh_threshold in [1600,3200]:
     table = ['ind_food_{nh_threshold}m'.format(nh_threshold = nh_threshold),'f']
-    print(" - {table}... ".format(table = table[0])),
     sql = '''
     DROP TABLE IF EXISTS {table};
     CREATE TABLE IF NOT EXISTS {table} AS
@@ -484,9 +488,19 @@ for nh_threshold in [1600,3200]:
     conn.commit()
     create_index = '''CREATE UNIQUE INDEX IF NOT EXISTS {table}_idx ON  {table} ({id});  '''.format(table = table[0],id = points_id.lower())
     curs.execute(create_index)
-    print(" Done.")
-    
+    conn.commit()
 
+# combine food tables
+sql = '''
+CREATE TABLE ind_food AS
+SELECT * FROM ind_food_1600m LEFT JOIN ind_food_3200m USING (gnaf_pid);
+CREATE UNIQUE INDEX IF NOT EXISTS ind_food_idx ON  ind_food ({id});
+DROP TABLE ind_food_1600m;
+DROP TABLE ind_food_3200m;
+'''.format(id = points_id.lower())
+curs.execute(sql)
+conn.commit()
+print(" Done.")
 
 # Create Open Space measures (distances, which can later be considered with regard to thresholds)
 # In addition to public open space (pos), also includes sport areas and blue space
@@ -789,6 +803,7 @@ curs.execute(sql)
 conn.commit()
 create_index = '''CREATE UNIQUE INDEX IF NOT EXISTS {table}_idx ON  {table} ({id});  '''.format(table = table[0], id = points_id.lower())
 curs.execute(create_index)
+conn.commit()
 print("Done.")
     
 print("Import ACARA schools look up table with NAPLAN results and area linkage codes... "),

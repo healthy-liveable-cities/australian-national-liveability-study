@@ -178,7 +178,7 @@ INSERT INTO acara_summary SELECT 9 AS year, 'numeracy' AS trait,COUNT(year9_nume
 SELECT year, trait, count, min, max, round(avg::numeric,2) AS avg, round(stddev::numeric,2) AS sd FROM acara_summary;
 
 --- output data
-COPY acara_schools TO 'D:/ntnl_li_2018_template/data/destinations/acara_schools_naplan_2018.csv' WITH DELIMITER ',' CSV HEADER;                                         
+COPY acara_schools TO 'D:/ntnl_li_2018_template/data/destinations/acara_schools_naplan_2017.csv' WITH DELIMITER ',' CSV HEADER;                                         
 '''
 
 # post hoc modifications i made
