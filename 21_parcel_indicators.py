@@ -135,12 +135,12 @@ for summary in query_summaries:
     df.columns=[summary]
     ind_summary = ind_summary.join(df, how='left')
     # get urban null values
-    df = pandas.read_sql_query('''SELECT {} FROM parcel_indicators WHERE sos_name_2016 IN ('Urban','Other Urban');'''.format(query_summaries[summary]),con=engine)
+    df = pandas.read_sql_query('''SELECT {} FROM parcel_indicators WHERE sos_name_2016 IN ('Major Urban','Other Urban');'''.format(query_summaries[summary]),con=engine)
     df = df.transpose()
     df.columns=[summary]
     ind_summary_urban = ind_summary_urban.join(df, how='left')
     # get not urban null values
-    df = pandas.read_sql_query('''SELECT {} FROM parcel_indicators WHERE sos_name_2016 NOT IN ('Urban','Other Urban');'''.format(query_summaries[summary]),con=engine)
+    df = pandas.read_sql_query('''SELECT {} FROM parcel_indicators WHERE sos_name_2016 NOT IN ('Major Urban','Other Urban');'''.format(query_summaries[summary]),con=engine)
     df = df.transpose()
     df.columns=[summary]
     ind_summary_not_urban = ind_summary_not_urban.join(df, how='left')
