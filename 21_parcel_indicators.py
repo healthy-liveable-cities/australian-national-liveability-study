@@ -5,6 +5,7 @@
 
 import time
 import psycopg2 
+import numpy as np
 from sqlalchemy import create_engine
 
 from script_running_log import script_running_log
@@ -145,28 +146,45 @@ for summary in query_summaries:
     df.columns=[summary]
     ind_summary_not_urban = ind_summary_not_urban.join(df, how='left')
 
-df.to_sql(name='ind_summary',con=engine,if_exists='replace')
+ind_summary['null_pct'] = ind_summary.apply (lambda row: 100*( int(''.join([k for k in row['nulls'] if k.isdigit()]))
+                                      / np.float64(int(''.join([k for k in row['count'] if k.isdigit()])))) , axis=1)
+ind_summary_urban['null_pct'] = ind_summary_urban.apply (lambda row: 100*( int(''.join([k for k in row['nulls'] if k.isdigit()]))
+                                      / np.float64(int(''.join([k for k in row['count'] if k.isdigit()])))) , axis=1)
+ind_summary_not_urban['null_pct'] = ind_summary_not_urban.apply (lambda row: 100*( int(''.join([k for k in row['nulls'] if k.isdigit()]))
+                                      / np.float64(int(''.join([k for k in row['count'] if k.isdigit()])))) , axis=1)
+# Get overall count to add to urban and not urban for percentage contributions
+overall_count = ind_summary['count'].to_frame()    
+overall_count.columns = ['overall_count']
+ind_summary_urban = ind_summary_urban.join(overall_count,how='left')
+ind_summary_not_urban = ind_summary_not_urban.join(overall_count,how='left')
+# calculate percentage
+ind_summary['count_pct'] = ind_summary.apply (lambda row: 100*( int(''.join([k for k in row['count'] if k.isdigit()]))
+                                      / np.float64(int(''.join([k for k in row['count'] if k.isdigit()])))) , axis=1)
+ind_summary_urban['count_pct'] = ind_summary_urban.apply (lambda row: 100*( int(''.join([k for k in row['count'] if k.isdigit()]))
+                                      / np.float64(int(''.join([k for k in row['overall_count'] if k.isdigit()])))) , axis=1)
+ind_summary_not_urban['count_pct'] = ind_summary_not_urban.apply (lambda row: 100*( int(''.join([k for k in row['count'] if k.isdigit()]))
+                                      / np.float64(int(''.join([k for k in row['overall_count'] if k.isdigit()])))) , axis=1)
+ind_summary.to_sql(name='ind_summary',con=engine,if_exists='replace')
 print('     - ind_summary')
-df.to_sql(name='ind_summary_urban',con=engine,if_exists='replace')
+ind_summary_urban.to_sql(name='ind_summary_urban',con=engine,if_exists='replace')
 print('     - ind_summary_urban')
-df.to_sql(name='ind_summary_not_urban',con=engine,if_exists='replace')
+ind_summary_not_urban.to_sql(name='ind_summary_not_urban',con=engine,if_exists='replace')
 print('     - ind_summary_not_urban')
 print("Done.")
-
 print("\nPlease review the following indicator summary and consider any oddities:"),
 # print for diagnostic purposes
-variables = ['mean','sd','min','max','nulls','count']
+variables = ['mean','sd','min','max','nulls','null_pct','count','count_pct']
 for i in ind_summary.index:
     print('\n{}:'.format(ind_summary.loc[i]['unit_level_description']))
     print('     {}'.format(i))
     summary = list(ind_summary.loc[i,variables].values)
     summary_urban = list(ind_summary_urban.loc[i,variables].values)
     summary_not_urban = list(ind_summary_not_urban.loc[i,variables].values)
-    print('            {:>10} {:>10} {:>10} {:>10} {:>10} {:>10}'.format(*variables))
-    print('Overall     {:10} {:10} {:10} {:10} {:10} {:10}'.format(*summary))
-    print('Urban       {:10} {:10} {:10} {:10} {:10} {:10}'.format(*summary_urban))
-    print('Not urban   {:10} {:10} {:10} {:10} {:10} {:10}'.format(*summary_not_urban))
-
+    print('            {:>10} {:>10} {:>10} {:>10} {:>10} {:>10} {:>10} {:>10}'.format(*variables))
+    print('Overall     {:10} {:10} {:10} {:10} {:10} {:10.2} {:10} {:10.2}'.format(*summary))
+    print('Urban       {:10} {:10} {:10} {:10} {:10} {:10.2} {:10} {:10.2}'.format(*summary_urban))
+    print('Not urban   {:10} {:10} {:10} {:10} {:10} {:10.2} {:10} {:10.2}'.format(*summary_not_urban)
+)
 print("Creating row-wise tally of nulls for each parcel...")
 null_query_combined = '+\n'.join("(" + ind_matrix['indicators'] + " IS NULL::int)")
 
