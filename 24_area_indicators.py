@@ -170,12 +170,16 @@ areas = {'mb_code_2016':'mb',
          'region':'region'}
          
 # create aggregated raw liveability estimates for selected area
+print("Create area tables... ")
 for area_code in areas.keys():
   area = areas[area_code]
   area_code2 = area_code
   if area == 'region':
     area_code2 = " 'region'::varchar AS region "
-  print("Create aggregate indicator table li_inds_{}... ".format(area)),
+    print("  {}".format("Study region"))
+  else:
+    print("  {}".format(area.upper()))
+  print("    - aggregate indicator table li_inds_{}... ".format(area)),
   createTable = '''
   DROP TABLE IF EXISTS li_inds_{area} ; 
   CREATE TABLE li_inds_{area} AS
@@ -198,7 +202,7 @@ for area_code in areas.keys():
   
   ### Note: for now, we are just doing the continuous scale indicators with averages; later I'll implement a second pass to evaluate the threshold cutoffs.
   
-  print("Create sd summary table li_sd_{}... ".format(area)),
+  print("    - sd summary table li_sd_{}... ".format(area)),
   createTable = '''
   DROP TABLE IF EXISTS li_sd_{area} ; 
   CREATE TABLE li_sd_{area} AS
@@ -218,7 +222,7 @@ for area_code in areas.keys():
   conn.commit()
   print("Done.")
   
-  print("Create range summary table li_range_{}... ".format(area)),
+  print("    - range summary table li_range_{}... ".format(area)),
   createTable = '''
   DROP TABLE IF EXISTS li_range_{area} ; 
   CREATE TABLE li_range_{area} AS
@@ -238,7 +242,7 @@ for area_code in areas.keys():
   conn.commit()
   print("Done.")
   
-  print("Create median summary table li_median_{}... ".format(area)),  
+  print("    - median summary table li_median_{}... ".format(area)),  
   createTable = '''
   DROP TABLE IF EXISTS li_median_{area} ; 
   CREATE TABLE li_median_{area} AS
@@ -258,7 +262,7 @@ for area_code in areas.keys():
   conn.commit()
   print("Done.")
   
-  print("Create IQR summary table li_iqr_{}... ".format(area)),  
+  print("    - IQR summary table li_iqr_{}... ".format(area)),  
   createTable = '''
   DROP TABLE IF EXISTS li_iqr_{area} ; 
   CREATE TABLE li_iqr_{area} AS
@@ -280,7 +284,7 @@ for area_code in areas.keys():
   
   map_ind_percentile_area = ''
   if area != 'region':
-    print("Create percentile summary table li_percentiles_{}... ".format(area)),      
+    print("    - percentile summary table li_percentiles_{}... ".format(area)),      
     createTable = '''
     DROP TABLE IF EXISTS li_percentiles_{area} ; 
     CREATE TABLE li_percentiles_{area} AS
@@ -381,7 +385,7 @@ for area_code in areas.keys():
                area_code2 = area_code2[area_code],
                area_code_table = area_code_tables[area_code],
                percentile_join = percentile_join_string)
-    print("Creating map feature at {} level".format(area))
+    print("    - map feature at {} level".format(area))
     curs.execute(createTable)
     conn.commit()
     
@@ -395,7 +399,7 @@ for area_code in areas.keys():
                area_names2 = area_names2[area_code],
                area_code = area_code,
                boundaries = boundary_tables[area_code])
-    print("Creating boundary overlays at {} level".format(area)),
+    print("    - boundary overlays at {} level".format(area)),
     curs.execute(createTable)
     conn.commit()
     print("Done.")
