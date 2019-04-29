@@ -19,15 +19,42 @@ start = time.time()
 script = os.path.basename(sys.argv[0])
 task = 'Create area level indicator tables for {}'.format(locale)
 
+# Connect to postgresql database     
+conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
+curs = conn.cursor()
 
 # Read in indicator description matrix
 ind_matrix = df_inds
 
 # Restrict to indicators associated with study region
-ind_matrix = ind_matrix[ind_matrix['locale'].str.contains(locale)]
+ind_matrix = df_inds[df_inds['locale'].str.contains('|'.join([locale,'\*']))]
+
+# Get a list of destinations processed within this region for distance to closest
+# sql = '''SELECT DISTINCT(dest_name) dest_name FROM od_closest ORDER BY dest_name;'''
+sql = '''SELECT dest_name FROM dest_type ORDER BY dest_name;'''
+curs.execute(sql)
+categories = [x[0] for x in curs.fetchall()]
+
+
+# get the set of distance to closest regions which match for this region
+destinations = df_inds[df_inds['ind'].str.contains('destinations')]
+current_categories = [x for x in categories if 'distance_m_{}'.format(x) in destinations.ind_plain.str.encode('utf8').tolist()]
+ind_matrix = ind_matrix.append(destinations[destinations['ind_plain'].str.replace('distance_m_','').str.contains('|'.join(current_categories))])
+ind_matrix['order'] = ind_matrix.index
+ind_soft = ind_matrix.loc[ind_matrix.tags=='_{threshold}',:].copy()
+ind_hard = ind_matrix.loc[ind_matrix.tags=='_{threshold}',:].copy()
+ind_soft.replace(to_replace='{threshold}', value='soft', inplace=True,regex=True)
+ind_hard.replace(to_replace='{threshold}', value='hard', inplace=True,regex=True)
+
+ind_matrix = pandas.concat([ind_matrix,ind_soft,ind_hard], ignore_index=True).sort_values('ind')
+ind_matrix.drop(ind_matrix[ind_matrix.tags == '_{threshold}'].index, inplace=True)
+# # Restrict to indicators with a defined query
+ind_matrix = ind_matrix[pandas.notnull(ind_matrix['Query'])]
+ind_matrix.drop(ind_matrix[ind_matrix['updated?'] == 'n'].index, inplace=True)
 
 # Restrict to indicators with a defined source, or the urban liveability index
-ind_matrix = ind_matrix[((pandas.notnull(ind_matrix['Source'])) | (ind_matrix['ind']=='uli'))]
+# ind_matrix = ind_matrix[((pandas.notnull(ind_matrix['Source'])) | (ind_matrix['ind']=='uli'))]
+# ind_matrix = ind_matrix[((pandas.notnull(ind_matrix['Source'])))]
 
 # Make concatenated indicator and tag name (e.g. 'walk_14' + 'hard')
 # Tags could be useful later as can allow to search by name for e.g. threshold type,
