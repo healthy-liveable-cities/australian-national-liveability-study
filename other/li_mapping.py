@@ -29,7 +29,7 @@ engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_
                                                                       host = db_host,
                                                                       db   = db))  
                                                                       
-def folium_to_png(locale_maps,map_name,width=1000,height=800,pause=5):
+def folium_export(locale_maps,map_name,width=1000,height=800,pause=5):
     import selenium.webdriver
     try:
         # set up options for firefox browser automation
@@ -58,6 +58,8 @@ def folium_to_png(locale_maps,map_name,width=1000,height=800,pause=5):
         ## PDF printing is not currently working; commented out
         # driver.execute_script("window.print();")
         driver.save_screenshot('{}/{}.png'.format(locale_maps,map_name))
+        with open('{}/_{}.html'.format(locale_maps,map_name), 'w') as f:
+            f.write(driver.page_source)
         driver.close()
     except FileNotFoundError as fnf_error:
         print(fnf_error)
@@ -116,7 +118,22 @@ inds_plain = ["sa1_7dig11",
               "pred_no2_2011_col_ppb" ,
               "sa1_prop_affordablehousing" ,
               "sa2_prop_live_work_sa3"]
-       
+              
+polarity = ["na",
+              "positive" ,
+              "positive" ,
+              "positive" ,
+              "positive" ,
+              "positive" ,
+              "positive" ,
+              "positive" ,
+              "positive" ,
+              "positive" ,
+              "positive" ,
+              "negative" ,
+              "positive" ,
+              "positive"]
+              
 sql = '''
 SELECT                     
     a.sa1_7dig11                                     AS "{}",
@@ -158,45 +175,92 @@ bounds = map_layers['region'].bounds.transpose().to_dict()[0]
 
 print("\nPlease inspect results using interactive maps saved in project maps folder:")
 # for indicator in inds[1:-1]:
-m = folium.Map(location=xy, zoom_start=11,tiles=None, control_scale=True, prefer_canvas=True)
-m.add_tile_layer(tiles='Stamen Toner',
-                 name='Basemap (Stamen Toner)', 
-                 overlay=True,
-                 attr=(
-                       "Map tiles: <a href=\"http://stamen.com/\">Stamen Design</a>," 
-                       "under <a href=\"http://creativecommons.org/licenses/by/3.0\">CC BY 3.0</a>, featuring " 
-                       "data by <a href=\"http://openstreetmap.org/\">OpenStreetMap</a>,"
-                       "under <a href=\"http://creativecommons.org/licenses/by-sa/3.0\">CC BY SA</a>.")
-                )
+
 # add layers
+folium_for_web = True
 for current_ind in range(3,len(inds)):
-    ind_name = '{}, by {}'.format(inds[current_ind],inds[0])
-    legend_text = '{} quartiles, by {}'.format(inds[current_ind],inds[0])
-    bins = list(map_layers['sa1'][inds[current_ind]].quantile([0, 0.25, 0.5, 0.75, 1]))  
-    liveability = folium.Choropleth(data=map_layers['sa1'],
-                    geo_data =map_layers['sa1'].to_json(),
-                    name = ind_name,
-                    columns =[inds[0],inds[current_ind]],
-                    key_on="feature.properties.{}".format(inds[0]),
-                    fill_color='BrBG',
-                    fill_opacity=0.7,
-                    line_opacity=0.1,
-                    legend_name=legend_text,
-                    bins = bins,
-                    reset=True,
-                    overlay = True
-                    ).add_to(m)
-    folium.features.GeoJsonTooltip(fields=inds,
-                                labels=True, 
-                                sticky=True
-                                ).add_to(liveability.geojson)      
-                                
-    folium.LayerControl(collapsed=True).add_to(m)
-    m.fit_bounds(m.get_bounds())
-    m.get_root().html.add_child(folium.Element(legend_style))
-    
-    # save map
-    map_name = '{}_{}_{}'.format(locale,inds_plain[current_ind],inds[0].lower())
-    m.save('{}/{}.html'.format(locale_maps,map_name))
-    folium_to_png(locale_maps,map_name)
-    print("\t- {}".format(map_name))           
+    if polarity[current_ind] == 'positive':
+        m = folium.Map(location=xy, zoom_start=11,tiles=None, control_scale=True, prefer_canvas=True, zoom_control = folium_for_web)
+        m.add_tile_layer(tiles='Stamen Toner',
+                        name='Basemap (Stamen Toner)', 
+                        overlay=True,
+                        attr=(
+                            "Map tiles: <a href=\"http://stamen.com/\">Stamen Design</a>," 
+                            "under <a href=\"http://creativecommons.org/licenses/by/3.0\">CC BY 3.0</a>, featuring " 
+                            "data by <a href=\"http://openstreetmap.org/\">OpenStreetMap</a>,"
+                            "under <a href=\"http://creativecommons.org/licenses/by-sa/3.0\">CC BY SA</a>.")
+                        )
+        ind_name = '{}, by {}'.format(inds[current_ind],inds[0])
+        legend_text = '{} quartiles, by {}'.format(inds[current_ind],inds[0])
+        bins = list(map_layers['sa1'][inds[current_ind]].quantile([0, 0.25, 0.5, 0.75, 1]))  
+        liveability = folium.Choropleth(data=map_layers['sa1'],
+                        geo_data =map_layers['sa1'].to_json(),
+                        name = ind_name,
+                        columns =[inds[0],inds[current_ind]],
+                        key_on="feature.properties.{}".format(inds[0]),
+                        fill_color='BrBG',
+                        fill_opacity=0.7,
+                        line_opacity=0.1,
+                        legend_name=legend_text,
+                        bins = bins,
+                        reset=True,
+                        overlay = True
+                        ).add_to(m)
+        folium.features.GeoJsonTooltip(fields=inds,
+                                    labels=True, 
+                                    sticky=True
+                                    ).add_to(liveability.geojson)
+        if folium_for_web:
+            folium.LayerControl(collapsed=True).add_to(m)
+        m.fit_bounds(m.get_bounds())
+        m.get_root().html.add_child(folium.Element(legend_style))
+        # save map
+        map_name = '{}_{}_{}'.format(locale,inds_plain[current_ind],inds[0].lower())
+        m.save('{}/{}.html'.format(locale_maps,map_name))
+        # folium_export(locale_maps,map_name)
+        print("\t- {}".format(map_name))  
+    else:
+        # polarity is negative
+        m = folium.Map(location=xy, zoom_start=11,tiles=None, control_scale=True, prefer_canvas=True, zoom_control = folium_for_web)
+        m.add_tile_layer(tiles='Stamen Toner',
+                        name='Basemap (Stamen Toner)', 
+                        overlay=True,
+                        attr=(
+                            "Map tiles: <a href=\"http://stamen.com/\">Stamen Design</a>," 
+                            "under <a href=\"http://creativecommons.org/licenses/by/3.0\">CC BY 3.0</a>, featuring " 
+                            "data by <a href=\"http://openstreetmap.org/\">OpenStreetMap</a>,"
+                            "under <a href=\"http://creativecommons.org/licenses/by-sa/3.0\">CC BY SA</a>.")
+                        )
+        ind_name = '{}, by {}'.format(inds[current_ind],inds[0])
+        legend_text = '{} quartiles, by {}'.format(inds[current_ind],inds[0])
+        bins = list(map_layers['sa1'][inds[current_ind]].quantile([0, 0.25, 0.5, 0.75, 1]))  
+        liveability = folium.Choropleth(data=map_layers['sa1'],
+                        geo_data =map_layers['sa1'].to_json(),
+                        name = ind_name,
+                        columns =[inds[0],inds[current_ind]],
+                        key_on="feature.properties.{}".format(inds[0]),
+                        fill_color='YlOrBr',
+                        fill_opacity=0.7,
+                        line_opacity=0.1,
+                        legend_name=legend_text,
+                        bins = bins,
+                        reset=True,
+                        overlay = True
+                        ).add_to(m)
+        folium.features.GeoJsonTooltip(fields=inds,
+                                    labels=True, 
+                                    sticky=True
+                                    ).add_to(liveability.geojson)  
+        if folium_for_web:
+            folium.LayerControl(collapsed=True).add_to(m)
+        m.fit_bounds(m.get_bounds())
+        m.get_root().html.add_child(folium.Element(legend_style))
+        # save map
+        map_name = '{}_{}_{}'.format(locale,inds_plain[current_ind],inds[0].lower())
+        m.save('{}/{}.html'.format(locale_maps,map_name))
+        # folium_export(locale_maps,map_name)
+        print("\t- {}".format(map_name))  
+        
+# for current_ind in range(3,len(inds)):
+    # map_name = '{}_{}_{}'.format(locale,inds_plain[current_ind],inds[0].lower())
+    # folium_export(locale_maps,map_name)
