@@ -156,9 +156,9 @@ overall_count.columns = ['overall_count']
 ind_summary_urban = ind_summary_urban.join(overall_count,how='left')
 ind_summary_not_urban = ind_summary_not_urban.join(overall_count,how='left')
 # calculate percentage
-ind_summary['count_pct'] = ind_summary.apply (lambda row: 100 * row['count'] / np.float64(row['count'] ) , axis=1)
-ind_summary_urban['count_pct'] = ind_summary_urban.apply (lambda row: 100 * row['count'] / np.float64(row['overall_count'] ) , axis=1)
-ind_summary_not_urban['count_pct'] = ind_summary_not_urban.apply (lambda row: 100 * row['count'] / np.float64(row['overall_count'] ) , axis=1)
+ind_summary['count_pct'] = ind_summary.apply (lambda row: 100 * row['count'] / np.float64(row['count'] ) , axis=1).round(2)
+ind_summary_urban['count_pct'] = ind_summary_urban.apply (lambda row: 100 * row['count'] / np.float64(row['overall_count'] ) , axis=1).round(2)
+ind_summary_not_urban['count_pct'] = ind_summary_not_urban.apply (lambda row: 100 * row['count'] / np.float64(row['overall_count'] ) , axis=1).round(2)
 ind_summary.to_sql(name='ind_summary',con=engine,if_exists='replace')
 print('     - ind_summary')
 ind_summary_urban.to_sql(name='ind_summary_urban',con=engine,if_exists='replace')
