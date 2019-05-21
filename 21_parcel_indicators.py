@@ -125,8 +125,8 @@ query_summaries = {
    'sd'   :',\n'.join("ROUND(STDDEV(" + ind_matrix['indicators'] + ")::numeric,2) AS " + ind_matrix['indicators']),
    'min'  :',\n'.join("ROUND(MIN("    + ind_matrix['indicators'] + ")::numeric,2) AS " + ind_matrix['indicators']),
    'max'  :',\n'.join("ROUND(MAX("    + ind_matrix['indicators'] + ")::numeric,2) AS " + ind_matrix['indicators']),
-   'count':',\n'.join("TO_CHAR(COUNT("+ ind_matrix['indicators'] + "),'9,999,999') AS " + ind_matrix['indicators']),
-   'nulls':',\n'.join("TO_CHAR(SUM("  + ind_matrix['indicators'] + " IS NULL::int),'9,999,999') AS " + ind_matrix['indicators']),
+   'count':',\n'.join("COUNT(*) AS " + ind_matrix['indicators']),
+   'nulls':',\n'.join("SUM("  + ind_matrix['indicators'] + " IS NULL::int) AS " + ind_matrix['indicators']),
     }
 
 for summary in query_summaries:
@@ -146,24 +146,19 @@ for summary in query_summaries:
     df.columns=[summary]
     ind_summary_not_urban = ind_summary_not_urban.join(df, how='left')
 
-ind_summary['null_pct'] = ind_summary.apply (lambda row: 100*( int(''.join([k for k in row['nulls'] if k.isdigit()]))
-                                      / np.float64(int(''.join([k for k in row['count'] if k.isdigit()])))) , axis=1)
-ind_summary_urban['null_pct'] = ind_summary_urban.apply (lambda row: 100*( int(''.join([k for k in row['nulls'] if k.isdigit()]))
-                                      / np.float64(int(''.join([k for k in row['count'] if k.isdigit()])))) , axis=1)
-ind_summary_not_urban['null_pct'] = ind_summary_not_urban.apply (lambda row: 100*( int(''.join([k for k in row['nulls'] if k.isdigit()]))
-                                      / np.float64(int(''.join([k for k in row['count'] if k.isdigit()])))) , axis=1)
+ind_summary['null_pct'] = ind_summary.apply (lambda row: 100*( row['nulls'] / np.float64(row['count'])) , axis=1)
+ind_summary_urban['null_pct'] = ind_summary_urban.apply (lambda row: 100*( row['nulls'] / np.float64(row['count'])) , axis=1)
+ind_summary_not_urban['null_pct'] = ind_summary_not_urban.apply (lambda row: 100*( row['nulls'] / np.float64(row['count'])) , axis=1)
+
 # Get overall count to add to urban and not urban for percentage contributions
 overall_count = ind_summary['count'].to_frame()    
 overall_count.columns = ['overall_count']
 ind_summary_urban = ind_summary_urban.join(overall_count,how='left')
 ind_summary_not_urban = ind_summary_not_urban.join(overall_count,how='left')
 # calculate percentage
-ind_summary['count_pct'] = ind_summary.apply (lambda row: 100*( int(''.join([k for k in row['count'] if k.isdigit()]))
-                                      / np.float64(int(''.join([k for k in row['count'] if k.isdigit()])))) , axis=1)
-ind_summary_urban['count_pct'] = ind_summary_urban.apply (lambda row: 100*( int(''.join([k for k in row['count'] if k.isdigit()]))
-                                      / np.float64(int(''.join([k for k in row['overall_count'] if k.isdigit()])))) , axis=1)
-ind_summary_not_urban['count_pct'] = ind_summary_not_urban.apply (lambda row: 100*( int(''.join([k for k in row['count'] if k.isdigit()]))
-                                      / np.float64(int(''.join([k for k in row['overall_count'] if k.isdigit()])))) , axis=1)
+ind_summary['count_pct'] = ind_summary.apply (lambda row: 100 * row['count'] / np.float64(row['count'] ) , axis=1).round(2)
+ind_summary_urban['count_pct'] = ind_summary_urban.apply (lambda row: 100 * row['count'] / np.float64(row['overall_count'] ) , axis=1).round(2)
+ind_summary_not_urban['count_pct'] = ind_summary_not_urban.apply (lambda row: 100 * row['count'] / np.float64(row['overall_count'] ) , axis=1).round(2)
 ind_summary.to_sql(name='ind_summary',con=engine,if_exists='replace')
 print('     - ind_summary')
 ind_summary_urban.to_sql(name='ind_summary_urban',con=engine,if_exists='replace')

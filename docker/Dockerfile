@@ -65,7 +65,7 @@ RUN conda config --set show_channel_urls true                                   
  && conda config --prepend channels conda-forge                                                      \
  && conda update --strict-channel-priority --yes -n base conda                                       \
  && conda install --strict-channel-priority --update-all --force-reinstall --yes osmnx python-igraph \
- && conda install -y psycopg2 geoalchemy2 rasterio xlrd seaborn bokeh                                \
+ && conda install -y psycopg2 geoalchemy2 rasterio xlrd seaborn bokeh openpyxl                       \
  && conda clean --yes --all                                                                          \
  && conda info --all                                                                                 \
  && conda list
@@ -77,7 +77,7 @@ RUN conda install -y geckodriver selenium basemap proj4 pyproj \
  && conda list
  
 USER root 
-RUN apt-get install -y firefox               
+RUN apt-get update && apt-get install -y firefox               
 RUN apt-get install -y fonts-unfonts-core    \
  && apt-get install -y fonts-unfonts-extra   \
  && apt-get install -y fonts-tlwg-loma       \
