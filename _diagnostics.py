@@ -47,14 +47,15 @@ with pandas.ExcelWriter(outfile) as writer:
                                              '' AS subset,
                                              '' AS database,
                                              '' AS analyst,
-                                              unit_level_description, 
-                                              mean, 
-                                              sd, 
-                                              min, 
-                                              max, 
-                                              count, 
-                                              null_pct, 
-                                              count_pct 
+                                             indicators AS variable,
+                                             unit_level_description, 
+                                             mean, 
+                                             sd, 
+                                             min, 
+                                             max, 
+                                             count, 
+                                             null_pct, 
+                                             count_pct 
                                         FROM ind_summary
                                         LIMIT 0;
                                     ''', 
@@ -70,6 +71,7 @@ with pandas.ExcelWriter(outfile) as writer:
                                                 '{}' AS subset,
                                                 '{}' AS database,
                                                 '{}' AS analyst,
+                                                indicators AS variable,
                                                 unit_level_description, 
                                                 mean, 
                                                 sd, 
