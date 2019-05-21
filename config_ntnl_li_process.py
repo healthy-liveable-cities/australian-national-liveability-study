@@ -46,13 +46,13 @@ df_data_catalogue = pandas.read_excel(xls, 'data_catalogue')
 df_housekeeping = pandas.read_excel(xls, 'housekeeping')
 
 df_parameters.value = df_parameters.value.fillna('')
+for var in [x for x in df_parameters.index.values]:
+    globals()[var] = df_parameters.loc[var]['value']    
 
 study_regions = [x.encode() for x in df_studyregion.index.tolist() if x not in ['testing','australia']]
 responsible = df_studyregion['responsible']
-year   = df_parameters.loc['year']['value']
 
 # The main directory for data
-folderPath = df_parameters.loc['folderPath']['value']
 
 # Set up locale (ie. defined at command line, or else testing)
 if len(sys.argv) >= 2:
@@ -62,20 +62,8 @@ else:
 if __name__ == '__main__':
   print("\nProcessing script {} for locale {}...\n".format(sys.argv[0],locale))
 
-def pretty(d, indent=0):
-   for key, value in d.items():
-      depth = 0
-      print('\t' * indent + str(key)+':'),
-      if isinstance(value, dict):
-        if depth == 0:
-          print(" ")
-          depth+=1
-        pretty(value, indent+1)
-      else:
-        print(' ' + str(value))
   
 # More study region details
-
 full_locale = df_studyregion.loc[locale]['full_locale']
 region = df_studyregion.loc[locale]['region']
 state  = df_studyregion.loc[locale]['state']
@@ -103,58 +91,16 @@ if pandas.np.isnan(suffix):
 study_region = '{0}_{1}'.format(region,year).lower()
 db = 'li_{0}_{1}{2}'.format(locale,year,suffix).lower()
 
-# ; Project spatial reference (for ArcGIS)
-SpatialRef = df_parameters.loc['SpatialRef']['value']
-
-# Project spatial reference EPSG code (for Postgis)
-srid       = df_parameters.loc['srid']['value']
-units      = df_parameters.loc['units']['value']
-units_full = df_parameters.loc['units_full']['value']
-
 # Study region buffer
-study_buffer = df_parameters.loc['study_buffer']['value']
 buffered_study_region = '{0}_{1}{2}'.format(study_region,study_buffer,units)
 
 # Number of processors to use in when multiprocessing
 nWorkers = df_parameters.loc['multiprocessing']['value']
 
-# hexagon diagonal length and buffer distance (metres)
-#   -- hexagon sides will be half the length of this value
-#   -- hexagon area is 3/2 * sqrt(3) * (hex_diag/2)^2
-#  so with diag of 3000 m, area is 5845671.476 sq.m.
-hex_diag   = df_parameters.loc['hex_diag']['value']
-hex_buffer = df_parameters.loc['hex_buffer']['value']
-
 # Derived hex settings - no need to change
 hex_grid = '{0}_hex_{1}{2}_diag'.format(study_region,hex_diag,units)
 hex_grid_buffer =  '{0}_hex_{1}{2}_diag_{3}{2}_buffer'.format(study_region,hex_diag,units,hex_buffer)
 hex_side = float(hex_diag)*0.5
-
-# Temp folder  - be aware that some files may be created and stored here; you may need to manually remove such files 
-temp = df_parameters.loc['temp']['value']
-
-
-# location of the 'Create_Hexagon_Tessellation' user written package toolbox by Tim Whiteaker; acquired from http://www.arcgis.com/home/item.html?id=03388990d3274160afe240ac54763e57
-create_hexagon_tbx = df_parameters.loc['create_hexagon_tbx']['value']
-CreatePointsLines_tbx = df_parameters.loc['CreatePointsLines_tbx']['value']
-
-# TRANSFORMATIONS
-#  These three variables are used for specifying a transformation from GCS GDA 1994 to GDA2020 GA LLC when using arcpy.Project_management.  Specifically, its used in the custom clipFeature function in script 02_road_network_setup.py
-out_coor_system = df_parameters.loc['out_coor_system']['value']
-
-transform_method = df_parameters.loc['transform_method']['value']
-
-in_coor_system = df_parameters.loc['in_coor_system']['value']
-
-## This is used for spatial reference for 'destinations' feature dataset (in script 07_recompile_destinations.py --- similar to out_coor_system, it contains additions bounding box parameters apparently, and a flag 'IsHighPrecision'.  
-feature_ds_out_spatial_ref = df_parameters.loc['feature_ds_out_spatial_ref']['value']
-
-# SQL Settings
-db_host   = df_parameters.loc['db_host']['value']
-db_port   = '{}'.format(df_parameters.loc['db_port']['value'])
-db_user   = df_parameters.loc['db_user']['value']
-db_pwd    = df_parameters.loc['db_pwd']['value']
-arc_sde_user = df_parameters.loc['arc_sde_user']['value']
 
 # Database names -- derived from above parameters; (no need to change!)
 gdb       = '{}.gdb'.format(db)
@@ -165,13 +111,12 @@ dbComment = 'Liveability indicator data for {0} {1}.'.format(locale,year)
 
 
 os.environ['PGHOST']     = db_host
-os.environ['PGPORT']     = db_port
+os.environ['PGPORT']     = str(db_port)
 os.environ['PGUSER']     = db_user
 os.environ['PGPASSWORD'] = db_pwd
 os.environ['PGDATABASE'] = db
 
 osm_data = os.path.join(df_studyregion.loc[locale]['osm_data'])
-osmconvert = df_parameters.loc['osmconvert']['value']
 osm2pgsql_exe = os.path.join(folderPath,df_parameters.loc['osm2pgsql_exe']['value'])
 osm2pgsql_style = os.path.join(folderPath,df_parameters.loc['osm2pgsql_style']['value'])
 osm_source = df_studyregion.loc[locale]['osm_source']
@@ -245,8 +190,6 @@ dwellings_field  = area_info['dwellings']['field']
 # Point data locations (e.g. GNAF address point features)
 points = df_studyregion.loc[locale]['points']
 points = points.split(',')
-points_id = df_parameters.loc['points_id']['value']
-points_srid = df_parameters.loc['points_srid']['value']
 
 # The below is perhaps a redundant naming convention,
 # but our last run of scripts invested in this, so for now we'll leave it in so things work
@@ -256,19 +199,10 @@ parcel_dwellings = 'parcel_dwellings'
 
 # roads
 # Define network data name structures
-road_data = df_parameters.loc['road_data']['value']  # the folder where road data is kept
 network_source = os.path.join(locale_dir,df_studyregion.loc[locale]['network_folder'])
-network_source_feature_dataset = df_parameters.loc['network_source_feature_dataset']['value']
-network_edges = df_parameters.loc['network_edges']['value']
-network_junctions = df_parameters.loc['network_junctions']['value']
 network_template = os.path.join(folderPath,road_data,df_parameters.loc['network_template']['value'])
 
-# transformations for network (currently WGS84 to GDA GA LCC using NTv2)
-network_transform_method = df_parameters.loc['network_transform_method']['value']
-network_in_coor_system   = df_parameters.loc['network_in_coor_system']['value']
-
 # Intersections with 3plus ways
-clean_intersections_gpkg = df_parameters.loc['clean_intersections_gpkg']['value']
 clean_intersections_locale = df_studyregion.loc[locale]['clean_intersections_locale']
 # intersections = os.path.join(folderPath,'roads/GDA2020_GA_LCC_3plus_way_intersections.gdb/intersections_2018_{}_gccsa10km'.format(locale.lower()))
 
@@ -280,23 +214,6 @@ in_network_dataset = os.path.join('{}'.format(network_source_feature_dataset),
                                 '{}_ND'.format(network_source_feature_dataset))
 # network dataset, with full path
 in_network_dataset_path = os.path.join(gdb_path,in_network_dataset)
-
-# network
-# sausage buffer network size  -- in units specified above
-distance = df_parameters.loc['distance']['value']
-
-# intersection tolerance
-intersection_tolerance = df_parameters.loc['intersection_tolerance']['value']
-
-# search tolderance (in units specified above; features outside tolerance not located when adding locations)
-# NOTE: may need to increase if no locations are found
-tolerance = df_parameters.loc['tolerance']['value']
- 
-# buffer distance for network lines as sausage buffer  
-line_buffer = df_parameters.loc['line_buffer']['value']
-
-# Threshold paramaters
-soft_threshold_slope = df_parameters.loc['soft_threshold_slope']['value']
 
 # Island exceptions are defined using ABS constructs in the project configuration file.
 # They identify contexts where null indicator values are expected to be legitimate due to true network isolation, 
@@ -313,16 +230,11 @@ no_foward_edge_issues = df_studyregion.loc[locale]['no_forward_edge_issues']
 snap_to_grid = 0.001
 if no_foward_edge_issues == 1:
   snap_to_grid = 0.01
-
-# Areas of Open Space
-aos_threshold = df_parameters.loc['aos_threshold']['value']
-    
+  
 # Destinations - locate destinations.gdb within dest_dir (ie. 'D:\ntnl_li_2018\data\destinations\' or whereever your ntnl_li_2018 folder is located)
 # Destinations data directory
 dest_dir = os.path.join(folderPath,df_parameters.loc['dest_dir']['value'])
 src_destinations = os.path.join(dest_dir,df_parameters.loc['src_destinations']['value'])
-destination_id = df_parameters.loc['destination_id']['value']
-destinations_gdb_has_datasets = df_parameters.loc['destinations_gdb_has_datasets']['value']
 
 # when recompiling destinations, the attributes are copied to csv in case later linkage is req'data
 # some fields are problematic however -- too large.  detail here to not copy.
@@ -359,18 +271,23 @@ destination_list = [x for x in df_destinations.destination.tolist()] # the desti
 
 df_osm_dest = df_osm_dest.replace(pandas.np.nan, 'NULL', regex=True)
 
-school_destinations = df_parameters.loc['school_destinations']['value']
-school_id = df_parameters.loc['school_id']['value']
-school_id_type = df_parameters.loc['school_id_type']['value']
-
-school_ratings = df_parameters.loc['school_ratings']['value']
 school_table = os.path.splitext(os.path.basename(school_ratings))[0]
-
-childcare_ratings = df_parameters.loc['childcare_ratings']['value']
 childcare_table = os.path.splitext(os.path.basename(childcare_ratings))[0]
 
 # When destinations are imported for study region, we don't want to retain all of these; now, purge
 purge_dest_list = [x.lower() for x in list(set(destination_list+df_housekeeping.destinations_to_purge_after_import.tolist()))]
+
+def pretty(d, indent=0):
+   for key, value in d.items():
+      depth = 0
+      print('\t' * indent + str(key)+':'),
+      if isinstance(value, dict):
+        if depth == 0:
+          print(" ")
+          depth+=1
+        pretty(value, indent+1)
+      else:
+        print(' ' + str(value))
 
 # specify that the above modules and all variables below are imported on 'from config.py import *'
 __all__ = [x for x in dir() if x not in ['__file__','__all__', '__builtins__', '__doc__', '__name__', '__package__']]
