@@ -76,6 +76,7 @@ def pretty(d, indent=0):
   
 # More study region details
 
+full_locale = df_studyregion.loc[locale]['full_locale']
 region = df_studyregion.loc[locale]['region']
 state  = df_studyregion.loc[locale]['state']
 
