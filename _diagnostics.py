@@ -53,9 +53,10 @@ with pandas.ExcelWriter(outfile) as writer:
                                              sd, 
                                              min, 
                                              max, 
-                                             count, 
-                                             null_pct, 
-                                             count_pct 
+                                             ROUND(null_pct,2) AS null_pct, 
+                                             ROUND(100 - null_pct,2) AS complete_pct,
+                                             count AS subset_count, 
+                                             ROUND(count_pct,2) AS subset_pct
                                         FROM ind_summary
                                         LIMIT 0;
                                     ''', 
@@ -77,9 +78,10 @@ with pandas.ExcelWriter(outfile) as writer:
                                                 sd, 
                                                 min, 
                                                 max, 
-                                                count, 
-                                                null_pct, 
-                                                count_pct 
+                                                ROUND(null_pct,2) AS null_pct, 
+                                                ROUND(100 - null_pct,2) AS complete_pct
+                                                count AS subset_count, 
+                                                ROUND(count_pct,2) AS subset_pct
                                         FROM ind_summary{};
                                     '''.format(full_locale, year, prefix, db, who,subset), 
                                         con=engine))
@@ -87,3 +89,4 @@ with pandas.ExcelWriter(outfile) as writer:
         
         df.to_excel(writer,sheet_name='{}_{}'.format(locale,year), index=False)   
 
+# TO DO add in dest counts summary

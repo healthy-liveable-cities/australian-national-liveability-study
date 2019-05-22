@@ -68,8 +68,12 @@ map_style = '''
     background: rgba(255,255,255,1);
     box-shadow: 0 0 15px rgba(0,0,0,0.2);
     border-radius: 5px;
-    width: 160%;
+    white-space: normal;
+	width:120%;
     }
+#legend {
+	width:120%;
+}
 .leaflet-control-attribution {
 	width: 60%;
 	height: auto;
@@ -120,6 +124,7 @@ for indicator in indicators:
     if all(i is None for i in map_layers['data'][indicator].values):
         print("\t- all records are null for this indicator")
     else:
+        map_layers['data'][indicator] = map_layers['data'][indicator].round(2)
         # Population raster map (includes the raster overlay)
         m = folium.Map(location=xy, zoom_start=11,tiles=None, control_scale=True, prefer_canvas=True)
         folium.TileLayer(tiles='Stamen Toner',
