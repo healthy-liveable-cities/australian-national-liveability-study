@@ -94,9 +94,6 @@ db = 'li_{0}_{1}{2}'.format(locale,year,suffix).lower()
 # Study region buffer
 buffered_study_region = '{0}_{1}{2}'.format(study_region,study_buffer,units)
 
-# Number of processors to use in when multiprocessing
-nWorkers = df_parameters.loc['multiprocessing']['value']
-
 # Derived hex settings - no need to change
 hex_grid = '{0}_hex_{1}{2}_diag'.format(study_region,hex_diag,units)
 hex_grid_buffer =  '{0}_hex_{1}{2}_diag_{3}{2}_buffer'.format(study_region,hex_diag,units,hex_buffer)
