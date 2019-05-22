@@ -80,22 +80,7 @@ completion_goal = list(curs)[0][0] * len(set([x[1] for x in destination_list]))
 # get pid name
 pid = multiprocessing.current_process().name
 
-# Define query to create table
-createTable     = '''
-  --DROP TABLE IF EXISTS {0};
-  CREATE TABLE IF NOT EXISTS {0}
-  ({1} varchar NOT NULL ,
-   dest_class varchar NOT NULL ,
-   dest_name varchar NOT NULL ,
-   oid bigint NOT NULL ,
-   distance integer NOT NULL, 
-   threshold  int,
-   ind_hard   int,
-   ind_soft   double precision,
-   PRIMARY KEY({1},dest_class)
-   );
-   '''.format(od_distances, origin_pointsID)
-
+# SQL queries
 queryPartA      = '''
   INSERT INTO {} VALUES
   '''.format(od_distances)
@@ -324,8 +309,24 @@ if __name__ == '__main__':
     conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
     curs = conn.cursor()
 
+    # Define query to create table
+    create_table = '''
+      --DROP TABLE IF EXISTS {0};
+      CREATE TABLE IF NOT EXISTS {0}
+      ({1} varchar NOT NULL ,
+      dest_class varchar NOT NULL ,
+      dest_name varchar NOT NULL ,
+      oid bigint NOT NULL ,
+      distance integer NOT NULL, 
+      threshold  int,
+      ind_hard   int,
+      ind_soft   double precision,
+      PRIMARY KEY({1},dest_class)
+      );
+      '''.format(od_distances, origin_pointsID)
+
     # create OD matrix table
-    curs.execute(createTable)
+    curs.execute(create_table)
     conn.commit()
 
   except:
