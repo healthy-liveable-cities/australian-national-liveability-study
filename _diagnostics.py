@@ -30,9 +30,7 @@ who = sys.argv[1]
 locales = responsible[responsible == who].sort_values().index.values.tolist()
 outfile = '../data/study_region/indicator_summary_{}_{}.xlsx'.format(who,date_time)
 print('''
-Exporting to Excel file in location:
-    {}
-'''.format(outfile)),
+Exporting: {}'''.format(outfile)),
 with pandas.ExcelWriter(outfile) as writer:
     for locale in locales:
         full_locale = df_studyregion.loc[locale]['full_locale'].encode('utf')
@@ -53,10 +51,10 @@ with pandas.ExcelWriter(outfile) as writer:
                                              sd, 
                                              min, 
                                              max, 
-                                             ROUND(null_pct,2) AS null_pct, 
-                                             ROUND(100 - null_pct,2) AS complete_pct,
+                                             ROUND(null_pct::numeric,2) AS null_pct, 
+                                             ROUND((100 - null_pct)::numeric,2) AS complete_pct,
                                              count AS subset_count, 
-                                             ROUND(count_pct,2) AS subset_pct
+                                             ROUND(count_pct::numeric,2) AS subset_pct
                                         FROM ind_summary
                                         LIMIT 0;
                                     ''', 
@@ -78,10 +76,10 @@ with pandas.ExcelWriter(outfile) as writer:
                                                 sd, 
                                                 min, 
                                                 max, 
-                                                ROUND(null_pct,2) AS null_pct, 
-                                                ROUND(100 - null_pct,2) AS complete_pct
+                                                ROUND(null_pct::numeric,2) AS null_pct, 
+                                                ROUND((100 - null_pct)::numeric,2) AS complete_pct,
                                                 count AS subset_count, 
-                                                ROUND(count_pct,2) AS subset_pct
+                                                ROUND(count_pct::numeric,2) AS subset_pct
                                         FROM ind_summary{};
                                     '''.format(full_locale, year, prefix, db, who,subset), 
                                         con=engine))
@@ -89,4 +87,38 @@ with pandas.ExcelWriter(outfile) as writer:
         
         df.to_excel(writer,sheet_name='{}_{}'.format(locale,year), index=False)   
 
-# TO DO add in dest counts summary
+outfile = '../data/study_region/destination_summary_{}_{}.xlsx'.format(who,date_time)
+print('''
+Exporting: {}'''.format(outfile)),
+with pandas.ExcelWriter(outfile) as writer:
+    for locale in locales:
+        full_locale = df_studyregion.loc[locale]['full_locale'].encode('utf')
+        print('\n      - {}'.format(full_locale)),
+        db = 'li_{}_{}'.format(locale,year)
+        engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_user,
+                                                                     pwd  = db_pwd,
+                                                                     host = db_host,
+                                                                     db   = db))
+        df = pandas.read_sql_query('''
+                                   SELECT a.domain,
+                                          a.dest_class AS destination,
+                                          COALESCE(urban_count,0) urban,
+                                          COALESCE(not_urban_count,0) not_urban,
+                                          COALESCE(urban_count,0)+ COALESCE(not_urban_count,0) AS total
+                                   FROM dest_type a
+                                   LEFT JOIN (SELECT dest_class, 
+                                                     COALESCE(SUM(count),0) AS urban_count 
+                                                FROM sos_dest_counts 
+                                               WHERE sos_name_2  IN ('Urban','Other Urban')
+                                              GROUP BY dest_class) u
+                                          ON a.dest_class = u.dest_class
+                                   LEFT JOIN (SELECT dest_class, 
+                                                     COALESCE(SUM(count),0) AS not_urban_count 
+                                                FROM sos_dest_counts 
+                                               WHERE sos_name_2 NOT IN ('Urban','Other Urban')
+                                              GROUP BY dest_class) n
+                                          ON a.dest_class = n.dest_class
+                                   ORDER BY a.domain,a.dest_class;
+                                   ''', 
+                                   con=engine)
+        df.to_excel(writer,sheet_name='{}_{}'.format(locale,year), index=False)  
