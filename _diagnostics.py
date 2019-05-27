@@ -26,11 +26,29 @@ db_port   = '{}'.format(df_parameters.loc['db_port']['value'])
 db_user   = df_parameters.loc['db_user']['value'].encode('utf')
 db_pwd    = df_parameters.loc['db_pwd']['value'].encode('utf')
 
+if len(sys.argv) < 2:
+    sys.exit('''
+This script requires an argument representing either an analyst, a single locale or a space-delimited set of locales.
+For example:
+   python _diagnostics.py Carl
+   python _diagnostics.py albury_wodonga
+   python _diagnostics.py albury_wodonga ballarat cairns launceston newcastle_maitland perth adelaide
+''')
+
 who = sys.argv[1]
-locales = responsible[responsible == who].sort_values().index.values.tolist()
+if who in set(responsible.values):
+    locales = responsible[responsible == who].sort_values().index.values.tolist()
+elif who in responsible.sort_values().index.values:
+    locales = who.split(' ')
+else:
+    sys.exit('''
+    The supplied command argument '{}' does not appear to correspond to either an analyst, a locale or list of locales.  Please check and try again.
+    '''.format(who))
+    
 outfile = '../data/study_region/indicator_summary_{}_{}.xlsx'.format(who,date_time)
 print('''
 Exporting: {}'''.format(outfile)),
+master = ''
 with pandas.ExcelWriter(outfile) as writer:
     for locale in locales:
         full_locale = df_studyregion.loc[locale]['full_locale'].encode('utf')
@@ -40,16 +58,21 @@ with pandas.ExcelWriter(outfile) as writer:
                                                                      pwd  = db_pwd,
                                                                      host = db_host,
                                                                      db   = db))
-        df = pandas.read_sql_query('''SELECT '' AS locale,
+        df = pandas.read_sql_query('''SELECT unit_level_description AS measure, 
+                                             '' AS locale,
                                              '' AS year,
                                              '' AS subset,
                                              '' AS database,
                                              '' AS analyst,
                                              indicators AS variable,
-                                             unit_level_description, 
                                              mean, 
                                              sd, 
                                              min, 
+                                             "p2.5", 
+                                             "p25", 
+                                             "p50", 
+                                             "p75", 
+                                             "p97.5", 
                                              max, 
                                              ROUND(null_pct::numeric,2) AS null_pct, 
                                              ROUND((100 - null_pct)::numeric,2) AS complete_pct,
@@ -58,38 +81,47 @@ with pandas.ExcelWriter(outfile) as writer:
                                         FROM ind_summary
                                         LIMIT 0;
                                     ''', 
-                                        con=engine)                                                         
+                                        con=engine)        
+        if str(master) =='':
+            master = df.copy()
         for subset in ['','urban','not_urban']:
             prefix = subset
             if subset == '':
                 prefix = 'overall'
             else:
                 subset = '_{}'.format(subset)
-            df = df.append(pandas.read_sql_query('''SELECT '{}' AS locale,
-                                                '{}' AS year,
-                                                '{}' AS subset,
-                                                '{}' AS database,
-                                                '{}' AS analyst,
-                                                indicators AS variable,
-                                                unit_level_description, 
-                                                mean, 
-                                                sd, 
-                                                min, 
-                                                max, 
-                                                ROUND(null_pct::numeric,2) AS null_pct, 
-                                                ROUND((100 - null_pct)::numeric,2) AS complete_pct,
-                                                count AS subset_count, 
-                                                ROUND(count_pct::numeric,2) AS subset_pct
-                                        FROM ind_summary{};
+            df = df.append(pandas.read_sql_query('''SELECT unit_level_description AS measure, 
+                                                           '{}' AS locale,
+                                                           '{}' AS year,
+                                                           '{}' AS subset,
+                                                           '{}' AS database,
+                                                           '{}' AS analyst,
+                                                           indicators AS variable,
+                                                           mean, 
+                                                           sd, 
+                                                           min, 
+                                                           "p2.5", 
+                                                           "p25", 
+                                                           "p50", 
+                                                           "p75", 
+                                                           "p97.5", 
+                                                           max, 
+                                                           ROUND(null_pct::numeric,2) AS null_pct, 
+                                                           ROUND((100 - null_pct)::numeric,2) AS complete_pct,
+                                                           count AS subset_count, 
+                                                           ROUND(count_pct::numeric,2) AS subset_pct
+                                                   FROM ind_summary{};
                                     '''.format(full_locale, year, prefix, db, who,subset), 
                                         con=engine))
             print("."),
-        
         df.to_excel(writer,sheet_name='{}_{}'.format(locale,year), index=False)   
+        master = master.append(df)
+    master.to_excel(writer,sheet_name='combined_{}'.format(year), index=False)   
 
 outfile = '../data/study_region/destination_summary_{}_{}.xlsx'.format(who,date_time)
 print('''
 Exporting: {}'''.format(outfile)),
+master = ''
 with pandas.ExcelWriter(outfile) as writer:
     for locale in locales:
         full_locale = df_studyregion.loc[locale]['full_locale'].encode('utf')
@@ -100,8 +132,12 @@ with pandas.ExcelWriter(outfile) as writer:
                                                                      host = db_host,
                                                                      db   = db))
         df = pandas.read_sql_query('''
-                                   SELECT a.domain,
-                                          a.dest_name_full AS destination,
+                                   SELECT a.dest_name_full AS destination,
+                                          '{}' AS locale,
+                                          '{}' AS year,
+                                          '{}' AS database,
+                                          '{}' AS analyst,
+                                          a.domain,
                                           a.dest_class AS dataset,
                                           COALESCE(urban_count,0) urban,
                                           COALESCE(not_urban_count,0) not_urban,
@@ -120,6 +156,10 @@ with pandas.ExcelWriter(outfile) as writer:
                                               GROUP BY dest_class) n
                                           ON a.dest_class = n.dest_class
                                    ORDER BY a.domain,a.dest_name_full,a.dest_class;
-                                   ''', 
-                                   con=engine)
+                                   '''.format(full_locale, year, db, who),  
+                                   con=engine)       
+        if str(master) =='':
+            master = df.copy()
         df.to_excel(writer,sheet_name='{}_{}'.format(locale,year), index=False)  
+        master = master.append(df)
+    master.to_excel(writer,sheet_name='combined_{}'.format(year), index=False)  

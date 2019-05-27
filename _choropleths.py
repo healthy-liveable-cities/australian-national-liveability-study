@@ -15,10 +15,10 @@ from sqlalchemy import create_engine
 import psycopg2
 import numpy as np
 import json
-from script_running_log import script_running_log
+
 # Import custom variables for National Liveability indicator process
 # Load settings from ind_study_region_matrix.xlsx
-xls = pandas.ExcelFile(os.path.join(sys.path[0],'ind_study_region_matrix.xlsx'))
+xls = pandas.ExcelFile('./ind_study_region_matrix.xlsx')
 df_about = pandas.read_excel(xls, 'about')
 print(df_about.iloc[0].reset_index()['index'].to_string(index=False).encode('utf'))
 df_parameters = pandas.read_excel(xls, 'parameters',index_col=0)
@@ -28,16 +28,18 @@ df_studyregion = pandas.read_excel(xls, 'study_regions',index_col=1)
 responsible = df_studyregion['responsible']
 year   = df_parameters.loc['year']['value']
 # SQL Settings
-db_host   = df_parameters.loc['db_host']['value'].encode('utf')
+db_host   = df_parameters.loc['db_host']['value']
 db_port   = '{}'.format(df_parameters.loc['db_port']['value'])
-db_user   = df_parameters.loc['db_user']['value'].encode('utf')
-db_pwd    = df_parameters.loc['db_pwd']['value'].encode('utf')
+db_user   = df_parameters.loc['db_user']['value']
+db_pwd    = df_parameters.loc['db_pwd']['value']
 db_host = "host.docker.internal"
 who = sys.argv[1]
+print('Analyst: {}\n'.format(who))
 locales = responsible[responsible == who].sort_values().index.values.tolist()
 
 def folium_to_png(input_dir='',output_dir='',map_name='',width=1000,height=800,pause=3):
     import selenium.webdriver
+    import time
     try:
         if (input_dir=='' or map_name==''):
             raise Exception(('This function requires specification of an input directory.\n'
@@ -90,6 +92,7 @@ map_style = '''
 
 for locale in locales:
     full_locale = df_studyregion.loc[locale]['full_locale']
+    print(full_locale)
     region = df_studyregion.loc[locale]['region']
     state  = df_studyregion.loc[locale]['state']
     locale_dir = os.path.join(folderPath,'study_region','{}'.format(locale.lower()))
@@ -151,11 +154,11 @@ for locale in locales:
         # isn't corrupted by prematurely closed string (as may occur if this isn't done)
         description = ind_description.loc[indicator,'unit_level_description'].replace(u"'",u'’')
         agg_form = ind_description.loc[indicator,'agg_form']
-        units = ' ({})'.format(ind_description.loc[indicator,'units'])
-        if units == ' (None)':
+        units = '   ({})'.format(ind_description.loc[indicator,'units'])
+        if '(None)' in units:
             units = ''
         title = '{}: SA1, {}{}'.format(description,agg_form,units)
-        print(title)
+        print('  {}'.format(title))
         if all(i is None for i in map_layers['data'][indicator].values):
             print("\t- all records are null for this indicator")
         else:
@@ -181,6 +184,7 @@ for locale in locales:
                             key_on="feature.properties.sa1_maincode",
                             fill_color='YlGn',
                             fill_opacity=0.7,
+                            line_color='#FFFFFF',
                             line_opacity=0.2,
                             legend_name=title,
                             # bins=bins,

@@ -125,6 +125,11 @@ query_summaries = {
    'sd'   :',\n'.join("ROUND(STDDEV(" + ind_matrix['indicators'] + ")::numeric,2) AS " + ind_matrix['indicators']),
    'min'  :',\n'.join("ROUND(MIN("    + ind_matrix['indicators'] + ")::numeric,2) AS " + ind_matrix['indicators']),
    'max'  :',\n'.join("ROUND(MAX("    + ind_matrix['indicators'] + ")::numeric,2) AS " + ind_matrix['indicators']),
+   'p2.5' :',\n'.join("ROUND(percentile_cont(0.025) WITHIN GROUP (ORDER BY "+ ind_matrix['indicators'] + ")::numeric,2) AS " + ind_matrix['indicators']),
+   'p25'  :',\n'.join("ROUND(percentile_cont(0.25 ) WITHIN GROUP (ORDER BY "+ ind_matrix['indicators'] + ")::numeric,2) AS " + ind_matrix['indicators']),
+   'p50'  :',\n'.join("ROUND(percentile_cont(0.5  ) WITHIN GROUP (ORDER BY "+ ind_matrix['indicators'] + ")::numeric,2) AS " + ind_matrix['indicators']),
+   'p75'  :',\n'.join("ROUND(percentile_cont(0.75 ) WITHIN GROUP (ORDER BY "+ ind_matrix['indicators'] + ")::numeric,2) AS " + ind_matrix['indicators']),
+   'p97.5':',\n'.join("ROUND(percentile_cont(0.975) WITHIN GROUP (ORDER BY "+ ind_matrix['indicators'] + ")::numeric,2) AS " + ind_matrix['indicators']),
    'count':',\n'.join("COUNT(*) AS " + ind_matrix['indicators']),
    'nulls':',\n'.join("SUM("  + ind_matrix['indicators'] + " IS NULL::int) AS " + ind_matrix['indicators']),
     }
@@ -168,17 +173,17 @@ print('     - ind_summary_not_urban')
 print("Done.")
 print("\nPlease review the following indicator summary and consider any oddities:"),
 # print for diagnostic purposes
-variables = ['mean','sd','min','max','nulls','null_pct','count','count_pct']
+variables = ['mean','sd','min','p25','p50','p75','max','nulls','null_pct','count','count_pct']
 for i in ind_summary.index:
     print('\n{}:'.format(ind_summary.loc[i]['unit_level_description']))
     print('     {}'.format(i))
     summary = list(ind_summary.loc[i,variables].values)
     summary_urban = list(ind_summary_urban.loc[i,variables].values)
     summary_not_urban = list(ind_summary_not_urban.loc[i,variables].values)
-    print('            {:>10} {:>10} {:>10} {:>10} {:>10} {:>10} {:>10} {:>10}'.format(*variables))
-    print('Overall     {:10} {:10} {:10} {:10} {:10} {:10.2} {:10} {:10.2}'.format(*summary))
-    print('Urban       {:10} {:10} {:10} {:10} {:10} {:10.2} {:10} {:10.2}'.format(*summary_urban))
-    print('Not urban   {:10} {:10} {:10} {:10} {:10} {:10.2} {:10} {:10.2}'.format(*summary_not_urban)
+    print('            {:>10} {:>10} {:>10} {:>10} {:>10} {:>10} {:>10} {:>10} {:>10} {:>10} {:>10}'.format(*variables))
+    print('Overall     {:10} {:10} {:10} {:10} {:10} {:10} {:10} {:10} {:10.2} {:10} {:10.2}'.format(*summary))
+    print('Urban       {:10} {:10} {:10} {:10} {:10} {:10} {:10} {:10} {:10.2} {:10} {:10.2}'.format(*summary_urban))
+    print('Not urban   {:10} {:10} {:10} {:10} {:10} {:10} {:10} {:10} {:10.2} {:10} {:10.2}'.format(*summary_not_urban)
 )
 print("Creating row-wise tally of nulls for each parcel...")
 null_query_combined = '+\n'.join("(" + ind_matrix['indicators'] + " IS NULL::int)")
