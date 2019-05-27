@@ -163,7 +163,7 @@ destinations = df_inds[df_inds['ind'].str.contains('destinations')]
 
 print("Check that there are not entries in the 'log_od_distances' table which are not present as results in the 'od_closest' table... ")
 # Check if the table exists; if it does, these areas have previously been re-imported, so no need to re-do
-curs.execute('''SELECT DISTINCT(dest_name) FROM log_od_distances WHERE dest_name NOT IN (SELECT DISTINCT(dest_name) FROM od_closest);'''.format(table = table))
+curs.execute('''SELECT DISTINCT(dest_name) FROM log_od_distances WHERE dest_name NOT IN (SELECT DISTINCT(dest_name) FROM od_closest);''')
 orphan_destinations = [x[0] for x in curs.fetchall()]
 if len(orphan_destinations) > 0:
     print('''
