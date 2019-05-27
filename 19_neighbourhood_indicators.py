@@ -161,32 +161,7 @@ array_category_types = '"{}" int[]'.format('" int[], "'.join(array_categories))
 # get the set of distance to closest regions which match for this region
 destinations = df_inds[df_inds['ind'].str.contains('destinations')]
 
-# print("Create summary table of destination distances (dest_distance_m), if not already existing... "),
-# table = 'dest_distance_m'
-# crosstab = '''
-# -- DROP TABLE IF EXISTS dest_distance_m;
-# CREATE TABLE IF NOT EXISTS dest_distance_m AS
-# SELECT *
-  # FROM   crosstab(
-   # 'SELECT {id}, dest_name, distance
-    # FROM   od_closest
-    # ORDER  BY 1,2'  -- could also just be "ORDER BY 1" here
-  # ,$$SELECT unnest('{curly_o}{category_list}{curly_c}'::text[])$$
-   # ) AS distance ("{id}" text, {category_types});
-# '''.format(id = points_id.lower(),
-           # curly_o = "{",
-           # curly_c = "}",
-           # category_list = category_list,
-           # category_types = category_types)
-# curs.execute(crosstab)
-# conn.commit()
-# create_index = '''CREATE UNIQUE INDEX IF NOT EXISTS {table}_idx ON {table} ({id});'''.format(table = table, id = points_id.lower())
-# curs.execute(create_index)
-# conn.commit()
-# print("Done.")
-
-print("Create summary table of destination distances (dest_distance_m), if not already existing... ")
-table = 'dest_distance_m'
+print("Check that there are not entries in the 'log_od_distances' table which are not present as results in the 'od_closest' table... ")
 # Check if the table exists; if it does, these areas have previously been re-imported, so no need to re-do
 curs.execute('''SELECT DISTINCT(dest_name) FROM log_od_distances WHERE dest_name NOT IN (SELECT DISTINCT(dest_name) FROM od_closest);'''.format(table = table))
 orphan_destinations = [x[0] for x in curs.fetchall()]
@@ -205,6 +180,8 @@ if len(orphan_destinations) > 0:
     ''')
     curs.execute('''DELETE FROM log_od_distances WHERE dest_name NOT IN (SELECT DISTINCT(dest_name) FROM od_closest);''')
     conn.commit()
+else:
+    print("  - all good!")
     
 print("Create summary table of destination distances (dest_distance_m), if not already existing... ")
 table = 'dest_distance_m'
