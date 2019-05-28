@@ -177,7 +177,7 @@ if len(orphan_destinations) > 0:
     These records will now be removed from the log_od_distances table, and it is recommended 
     that you re-run the script distance to closest analysis script (at the time of writing,
     16_od_distances_closest_in_study_region.py) for this study region.
-    ''')
+    '''.format('\n'.join(orphan_destinations)))
     curs.execute('''DELETE FROM log_od_distances WHERE dest_name NOT IN (SELECT DISTINCT(dest_name) FROM od_closest);''')
     conn.commit()
 else:
