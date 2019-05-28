@@ -8,8 +8,6 @@ from script_running_log import script_running_log
 # Import custom variables for National Liveability indicator process
 from config_ntnl_li_process import *
 
-db = 'li_melb_2018'
-
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()
 
