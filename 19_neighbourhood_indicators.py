@@ -108,6 +108,28 @@ CREATE OR REPLACE FUNCTION array_min(integers int[]) returns int as $$
     FROM unnest(integers) integers
 $$ language sql;
 
+-- append value to array if > some threshold (default, 3200)
+CREATE OR REPLACE FUNCTION array_append_if_gr(distances int[],distance int,threshold int default 3200) returns int[] as $$
+BEGIN
+-- function to append an integer to an array of integers if it is larger than some given threshold 
+-- (ie. add in distance to closest to 3200m distances array if the distance to closest value is > 3200m
+-- Example applied usage:
+-- SELECT gnaf_pid, 
+        -- array_append_if_gr(dests.alcohol_offlicence,cl.alcohol_offlicence) AS array,
+        -- cl.alcohol_offlicence AS distance
+-- FROM dest_distances_3200m dests 
+-- LEFT JOIN dest_distance_m cl
+-- USING (gnaf_pid) 
+-- WHERE cl.alcohol_offlicence > 3200;
+IF ((distance <= threshold) OR (distance IS NULL)) 
+    THEN RETURN distances;
+ELSE 
+    RETURN array_append(distances,distance);
+END IF;
+END;
+$$
+LANGUAGE plpgsql;  
+
 -- a binary threshold indicator  (e.g. of access given distance and threshold)
 CREATE OR REPLACE FUNCTION threshold_hard(distance int, threshold int, out int) 
     RETURNS NULL ON NULL INPUT
@@ -309,6 +331,29 @@ create_index = '''CREATE UNIQUE INDEX IF NOT EXISTS {table}_idx ON {table} ({id}
 curs.execute(create_index)
 conn.commit()
 print(" Table created and processed.")
+
+print("Combine destination array and closest tables..."),
+# Get a list of all potential destinations for distance to closest 
+# (some may not be present in region, will be null, so we can refer to them in later queries)
+# destination names
+categories = [x for x in df_destinations.destination.tolist()]
+array_categories = [x for x in df_destinations.destination_class.tolist()]
+dest_tuples = ',\n'.join(['''array_append_if_gr(dests."{0}",cl."{1}") AS "{0}"'''.format(*dest) for dest in zip(array_categories,categories)])
+table = 'dest_distances_cl_3200m'
+curs.execute('''
+DROP TABLE IF EXISTS {table};
+CREATE TABLE {table} AS
+SELECT {id}, 
+       {destinations}
+FROM dest_distances_3200m dests 
+LEFT JOIN dest_distance_m cl
+USING ({id});
+CREATE UNIQUE INDEX IF NOT EXISTS {table}_idx ON  {table} ({id}); 
+'''.format(table = table,
+           id = points_id.lower(),
+           destinations = dest_tuples))
+conn.commit()
+print(" Done.")
 
 # Neighbourhood_indicators
 print("Create nh_inds_distance (curated distance to closest table for re-use by other indicators)... "),
@@ -531,7 +576,7 @@ print(" - ind_food... "),
 for nh_threshold in [1600,3200]:
     table = ['ind_food_{nh_threshold}m'.format(nh_threshold = nh_threshold),'f']
     sql = '''
-    DROP TABLE IF EXISTS {table};
+    --DROP TABLE IF EXISTS {table};
     CREATE TABLE IF NOT EXISTS {table} AS
     SELECT
         {id},
@@ -572,8 +617,8 @@ for nh_threshold in [1600,3200]:
 
 # combine food tables
 sql = '''
-DROP TABLE IF EXISTS ind_food;
-CREATE TABLE ind_food AS
+--DROP TABLE IF EXISTS ind_food;
+CREATE TABLE IF NOT EXISTS ind_food AS
 SELECT * FROM ind_food_1600m LEFT JOIN ind_food_3200m USING (gnaf_pid);
 CREATE UNIQUE INDEX IF NOT EXISTS ind_food_idx ON  ind_food ({id});
 DROP TABLE ind_food_1600m;
@@ -864,7 +909,7 @@ if res is None:
 table = ['ind_os_distance','os']
 print(" - {table}".format(table = table[0])),    
 sql = '''
-DROP TABLE IF EXISTS ind_os_distance;
+--DROP TABLE IF EXISTS ind_os_distance;
 CREATE TABLE IF NOT EXISTS ind_os_distance AS
 SELECT 
     {id},
@@ -918,7 +963,7 @@ conn.commit()
 
 print("Create Open space areas - ACARA / NAPLAN linkage table for school queries... "),
 sql = '''
-DROP TABLE IF EXISTS aos_acara_naplan;
+--DROP TABLE IF EXISTS aos_acara_naplan;
 CREATE TABLE aos_acara_naplan AS 
 SELECT  DISTINCT ON (aos_id,acara_school_id)
        aos_id,  
@@ -1020,7 +1065,7 @@ for nh_distance in [800,1600]:
         AVG(sum/ nullif(non_null_count::float,0)) AS naplan_average_{nh_distance}m 
     FROM parcel_dwellings p 
     LEFT JOIN  
-        -- get the distances and ids for all parks within 3.2km 
+        -- get the distances and ids for all AOS with schools within 3.2km 
         (SELECT {id}, 
                 (obj->>'aos_id')::int AS aos_id, 
                 (obj->>'distance')::int AS distance 
@@ -1039,8 +1084,35 @@ for nh_distance in [800,1600]:
     conn.commit()
     print("Done")
 
+
+print(" Get average NAPLAN score across grades and categories for closest school within 3200m of address... "),
+sql = '''
+CREATE TABLE IF NOT EXISTS ind_school_naplan_cl_3200m AS
+SELECT p.{id},  
+       max(naplan."sum"/nullif(naplan.non_null_count::float,0)) AS closest_school_naplan_average,
+       o.distance
+FROM parcel_dwellings p 
+LEFT JOIN  
+    -- get the distanc and id for closest AOS with school within 3.2km
+    (SELECT DISTINCT ON ({id})
+            {id}, 
+            (obj->>'aos_id')::int AS aos_id, 
+            (obj->>'distance')::int AS distance
+    FROM od_aos_jsonb, 
+        jsonb_array_elements(attributes) obj
+    ORDER BY {id}, distance) o  
+ON p.{id} = o.{id} 
+LEFT JOIN aos_acara_naplan naplan ON o.aos_id = naplan.aos_id 
+WHERE naplan.acara_school_id IS NOT NULL 
+GROUP BY p.{id}, o.distance;
+-- create index 
+CREATE UNIQUE INDEX IF NOT EXISTS ind_school_naplan_cl_3200m_idx ON  ind_school_naplan_cl_3200m ({id}); 
+'''.format(id = points_id.lower())
+curs.execute(sql)
+conn.commit()
+print("Done")
+
 print("Import ACEQUA database with average ratings and area linkage codes... "),
-# Check if the table main_mb_2016_aust_full exists; if it does, these areas have previously been re-imported, so no need to re-do
 command = (
           ' ogr2ogr -overwrite -progress -f "PostgreSQL" ' 
           ' PG:"host={host} port=5432 dbname={db}'
