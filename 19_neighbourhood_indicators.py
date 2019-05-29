@@ -204,7 +204,22 @@ print("  - iterating over destination classes and updating results where current
 sql = '''SELECT dest_name FROM dest_type ORDER BY dest_name;'''
 curs.execute(sql)
 dest_name_in_region = [x[0] for x in curs.fetchall()]
-for dest_name in array_categories:
+# ensure that earlier entries which are no longer relevant are not contained in the table (ie. due to changes in naming conventions)
+sql = '''SELECT column_name FROM information_schema.columns WHERE table_name = '{}';'''.format(table)
+curs.execute(sql)
+dest_previously_processed = [x[0] for x in curs.fetchall()]
+dest_noise = [r for r in dest_previously_processed if r not in categories and r!=points_id.lower()]
+dest_to_rename = [r for r in dest_noise if r in [a.lower() for a in categories if a not in dest_previously_processed]]
+for dest in dest_to_rename:
+    capitalised = [d for d in categories if d.lower() == dest][0]
+    curs.execute('''ALTER TABLE {} RENAME COLUMN "{}" to "{}"'''.format(table,dest,capitalised))
+    conn.commit()    
+dest_noise = [d for d in dest_noise if d not in dest_to_rename]
+if len(dest_noise) > 0:
+    curs.execute('''ALTER TABLE {} {} '''.format(table,','.join(['DROP "{}"'.format(t) for t in dest_noise])))
+    conn.commit()
+
+for dest_name in categories:
     add_field = '''
     ALTER TABLE {table} ADD COLUMN IF NOT EXISTS "{dest_name}" int;
     '''.format(table = table, dest_name = dest_name)
@@ -219,11 +234,15 @@ for dest_name in array_categories:
                     WHERE t."{dest_name}" IS NULL
                         AND t.{id} = o.{id} 
                         AND o.dest_name = '{dest_name}';
-                    '''.format(id = points_id.lower(),
+                    '''.format(id = points_id.lower(),\
                                 table = table, 
                                 dest_name = dest_name)
         curs.execute(update_field)
         conn.commit()
+# ensure index exists
+create_index = '''CREATE UNIQUE INDEX IF NOT EXISTS {table}_idx ON {table} ({id});'''.format(table = table, id = points_id.lower())
+curs.execute(create_index)
+conn.commit()
 print(" Table created and processed.")
 
 print("Create summary table of distances to destinations in 3.2km ({table}), if not already existing... ".format(table = table))
@@ -248,11 +267,26 @@ print("  - iterating over destination classes and updating results where current
 sql = '''SELECT dest_class FROM dest_type ORDER BY dest_class;'''
 curs.execute(sql)
 dest_class_in_region = [x[0] for x in curs.fetchall()]
+# ensure that earlier entries which are no longer relevant are not contained in the table (ie. due to changes in naming conventions)
+sql = '''SELECT column_name FROM information_schema.columns WHERE table_name = '{}';'''.format(table)
+curs.execute(sql)
+dest_previously_processed = [x[0] for x in curs.fetchall() if x[0]!=points_id.lower()]
+dest_noise = [r for r in dest_previously_processed if r not in array_categories]
+dest_to_rename = [r for r in dest_noise if r in [a.lower() for a in array_categories if a not in dest_previously_processed]]
+for dest in dest_to_rename:
+    capitalised = [d for d in array_categories if d.lower() == dest][0]
+    curs.execute('''ALTER TABLE {} RENAME COLUMN "{}" to "{}"'''.format(table,dest,capitalised))
+    conn.commit()    
+dest_noise = [d for d in dest_noise if d not in dest_to_rename]
+if len(dest_noise) > 0:
+    curs.execute('''ALTER TABLE {} {} '''.format(table,','.join(['DROP "{}"'.format(t) for t in dest_noise])))
+    conn.commit()
+
 for dest_class in array_categories:
     add_field = '''
     -- Note that we take NULL for distance to closest in this context to mean absence of presence
     -- Error checking at other stages of processing should confirm whether this is the case.
-    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {dest_class} int[];
+    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS "{dest_class}" int[];
     '''.format(table = table, dest_class = dest_class)
     curs.execute(add_field)
     conn.commit()
@@ -260,9 +294,9 @@ for dest_class in array_categories:
         print("    - {}".format(dest_class))
         update_field = '''
                     UPDATE {table} t SET 
-                        {dest_class} = distances
+                        "{dest_class}" = distances
                     FROM od_distances_3200m o
-                    WHERE t.{dest_class} IS NULL
+                    WHERE t."{dest_class}" IS NULL
                         AND t.{id} = o.{id} 
                         AND o.dest_class = '{dest_class}';
                     '''.format(id = points_id.lower(),
@@ -270,6 +304,10 @@ for dest_class in array_categories:
                                 dest_class = dest_class)
         curs.execute(update_field)
         conn.commit()
+# ensure index exists
+create_index = '''CREATE UNIQUE INDEX IF NOT EXISTS {table}_idx ON {table} ({id});'''.format(table = table, id = points_id.lower())
+curs.execute(create_index)
+conn.commit()
 print(" Table created and processed.")
 
 # Neighbourhood_indicators
