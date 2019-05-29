@@ -22,10 +22,9 @@ print('''
 This script will combine the 'dest_distance_m' (distance to closest) and 
 dest_distances_3200m (distance to all in 3200m) tables.  
 
-The resulting 
-table will contain distances to all destinations for each class within 
-3200 metres, and/or the distance to closest (which may be further 
-than 3200 metres).
+The resulting table will contain distances to all destinations for each 
+class within 3200 metres, and/or the distance to closest (which may be
+further than 3200 metres).
 
 As such questions concerning 'distance to closest' and 'all distances' 
 within some threshold up to 3200m may be determined using this new

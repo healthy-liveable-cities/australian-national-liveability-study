@@ -964,7 +964,7 @@ conn.commit()
 print("Create Open space areas - ACARA / NAPLAN linkage table for school queries... "),
 sql = '''
 --DROP TABLE IF EXISTS aos_acara_naplan;
-CREATE TABLE aos_acara_naplan AS 
+CREATE TABLE IF NOT EXISTS aos_acara_naplan AS 
 SELECT  DISTINCT ON (aos_id,acara_school_id)
        aos_id,  
        os_acara.acara_school_id, 
