@@ -45,7 +45,7 @@ FROM (SELECT {id},
             ("Hospital" - AVG("Hospital") OVER())/stddev_pop("Hospital") OVER() as z_ho,
             ("libraries_2018" - AVG("libraries_2018") OVER())/stddev_pop("libraries_2018") OVER() as z_lib, 
             ("supermarket_osm" - AVG("supermarket_osm") OVER())/stddev_pop("supermarket_osm") OVER() as z_sup, 
-            ("U3A" - AVG("U3A") OVER())/stddev_pop("U3A") OVER() as z_u3a, 
+            ("u3a" - AVG("u3a") OVER())/stddev_pop("u3a") OVER() as z_u3a, 
             (gtfs_2018_stops - AVG(gtfs_2018_stops) OVER())/stddev_pop(gtfs_2018_stops) OVER() as z_pt,
             (place_of_worship_osm - AVG(place_of_worship_osm) OVER())/stddev_pop(place_of_worship_osm) OVER() as z_pow
       FROM (SELECT {id}                                                                                 ,
