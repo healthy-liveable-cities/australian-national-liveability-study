@@ -34,7 +34,7 @@ def script_running_log(script = '', task = '', start = '', prefix = ''):
   try:
     curs.execute(log_table)
     conn.commit()
-    print('''Processing completed at {}\n- Task: {}\n- Duration: {:04.2f} minutes'''.format(date_time,task,duration))
+    print('''\nProcessing completed at {}\n- Task: {}\n- Duration: {:04.2f} minutes'''.format(date_time,task,duration))
   except:
     print("Error withoutput to script running log.  Has the database for this study region been created?")
     raise

@@ -39,7 +39,8 @@ who = sys.argv[1]
 if who in set(responsible.values):
     locales = responsible[responsible == who].sort_values().index.values.tolist()
 elif who in responsible.sort_values().index.values:
-    locales = who.split(' ')
+    locales = sys.argv[1:]
+    who = ''
 else:
     sys.exit('''
     The supplied command argument '{}' does not appear to correspond to either an analyst, a locale or list of locales.  Please check and try again.
@@ -111,7 +112,7 @@ with pandas.ExcelWriter(outfile) as writer:
                                                            count AS subset_count, 
                                                            ROUND(count_pct::numeric,2) AS subset_pct
                                                    FROM ind_summary{};
-                                    '''.format(full_locale, year, prefix, db, who,subset), 
+                                    '''.format(full_locale, year, prefix, db, responsible[locale],subset), 
                                         con=engine))
             print("."),
         df.to_excel(writer,sheet_name='{}_{}'.format(locale,year), index=False)   
@@ -156,7 +157,7 @@ with pandas.ExcelWriter(outfile) as writer:
                                               GROUP BY dest_class) n
                                           ON a.dest_class = n.dest_class
                                    ORDER BY a.domain,a.dest_name_full,a.dest_class;
-                                   '''.format(full_locale, year, db, who),  
+                                   '''.format(full_locale, year, db, responsible[locale]),  
                                    con=engine)       
         if str(master) =='':
             master = df.copy()
