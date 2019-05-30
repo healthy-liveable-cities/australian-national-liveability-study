@@ -28,6 +28,7 @@ DROP TABLE IF EXISTS ind_older_services;
 CREATE TABLE ind_older_services AS
 SELECT {id}, 
        z_ac, 
+       z_acr, 
        z_cc, 
        z_gp, 
        z_ho, 
@@ -36,7 +37,7 @@ SELECT {id},
        z_u3a, 
        z_pt, 
        z_pow, 
-       (z_ac + z_acf + z_cc + z_gp + z_ho + z_lib + z_sup + z_u3a + z_pt + z_pow) AS older_services
+       (z_ac + z_acr + z_cc + z_gp + z_ho + z_lib + z_sup + z_u3a + z_pt + z_pow) AS older_services
 FROM (SELECT {id},
             ("AgedCare" - AVG("AgedCare") OVER())/stddev_pop("AgedCare") OVER() as z_ac,
             ("AgedCareResidentialServices" - AVG("AgedCareResidentialServices") OVER())/stddev_pop("AgedCareResidentialServices") OVER() as z_acr,
