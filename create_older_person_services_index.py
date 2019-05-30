@@ -56,7 +56,7 @@ FROM (SELECT {id},
                    threshold_soft("Hospital"                    ,1600)  AS "Hospital"                      ,
                    threshold_soft("libraries_2018"              ,1600)  AS "libraries_2018"                ,
                    threshold_soft("supermarket_osm"             ,1600)  AS "supermarket_osm"               ,
-                   threshold_soft("U3A"                         ,1600)  AS "U3A"                           ,
+                   threshold_soft("u3a"                         ,1600)  AS "u3a"                           ,
                    threshold_soft("gtfs_2018_stops"             ,1600)  AS "gtfs_2018_stops"               ,
                    threshold_soft("place_of_worship_osm"        ,1600)  AS "place_of_worship_osm" 
               FROM dest_distance_m)
