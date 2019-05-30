@@ -85,7 +85,7 @@ with pandas.ExcelWriter(outfile) as writer:
                                         con=engine)        
         if str(master) =='':
             master = df.copy()
-        for subset in ['','urban','not_urban']:
+        for subset in ['','urban','not_urban','included','excluded']:
             prefix = subset
             if subset == '':
                 prefix = 'overall'

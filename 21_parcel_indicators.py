@@ -1,7 +1,7 @@
 # Script:  17_parcel_indicators.py
 # Purpose: Create parcel indicators for national liveability project
 # Author:  Carl Higgs 
-# Date:    20180717
+# Date:    20190530
 
 import time
 import psycopg2 
@@ -29,7 +29,7 @@ engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_
 # Indicator configuration sheet is 'df_inds', read in from config file in the config script
 
 # Restrict to indicators associated with study region (except distance to closest dest indicators)
-ind_matrix = df_inds[df_inds['locale'].str.contains('|'.join([locale,'\*']))]
+ind_matrix = df_inds[df_inds['locale'].str.contains('|'.join([locale,'\*']))].copy()
 
 # Get a list of destinations processed within this region for distance to closest
 # sql = '''SELECT DISTINCT(dest_name) dest_name FROM od_closest ORDER BY dest_name;'''
@@ -68,7 +68,7 @@ ind_list = ind_matrix['indicators'].tolist()
 ind_queries = '\n'.join(ind_matrix['Query'] +' AS ' + ind_matrix['indicators']+',')
 ind_sources = '\n'.join(ind_matrix['Source'].unique())
 
-print("Creating compiled set of parcel level indicators...")   
+print("Creating compiled set of parcel level indicators..."),   
 # Define parcel level indicator table creation query
 # Note that we modify inds slightly later when aggregated to reflect cutoffs etc
 create_parcel_indicators = '''
@@ -96,7 +96,7 @@ non_abs.lga_code_2016    ,
 non_abs.lga_name_2016    ,
 sos.sos_name_2016        ,
 e.exclude                ,
-{indicators}             
+{indicators}            
 p.geom                   
 FROM
 parcel_dwellings p                                                                                 
@@ -105,14 +105,130 @@ LEFT JOIN non_abs_linkage non_abs ON p.{id} = non_abs.{id}
 LEFT JOIN parcel_sos sos ON p.{id} = sos.{id}
 LEFT JOIN (SELECT gnaf_pid, string_agg(indicator,',') AS exclude FROM excluded_parcels GROUP BY gnaf_pid) e 
     ON p.{id} = e.{id}
-{sources}
+{sources};
+CREATE UNIQUE INDEX IF NOT EXISTS parcel_indicators_idx ON  parcel_indicators ({id});
 '''.format(id = points_id, indicators = ind_queries, sources = ind_sources)
 
 # print("SQL query:")
 # print(create_parcel_indicators)
 curs.execute(create_parcel_indicators)
 conn.commit()
-print("Done.")
+print(" Done.")
+
+table = 'dest_distance_m'
+sql = '''
+SELECT column_name 
+FROM information_schema.columns 
+WHERE table_name = '{table}' 
+AND column_name != '{id}';
+'''.format(id = points_id.lower(), table = table)
+curs.execute(sql)
+destinations = ','.join(['d."{}"'.format(x[0]) for x in curs.fetchall()])
+
+print("Creating distance to closest measures with classification data..."),
+dest_closest_indicators = '''
+DROP TABLE IF EXISTS dest_closest_indicators;
+CREATE TABLE dest_closest_indicators AS
+SELECT
+{id}                    ,
+p.count_objectid        ,
+p.point_x               ,
+p.point_y               ,
+p.hex_id                ,
+p.mb_code_2016          ,
+p.mb_category_name_2016 ,
+p.dwelling              ,
+p.person                ,
+p.sa1_maincode          ,
+p.sa2_name_2016         ,
+p.sa3_name_2016         ,
+p.sa4_name_2016         ,
+p.gccsa_name            ,
+p.state_name            ,
+p.ssc_code_2016         ,
+p.ssc_name_2016         ,
+p.lga_code_2016         ,
+p.lga_name_2016         ,
+p.sos_name_2016         ,
+p.exclude               ,
+{d}                     ,
+p.geom                   
+FROM
+parcel_indicators p                                                                                 
+LEFT JOIN dest_distance_m d
+USING ({id});
+CREATE UNIQUE INDEX IF NOT EXISTS dest_closest_indicators_idx ON  dest_closest_indicators ({id});
+'''.format(id = points_id, d = destinations)
+curs.execute(dest_closest_indicators)
+conn.commit()
+print(" Done.")
+
+table = 'dest_distances_cl_3200m'
+sql = '''
+SELECT column_name 
+FROM information_schema.columns 
+WHERE table_name = '{table}' 
+AND column_name != '{id}';
+'''.format(id = points_id.lower(), table = table)
+curs.execute(sql)
+destinations = ','.join(['d."{}"'.format(x[0]) for x in curs.fetchall()])
+
+print("Creating distance array measures with classification data..."),
+dest_array_indicators = '''
+DROP TABLE IF EXISTS dest_array_indicators;
+CREATE TABLE dest_array_indicators AS
+SELECT
+{id}                    ,
+p.count_objectid        ,
+p.point_x               ,
+p.point_y               ,
+p.hex_id                ,
+p.mb_code_2016          ,
+p.mb_category_name_2016 ,
+p.dwelling              ,
+p.person                ,
+p.sa1_maincode          ,
+p.sa2_name_2016         ,
+p.sa3_name_2016         ,
+p.sa4_name_2016         ,
+p.gccsa_name            ,
+p.state_name            ,
+p.ssc_code_2016         ,
+p.ssc_name_2016         ,
+p.lga_code_2016         ,
+p.lga_name_2016         ,
+p.sos_name_2016         ,
+p.exclude               ,
+{d}                     ,
+p.geom                   
+FROM
+parcel_indicators p                                                                                 
+LEFT JOIN dest_distances_cl_3200m d
+USING ({id});
+CREATE UNIQUE INDEX IF NOT EXISTS dest_array_indicators_idx ON  dest_array_indicators ({id});
+'''.format(id = points_id, d = destinations)
+
+curs.execute(dest_array_indicators)
+conn.commit()
+print(" Done.")
+
+sql = '''
+CREATE TABLE exclusion_summary AS
+SELECT '{}' AS locale,
+       COALESCE(,exclude,'Included (not excluded)') AS "Exclusions",
+       count(*) 
+FROM parcel_indicators 
+GROUP BY exclude 
+ORDER BY count DESC;
+'''.format(locale)
+curs.execute(sql)
+conn.commit()
+df = pandas.read_sql_query('''SELECT exclude,count FROM exclusion_summary''',
+                           con=engine,
+                           index_col='exclude')
+pandas.set_option('display.max_colwidth', -1)
+print("\n")
+print(df)
 
 # output to completion log    
 script_running_log(script, task, start, locale)
