@@ -30,7 +30,13 @@ engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_
 # Indicator configuration sheet is 'df_inds', read in from config file in the config script
 
 # Restrict to indicators associated with study region (except distance to closest dest indicators)
-ind_matrix = df_inds[df_inds['locale'].str.contains('|'.join([locale,'\*']))]
+# the following two tables (indicators/measures, and distances to closest measures) will later be
+# appended once the first table is expanded into soft and hard threshold indicator forms
+ind_matrix = df_inds[df_inds['locale'].str.contains('|'.join([locale,'\*']))].copy()
+ind_destinations = df_destinations[df_destinations.unit_level_description != 'NULL'].copy()
+ind_destinations = ind_destinations.set_index('destination_class')
+ind_destinations.index.name = 'indicators'
+
 
 # Get a list of destinations processed within this region for distance to closest
 # sql = '''SELECT DISTINCT(dest_name) dest_name FROM od_closest ORDER BY dest_name;'''
@@ -42,7 +48,7 @@ categories = [x[0] for x in curs.fetchall()]
 # destinations = df_inds[df_inds['ind'].str.contains('destinations')]
 # current_categories = [x for x in categories if 'distance_m_{}'.format(x) in destinations.ind_plain.str.encode('utf8').tolist()]
 # ind_matrix = ind_matrix.append(destinations[destinations['ind_plain'].str.replace('distance_m_','').str.contains('|'.join(current_categories))])
-ind_matrix['order'] = ind_matrix.index
+ind_matrix['order'] = list(ind_matrix.index)
 ind_soft = ind_matrix.loc[ind_matrix.tags=='_{threshold}',:].copy()
 ind_hard = ind_matrix.loc[ind_matrix.tags=='_{threshold}',:].copy()
 ind_soft.replace(to_replace='{threshold}', value='soft', inplace=True,regex=True)
@@ -63,12 +69,13 @@ ind_matrix['indicators'] = ind_matrix['ind'] + ind_matrix['tags'].fillna('')
 # ind_matrix.sort_values('sort_cat', inplace=True)
 # Compile list of indicators
 ind_matrix.sort_values('order', inplace=True)
-ind_list = ind_matrix['indicators'].tolist()
 
 # Create an indicators summary table
 print("Data checking\n")
 ind_summary = ind_matrix.set_index('indicators')
-ind_summary_urban = ind_matrix.set_index('indicators')['unit_level_description'].to_frame()
+ind_summary = ind_summary.append(ind_destinations)
+ind_list = ind_summary.index.values
+ind_summary_urban = ind_summary['unit_level_description'].copy().to_frame()
 ind_summary_not_urban = ind_summary_urban
 ind_summary_include = ind_summary_urban
 ind_summary_exclude = ind_summary_urban
@@ -92,27 +99,27 @@ query_summaries = {
 
 for summary in query_summaries:
     # get null values
-    df = pandas.read_sql_query('''SELECT {} FROM parcel_indicators;'''.format(query_summaries[summary]),con=engine)
+    df = pandas.read_sql_query('''SELECT {} FROM parcel_indicators p LEFT JOIN dest_closest_indicators d ON p.gnaf_pid = d.gnaf_pid;'''.format(query_summaries[summary]),con=engine)
     df = df.transpose()
     df.columns=[summary]
     ind_summary = ind_summary.join(df, how='left')
     # get urban null values
-    df = pandas.read_sql_query('''SELECT {} FROM parcel_indicators WHERE sos_name_2016 IN ('Major Urban','Other Urban');'''.format(query_summaries[summary]),con=engine)
+    df = pandas.read_sql_query('''SELECT {} FROM parcel_indicators p LEFT JOIN dest_closest_indicators d ON p.gnaf_pid = d.gnaf_pid WHERE p.sos_name_2016 IN ('Major Urban','Other Urban');'''.format(query_summaries[summary]),con=engine)
     df = df.transpose()
     df.columns=[summary]
     ind_summary_urban = ind_summary_urban.join(df, how='left')
     # get not urban null values
-    df = pandas.read_sql_query('''SELECT {} FROM parcel_indicators WHERE sos_name_2016 NOT IN ('Major Urban','Other Urban');'''.format(query_summaries[summary]),con=engine)
+    df = pandas.read_sql_query('''SELECT {} FROM parcel_indicators p LEFT JOIN dest_closest_indicators d ON p.gnaf_pid = d.gnaf_pid WHERE p.sos_name_2016 NOT IN ('Major Urban','Other Urban');'''.format(query_summaries[summary]),con=engine)
     df = df.transpose()
     df.columns=[summary]
     ind_summary_not_urban = ind_summary_not_urban.join(df, how='left')
     # get included summary
-    df = pandas.read_sql_query('''SELECT {} FROM parcel_indicators WHERE exclude IS NULL;'''.format(query_summaries[summary]),con=engine)
+    df = pandas.read_sql_query('''SELECT {} FROM  parcel_indicators p LEFT JOIN dest_closest_indicators d ON p.gnaf_pid = d.gnaf_pid WHERE p.exclude IS NULL;'''.format(query_summaries[summary]),con=engine)
     df = df.transpose()
     df.columns=[summary]
     ind_summary_include = ind_summary_include.join(df, how='left')
     # get included summary
-    df = pandas.read_sql_query('''SELECT {} FROM parcel_indicators WHERE exclude IS NOT NULL;'''.format(query_summaries[summary]),con=engine)
+    df = pandas.read_sql_query('''SELECT {} FROM parcel_indicators p LEFT JOIN dest_closest_indicators d ON p.gnaf_pid = d.gnaf_pid WHERE p.exclude IS NOT NULL;'''.format(query_summaries[summary]),con=engine)
     df = df.transpose()
     df.columns=[summary]
     ind_summary_exclude = ind_summary_exclude.join(df, how='left')
@@ -120,6 +127,8 @@ for summary in query_summaries:
 ind_summary['null_pct'] = ind_summary.apply (lambda row: 100*( row['nulls'] / np.float64(row['count'])) , axis=1)
 ind_summary_urban['null_pct'] = ind_summary_urban.apply (lambda row: 100*( row['nulls'] / np.float64(row['count'])) , axis=1)
 ind_summary_not_urban['null_pct'] = ind_summary_not_urban.apply (lambda row: 100*( row['nulls'] / np.float64(row['count'])) , axis=1)
+ind_summary_include['null_pct'] = ind_summary_include.apply (lambda row: 100*( row['nulls'] / np.float64(row['count'])) , axis=1)
+ind_summary_exclude['null_pct'] = ind_summary_exclude.apply (lambda row: 100*( row['nulls'] / np.float64(row['count'])) , axis=1)
 
 # Get overall count to add to urban and not urban for percentage contributions
 overall_count = ind_summary['count'].to_frame()    
@@ -159,10 +168,10 @@ for i in ind_summary.index:
     print('            {:>10} {:>10} {:>10} {:>10} {:>10} {:>10} {:>10} {:>10} {:>10} {:>10} {:>10}'.format(*variables))
     print('Overall     {:10} {:10} {:10} {:10} {:10} {:10} {:10} {:10} {:10.2} {:10} {:10.2}'.format(*summary))
     print('Urban       {:10} {:10} {:10} {:10} {:10} {:10} {:10} {:10} {:10.2} {:10} {:10.2}'.format(*summary_urban))
-    print('Not urban   {:10} {:10} {:10} {:10} {:10} {:10} {:10} {:10} {:10.2} {:10} {:10.2}'.format(*summary_not_urban)
-    print('Include     {:10} {:10} {:10} {:10} {:10} {:10} {:10} {:10} {:10.2} {:10} {:10.2}'.format(*summary_not_urban)
-    print('Exclude     {:10} {:10} {:10} {:10} {:10} {:10} {:10} {:10} {:10.2} {:10} {:10.2}'.format(*summary_not_urban)
-)
+    print('Not urban   {:10} {:10} {:10} {:10} {:10} {:10} {:10} {:10} {:10.2} {:10} {:10.2}'.format(*summary_not_urban))
+    print('Included    {:10} {:10} {:10} {:10} {:10} {:10} {:10} {:10} {:10.2} {:10} {:10.2}'.format(*summary_include))
+    print('Excluded    {:10} {:10} {:10} {:10} {:10} {:10} {:10} {:10} {:10.2} {:10} {:10.2}'.format(*summary_exclude))
+
 print("Creating row-wise tally of nulls for each parcel...")
 null_query_combined = '+\n'.join("(" + ind_matrix['indicators'] + " IS NULL::int)")
 
