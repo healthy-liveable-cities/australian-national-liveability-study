@@ -338,6 +338,9 @@ if __name__ == '__main__':
   writeLog(create='create')
   print(" Done.")
   
+  print("Insert historical closest results derived from minimum of 3200m distances array, if not already done")
+  
+  
   print("Setup a pool of workers/child processes and split log output..."),
   # Parallel processing setting
   # (now set as parameter in ind_study_region_matrix xlsx file)

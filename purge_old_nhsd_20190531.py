@@ -33,12 +33,12 @@ conn.commit()
 
 for name in df_nhsd['old name'].values:
     sql = '''
-    ALTER TABLE dest_distance_m DROP COLUMN IF EXISTS {name};
-    ALTER TABLE dest_distances_3200m DROP COLUMN IF EXISTS {name};
+    ALTER TABLE dest_distance_m DROP COLUMN IF EXISTS "{name}";
+    ALTER TABLE dest_distances_3200m DROP COLUMN IF EXISTS "{name}";
     '''.format(name = name)
+    print(sql)
     curs.execute(sql)
     conn.commit()
-
 
 # output to completion log    
 script_running_log(script, task, start, locale)
