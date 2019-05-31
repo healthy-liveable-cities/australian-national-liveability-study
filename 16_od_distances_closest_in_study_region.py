@@ -338,8 +338,31 @@ if __name__ == '__main__':
   writeLog(create='create')
   print(" Done.")
   
-  print("Insert historical closest results derived from minimum of 3200m distances array, if not already done")
-  
+  print("Insert historical closest results derived from minimum of 3200m distances array, if not already done..."),
+  sql = '''
+  INSERT INTO od_closest ({id},dest_class,dest_name,oid,distance,threshold,ind_hard,ind_soft)  
+    SELECT c.{id}                                                                           ,
+        c.dest_class                                                                     ,
+        t.dest_name                                                                      ,
+        -999 AS oid                                                                      ,
+        c.distance                                                                       ,
+        t.cutoff_closest AS threshold                                                    ,
+        (c.distance < t.cutoff_closest)::integer AS ind_hard                             ,
+        (1 - 1.0 / (1+ exp(-5*(c.distance-t.cutoff_closest)/t.cutoff_closest::float))) AS ind_soft   
+    FROM (SELECT {id},
+                dest_class,
+                array_min(distances) AS distance
+            FROM od_distances_3200m a
+        WHERE NOT EXISTS (SELECT 1 
+                            FROM od_closest c 
+                            WHERE c.dest_class =  a.dest_class
+                            AND c.{id} = a.{id})
+            AND distances != '{array}') c
+    LEFT JOIN dest_type t ON c.dest_class = t.dest_class
+    '''.format(id = points_id.lower(), array = '{}')
+  curs.execute(sql)
+  conn.commit()
+  print(" Done.")
   
   print("Setup a pool of workers/child processes and split log output..."),
   # Parallel processing setting
