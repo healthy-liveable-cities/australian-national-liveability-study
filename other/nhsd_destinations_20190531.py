@@ -4,6 +4,7 @@ import sys
 import time
 import pandas
 import arcpy
+import numpy as np
 
 xls = pandas.ExcelFile('D:/ntnl_li_2018_template/process/ind_study_region_matrix.xlsx')
 df_parameters = pandas.read_excel(xls, 'parameters',index_col=0)
@@ -22,7 +23,7 @@ arcpy.MakeFeatureLayer_management(in_features="D:/ntnl_li_2018_template/data/des
 arcpy.DefineProjection_management(in_dataset="nhsd", 
                                   coor_system="GEOGCS['GCS_GDA_1994',DATUM['D_GDA_1994',SPHEROID['GRS_1980',6378137.0,298.257222101]],PRIMEM['Greenwich',0.0],UNIT['Degree',0.0174532925199433]]")
 
-for d in df.index.values:
+for d in df.index.values if d is not np.nan:
     category = ''' "3serviceca" = '{}' '''.format(df.loc[d,'3serviceca'])
     if not df.loc[d].isnull().any():
         ## note that arcgis requires apostrophes to be replaced with double apostrophes for matching
