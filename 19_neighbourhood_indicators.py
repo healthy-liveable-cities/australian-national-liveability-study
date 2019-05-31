@@ -438,21 +438,6 @@ for threshold_type in ['hard','soft']:
 print("Done.")
 
 print("Processing neighbourhood indicators:")
-
-clean_up = '''
--- remove previous versions of indicators which could be confusing if persisting
-DROP TABLE IF EXISTS dailyliving; 
-DROP TABLE IF EXISTS daily_living; 
-DROP TABLE IF EXISTS ind_dailyliving;
-DROP TABLE IF EXISTS ind_foodratio;
-DROP TABLE IF EXISTS ind_food_ratio;
-DROP TABLE IF EXISTS ind_food_proportion;
-DROP TABLE IF EXISTS ind_supermarket1000;
-DROP TABLE IF EXISTS ind_pos_distance;
-'''
-curs.execute(clean_up)
-conn.commit()
-
 # Define table name and abbreviation
 # This saves us having to retype these values, and allows the code to be more easily re-used
 table = ['ind_daily_living','dl']

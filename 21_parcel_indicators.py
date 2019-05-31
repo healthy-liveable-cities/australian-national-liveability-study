@@ -213,9 +213,10 @@ conn.commit()
 print(" Done.")
 
 sql = '''
+DROP TABLE IF EXISTS exclusion_summary;
 CREATE TABLE exclusion_summary AS
 SELECT '{}' AS locale,
-       COALESCE(,exclude,'Included (not excluded)') AS "Exclusions",
+       COALESCE(exclude,'Included (not excluded)') AS "Exclusions",
        count(*) 
 FROM parcel_indicators 
 GROUP BY exclude 
@@ -223,9 +224,9 @@ ORDER BY count DESC;
 '''.format(locale)
 curs.execute(sql)
 conn.commit()
-df = pandas.read_sql_query('''SELECT exclude,count FROM exclusion_summary''',
+df = pandas.read_sql_query('''SELECT "Exclusions",count FROM exclusion_summary''',
                            con=engine,
-                           index_col='exclude')
+                           index_col='Exclusions')
 pandas.set_option('display.max_colwidth', -1)
 print("\n")
 print(df)
