@@ -20,7 +20,7 @@ curs = conn.cursor()
 
 df_nhsd = pandas.read_excel(xls, 'nhsd classification',index_col=0)
 
-old_names = "'{}','aged_care,'aged_care_residential_services'".format("','".join(df_nhsd['old name'].values))
+old_names = "'{}','aged_care','aged_care_residential_services'".format("','".join(df_nhsd['old name'].values))
 if locale!='mildura':
     old_names = "{},'u3a','u3a_2019'".format(old_names)
     
