@@ -220,6 +220,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS {wide_table}_idx ON {wide_table} ({id});
            long_table = long_table,
            id = points_id.lower(),
            destinations = destination_names)
+curs.execute(sql)
+conn.commit()
 print("Done.")
 
 print("Create summary table of distances to destinations in 3.2km (dest_distances_3200m)... "),
@@ -470,60 +472,65 @@ if res is None:
 
 # calculate food indicators at both 1.6km and 3.2km
 print(" - ind_food... "),
-for nh_threshold in [1600,3200]:
-    table = ['ind_food_{nh_threshold}m'.format(nh_threshold = nh_threshold),'f']
-    sql = '''
-    --DROP TABLE IF EXISTS {table};
-    CREATE TABLE IF NOT EXISTS {table} AS
-    SELECT
-        {id},
-        d.supermarkets             AS food_count_supermarkets_{nh_threshold}m     ,
-        d.fruit_veg                AS food_count_fruit_veg_{nh_threshold}m        ,
-        d.specialty                AS food_count_other_specialty_{nh_threshold}m  ,
-        d.supermarkets+d.fruit_veg AS food_count_healthier_{nh_threshold}m  ,
-        d.fastfood                 AS food_count_fastfood_{nh_threshold}m       ,
-        (d.supermarkets+d.fruit_veg)             
-          / NULLIF((d.supermarkets+d.fruit_veg+ d.fastfood):: float,0) AS food_healthy_proportion_{nh_threshold}m,
-        (d.supermarkets+d.fruit_veg)            
-         / NULLIF(d.fastfood:: float,0) AS food_healthy_ratio_{nh_threshold}m,
-        (d.supermarkets+d.fruit_veg+d.specialty) 
-         / NULLIF((d.supermarkets+d.fruit_veg+ d.fastfood++d.specialty):: float,0) AS food_fresh_proportion_{nh_threshold}m,
-        (d.supermarkets+d.fruit_veg+d.specialty) 
-         / NULLIF(d.fastfood:: float,0) AS food_fresh_ratio_{nh_threshold}m,
-        (d.supermarkets+d.fruit_veg+d.fastfood = 0)::int AS no_healthy_unhealthy_food_{nh_threshold}m,
-        (d.supermarkets+d.fruit_veg+d.fastfood+d.specialty = 0)::int AS no_food_{nh_threshold}m
-    FROM (SELECT 
+curs.execute('''SELECT 1 WHERE to_regclass('public.{table}') IS NOT NULL;'''.format(table = 'ind_food'))
+res = curs.fetchone()
+if res:
+    print("Table exists.")
+else:
+    for nh_threshold in [1600,3200]:
+        table = ['ind_food_{nh_threshold}m'.format(nh_threshold = nh_threshold),'f']
+        sql = '''
+        --DROP TABLE IF EXISTS {table};
+        CREATE TABLE IF NOT EXISTS {table} AS
+        SELECT
             {id},
-            GREATEST(COALESCE(count_in_threshold(supermarket,{nh_threshold}),0),
-                     COALESCE(count_in_threshold(supermarket_osm,{nh_threshold}),0)) AS supermarkets,
-            COALESCE(count_in_threshold(fruit_veg_osm,{nh_threshold}),0) AS fruit_veg,
-            (COALESCE(count_in_threshold(bakery_osm,{nh_threshold}),0) +       
-             COALESCE(count_in_threshold(meat_seafood_osm,{nh_threshold}),0) +          
-             COALESCE(count_in_threshold(deli_osm,{nh_threshold}),0)) AS specialty,         
-            GREATEST(COALESCE(count_in_threshold(fast_food,{nh_threshold}),0),
-                     COALESCE(count_in_threshold(fastfood_osm,{nh_threshold}),0)) AS fastfood
-        FROM dest_distances_3200m) d
-    '''.format(table = table[0], 
-            id = points_id.lower(),
-            nh_threshold = nh_threshold)
+            d.supermarkets             AS food_count_supermarkets_{nh_threshold}m     ,
+            d.fruit_veg                AS food_count_fruit_veg_{nh_threshold}m        ,
+            d.specialty                AS food_count_other_specialty_{nh_threshold}m  ,
+            d.supermarkets+d.fruit_veg AS food_count_healthier_{nh_threshold}m  ,
+            d.fastfood                 AS food_count_fastfood_{nh_threshold}m       ,
+            (d.supermarkets+d.fruit_veg)             
+            / NULLIF((d.supermarkets+d.fruit_veg+ d.fastfood):: float,0) AS food_healthy_proportion_{nh_threshold}m,
+            (d.supermarkets+d.fruit_veg)            
+            / NULLIF(d.fastfood:: float,0) AS food_healthy_ratio_{nh_threshold}m,
+            (d.supermarkets+d.fruit_veg+d.specialty) 
+            / NULLIF((d.supermarkets+d.fruit_veg+ d.fastfood++d.specialty):: float,0) AS food_fresh_proportion_{nh_threshold}m,
+            (d.supermarkets+d.fruit_veg+d.specialty) 
+            / NULLIF(d.fastfood:: float,0) AS food_fresh_ratio_{nh_threshold}m,
+            (d.supermarkets+d.fruit_veg+d.fastfood = 0)::int AS no_healthy_unhealthy_food_{nh_threshold}m,
+            (d.supermarkets+d.fruit_veg+d.fastfood+d.specialty = 0)::int AS no_food_{nh_threshold}m
+        FROM (SELECT 
+                {id},
+                GREATEST(COALESCE(count_in_threshold(supermarket,{nh_threshold}),0),
+                        COALESCE(count_in_threshold(supermarket_osm,{nh_threshold}),0)) AS supermarkets,
+                COALESCE(count_in_threshold(fruit_veg_osm,{nh_threshold}),0) AS fruit_veg,
+                (COALESCE(count_in_threshold(bakery_osm,{nh_threshold}),0) +       
+                COALESCE(count_in_threshold(meat_seafood_osm,{nh_threshold}),0) +          
+                COALESCE(count_in_threshold(deli_osm,{nh_threshold}),0)) AS specialty,         
+                GREATEST(COALESCE(count_in_threshold(fast_food,{nh_threshold}),0),
+                        COALESCE(count_in_threshold(fastfood_osm,{nh_threshold}),0)) AS fastfood
+            FROM dest_distances_3200m) d
+        '''.format(table = table[0], 
+                id = points_id.lower(),
+                nh_threshold = nh_threshold)
+        curs.execute(sql)
+        conn.commit()
+        create_index = '''CREATE UNIQUE INDEX IF NOT EXISTS {table}_idx ON  {table} ({id});  '''.format(table = table[0],id = points_id.lower())
+        curs.execute(create_index)
+        conn.commit()
+    
+    # combine food tables
+    sql = '''
+    --DROP TABLE IF EXISTS ind_food;
+    CREATE TABLE IF NOT EXISTS ind_food AS
+    SELECT * FROM ind_food_1600m LEFT JOIN ind_food_3200m USING (gnaf_pid);
+    CREATE UNIQUE INDEX IF NOT EXISTS ind_food_idx ON  ind_food ({id});
+    DROP TABLE IF EXISTS ind_food_1600m;
+    DROP TABLE IF EXISTS ind_food_3200m;
+    '''.format(id = points_id.lower())
     curs.execute(sql)
     conn.commit()
-    create_index = '''CREATE UNIQUE INDEX IF NOT EXISTS {table}_idx ON  {table} ({id});  '''.format(table = table[0],id = points_id.lower())
-    curs.execute(create_index)
-    conn.commit()
-
-# combine food tables
-sql = '''
---DROP TABLE IF EXISTS ind_food;
-CREATE TABLE IF NOT EXISTS ind_food AS
-SELECT * FROM ind_food_1600m LEFT JOIN ind_food_3200m USING (gnaf_pid);
-CREATE UNIQUE INDEX IF NOT EXISTS ind_food_idx ON  ind_food ({id});
-DROP TABLE ind_food_1600m;
-DROP TABLE ind_food_3200m;
-'''.format(id = points_id.lower())
-curs.execute(sql)
-conn.commit()
-print(" Done.")
+    print(" Done.")
 
 # Create Open Space measures (distances, which can later be considered with regard to thresholds)
 # In addition to public open space (pos), also includes sport areas and blue space
