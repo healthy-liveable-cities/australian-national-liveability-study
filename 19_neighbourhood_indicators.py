@@ -180,9 +180,6 @@ array_categories = [x for x in df_destinations.destination_class.tolist()]
 array_category_list = ','.join(array_categories)
 array_category_types = '"{}" int[]'.format('" int[], "'.join(array_categories))
 
-# get the set of distance to closest regions which match for this region
-destinations = df_inds[df_inds['ind'].str.contains('destinations')]
-
 print("Check that there are not entries in the 'log_od_distances' table which are not present as results in the 'od_closest' table... ")
 # Check if the table exists; if it does, these areas have previously been re-imported, so no need to re-do
 curs.execute('''SELECT DISTINCT(dest_name) FROM log_od_distances WHERE dest_name NOT IN (SELECT DISTINCT(dest_name) FROM od_closest);''')
@@ -205,132 +202,47 @@ if len(orphan_destinations) > 0:
 else:
     print("  - all good!")
     
-print("Create summary table of destination distances (dest_distance_m), if not already existing... ")
-table = 'dest_distance_m'
-# Check if the table exists; if it does, these areas have previously been re-imported, so no need to re-do
-curs.execute('''SELECT 1 WHERE to_regclass('public.{table}') IS NULL;'''.format(table = table))
-res = curs.fetchone()
-if res:    
-    create_table = '''
-    CREATE TABLE IF NOT EXISTS {table} AS SELECT {id} FROM parcel_dwellings;
-    '''.format(table = table, id = points_id.lower())
-    curs.execute(create_table)
-    conn.commit()
-    create_index = '''CREATE UNIQUE INDEX IF NOT EXISTS {table}_idx ON {table} ({id});'''.format(table = table, id = points_id.lower())
-    curs.execute(create_index)
-    conn.commit()
-    print("  - table created.")
-if res is None:
-    print("  - table exists.")
-print("  - iterating over destination classes and updating results where currently null.")
-sql = '''SELECT dest_name FROM dest_type ORDER BY dest_name;'''
-curs.execute(sql)
-dest_name_in_region = [x[0] for x in curs.fetchall()]
-# ensure that earlier entries which are no longer relevant are not contained in the table (ie. due to changes in naming conventions)
-sql = '''SELECT column_name FROM information_schema.columns WHERE table_name = '{}';'''.format(table)
-curs.execute(sql)
-dest_previously_processed = [x[0] for x in curs.fetchall()]
-dest_noise = [r for r in dest_previously_processed if r not in categories and r!=points_id.lower()]
-dest_to_rename = [r for r in dest_noise if r in [a.lower() for a in categories if a not in dest_previously_processed]]
-for dest in dest_to_rename:
-    capitalised = [d for d in categories if d.lower() == dest][0]
-    curs.execute('''ALTER TABLE {} RENAME COLUMN "{}" to "{}"'''.format(table,dest,capitalised))
-    conn.commit()    
-dest_noise = [d for d in dest_noise if d not in dest_to_rename]
-if len(dest_noise) > 0:
-    curs.execute('''ALTER TABLE {} {} '''.format(table,','.join(['DROP "{}"'.format(t) for t in dest_noise])))
-    conn.commit()
+print("Create summary table of destination distances (dest_distance_m)... ")
+wide_table = 'dest_distance_m'
+long_table = 'od_closest'
+destination_names = ',\n'.join(['''MIN(CASE WHEN dest_name = '{d}' THEN distance END) AS "{d}"'''.format(d = d) for d in categories])
+sql = '''
+DROP TABLE IF EXISTS {wide_table}_old;
+ALTER TABLE IF EXISTS {wide_table} RENAME TO {wide_table}_old;
+ALTER INDEX IF EXISTS {wide_table}_idx RENAME TO {wide_table}_old_idx;
+CREATE TABLE {wide_table} AS
+SELECT {id},
+       {destinations}
+FROM {long_table}
+GROUP BY {id};
+CREATE UNIQUE INDEX IF NOT EXISTS {wide_table}_idx ON {wide_table} ({id});
+'''.format(wide_table = wide_table,
+           long_table = long_table,
+           id = points_id.lower(),
+           destinations = destination_names)
+print("Done.")
 
-for dest_name in categories:
-    add_field = '''
-    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS "{dest_name}" int;
-    '''.format(table = table, dest_name = dest_name)
-    curs.execute(add_field)
-    conn.commit()
-    if dest_name in dest_name_in_region:
-        print("    - {}".format(dest_name))
-        update_field = '''
-                    UPDATE {table} t SET 
-                        "{dest_name}" = distance
-                    FROM od_closest o
-                    WHERE t."{dest_name}" IS NULL
-                        AND t.{id} = o.{id} 
-                        AND o.dest_name = '{dest_name}';
-                    '''.format(id = points_id.lower(),\
-                                table = table, 
-                                dest_name = dest_name)
-        curs.execute(update_field)
-        conn.commit()
-# ensure index exists
-create_index = '''CREATE UNIQUE INDEX IF NOT EXISTS {table}_idx ON {table} ({id});'''.format(table = table, id = points_id.lower())
-curs.execute(create_index)
+print("Create summary table of distances to destinations in 3.2km (dest_distances_3200m)... "),
+wide_table = 'dest_distances_3200m'
+long_table = 'od_distances_3200m'
+destination_classes = ',\n'.join(['''MIN(CASE WHEN dest_class = '{d}' THEN distances END) AS "{d}"'''.format(d = d) for d in array_categories])
+sql = '''
+DROP TABLE IF EXISTS {wide_table}_old;
+ALTER TABLE IF EXISTS {wide_table} RENAME TO {wide_table}_old;
+ALTER INDEX IF EXISTS {wide_table}_idx RENAME TO {wide_table}_old_idx;
+CREATE TABLE {wide_table} AS
+SELECT {id},
+       {destinations}
+FROM {long_table}
+GROUP BY {id};
+CREATE UNIQUE INDEX IF NOT EXISTS {wide_table}_idx ON {wide_table} ({id});
+'''.format(wide_table = wide_table,
+           long_table = long_table,
+           id = points_id.lower(),
+           destinations = destination_classes)
+curs.execute(sql)
 conn.commit()
-print(" Table created and processed.")
-
-print("Create summary table of distances to destinations in 3.2km ({table}), if not already existing... ".format(table = table))
-table = 'dest_distances_3200m'
-# Check if the table exists; if it does, these areas have previously been re-imported, so no need to re-do
-curs.execute('''SELECT 1 WHERE to_regclass('public.{table}') IS NULL;'''.format(table = table))
-res = curs.fetchone()
-if res:    
-    create_table = '''
-    -- DROP TABLE IF EXISTS {table}; 
-    CREATE TABLE IF NOT EXISTS {table} AS SELECT {id} FROM parcel_dwellings;
-    '''.format(table = table, id = points_id.lower())
-    curs.execute(create_table)
-    conn.commit()
-    create_index = '''CREATE UNIQUE INDEX IF NOT EXISTS {table}_idx ON {table} ({id});'''.format(table = table, id = points_id.lower())
-    curs.execute(create_index)
-    conn.commit()
-    print("  - table created.")
-if res is None:
-    print("  - table exists.")
-print("  - iterating over destination classes and updating results where currently null.")
-sql = '''SELECT dest_class FROM dest_type ORDER BY dest_class;'''
-curs.execute(sql)
-dest_class_in_region = [x[0] for x in curs.fetchall()]
-# ensure that earlier entries which are no longer relevant are not contained in the table (ie. due to changes in naming conventions)
-sql = '''SELECT column_name FROM information_schema.columns WHERE table_name = '{}';'''.format(table)
-curs.execute(sql)
-dest_previously_processed = [x[0] for x in curs.fetchall() if x[0]!=points_id.lower()]
-dest_noise = [r for r in dest_previously_processed if r not in array_categories]
-dest_to_rename = [r for r in dest_noise if r in [a.lower() for a in array_categories if a not in dest_previously_processed]]
-for dest in dest_to_rename:
-    capitalised = [d for d in array_categories if d.lower() == dest][0]
-    curs.execute('''ALTER TABLE {} RENAME COLUMN "{}" to "{}"'''.format(table,dest,capitalised))
-    conn.commit()    
-dest_noise = [d for d in dest_noise if d not in dest_to_rename]
-if len(dest_noise) > 0:
-    curs.execute('''ALTER TABLE {} {} '''.format(table,','.join(['DROP "{}"'.format(t) for t in dest_noise])))
-    conn.commit()
-
-for dest_class in array_categories:
-    add_field = '''
-    -- Note that we take NULL for distance to closest in this context to mean absence of presence
-    -- Error checking at other stages of processing should confirm whether this is the case.
-    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS "{dest_class}" int[];
-    '''.format(table = table, dest_class = dest_class)
-    curs.execute(add_field)
-    conn.commit()
-    if dest_class in dest_class_in_region:
-        print("    - {}".format(dest_class))
-        update_field = '''
-                    UPDATE {table} t SET 
-                        "{dest_class}" = distances
-                    FROM od_distances_3200m o
-                    WHERE t."{dest_class}" IS NULL
-                        AND t.{id} = o.{id} 
-                        AND o.dest_class = '{dest_class}';
-                    '''.format(id = points_id.lower(),
-                                table = table, 
-                                dest_class = dest_class)
-        curs.execute(update_field)
-        conn.commit()
-# ensure index exists
-create_index = '''CREATE UNIQUE INDEX IF NOT EXISTS {table}_idx ON {table} ({id});'''.format(table = table, id = points_id.lower())
-curs.execute(create_index)
-conn.commit()
-print(" Table created and processed.")
+print("Done.")
 
 print("Combine destination array and closest tables..."),
 # Get a list of all potential destinations for distance to closest 
