@@ -60,12 +60,24 @@ FROM (SELECT {id},
                    threshold_soft("u3a_mildura_2019"            ,1600)  AS "u3a"                           ,
                    threshold_soft("gtfs_2018_stops"             ,1600)  AS "gtfs_2018_stops"               ,
                    threshold_soft("place_of_worship_osm"        ,1600)  AS "place_of_worship_osm" 
-              FROM dest_distance_m)
+              FROM dest_distance_m
+              WHERE NOT EXISTS 
+                     -- Apply exclusions as determined in scripting process based on SOS, SEIFA IRSD and key indicators
+                    (SELECT 1 
+                    FROM excluded_parcels e
+                   WHERE dest_distance_m.{id} = e.{id})
+                AND EXISTS 
+                    -- Only include those parcels in the included parcels table 'study_parcels'
+                    (SELECT 1 
+                    FROM study_parcels s
+                   WHERE dest_distance_m.{id} = s.{id})
+              )
                 t) as t_outer;
 
 DROP TABLE IF EXISTS ind_older_services_sa1;
 CREATE TABLE ind_older_services_sa1 AS
 SELECT t.{area}  ,
+       COUNT(*) AS sample_point_count,
        t.z_ac ,
        t.z_acr,
        t.z_cc ,
