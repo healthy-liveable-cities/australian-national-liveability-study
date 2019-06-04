@@ -180,7 +180,6 @@ for dest in destination_list:
         FROM {osm_prefix}_point d
        WHERE {dest_condition};
     '''.format(dest_class = dest_fields['destination_class'],
-               dest_pkey = dest_pkey,
                dest = dest,
                osm_prefix = osm_prefix,
                dest_condition = dest_condition)
@@ -198,7 +197,6 @@ for dest in destination_list:
        WHERE {dest_condition};
     '''.format(dest_class = dest_fields['destination_class'],
                dest_count = dest_count,
-               dest_pkey = dest_pkey,
                dest = dest,
                osm_prefix = osm_prefix,
                dest_condition = dest_condition)

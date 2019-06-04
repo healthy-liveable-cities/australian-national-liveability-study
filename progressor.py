@@ -38,6 +38,8 @@ def progressor(num = 0, denom = 100, start = None, task = ''):
     print("\b"*mult),
     print("{:5.2f}%{}{} {}".format(pct,HMS,eta,task)),
     if num >= denom:
+      print("\b"*mult),
+      print("{:5.2f}%{}{} {}".format(pct,HMS,eta,task)),
       todayhour = time.strftime("%Y%m%d_%H%M")
       print("\nComplete: {}".format(todayhour))
       if num > denom:
