@@ -34,9 +34,9 @@ engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_
 # appended once the first table is expanded into soft and hard threshold indicator forms
 ind_matrix = df_inds[df_inds['locale'].str.contains('|'.join([locale,'\*']))].copy()
 ind_destinations = df_destinations[df_destinations.unit_level_description != 'NULL'].copy()
-ind_destinations = ind_destinations.set_index('destination_class')
+ind_destinations = ind_destinations.set_index('destination')
 ind_destinations.index.name = 'indicators'
-
+ind_destinations = ind_destinations.loc[:,'unit_level_description':]
 
 # Get a list of destinations processed within this region for distance to closest
 # sql = '''SELECT DISTINCT(dest_name) dest_name FROM od_closest ORDER BY dest_name;'''
@@ -80,21 +80,23 @@ ind_summary_not_urban = ind_summary_urban
 ind_summary_include = ind_summary_urban
 ind_summary_exclude = ind_summary_urban
 
+indicators = ind_summary.index.values
+
 print("Create tables for data checking purposes...")
 # Generate strings for checking nulls: by column (indicator), and by row
 # null_query_summary = ',\n'.join("SUM(" + ind_matrix['indicators'] + " IS NULL::int) AS " + ind_matrix['indicators'])
 query_summaries = {
-   'mean' :',\n'.join("ROUND(AVG("    + ind_matrix['indicators'] + ")::numeric,2) AS " + ind_matrix['indicators']),
-   'sd'   :',\n'.join("ROUND(STDDEV(" + ind_matrix['indicators'] + ")::numeric,2) AS " + ind_matrix['indicators']),
-   'min'  :',\n'.join("ROUND(MIN("    + ind_matrix['indicators'] + ")::numeric,2) AS " + ind_matrix['indicators']),
-   'max'  :',\n'.join("ROUND(MAX("    + ind_matrix['indicators'] + ")::numeric,2) AS " + ind_matrix['indicators']),
-   'p2.5' :',\n'.join("ROUND(percentile_cont(0.025) WITHIN GROUP (ORDER BY "+ ind_matrix['indicators'] + ")::numeric,2) AS " + ind_matrix['indicators']),
-   'p25'  :',\n'.join("ROUND(percentile_cont(0.25 ) WITHIN GROUP (ORDER BY "+ ind_matrix['indicators'] + ")::numeric,2) AS " + ind_matrix['indicators']),
-   'p50'  :',\n'.join("ROUND(percentile_cont(0.5  ) WITHIN GROUP (ORDER BY "+ ind_matrix['indicators'] + ")::numeric,2) AS " + ind_matrix['indicators']),
-   'p75'  :',\n'.join("ROUND(percentile_cont(0.75 ) WITHIN GROUP (ORDER BY "+ ind_matrix['indicators'] + ")::numeric,2) AS " + ind_matrix['indicators']),
-   'p97.5':',\n'.join("ROUND(percentile_cont(0.975) WITHIN GROUP (ORDER BY "+ ind_matrix['indicators'] + ")::numeric,2) AS " + ind_matrix['indicators']),
-   'count':',\n'.join("COUNT(*) AS " + ind_matrix['indicators']),
-   'nulls':',\n'.join("SUM("  + ind_matrix['indicators'] + " IS NULL::int) AS " + ind_matrix['indicators']),
+   'mean' :',\n'.join("ROUND(AVG("                                          + '"' + indicators + '"' + ")::numeric,2) AS " + '"' + indicators + '"'),
+   'sd'   :',\n'.join("ROUND(STDDEV("                                       + '"' + indicators + '"' + ")::numeric,2) AS " + '"' + indicators + '"'),
+   'min'  :',\n'.join("ROUND(MIN("                                          + '"' + indicators + '"' + ")::numeric,2) AS " + '"' + indicators + '"'),
+   'max'  :',\n'.join("ROUND(MAX("                                          + '"' + indicators + '"' + ")::numeric,2) AS " + '"' + indicators + '"'),
+   'p2.5' :',\n'.join("ROUND(percentile_cont(0.025) WITHIN GROUP (ORDER BY "+ '"' + indicators + '"' + ")::numeric,2) AS " + '"' + indicators + '"'),
+   'p25'  :',\n'.join("ROUND(percentile_cont(0.25 ) WITHIN GROUP (ORDER BY "+ '"' + indicators + '"' + ")::numeric,2) AS " + '"' + indicators + '"'),
+   'p50'  :',\n'.join("ROUND(percentile_cont(0.5  ) WITHIN GROUP (ORDER BY "+ '"' + indicators + '"' + ")::numeric,2) AS " + '"' + indicators + '"'),
+   'p75'  :',\n'.join("ROUND(percentile_cont(0.75 ) WITHIN GROUP (ORDER BY "+ '"' + indicators + '"' + ")::numeric,2) AS " + '"' + indicators + '"'),
+   'p97.5':',\n'.join("ROUND(percentile_cont(0.975) WITHIN GROUP (ORDER BY "+ '"' + indicators + '"' + ")::numeric,2) AS " + '"' + indicators + '"'),
+   'count':',\n'.join("COUNT(*) AS "                                                                                       + '"' + indicators + '"'),
+   'nulls':',\n'.join("SUM("                                                + '"' + indicators + '"' + " IS NULL::int) AS "+ '"' + indicators + '"'),
     }
 
 for summary in query_summaries:
