@@ -76,7 +76,7 @@ FROM (SELECT {id},
 DROP TABLE IF EXISTS ind_older_services_sa1;
 CREATE TABLE ind_older_services_sa1 AS
 SELECT t.{area}  ,
-       COUNT(*) AS sample_point_count,
+       sample_point_count,
        t.z_ac ,
        t.z_acr,
        t.z_cc_lib ,
@@ -98,22 +98,23 @@ SELECT t.{area}  ,
        ntile(10) OVER(ORDER BY z_pow  DESC) as pow_decile,
        ntile(10) OVER(ORDER BY older_services  DESC) as older_services_decile 
 FROM (SELECT abs_linkage.{area},
-                    AVG(z_ac ) AS z_ac ,
-                    AVG(z_ac ) AS z_acr ,
-                    AVG(z_cc_lib ) AS z_cc_lib ,
-                    AVG(z_gp ) AS z_gp ,
-                    AVG(z_ho ) AS z_ho ,
-                    AVG(z_sup) AS z_sup,
-                    AVG(z_u3a) AS z_u3a,
-                    AVG(z_pt)  AS z_pt,
-                    AVG(z_pow)  AS z_pow,
-                    AVG(older_services) AS older_services
+             COUNT(*) AS sample_point_count,
+             AVG(z_ac ) AS z_ac ,
+             AVG(z_acr ) AS z_acr ,
+             AVG(z_cc_lib ) AS z_cc_lib ,
+             AVG(z_gp ) AS z_gp ,
+             AVG(z_ho ) AS z_ho ,
+             AVG(z_sup) AS z_sup,
+             AVG(z_u3a) AS z_u3a,
+             AVG(z_pt)  AS z_pt,
+             AVG(z_pow)  AS z_pow,
+             AVG(older_services) AS older_services
       FROM parcel_dwellings p
       LEFT JOIN abs_linkage ON p.mb_code_20 = abs_linkage.mb_code_2016
       LEFT JOIN ind_older_services ON p.{id} = ind_older_services.{id}
+      WHERE ind_older_services.{id} IS NOT NULL
       GROUP BY abs_linkage.{area}
-      ) as t
-GROUP BY t.{area};
+      ) as t;
   '''.format(id = points_id.lower(),area = area)        
 
  
