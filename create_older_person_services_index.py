@@ -36,7 +36,7 @@ SELECT {id},
        z_u3a, 
        z_pt, 
        z_pow, 
-       (z_ac + z_acr + z_cc_lib + z_gp + z_ho + z_lib + z_sup + z_u3a + z_pt + z_pow) AS older_services
+       (z_ac + z_acr + z_cc_lib + z_gp + z_ho + z_sup + z_u3a + z_pt + z_pow) AS older_services
 FROM (SELECT {id},
             ("nhsd_2017_aged_care"             - AVG("nhsd_2017_aged_care"            ) OVER())/stddev_pop("nhsd_2017_aged_care"            ) OVER() as z_ac,
             ("nhsd_2017_aged_care_residential" - AVG("nhsd_2017_aged_care_residential") OVER())/stddev_pop("nhsd_2017_aged_care_residential") OVER() as z_acr,
@@ -82,7 +82,6 @@ SELECT t.{area}  ,
        t.z_cc_lib ,
        t.z_gp ,
        t.z_ho ,
-       t.z_lib,
        t.z_sup,
        t.z_u3a,
        t.z_pt ,    
@@ -93,7 +92,6 @@ SELECT t.{area}  ,
        ntile(10) OVER(ORDER BY z_cc_lib  DESC) as cc_decile,
        ntile(10) OVER(ORDER BY z_gp  DESC) as gp_decile,
        ntile(10) OVER(ORDER BY z_ho  DESC) as ho_decile,
-       ntile(10) OVER(ORDER BY z_lib DESC) as lib_decile,
        ntile(10) OVER(ORDER BY z_sup DESC) as sup_decile,
        ntile(10) OVER(ORDER BY z_u3a DESC) as u3a_decile,
        ntile(10) OVER(ORDER BY z_pt  DESC) as pt_decile,
@@ -105,16 +103,16 @@ FROM (SELECT abs_linkage.{area},
                     AVG(z_cc_lib ) AS z_cc_lib ,
                     AVG(z_gp ) AS z_gp ,
                     AVG(z_ho ) AS z_ho ,
-                    AVG(z_lib) AS z_lib,
                     AVG(z_sup) AS z_sup,
                     AVG(z_u3a) AS z_u3a,
                     AVG(z_pt)  AS z_pt,
                     AVG(z_pow)  AS z_pow,
                     AVG(older_services) AS older_services
-                    FROM parcel_dwellings p
-                    LEFT JOIN abs_linkage ON p.mb_code_20 = abs_linkage.mb_code_2016
-                    LEFT JOIN ind_older_services ON p.{id} = ind_older_services.{id}
-                    GROUP BY abs_linkage.{area}) as t;
+      FROM parcel_dwellings p
+      LEFT JOIN abs_linkage ON p.mb_code_20 = abs_linkage.mb_code_2016
+      LEFT JOIN ind_older_services ON p.{id} = ind_older_services.{id}
+      GROUP BY abs_linkage.{area}
+      ) as t;
   '''.format(id = points_id.lower(),area = area)        
 
  
