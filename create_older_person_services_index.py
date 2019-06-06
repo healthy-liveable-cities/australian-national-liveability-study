@@ -112,7 +112,8 @@ FROM (SELECT abs_linkage.{area},
       LEFT JOIN abs_linkage ON p.mb_code_20 = abs_linkage.mb_code_2016
       LEFT JOIN ind_older_services ON p.{id} = ind_older_services.{id}
       GROUP BY abs_linkage.{area}
-      ) as t;
+      ) as t
+GROUP BY t.{area};
   '''.format(id = points_id.lower(),area = area)        
 
  
