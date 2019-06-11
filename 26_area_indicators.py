@@ -23,11 +23,16 @@ task = 'Create area level indicator tables for {}'.format(locale)
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()
 
-# Read in indicator description matrix
-ind_matrix = df_inds
+# Indicator configuration sheet is 'df_inds', read in from config file in the config script
 
-# Restrict to indicators associated with study region
-ind_matrix = df_inds[df_inds['locale'].str.contains('|'.join([locale,'\*']))]
+# Restrict to indicators associated with study region (except distance to closest dest indicators)
+# the following two tables (indicators/measures, and distances to closest measures) will later be
+# appended once the first table is expanded into soft and hard threshold indicator forms
+ind_matrix = df_inds[df_inds['locale'].str.contains('|'.join([locale,'\*']))].copy()
+ind_destinations = df_destinations[(df_destinations.locale == "*") | (df_destinations.locale == locale)].copy()
+ind_destinations = ind_destinations.set_index('destination')
+ind_destinations.index.name = 'indicators'
+ind_destinations = ind_destinations.loc[:,'unit_level_description':]
 
 # Get a list of destinations processed within this region for distance to closest
 # sql = '''SELECT DISTINCT(dest_name) dest_name FROM od_closest ORDER BY dest_name;'''
@@ -35,12 +40,11 @@ sql = '''SELECT dest_name FROM dest_type ORDER BY dest_name;'''
 curs.execute(sql)
 categories = [x[0] for x in curs.fetchall()]
 
-
-# get the set of distance to closest regions which match for this region
-destinations = df_inds[df_inds['ind'].str.contains('destinations')]
-current_categories = [x for x in categories if 'distance_m_{}'.format(x) in destinations.ind_plain.str.encode('utf8').tolist()]
-ind_matrix = ind_matrix.append(destinations[destinations['ind_plain'].str.replace('distance_m_','').str.contains('|'.join(current_categories))])
-ind_matrix['order'] = ind_matrix.index
+# # get the set of distance to closest regions which match for this region
+# destinations = df_inds[df_inds['ind'].str.contains('destinations')]
+# current_categories = [x for x in categories if 'distance_m_{}'.format(x) in destinations.ind_plain.str.encode('utf8').tolist()]
+# ind_matrix = ind_matrix.append(destinations[destinations['ind_plain'].str.replace('distance_m_','').str.contains('|'.join(current_categories))])
+ind_matrix['order'] = list(ind_matrix.index)
 ind_soft = ind_matrix.loc[ind_matrix.tags=='_{threshold}',:].copy()
 ind_hard = ind_matrix.loc[ind_matrix.tags=='_{threshold}',:].copy()
 ind_soft.replace(to_replace='{threshold}', value='soft', inplace=True,regex=True)
@@ -48,107 +52,101 @@ ind_hard.replace(to_replace='{threshold}', value='hard', inplace=True,regex=True
 
 ind_matrix = pandas.concat([ind_matrix,ind_soft,ind_hard], ignore_index=True).sort_values('ind')
 ind_matrix.drop(ind_matrix[ind_matrix.tags == '_{threshold}'].index, inplace=True)
-# # Restrict to indicators with a defined query
+# Restrict to indicators with a defined query
 ind_matrix = ind_matrix[pandas.notnull(ind_matrix['Query'])]
 ind_matrix.drop(ind_matrix[ind_matrix['updated?'] == 'n'].index, inplace=True)
-
-# Restrict to indicators with a defined source, or the urban liveability index
-# ind_matrix = ind_matrix[((pandas.notnull(ind_matrix['Source'])) | (ind_matrix['ind']=='uli'))]
-# ind_matrix = ind_matrix[((pandas.notnull(ind_matrix['Source'])))]
 
 # Make concatenated indicator and tag name (e.g. 'walk_14' + 'hard')
 # Tags could be useful later as can allow to search by name for e.g. threshold type,
 # or other keywords (policy, binary, obsolete, planned --- i don't know, whatever)
 # These tags are tacked on the end of the ind name seperated with underscores
 ind_matrix['indicators'] = ind_matrix['ind'] + ind_matrix['tags'].fillna('')
-
+# ind_matrix['sort_cat'] = pandas.Categorical(ind_matrix['ind'], categories=mylist, ordered=True)
+# ind_matrix.sort_values('sort_cat', inplace=True)
 # Compile list of indicators
-ind_list = ind_matrix['indicators'].tolist()
+ind_matrix.sort_values('order', inplace=True)
+
+# Create an indicators summary table
+ind_matrix = ind_matrix.set_index('indicators')
+ind_matrix = ind_matrix.append(ind_destinations)
+ind_list = ind_matrix.index.values
 
 # Note that postgresql ignores null values when calculating averages
 # We can passively exploit this feature in the case of POS as those parcels with nulls will be 
 # ignored --- this is exactly what we want.  Excellent.
-ind_avg = ',\n'.join("AVG(" + ind_matrix['agg_scale'].apply(lambda x: '100.0*' if x == 100 else '1.0*') + ind_matrix['indicators'] + " ) AS " + ind_matrix['indicators'])
+ind_avg = ',\n'.join("AVG(" + ind_matrix['agg_scale'].apply(lambda x: '100.0*' if x == 100 else '1.0*') + '"' + ind_list+ '"' + " ) AS " +  '"' + ind_list+ '"')
 
-ind_sd = ',\n'.join("stddev_samp(" + ind_matrix['agg_scale'].apply(lambda x: '100.0*' if x == 100 else '1.0*') + ind_matrix['indicators'] + " ) AS " + ind_matrix['indicators'])
+ind_sd = ',\n'.join("stddev_samp(" + ind_matrix['agg_scale'].apply(lambda x: '100.0*' if x == 100 else '1.0*') + '"' + ind_list+ '"' + " ) AS " + '"' + ind_list+ '"')
 
 # Create query for indicator range (including scaling of percent variables)
 ind_range = ',\n'.join("ROUND(MIN(" +
                        ind_matrix['agg_scale'].apply(lambda x: '100.0*' if x == 100 else '1.0*') +
-                       ind_matrix['indicators'] + 
+                       '"' + ind_list+ '"' +
                        ")::numeric,1)::text || ' to ' ||ROUND(MAX(" +
                        ind_matrix['agg_scale'].apply(lambda x: '100.0*' if x == 100 else '1.0*') +
-                       ind_matrix['indicators'] + 
-                       ")::numeric,1)::text AS " +
-                       ind_matrix['indicators'])
+                       '"' + ind_list+ '"' +
+                       ")::numeric,1)::text AS " + '"'+ 
+                       ind_list+ '"' )
 # Create query for median       
 ind_median = ',\n'.join("round(percentile_cont(0.5) WITHIN GROUP (ORDER BY " +
-                        ind_matrix['agg_scale'].apply(lambda x: '100.0*' if x == 100 else '1.0*') + ind_matrix['indicators'] + 
-                       ")::numeric,1) AS " +
-                       ind_matrix['indicators'])                       
+                        ind_matrix['agg_scale'].apply(lambda x: '100.0*' if x == 100 else '1.0*')+ 
+                        '"' + ind_list + '"' + 
+                       ")::numeric,1) AS " + 
+                       '"' + ind_list+ '"')                       
                        
 # Create query for Interquartile range interval (25% to 75%) to represent the range within which the middle 50% of observations lie                       
 ind_iqr = ',\n'.join("round(percentile_cont(0.25) WITHIN GROUP (ORDER BY " +
                        ind_matrix['agg_scale'].apply(lambda x: '100.0*' if x == 100 else '1.0*') +
-                       ind_matrix['indicators'] + 
+                       '"' + ind_list+ '"' +
                        ")::numeric,1)::text || ' to ' ||round(percentile_cont(0.75) WITHIN GROUP (ORDER BY " +
                        ind_matrix['agg_scale'].apply(lambda x: '100.0*' if x == 100 else '1.0*') +
-                       ind_matrix['indicators'] + 
+                       '"' + ind_list+ '"' +
                        ")::numeric,1)::text AS " +
-                       ind_matrix['indicators'])                  
+                       '"' + ind_list+ '"')                  
 
 # Create a second pass table including binary indicators
 ## TO DO
 
 # Create query for percentile           
 ind_percentile = ',\n'.join("round(100*cume_dist() OVER(ORDER BY "+
-                            ind_matrix['indicators'] + 
+                            '"' + ind_list+ '"'
                             " " +
                             ind_matrix['polarity'] +
                             ")::numeric,0) AS " +
-                            ind_matrix['indicators'])        
+                            '"' + ind_list+ '"')        
 
 # Map query for raw indicators
 map_ind_raw = ',\n'.join("round(raw." +
-                         ind_matrix['indicators'] + 
-                         "::numeric,1) AS r_" +
-                         ind_matrix['indicators'])   
+                         '"' + ind_list+ '"' +
+                         '::numeric,1) AS "r_' + ind_list+ '"')   
                          
 # Map query for sd indicators
 map_ind_sd = ',\n'.join("round(sd." +
-                         ind_matrix['indicators'] + 
-                         "::numeric,1) AS sd_" +
-                         ind_matrix['indicators'])                          
+                         '"' + ind_list+ '"' +
+                         '::numeric,1) AS "sd_' + ind_list+ '"')                          
  
 # Map query for percentile indicators
 map_ind_percentile = ',\n'.join("round(perc." +
-                          ind_matrix['indicators'] + 
-                          "::numeric,1) AS p_" +
-                          ind_matrix['indicators'])               
+                         '"' + ind_list+ '"' + 
+                          '::numeric,1) AS "p_' + ind_list+ '"')               
  
 # Map query for range indicators
 map_ind_range = ',\n'.join("range." + 
-                           ind_matrix['indicators'] + 
-                           " AS d_" +
-                           ind_matrix['indicators'])                   
+                         '"' + ind_list+ '"' + 
+                         ' AS "d_' + ind_list+ '"')                   
  
 # Map query for median indicators
 map_ind_median = ',\n'.join("median." + 
-                         ind_matrix['indicators'] + 
-                         " AS med_" +
-                         ind_matrix['indicators']) 
+                         '"' + ind_list+ '"' + 
+                         ' AS "med_' + ind_list+ '"') 
                          
 # Map query for iqr indicators
 map_ind_iqr = ',\n'.join("iqr." + 
-                         ind_matrix['indicators'] + 
-                         " AS m_" +
-                         ind_matrix['indicators']) 
-                         
-exclusion_criteria = 'WHERE  {0} NOT IN (SELECT DISTINCT({0}) FROM excluded_parcels) AND sos_name_2016 IS NOT NULL'.format(points_id.lower())
-## I'm not sure if the below is still relevant
-# parcelmb_exclusion_criteria = 'WHERE  parcelmb.{0} NOT IN (SELECT DISTINCT({0}) FROM excluded_parcels)'.format(points_id.lower())
+                         '"' + ind_list+ '"' + 
+                         ' AS "m_' + ind_list+ '"') 
 
-
+# Exclusion criteria              
+exclusion_criteria = 'WHERE  p.{id} NOT IN (SELECT DISTINCT({id}) FROM excluded_parcels) AND p.sos_name_2016 IS NOT NULL'.format(id = points_id.lower())
 
 # The shape file for map features are output 
 map_features_outpath = os.path.join(folderPath,'study_region','wgs84_epsg4326','map_features')
@@ -173,26 +171,35 @@ areas = {'mb_code_2016':'mb',
 print("Create area tables... ")
 for area_code in areas.keys():
   area = areas[area_code]
+  area_code = 'p.{}'.format(area_code)
   area_code2 = area_code
+  area_code3 = area_code.replace('p.','')
+  area_code4 = area_code3
   if area == 'region':
+    area_code = 'region'
     area_code2 = " 'region'::varchar AS region "
+    area_code3 = area_code
+    area_code4 = area_code2
     print("  {}".format("Study region"))
   else:
     print("  {}".format(area.upper()))
+  
   print("    - aggregate indicator table li_inds_{}... ".format(area)),
   createTable = '''
   DROP TABLE IF EXISTS li_inds_{area} ; 
   CREATE TABLE li_inds_{area} AS
   SELECT {area_code2},
     {indicators}
-    FROM parcel_indicators
+    FROM parcel_indicators p
+    LEFT JOIN dest_closest_indicators d ON p.gnaf_pid = d.gnaf_pid 
     {exclusion}
     GROUP BY {area_code}
     ORDER BY {area_code} ASC;
-  ALTER TABLE li_inds_{area} ADD PRIMARY KEY ({area_code});
+  ALTER TABLE li_inds_{area} ADD PRIMARY KEY ({area_code3});
   '''.format(area = area,
              area_code = area_code,
              area_code2 = area_code2,
+             area_code3 = area_code3,
              indicators = ind_avg,
              exclusion = exclusion_criteria)
   curs.execute(createTable)
@@ -208,14 +215,16 @@ for area_code in areas.keys():
   CREATE TABLE li_sd_{area} AS
   SELECT {area_code2},
     {indicators}     
-    FROM parcel_indicators
+    FROM parcel_indicators p
+    LEFT JOIN dest_closest_indicators d ON p.gnaf_pid = d.gnaf_pid 
     {exclusion}
     GROUP BY {area_code}
     ORDER BY {area_code} ASC;
-  ALTER TABLE li_sd_{area} ADD PRIMARY KEY ({area_code});
+  ALTER TABLE li_sd_{area} ADD PRIMARY KEY ({area_code3});
   '''.format(area = area,
              area_code = area_code,
              area_code2 = area_code2,
+             area_code3 = area_code3,
              indicators = ind_sd,
              exclusion = exclusion_criteria)
   curs.execute(createTable)
@@ -228,14 +237,16 @@ for area_code in areas.keys():
   CREATE TABLE li_range_{area} AS
   SELECT {area_code2},
     {indicators}     
-    FROM parcel_indicators
+    FROM parcel_indicators p
+    LEFT JOIN dest_closest_indicators d ON p.gnaf_pid = d.gnaf_pid 
     {exclusion}
     GROUP BY {area_code}
     ORDER BY {area_code} ASC;
-  ALTER TABLE li_range_{area} ADD PRIMARY KEY ({area_code});
+  ALTER TABLE li_range_{area} ADD PRIMARY KEY ({area_code3});
   '''.format(area = area,
              area_code = area_code,
              area_code2 = area_code2,
+             area_code3 = area_code3,
              indicators = ind_range,
              exclusion = exclusion_criteria)
   curs.execute(createTable)
@@ -248,14 +259,16 @@ for area_code in areas.keys():
   CREATE TABLE li_median_{area} AS
   SELECT {area_code2},
     {indicators}     
-    FROM parcel_indicators
+    FROM parcel_indicators p
+    LEFT JOIN dest_closest_indicators d ON p.gnaf_pid = d.gnaf_pid 
     {exclusion}
     GROUP BY {area_code}
     ORDER BY {area_code} ASC;
-  ALTER TABLE li_median_{area} ADD PRIMARY KEY ({area_code});
+  ALTER TABLE li_median_{area} ADD PRIMARY KEY ({area_code3});
   '''.format(area = area,
              area_code = area_code,
              area_code2 = area_code2,
+             area_code3 = area_code3,
              indicators = ind_median,
              exclusion = exclusion_criteria)
   curs.execute(createTable)
@@ -268,14 +281,16 @@ for area_code in areas.keys():
   CREATE TABLE li_iqr_{area} AS
   SELECT {area_code2},
     {indicators}     
-    FROM parcel_indicators
+    FROM parcel_indicators p
+    LEFT JOIN dest_closest_indicators d ON p.gnaf_pid = d.gnaf_pid 
     {exclusion}
     GROUP BY {area_code}
     ORDER BY {area_code} ASC;
-  ALTER TABLE li_iqr_{area} ADD PRIMARY KEY ({area_code});
+  ALTER TABLE li_iqr_{area} ADD PRIMARY KEY ({area_code3});
   '''.format(area = area,
              area_code = area_code,
              area_code2 = area_code2,
+             area_code3 = area_code3,
              indicators = ind_iqr,
              exclusion = exclusion_criteria)
   curs.execute(createTable)
@@ -288,21 +303,21 @@ for area_code in areas.keys():
     createTable = '''
     DROP TABLE IF EXISTS li_percentiles_{area} ; 
     CREATE TABLE li_percentiles_{area} AS
-    SELECT {area_code2},
+    SELECT {area_code4},
            {indicators}
     FROM li_inds_{area}
     ORDER BY {area_code} ASC;
-    ALTER TABLE li_percentiles_{area} ADD PRIMARY KEY ({area_code});
-    '''.format(area = area,
-               area_code = area_code,
-               area_code2 = area_code2,
-               indicators = ind_percentile)
+  ALTER TABLE li_percentiles_{area} ADD PRIMARY KEY ({area_code});
+  '''.format(area = area,
+             area_code = area_code3,
+             area_code4 = area_code4,
+             indicators = ind_percentile)
     curs.execute(createTable)
     conn.commit()
     print("Done.")
     map_ind_percentile_area = '\n{},'.format(map_ind_percentile)
     
-  if area_code != 'mb_code_2016':
+  if area_code3 != 'mb_code_2016':
     # Create shape files for interactive map visualisation
     area_strings   = {'sa1_maincode' :'''area.sa1_maincode AS sa1   ,\n area.suburb ,\n area.lga ,area.resid_parcels, area.dwellings, area.resid_persons \n''',
                       'ssc_name_2016':''' '-'::varchar AS sa1 ,\n area.suburb AS suburb,\n area.lga AS lga , area.resid_parcels, area.dwellings, area.resid_persons \n''',
@@ -349,7 +364,10 @@ for area_code in areas.keys():
                        
     percentile_join_string = ' '              
     if area != 'region':
-      percentile_join_string = 'LEFT JOIN li_percentiles_{area} AS perc ON area.{area_code2} = perc.{area_code}'.format(area = area,area_code = area_code, area_code2 = area_code2[area_code])
+      percentile_join_string = '''
+      LEFT JOIN li_percentiles_{area} AS perc 
+             ON area.{area_code2} = perc.{area_code}
+      '''.format(area = area,area_code = area_code3, area_code2 = area_code2[area_code3])
 
     # Note -i've excerpted SD and median out of the below table for now; too much for SA1s  
     #        {sd},
@@ -372,20 +390,20 @@ for area_code in areas.keys():
     LEFT JOIN li_iqr_{area} AS iqr ON area.{area_code2} = iqr.{area_code}
     {area_code_table};
     '''.format(area = area,
-               area_code = area_code,
-               area_table = area_tables[area_code],
-               area_strings = area_strings[area_code],
+               area_code = area_code3,
+               area_table = area_tables[area_code3],
+               area_strings = area_strings[area_code3],
                raw = map_ind_raw,
                sd = map_ind_sd,
                percentile = map_ind_percentile_area,
                range = map_ind_range,
                median = map_ind_median,
                iqr = map_ind_iqr,
-               community_code = community_code[area_code],
-               area_code2 = area_code2[area_code],
-               area_code_table = area_code_tables[area_code],
+               community_code = community_code[area_code3],
+               area_code2 = area_code2[area_code3],
+               area_code_table = area_code_tables[area_code3],
                percentile_join = percentile_join_string)
-    print("    - map feature at {} level".format(area))
+    print("    - Create table for mapping indicators at {} level".format(area))
     curs.execute(createTable)
     conn.commit()
     
@@ -396,9 +414,9 @@ for area_code in areas.keys():
             ST_Transform(b.geom,4326) AS geom         
     FROM {boundaries};
     '''.format(area = area,
-               area_names2 = area_names2[area_code],
-               area_code = area_code,
-               boundaries = boundary_tables[area_code])
+               area_names2 = area_names2[area_code3],
+               area_code = area_code3,
+               boundaries = boundary_tables[area_code3])
     print("    - boundary overlays at {} level".format(area)),
     curs.execute(createTable)
     conn.commit()
