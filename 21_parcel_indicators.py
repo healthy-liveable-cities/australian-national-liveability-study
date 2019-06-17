@@ -144,7 +144,7 @@ parcel_dwellings p
 LEFT JOIN abs_linkage abs ON p.mb_code_20 = abs.mb_code_2016
 LEFT JOIN non_abs_linkage non_abs ON p.{id} = non_abs.{id}
 LEFT JOIN parcel_sos sos ON p.{id} = sos.{id}
-LEFT JOIN (SELECT gnaf_pid, string_agg(indicator,',') AS exclude FROM excluded_parcels GROUP BY gnaf_pid) e 
+LEFT JOIN (SELECT {id}, string_agg(indicator,',') AS exclude FROM excluded_parcels GROUP BY {id}) e 
     ON p.{id} = e.{id}
 {sources};
 CREATE UNIQUE INDEX IF NOT EXISTS parcel_indicators_idx ON  parcel_indicators ({id});
