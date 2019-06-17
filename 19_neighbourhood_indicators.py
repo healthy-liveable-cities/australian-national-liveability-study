@@ -224,7 +224,7 @@ curs.execute(sql)
 conn.commit()
 print("Done.")
 
-print("Create summary table of distances to destinations in 3.2km (dest_distances_3200m)... "),
+print("Create summary table of distances to destinations in 3200 metres (dest_distances_3200m)... "),
 wide_table = 'dest_distances_3200m'
 long_table = 'od_distances_3200m'
 destination_classes = ',\n'.join(['''MIN(CASE WHEN dest_class = '{d}' THEN distances END) AS "{d}"'''.format(d = d) for d in array_categories])
@@ -470,7 +470,7 @@ if res is None:
     conn.commit()
     print(" Done.")
 
-# calculate food indicators at both 1.6km and 3.2km
+# calculate food indicators at both 1600 m and 3200 m 
 print(" - ind_food... "),
 # curs.execute('''SELECT 1 WHERE to_regclass('public.{table}') IS NOT NULL;'''.format(table = 'ind_food'))
 # res = curs.fetchone()
@@ -832,7 +832,7 @@ for nh_distance in [800,1600]:
         AVG(sum/ nullif(non_null_count::float,0)) AS naplan_average_{nh_distance}m 
     FROM parcel_dwellings p 
     LEFT JOIN  
-        -- get the distances and ids for all AOS with schools within 3.2km 
+        -- get the distances and ids for all AOS with schools within 3200 m
         (SELECT {id}, 
                 (obj->>'aos_id')::int AS aos_id, 
                 (obj->>'distance')::int AS distance 
@@ -860,7 +860,7 @@ SELECT p.{id},
        o.distance
 FROM parcel_dwellings p 
 LEFT JOIN  
-    -- get the distanc and id for closest AOS with school within 3.2km
+    -- get the distanc and id for closest AOS with school within 3200 m
     (SELECT DISTINCT ON ({id})
             {id}, 
             (obj->>'aos_id')::int AS aos_id, 
