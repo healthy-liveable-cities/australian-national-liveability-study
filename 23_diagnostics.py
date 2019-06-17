@@ -40,7 +40,7 @@ if who in set(responsible.values):
     locales = responsible[responsible == who].sort_values().index.values.tolist()
 elif who in responsible.sort_values().index.values:
     locales = sys.argv[1:]
-    who = ''
+    who = '_'.join(locales)
 else:
     sys.exit('''
     The supplied command argument '{}' does not appear to correspond to either an analyst, a locale or list of locales.  Please check and try again.
