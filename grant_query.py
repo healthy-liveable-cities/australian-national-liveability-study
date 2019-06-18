@@ -26,17 +26,14 @@ else:
   import getpass
   import os
   print("Please enter PostgreSQL admin details to grant all privileges to python and arc_sde users")
-  admin_db   = raw_input("Database: ")    
   admin_user_name = raw_input("Username: ")
-  admin_pwd = getpass.getpass("Password for user {} on database {}: ".format(admin_user_name, admin_db))
-  print("Executing grant query and ensuring tablefunc extension is created...")
+  admin_pwd = getpass.getpass("Password for user {}: ".format(admin_user_name))
+  print("Executing grant query ...")
   for region in sys.argv[1:]:
     print("  - {}".format(region))
     db = "li_{}_2018".format(region)
     conn = psycopg2.connect(dbname=db, user=admin_user_name, password=admin_pwd)
     curs = conn.cursor()
-    curs.execute('''CREATE EXTENSION IF NOT EXISTS tablefunc;''')
-    conn.commit()
     curs.execute(grant_query)
     conn.commit()
   print("Done.")
