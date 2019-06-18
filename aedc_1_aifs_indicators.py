@@ -43,16 +43,26 @@ sql = '''
 DROP TABLE IF EXISTS aedc_indicators_aifs;
 CREATE TABLE aedc_indicators_aifs AS
 SELECT
-parcel_dwellings.{id},
-'{locale}' AS study_region ,
-e.exclude            ,
+parcel_dwellings.{id}     ,
+'{locale}' AS study_region,
+e.exclude                 ,
 {indicators}            
+aos.aos_jsonb,
 parcel_dwellings.geom                   
 FROM
 parcel_dwellings                                                                                
-LEFT JOIN (SELECT {id}, string_agg(indicator,',') AS exclude FROM excluded_parcels GROUP BY {id}) e 
-    ON parcel_dwellings.{id} = e.{id}
-{sources};
+LEFT JOIN (SELECT {id}, 
+                  string_agg(indicator,',') AS exclude 
+             FROM excluded_parcels 
+             GROUP BY {id}) e 
+       ON parcel_dwellings.{id} = e.{id}
+{sources}
+LEFT JOIN (SELECT {id}, 
+                  jsonb_agg((obj - 'aos_id' - 'distance') || jsonb_build_object('aos', obj->'aos_id') || jsonb_build_object('m', obj->'distance') ) AS aos_jsonb
+             FROM od_aos_jsonb,
+                  jsonb_array_elements(attributes) obj
+           GROUP BY {id}) aos
+       ON parcel_dwellings.{id} = aos.{id};
 CREATE UNIQUE INDEX IF NOT EXISTS aedc_indicators_aifs_idx ON  aedc_indicators_aifs ({id});
 '''.format(id = points_id, indicators = indicators, sources = joins,locale = full_locale)
 
