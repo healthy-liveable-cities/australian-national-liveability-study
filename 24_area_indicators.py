@@ -189,6 +189,7 @@ for area_code in areas.keys():
   DROP TABLE IF EXISTS li_inds_{area} ; 
   CREATE TABLE li_inds_{area} AS
   SELECT {area_code2},
+    COUNT(*) AS sample_point_count,
     {indicators}
     FROM parcel_indicators p
     LEFT JOIN dest_closest_indicators d ON p.gnaf_pid = d.gnaf_pid 
