@@ -43,9 +43,10 @@ sql = '''
 DROP TABLE IF EXISTS aedc_indicators_aifs;
 CREATE TABLE aedc_indicators_aifs AS
 SELECT
-parcel_dwellings.{id}     ,
-'{locale}' AS study_region,
-e.exclude                 ,
+parcel_dwellings.{id},
+'{full_locale}' AS study_region,
+'{locale}' AS locale,
+e.exclude,
 {indicators}            
 aos.aos_jsonb,
 parcel_dwellings.geom                   
@@ -64,14 +65,49 @@ LEFT JOIN (SELECT {id},
            GROUP BY {id}) aos
        ON parcel_dwellings.{id} = aos.{id};
 CREATE UNIQUE INDEX IF NOT EXISTS aedc_indicators_aifs_idx ON  aedc_indicators_aifs ({id});
-'''.format(id = points_id, indicators = indicators, sources = joins,locale = full_locale)
+'''.format(id = points_id, indicators = indicators, sources = joins,full_locale = full_locale,locale=locale)
 
-# print("SQL query:")
-# print(create_aedc_indicators_aifs)
 curs.execute(sql)
 conn.commit()
 print(" Done.")
 
+sql = '''
+DROP TABLE IF EXISTS study_region_locale;
+CREATE TABLE study_region_locale AS
+SELECT
+'{full_locale}' AS study_region,
+'{locale}' AS locale,
+sos.*,
+included.count
+FROM study_region_all_sos sos
+LEFT JOIN (SELECT sos_name_2016, 
+                  COUNT(a.*),  
+                  sum(case 
+                        when b.indicator is null 
+                        then 1
+                        else 0 
+                      end) AS include 
+             FROM parcel_sos a 
+             LEFT JOIN excluded_parcels b 
+             USING ({id}) 
+             GROUP BY sos_name_2016) included
+       ON sos.sos_name_2016 = included.sos_name_2016;
+'''.format(id = points_id, full_locale = full_locale, locale = locale)
+curs.execute(sql)
+conn.commit()
+print(" Done.")
+
+sql = '''
+ALTER TABLE aos_acara_naplan ADD COLUMN IF NOT EXISTS locale text;
+UPDATE aos_acara_naplan SET locale = '{locale}';
+'''.format(locale = locale)
+curs.execute(sql)
+conn.commit()
+print(" Done.")
+
+print("Can you please also run the following from the command prompt in the following directory: {folderPath}/study_region//wgs84_epsg4326/".format(folderPath = folderPath))
+command = 'pg_dump -U postgres -h localhost -W  -t "study_region_locale" -t "aedc_indicators_aifs" -t "open_space_areas" -t "aos_acara_naplan" {db} > aedc_aifs_{db}.sql'.format(db = db)
+sp.call(command, shell=True,cwd=('../data/studyregion'))   
 
 # output to completion log    
 script_running_log(script, task, start, locale)

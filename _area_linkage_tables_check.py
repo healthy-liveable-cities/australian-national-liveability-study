@@ -75,6 +75,8 @@ if 'SUA' in region_shape:
           USING {buffered_study_region} b 
       WHERE NOT ST_Intersects(a.geom,b.geom) 
              OR a.geom IS NULL;
+    CREATE INDEX IF NOT EXISTS {study_region}_idx ON {study_region} USING GIST (geom);
+    CREATE INDEX IF NOT EXISTS {buffered_study_region}_idx ON {buffered_study_region} USING GIST (geom);
     '''.format(area = sua ,
                study_region = study_region,
                buffered_study_region = buffered_study_region,
@@ -129,18 +131,20 @@ create_study_region_tables = '''
     FROM {region}_{year} a
     INNER JOIN main_sos_2016_aust b 
     ON (ST_Intersects(a.geom,b.geom));
-  
+  CREATE INDEX IF NOT EXISTS study_region_all_sos_idx ON study_region_all_sos USING GIST (geom);
   DROP TABLE IF EXISTS study_region_urban;
   CREATE TABLE study_region_urban AS 
   SELECT * 
     FROM study_region_all_sos
    WHERE sos_name_2016 IN ('Major Urban', 'Other Urban');
+  CREATE INDEX IF NOT EXISTS study_region_urban_idx ON study_region_urban USING GIST (geom);
   
   DROP TABLE IF EXISTS study_region_not_urban;
   CREATE TABLE study_region_not_urban AS 
   SELECT * 
     FROM study_region_all_sos
    WHERE sos_name_2016 NOT IN ('Major Urban', 'Other Urban');
+  CREATE INDEX IF NOT EXISTS study_region_not_urban_idx ON study_region_not_urban USING GIST (geom);
 
   DROP TABLE IF EXISTS study_region_ssc;
   CREATE TABLE study_region_ssc AS 
@@ -149,6 +153,7 @@ create_study_region_tables = '''
     FROM {region}_{year} a, 
          main_ssc_2016_aust b 
    WHERE ST_Intersects(a.geom,b.geom);  
+  CREATE INDEX IF NOT EXISTS study_region_ssc_idx ON study_region_ssc USING GIST (geom);
 '''.format(region = region.lower(), year = year)
 curs.execute(create_study_region_tables)
 conn.commit()
@@ -185,6 +190,7 @@ create_area_sa1 = '''
   AND suburb IS NOT NULL 
   GROUP BY a.sa1_maincode, suburb, lga, c.geom
   ORDER BY a.sa1_maincode ASC;
+  CREATE INDEX IF NOT EXISTS area_sa1_idx ON area_sa1 USING GIST (geom);
   '''.format(points_id)
 curs.execute(create_area_sa1)
 conn.commit()
@@ -221,6 +227,7 @@ create_area_ssc = '''
                   study_region_urban b) c ON t.ssc_name_2016 = c.ssc_name_2
   GROUP BY suburb, c.geom
   ORDER BY suburb ASC;
+  CREATE INDEX IF NOT EXISTS area_ssc_idx ON area_ssc USING GIST (geom);
   '''.format(points_id)  
 curs.execute(create_area_ssc)
 conn.commit()
@@ -255,6 +262,7 @@ create_area_lga = '''
                   study_region_urban b) c ON t.lga_name_2016 = c.lga_name_2
   GROUP BY lga, c.geom
   ORDER BY lga ASC;
+  CREATE INDEX IF NOT EXISTS area_lga_idx ON area_lga USING GIST (geom);
   '''.format(points_id)
 curs.execute(create_area_lga)
 conn.commit()
@@ -268,6 +276,7 @@ create_parcel_sos = '''
   FROM parcel_dwellings a,
        study_region_all_sos b 
   WHERE ST_Intersects(a.geom,b.geom);
+  CREATE UNIQUE INDEX IF NOT EXISTS parcel_sos_idx ON  parcel_sos (gnaf_pid);
   '''.format(id = points_id)
 curs.execute(create_parcel_sos)
 conn.commit()
