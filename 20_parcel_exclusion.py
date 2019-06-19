@@ -59,6 +59,7 @@ query = '''
 {insert} 'null dd_nh1600m'      {table} dd_nh1600m         {match} dd_nh1600m  {null};
 {insert} 'null daily living'    {table} ind_daily_living   {match} {island_exception} dl_hard_1600m {null};
 {insert} 'not urban parcel_sos' {table} parcel_sos         {match} sos_name_2016 NOT IN ('Major Urban','Other Urban');
+{insert} 'area_ha < 16.5'       {table} nh1600m            {match} area_ha < 16.5;
 {insert} 'no IRSD sa1_maincode' {table} abs_linkage ON a.mb_code_20 = abs_linkage.mb_code_2016 
     WHERE abs_linkage.sa1_maincode NOT IN (SELECT sa1_maincode FROM area_disadvantage)
     ON CONFLICT ({id},indicator) DO NOTHING;
