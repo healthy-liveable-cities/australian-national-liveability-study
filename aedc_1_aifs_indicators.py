@@ -12,8 +12,6 @@ import sys
 from sqlalchemy import create_engine
 import subprocess as sp
 
-from script_running_log import script_running_log
-
 date_time = time.strftime("%Y%m%d-%H%M")
 
 # Load settings from ind_study_region_matrix.xlsx
@@ -28,7 +26,6 @@ for var in [x for x in df_parameters.index.values]:
 
 df_studyregion = pandas.read_excel(xls, 'study_regions',index_col=1)
 responsible = df_studyregion['responsible']
-
 
 if len(sys.argv) < 2:
     sys.exit('''
@@ -67,6 +64,11 @@ for locale in locales:
     full_locale = df_studyregion.loc[locale]['full_locale'].encode('utf')
     print('\n{}'.format(full_locale))
     # simple timer for log file
+    sys.argv[1] = locale
+    try:
+        reload(script_running_log)
+    except NameError:
+        from script_running_log import script_running_log
     start = time.time()
     script = os.path.basename(sys.argv[0])
     task = 'Create aedc indicators for AIFS (condensed form)'
