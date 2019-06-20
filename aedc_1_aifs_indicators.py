@@ -146,7 +146,12 @@ for locale in locales:
     print("\tEnsuring locale is recorded in aos_acara_naplan table..."),  
     sql = '''
     ALTER TABLE aos_acara_naplan ADD COLUMN IF NOT EXISTS locale text;
+    ALTER TABLE aos_acara_naplan ADD COLUMN IF NOT EXISTS geom geometry;
     UPDATE aos_acara_naplan SET locale = '{locale}';
+    UPDATE aos_acara_naplan a
+       SET geom = s.geom
+      FROM acara_schools_naplan_linkage_2017 s
+     WHERE a.acara_school_id = s.acara_school_id;
     '''.format(locale = locale)
     curs.execute(sql)
     conn.commit()
@@ -154,8 +159,21 @@ for locale in locales:
 
     out_file = 'aedc_aifs_{}.sql'.format(db)
     print("\tCreating sql dump to: {}".format(os.path.join(out_dir,out_file))),
-    command = 'pg_dump -U {db_user} -h localhost -t "study_region_locale" -t "aedc_indicators_aifs" -t "open_space_areas" -t "aos_acara_naplan" {db} > {out_file}'.format(db = db,db_user = db_user,out_file=out_file)    
+    command = 'pg_dump -U {db_user} -h localhost -t "study_region_locale" -t "aedc_indicators_aifs" -t "exclusion_summary"  -t "open_space_areas" -t "aos_acara_naplan" {db} > {out_file}'.format(db = db,db_user = db_user,out_file=out_file)    
     sp.call(command, shell=True,cwd=out_dir)   
+    # # Output to geopackage using ogr2ogr; note that this command is finnicky and success depends on version of ogr2ogr that you have  
+    # out_file = 'aedc_aifs_{}.gpkg'.format(db)
+    # print("\tCreating geopackage to: {}".format(os.path.join(out_dir,out_file))),
+    # command = ('ogr2ogr -overwrite -f GPKG {path}/{out_file} '
+               # '  PG:"host={host} user={user} dbname={db} password={pwd}" '
+               # ' "study_region_locale" "aedc_indicators_aifs" "exclusion_summary"  "open_space_areas" "aos_acara_naplan"'
+               # ).format(path = out_dir,
+                        # out_file=out_file,
+                        # host = db_host,                            
+                        # user = db_user,                                 
+                        # pwd = db_pwd,
+                        # db = db)
+    # sp.call(command)
     print("Done.")
     # output to completion log    
     script_running_log(script, task, start, locale)

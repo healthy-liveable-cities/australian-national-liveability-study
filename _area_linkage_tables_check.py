@@ -96,9 +96,6 @@ sp.call(command, shell=True)
 
 task = 'Create ABS and non-ABS linkage tables using 2016 data sourced from ABS'
 print("Commencing task: {} at {}".format(task,time.strftime("%Y%m%d-%H%M%S")))
-# connect to the PostgreSQL server
-conn = psycopg2.connect(dbname=db, user=db_user, password=db_pwd)
-curs = conn.cursor()
 
 print("Import area level disadvantage data... "),
 disadvantage = pandas.read_csv(area_info['disadvantage']['data'], index_col = area_info['disadvantage']['id'])
@@ -156,115 +153,6 @@ create_study_region_tables = '''
   CREATE INDEX IF NOT EXISTS study_region_ssc_idx ON study_region_ssc USING GIST (geom);
 '''.format(region = region.lower(), year = year)
 curs.execute(create_study_region_tables)
-conn.commit()
-
-# create sa1 area linkage corresponding to later SA1 aggregate tables
-print("  - SA1s")
-create_area_sa1 = '''  
-  DROP TABLE IF EXISTS area_sa1;
-  CREATE TABLE area_sa1 AS
-  SELECT a.sa1_maincode, 
-         suburb, 
-         lga,
-         SUM(mb_parcel_count) AS resid_parcels,
-         SUM(a.dwelling) AS dwellings,
-         SUM(a.person) AS resid_persons,
-         ST_Intersection(ST_Union(a.geom),c.geom) AS geom
-  FROM abs_linkage a 
-  LEFT JOIN (SELECT mb_code_20 AS mb_code_2016, 
-                    count(*) mb_parcel_count 
-             FROM parcel_dwellings 
-             GROUP BY mb_code_2016)  p ON a.mb_code_2016 = p.mb_code_2016
-  LEFT JOIN (SELECT sa1_maincode, 
-                    string_agg(distinct(ssc_name_2016),',') AS suburb, 
-                    string_agg(distinct(lga_name_2016), ', ') AS lga 
-             FROM parcel_dwellings 
-             LEFT JOIN non_abs_linkage ON parcel_dwellings.{0} = non_abs_linkage.{0}
-             LEFT JOIN abs_linkage ON parcel_dwellings.mb_code_20 = abs_linkage.mb_code_2016 
-             GROUP BY sa1_maincode) b ON a.sa1_maincode = b.sa1_maincode
-  LEFT JOIN (SELECT sa1_mainco, 
-                    ST_Intersection(a.geom, b.geom) AS geom
-             FROM main_sa1_2016_aust_full a, 
-                  study_region_urban b) c ON a.sa1_maincode = c.sa1_mainco
-  WHERE a.sa1_maincode IN (SELECT sa1_maincode FROM area_disadvantage)
-  AND suburb IS NOT NULL 
-  GROUP BY a.sa1_maincode, suburb, lga, c.geom
-  ORDER BY a.sa1_maincode ASC;
-  CREATE INDEX IF NOT EXISTS area_sa1_idx ON area_sa1 USING GIST (geom);
-  '''.format(points_id)
-curs.execute(create_area_sa1)
-conn.commit()
-
-# create Suburb area linkage (including geometry reflecting SA1 exclusions)
-print("  - Suburbs")
-create_area_ssc = '''  
-  DROP TABLE IF EXISTS area_ssc;
-  CREATE TABLE area_ssc AS
-  SELECT ssc_name_2016 AS suburb, 
-         string_agg(distinct(lga_name_2016), ', ') AS lga,
-         sum(resid_parcels) AS resid_parcels,
-         sum(dwelling) AS dwellings,
-         sum(person) AS resid_persons,
-         ST_Intersection(ST_Union(t.geom),c.geom) AS geom
-  FROM  (SELECT DISTINCT ON (mb_code_2016)
-                mb_code_2016,
-                ssc_name_2016,
-                lga_name_2016,
-                COUNT(*) AS resid_parcels,
-                dwelling,
-                person,
-                a.geom AS geom
-         FROM abs_linkage a
-         LEFT JOIN parcel_dwellings p ON a.mb_code_2016 = p.mb_code_20
-         LEFT JOIN non_abs_linkage b on p.{0} = b.{0}
-         WHERE a.sa1_maincode IN (SELECT sa1_maincode FROM area_disadvantage)
-         AND ssc_name_2016 IS NOT NULL
-         GROUP BY mb_code_2016,ssc_name_2016,lga_name_2016,dwelling,person,a.geom
-         ) t
-  LEFT JOIN (SELECT ssc_name_2, 
-                    ST_Intersection(a.geom, b.geom) AS geom
-             FROM main_ssc_2016_aust a, 
-                  study_region_urban b) c ON t.ssc_name_2016 = c.ssc_name_2
-  GROUP BY suburb, c.geom
-  ORDER BY suburb ASC;
-  CREATE INDEX IF NOT EXISTS area_ssc_idx ON area_ssc USING GIST (geom);
-  '''.format(points_id)  
-curs.execute(create_area_ssc)
-conn.commit()
-  
-# create LGA table corresponding to later SA1 aggregate tables
-print("  - LGAs")
-create_area_lga = '''  
-  DROP TABLE IF EXISTS area_lga;
-  CREATE TABLE area_lga AS
-  SELECT lga_name_2016 AS lga,
-         sum(resid_parcels) AS resid_parcels,
-         sum(dwelling) AS dwellings,
-         sum(person) AS resid_persons,
-         ST_Intersection(ST_Union(t.geom),c.geom) AS geom
-  FROM  (SELECT DISTINCT ON (mb_code_2016)
-                mb_code_2016,
-                lga_name_2016,
-                COUNT(*) AS resid_parcels,
-                dwelling,
-                person,
-                a.geom AS geom
-         FROM abs_linkage a
-         LEFT JOIN parcel_dwellings p ON a.mb_code_2016 = p.mb_code_20
-         LEFT JOIN non_abs_linkage b on p.{0} = b.{0}
-         WHERE a.sa1_maincode IN (SELECT sa1_maincode FROM area_disadvantage)
-         AND lga_name_2016 IS NOT NULL
-         GROUP BY mb_code_2016,lga_name_2016,dwelling,person,a.geom
-         ) t
-  LEFT JOIN (SELECT lga_name_2, 
-                    ST_Intersection(a.geom, b.geom) AS geom
-             FROM main_lga_2016_aust a, 
-                  study_region_urban b) c ON t.lga_name_2016 = c.lga_name_2
-  GROUP BY lga, c.geom
-  ORDER BY lga ASC;
-  CREATE INDEX IF NOT EXISTS area_lga_idx ON area_lga USING GIST (geom);
-  '''.format(points_id)
-curs.execute(create_area_lga)
 conn.commit()
 
 print("  - SOS indexed by parcel")
