@@ -66,7 +66,7 @@ for locale in locales:
     # simple timer for log file
     sys.argv[1] = locale
     try:
-        reload(script_running_log)
+        reload(script_running_log.script_running_log)
     except NameError:
         from script_running_log import script_running_log
     start = time.time()
@@ -157,9 +157,9 @@ for locale in locales:
     conn.commit()
     print(" Done.")
 
-    out_file = 'aedc_aifs_{}.sql'.format(db)
+    out_file = 'aedc_aifs_{}_Fc.sql'.format(db)
     print("\tCreating sql dump to: {}".format(os.path.join(out_dir,out_file))),
-    command = 'pg_dump -U {db_user} -h localhost --column-inserts --data-only -t "study_region_locale" -t "aedc_indicators_aifs" -t "exclusion_summary"  -t "open_space_areas" -t "aos_acara_naplan" {db} > {out_file}'.format(db = db,db_user = db_user,out_file=out_file)    
+    command = 'pg_dump -U {db_user} -h localhost -Fc -t "study_region_locale" -t "aedc_indicators_aifs" -t "exclusion_summary"  -t "open_space_areas" -t "aos_acara_naplan" {db} > {out_file}'.format(db = db,db_user = db_user,out_file=out_file)    
     sp.call(command, shell=True,cwd=out_dir)   
     print("Done.")
     
