@@ -158,12 +158,12 @@ for locale in locales:
     sp.call(command, shell=True,cwd=out_dir)   
     print("Done.")
     
-    # Note - i genereated the create table commands with the following dump applied to Albury Wodonga:
-    out_file = 'aedc_aifs_schema.sql'.format(db)
-    print("\tCreating sql dump to: {}".format(os.path.join(out_dir,out_file))),
-    command = 'pg_dump -U {db_user} -h localhost --schema-only -t "study_region_locale" -t "aedc_indicators_aifs" -t "exclusion_summary"  -t "open_space_areas" -t "aos_acara_naplan" {db} > {out_file}'.format(db = db,db_user = db_user,out_file=out_file)    
-    sp.call(command, shell=True,cwd=out_dir)   
-    print("Done.")
+    # # Note - i generated the create table commands with the following dump applied to Albury Wodonga:
+    # out_file = 'aedc_aifs_schema.sql'.format(db)
+    # print("\tCreating sql dump to: {}".format(os.path.join(out_dir,out_file))),
+    # command = 'pg_dump -U {db_user} -h localhost --schema-only -t "study_region_locale" -t "aedc_indicators_aifs" -t "exclusion_summary"  -t "open_space_areas" -t "aos_acara_naplan" {db} > {out_file}'.format(db = db,db_user = db_user,out_file=out_file)    
+    # sp.call(command, shell=True,cwd=out_dir)   
+    # print("Done.")
     
     # output to completion log    
     date_time = time.strftime("%Y%m%d-%H%M%S")

@@ -49,13 +49,24 @@ print("Done.")
  
 print("Create aedc match table... "),
 sql = '''
-CREATE TABLE IF NOT EXISTS aedc_gnaf AS
-(SELECT aedc.project_id, lon, lat, p.{id},ST_Distance(aedc.geom,p.geom) AS match_distance_m,  aedc.geom
+CREATE TABLE IF NOT EXISTS aedc_aifs_linked AS
+SELECT
+  aedc.project_id, 
+  lon, 
+  lat, 
+  match_distance_m,  
+  aedc.geom AS aedc_geom,
+  linkage.*
 FROM aedc_address AS aedc
 CROSS JOIN LATERAL 
-(SELECT {id},  geom FROM aedc_indicators_aifs AS i
-  ORDER BY aedc.geom <-> i.geom LIMIT 1) AS p
-WHERE ST_Distance(aedc.geom,p.geom) < 500 );
+  (SELECT
+      i.*
+      ST_Distance(i.geom, aedc.geom) as match_distance_m
+      FROM aedc_indicators_aifs i
+      WHERE ST_DWithin(i.geom, aedc.geom, 500) 
+      ORDER BY aedc.geom <-> i.geom
+     LIMIT 1
+   ) AS linkage
 CREATE INDEX IF NOT EXISTS aedc_participant_idx ON aedc_gnaf USING btree (project_id);
 CREATE INDEX IF NOT EXISTS aedc_gnaf_idx ON aedc_gnaf USING btree ({id});
 CREATE INDEX IF NOT EXISTS aedc_gnaf_gix ON aedc_gnaf USING GIST (geom);
