@@ -159,22 +159,17 @@ for locale in locales:
 
     out_file = 'aedc_aifs_{}.sql'.format(db)
     print("\tCreating sql dump to: {}".format(os.path.join(out_dir,out_file))),
-    command = 'pg_dump -U {db_user} -h localhost -t "study_region_locale" -t "aedc_indicators_aifs" -t "exclusion_summary"  -t "open_space_areas" -t "aos_acara_naplan" {db} > {out_file}'.format(db = db,db_user = db_user,out_file=out_file)    
+    command = 'pg_dump -U {db_user} -h localhost --column-inserts --data-only -t "study_region_locale" -t "aedc_indicators_aifs" -t "exclusion_summary"  -t "open_space_areas" -t "aos_acara_naplan" {db} > {out_file}'.format(db = db,db_user = db_user,out_file=out_file)    
     sp.call(command, shell=True,cwd=out_dir)   
-    # # Output to geopackage using ogr2ogr; note that this command is finnicky and success depends on version of ogr2ogr that you have  
-    # out_file = 'aedc_aifs_{}.gpkg'.format(db)
-    # print("\tCreating geopackage to: {}".format(os.path.join(out_dir,out_file))),
-    # command = ('ogr2ogr -overwrite -f GPKG {path}/{out_file} '
-               # '  PG:"host={host} user={user} dbname={db} password={pwd}" '
-               # ' "study_region_locale" "aedc_indicators_aifs" "exclusion_summary"  "open_space_areas" "aos_acara_naplan"'
-               # ).format(path = out_dir,
-                        # out_file=out_file,
-                        # host = db_host,                            
-                        # user = db_user,                                 
-                        # pwd = db_pwd,
-                        # db = db)
-    # sp.call(command)
     print("Done.")
+    
+    # # Note - i genereated the create table commands with the following dump applied to Albury Wodonga:
+    # out_file = 'aedc_aifs_schema.sql'.format(db)
+    # print("\tCreating sql dump to: {}".format(os.path.join(out_dir,out_file))),
+    # command = 'pg_dump -U {db_user} -h localhost --schema-only -t "study_region_locale" -t "aedc_indicators_aifs" -t "exclusion_summary"  -t "open_space_areas" -t "aos_acara_naplan" {db} > {out_file}'.format(db = db,db_user = db_user,out_file=out_file)    
+    # sp.call(command, shell=True,cwd=out_dir)   
+    # print("Done.")
+    
     # output to completion log    
     script_running_log(script, task, start, locale)
     conn.close()
