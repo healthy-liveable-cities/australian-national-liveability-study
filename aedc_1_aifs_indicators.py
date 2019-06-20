@@ -63,12 +63,7 @@ os.environ['PGPASSWORD'] = db_pwd
 for locale in locales:
     full_locale = df_studyregion.loc[locale]['full_locale'].encode('utf')
     print('\n{}'.format(full_locale))
-    # simple timer for log file
-    sys.argv[1] = locale
-    try:
-        reload(script_running_log.script_running_log)
-    except NameError:
-        from script_running_log import script_running_log
+    
     start = time.time()
     script = os.path.basename(sys.argv[0])
     task = 'Create aedc indicators for AIFS (condensed form)'
@@ -163,14 +158,35 @@ for locale in locales:
     sp.call(command, shell=True,cwd=out_dir)   
     print("Done.")
     
-    # # Note - i genereated the create table commands with the following dump applied to Albury Wodonga:
-    # out_file = 'aedc_aifs_schema.sql'.format(db)
-    # print("\tCreating sql dump to: {}".format(os.path.join(out_dir,out_file))),
-    # command = 'pg_dump -U {db_user} -h localhost --schema-only -t "study_region_locale" -t "aedc_indicators_aifs" -t "exclusion_summary"  -t "open_space_areas" -t "aos_acara_naplan" {db} > {out_file}'.format(db = db,db_user = db_user,out_file=out_file)    
-    # sp.call(command, shell=True,cwd=out_dir)   
-    # print("Done.")
+    # Note - i genereated the create table commands with the following dump applied to Albury Wodonga:
+    out_file = 'aedc_aifs_schema.sql'.format(db)
+    print("\tCreating sql dump to: {}".format(os.path.join(out_dir,out_file))),
+    command = 'pg_dump -U {db_user} -h localhost --schema-only -t "study_region_locale" -t "aedc_indicators_aifs" -t "exclusion_summary"  -t "open_space_areas" -t "aos_acara_naplan" {db} > {out_file}'.format(db = db,db_user = db_user,out_file=out_file)    
+    sp.call(command, shell=True,cwd=out_dir)   
+    print("Done.")
     
     # output to completion log    
-    script_running_log(script, task, start, locale)
+    date_time = time.strftime("%Y%m%d-%H%M%S")
+    duration = (time.time() - start)/60
+  
+    log_table = '''
+        -- If log table doesn't exist, its created
+        CREATE TABLE IF NOT EXISTS script_log
+        (
+        script varchar,
+        task varchar,
+        datetime_completed varchar,
+        duration_mins numeric
+        );
+        -- Insert completed script details
+        INSERT INTO script_log VALUES ($${}$$,$${}$$,$${}$$,{});
+        '''.format(script,task,date_time,duration)
+    try:
+        curs.execute(log_table)
+        conn.commit()
+        print('''\nProcessing completed at {}\n- Task: {}\n- Duration: {:04.2f} minutes'''.format(date_time,task,duration))
+    except:
+        print("Error withoutput to script running log.  Has the database for this study region been created?")
+        raise
     conn.close()
 
