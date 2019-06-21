@@ -146,7 +146,7 @@ map_ind_iqr = ',\n'.join("iqr." +
                          ' AS "m_' + ind_list+ '"') 
 
 # Exclusion criteria              
-exclusion_criteria = 'WHERE  p.{id} NOT IN (SELECT DISTINCT({id}) FROM excluded_parcels) AND p.sos_name_2016 IS NOT NULL'.format(id = points_id.lower())
+exclusion_criteria = 'WHERE  p.exclude IS NULL AND p.sos_name_2016 IS NOT NULL'.format(id = points_id.lower())
 
 # The shape file for map features are output 
 map_features_outpath = os.path.join(folderPath,'study_region','wgs84_epsg4326','map_features')

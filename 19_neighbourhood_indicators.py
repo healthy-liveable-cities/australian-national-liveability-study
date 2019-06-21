@@ -67,7 +67,7 @@ for area in areas:
   area_name = areas[area]['name_s']
   print("{}... ".format(areas[area]['name_f'])),
   query = '''
-  -- DROP TABLE IF EXISTS {area_name}_dest_counts;
+  DROP TABLE IF EXISTS {area_name}_dest_counts;
   CREATE TABLE IF NOT EXISTS {area_name}_dest_counts AS
   SELECT a.{area_id}, dest_class, count(d.geom) AS count
   FROM {area_table} a
@@ -272,7 +272,7 @@ print(" Done.")
 # Neighbourhood_indicators
 print("Create nh_inds_distance (curated distance to closest table for re-use by other indicators)... "),
 nh_distance = '''
--- DROP TABLE IF EXISTS {table};
+DROP TABLE IF EXISTS {table};
 CREATE TABLE IF NOT EXISTS {table} AS
 SELECT 
        {id},
@@ -314,7 +314,7 @@ for threshold_type in ['hard','soft']:
     for nh_threshold in [400,800,1000,1600]:
         print("  - nh_inds_{threshold_type}_{nh_threshold}m".format(threshold_type = threshold_type, nh_threshold = nh_threshold))
         sql = '''
-        -- DROP TABLE IF EXISTS nh_inds_{threshold_type}_{nh_threshold}m;
+        DROP TABLE IF EXISTS nh_inds_{threshold_type}_{nh_threshold}m;
         CREATE TABLE IF NOT EXISTS nh_inds_{threshold_type}_{nh_threshold}m AS
         SELECT  
         {id},
