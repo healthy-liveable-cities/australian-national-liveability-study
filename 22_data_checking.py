@@ -194,3 +194,7 @@ FROM parcel_indicators;
 curs.execute(null_query_combined_table)
 conn.commit()
 print("Done.\n")
+
+# output to completion log    
+script_running_log(script, task, start, locale)
+conn.close()
