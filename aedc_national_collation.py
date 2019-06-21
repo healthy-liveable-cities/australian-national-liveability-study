@@ -38,7 +38,7 @@ for locale in study_regions:
 print("Create table indices... "),
 sql = '''
 CREATE UNIQUE INDEX IF NOT EXISTS aedc_indicators_aifs_idx ON aedc_indicators_aifs USING btree ({id});
-CREATE UNIQUE INDEX IF NOT EXISTS aedc_indicators_aifs_gix ON aedc_indicators_aifs USING GIST (geom);
+CREATE INDEX IF NOT EXISTS aedc_indicators_aifs_gix ON aedc_indicators_aifs USING GIST (geom);
 CREATE UNIQUE INDEX IF NOT EXISTS aos_acara_naplan_idx ON aos_acara_naplan USING btree (aos_id, acara_school_id,locale);
 CREATE UNIQUE INDEX IF NOT EXISTS aos_idx ON open_space_areas USING btree (aos_id,locale);
 CREATE INDEX IF NOT EXISTS idx_aos_jsb ON open_space_areas USING gin (attributes);
@@ -60,10 +60,11 @@ SELECT
 FROM aedc_address AS aedc
 CROSS JOIN LATERAL 
   (SELECT
-      i.*
+      i.*,
       ST_Distance(i.geom, aedc.geom) as match_distance_m
       FROM aedc_indicators_aifs i
-      WHERE ST_DWithin(i.geom, aedc.geom, 500) 
+      WHERE excluded IS NULL
+      AND ST_DWithin(i.geom, aedc.geom, 500) 
       ORDER BY aedc.geom <-> i.geom
      LIMIT 1
    ) AS linkage
