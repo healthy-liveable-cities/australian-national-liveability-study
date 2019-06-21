@@ -22,30 +22,52 @@ print("This script assumes the database {db} has been created!".format(db = db))
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()
 
-# print("Create empty AEDC AIFS tables... ")
-# command = 'psql li_australia_2018 < aedc_aifs_schema.sql'
-# sp.call(command, shell=True,cwd=aedc_dir)   
-# print("Done.")
+curs.execute('''SELECT 1 WHERE to_regclass('public.aedc_indicators_aifs') IS NOT NULL;''')
+res = curs.fetchone()
+if res:
+    print("AEDC AIFS table already exists.")
+    sql = '''SELECT DISTINCT(locale) FROM aedc_indicators_aifs ORDER BY locale;'''
+    curs.execute(sql)
+    processed_locales = [x[0] for x in curs.fetchall()]
+        
+else:
+    print("Create empty AEDC AIFS tables... ")
+    command = 'psql li_australia_2018 < aedc_aifs_schema.sql'
+    sp.call(command, shell=True,cwd=aedc_dir)   
+    processed_locales = []
+    print("Done.")
 
-# print("Looping over study regions to check if required output exists in their folder; if it does, its imported...")
-# for locale in study_regions:
-  # sql = 'aedc_aifs_li_{}_2018_Fc.sql'.format(locale)
-  # if os.path.isfile(os.path.join(aedc_dir,sql)):
-    # print(" - {}".format(locale))
-    # command = 'pg_restore -a -Fc -d li_australia_2018 < {}'.format(sql)
-    # sp.call(command, shell=True,cwd=aedc_dir)   
+print("Drop table indices, if existing... "),
+sql = '''
+DROP INDEX IF EXISTS aedc_indicators_aifs_idx;
+DROP INDEX IF EXISTS aedc_indicators_aifs_gix;
+DROP INDEX IF EXISTS aos_acara_naplan_idx    ;
+DROP INDEX IF EXISTS aos_idx                 ;
+DROP INDEX IF EXISTS idx_aos_jsb             ;
+'''.format(id = points_id.lower())
+curs.execute(sql)
+conn.commit()
+print("Done.")
 
-# print("Create table indices... "),
-# sql = '''
-# CREATE UNIQUE INDEX IF NOT EXISTS aedc_indicators_aifs_idx ON aedc_indicators_aifs USING btree ({id});
-# CREATE INDEX IF NOT EXISTS aedc_indicators_aifs_gix ON aedc_indicators_aifs USING GIST (geom);
-# CREATE UNIQUE INDEX IF NOT EXISTS aos_acara_naplan_idx ON aos_acara_naplan USING btree (aos_id, acara_school_id,locale);
-# CREATE UNIQUE INDEX IF NOT EXISTS aos_idx ON open_space_areas USING btree (aos_id,locale);
-# CREATE INDEX IF NOT EXISTS idx_aos_jsb ON open_space_areas USING gin (attributes);
-# '''.format(id = points_id.lower())
-# curs.execute(sql)
-# conn.commit()
-# print("Done.")
+print("Looping over study regions to check if required output exists in their folder; if it does, its imported...")
+for locale in study_regions:
+  sql = 'aedc_aifs_li_{}_2018_Fc.sql'.format(locale)
+  if os.path.isfile(os.path.join(aedc_dir,sql)) and locale not in locales:
+    print(" - {}".format(locale))
+    command = 'pg_restore -a -Fc -d li_australia_2018 < {}'.format(sql)
+    sp.call(command, shell=True,cwd=aedc_dir)   
+
+print("Create table indices... "),
+sql = '''
+CREATE UNIQUE INDEX IF NOT EXISTS aedc_indicators_aifs_idx ON aedc_indicators_aifs USING btree ({id});
+CREATE INDEX IF NOT EXISTS aedc_indicators_aifs_gix ON aedc_indicators_aifs USING GIST (geom);
+CREATE UNIQUE INDEX IF NOT EXISTS aos_acara_naplan_idx ON aos_acara_naplan USING btree (aos_id, acara_school_id,locale);
+CREATE UNIQUE INDEX IF NOT EXISTS aos_idx ON open_space_areas USING btree (aos_id,locale);
+CREATE INDEX IF NOT EXISTS idx_aos_jsb ON open_space_areas USING gin (attributes);
+'''.format(id = points_id.lower())
+curs.execute(sql)
+conn.commit()
+print("Done.")
  
 print("Create aedc match table... "),
 sql = '''
