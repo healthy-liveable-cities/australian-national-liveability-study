@@ -56,10 +56,10 @@ for locale in sorted(study_regions, key=str.lower):
   if locale in processed_locales:
     print((" - {:"+str(locale_field_length)+"}: previously processed").format(locale))
   elif os.path.isfile(os.path.join(aedc_dir,sql)):
-    print((" - {:"+str(locale_field_length)+"}:").format(locale)),
+    print((" - {:"+str(locale_field_length)+"}: processing now... ").format(locale)),
     command = 'pg_restore -a -Fc -d li_australia_2018 < {}'.format(sql)
     sp.call(command, shell=True,cwd=aedc_dir)   
-    print(" processed")
+    print("Done!")
   else:
     print((" - {:"+str(locale_field_length)+"}: data apparently not available ").format(locale))
 
