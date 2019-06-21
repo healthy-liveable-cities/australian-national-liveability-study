@@ -52,10 +52,18 @@ print("Done.")
 print("Looping over study regions to check if required output exists in their folder; if it does, its imported...")
 for locale in study_regions:
   sql = 'aedc_aifs_li_{}_2018_Fc.sql'.format(locale)
-  if os.path.isfile(os.path.join(aedc_dir,sql)) and locale not in locales:
-    print(" - {}".format(locale))
+  if locale in processed_locales:
+    print(" - {} (previously processed)".format(locale))
+  elif os.path.isfile(os.path.join(aedc_dir,sql)):
+    print(" - {}".format(locale)),
     command = 'pg_restore -a -Fc -d li_australia_2018 < {}'.format(sql)
     sp.call(command, shell=True,cwd=aedc_dir)   
+    sql = '''SELECT (SELECT COUNT(*) FROM aedc_indicators_aifs WHERE locale = 'albury_wodonga') AS sample_points,(SELECT count(*) from aedc_indicators_aifs WHERE locale = 'albury_wodonga' AND exclude IS NULL) AS included;'''.format(locale)
+    curs.execute(sql)
+    records = [x[0] for x in curs.fetchall()]
+    print(" ({}/{} included sample points)".format(records[1],records[0]))
+  else:
+    print(" - {} data apparently not available ".format(locale))
 
 print("Create table indices... "),
 sql = '''
