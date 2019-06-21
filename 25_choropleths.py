@@ -149,7 +149,8 @@ for locale in locales:
     bounds = map_layers['boundary'].bounds.transpose().to_dict()[0]
     
     indicators = [ind for ind in map_layers['data'].columns.values if ind not in ['sa1_maincode','geom']]
-    for indicator in indicators:    
+    for indicator in indicators:
+      if indicator!='sample_point_count':    
         # replacing apostrophe with unicode apostrophe to ensure html code for legend
         # isn't corrupted by prematurely closed string (as may occur if this isn't done)
         description = ind_description.loc[indicator,'unit_level_description'].replace(u"'",u'’')
