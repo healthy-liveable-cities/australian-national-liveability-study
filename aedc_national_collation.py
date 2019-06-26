@@ -134,7 +134,8 @@ CREATE INDEX IF NOT EXISTS aedc_gnaf_gix ON aedc_aifs_linked_all_sos USING GIST 
 curs.execute(sql)
 conn.commit()
 print("Done.\n")
-  
+
+# As per discussion with Amanda, Mildura is not req'd
 print("Output csv with basic measures for additional summary analyses... ")
 sql = '''
 COPY (
@@ -143,19 +144,13 @@ COPY (
            longitude                                     ,
            epsg                                          ,
            match_distance_m                              ,
-           city AS study_region                          ,
-           study_region AS sample_region                 ,
+           study_region                                  ,
            locale                                        ,
-           (CASE
-                WHEN r.sos_name_2016 IN ('Major Urban','Other Urban') 
-                THEN 'urban'
-                ELSE 'not urban' 
-              END) AS urban_aedc                         ,
            (CASE
                 WHEN a.sos_name_2016 IN ('Major Urban','Other Urban') 
                 THEN 'urban'
                 ELSE 'not urban' 
-              END) AS urban_sample                       ,
+              END) AS urban                              ,
            sa1_maincode_2016                             ,
            sa2_name_2016                                 ,
            sa3_name_2016                                 ,
@@ -164,7 +159,7 @@ COPY (
            lga_name_2016                                 ,
            gccsa_name_2016                               ,
            state_name_2016                               ,
-           r.sos_name_2016                                 ,
+           sos_name_2016                                 ,
            wa_dns_1600m_dd_2018                          ,
            wa_dns_1600m_sc_2018                          ,
            wa_sco_800m_dl_2018                           ,
@@ -196,8 +191,8 @@ COPY (
            he_dist_closest_mh_adult_2018                 ,
            he_dist_closest_psych_2018
 FROM aedc_aifs_linked_all_sos a
-LEFT JOIN aedc_address_region r USING(project_id))
-TO 'D:/ntnl_li_2018_template/data/study_region/aedc/aedc_aifs_linked_all_sos_simple_stata_20190626.csv' 
+WHERE a.study_region NOT IN ('Mitchell','Western Sydney','Mildura'))
+TO 'D:/ntnl_li_2018_template/data/study_region/aedc/aedc_aifs_linked_all_sos_stata_20190626.csv' 
 WITH CSV DELIMITER ','  HEADER;
 '''
 curs.execute(sql)

@@ -12,7 +12,7 @@ conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()
 
 date = time.strftime("%Y%m%d")
-table = 'kai_highlife_{}'.format(date)
+table = 'kai_highlife_{}_{}'.format(locale,date)
 print("Creating custom table for {}".format(locale))
 kai_query = '''
 DROP TABLE IF EXISTS {table};

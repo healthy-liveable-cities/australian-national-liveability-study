@@ -81,4 +81,4 @@ LEFT JOIN ind_food         fd  USING(gnaf_pid)
 WHERE (p.exclude IS NULL OR p.exclude = 'not urban parcel_sos')
 ;
 
-COPY melb_ed_tga_residential_lots TO 'D:/ntnl_li_2018_template/data/ed-tga_melbourne_2018_20190403.csv' WITH DELIMITER ',' CSV HEADER;  
+COPY melb_ed_tga_residential_lots TO 'D:/ntnl_li_2018_template/data/ed-tga_melbourne_2018_20190627.csv' WITH DELIMITER ',' CSV HEADER;  
