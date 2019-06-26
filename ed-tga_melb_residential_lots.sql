@@ -12,13 +12,12 @@ SELECT
     abs.sa4_name_2016                 ,
     abs.gccsa_name                    ,
     abs.state_name                    ,
+    p.exclude                           ,
     dd.dwellings AS dwellings_nh1600m ,                              
     dd.dd_nh1600m                     ,
     sc.intersection_count             ,         
     sc.sc_nh1600m                     ,         
-    dl.dl_hard_1600m                  ,        
     dl.dl_soft_1600m                  ,          
-    wa.wa_hard_1600m                  ,            
     wa.wa_soft_1600m                  ,            
     os.pos_any_distance_m             AS pos_any_distance_3200m             ,
     os.pos_5k_sqm_distance_m          AS pos_5k_sqm_distance_3200m          ,
@@ -64,21 +63,22 @@ SELECT
     fd.food_count_other_specialty_3200m  ,
     fd.food_count_healthier_3200m  ,
     fd.food_count_fastfood_3200m       ,
-    fd.food_healthy_proportion_3200m,
+    fd.food_healthy_percent_3200m,
     fd.food_healthy_ratio_3200m,
-    fd.food_fresh_proportion_3200m,
+    fd.food_fresh_percent_3200m,
     fd.food_fresh_ratio_3200m,
     ST_AsText(ST_Transform(p.geom,4326)) AS wkt_epsg4326
-FROM parcel_dwellings p
-LEFT JOIN abs_linkage      abs ON p.mb_code_20 = abs.mb_code_2016          
-LEFT JOIN dd_nh1600m       dd  ON p.gnaf_pid   = dd.gnaf_pid
-LEFT JOIN sc_nh1600m       sc  ON p.gnaf_pid   = sc.gnaf_pid
-LEFT JOIN ind_daily_living dl  ON p.gnaf_pid   = dl.gnaf_pid
-LEFT JOIN ind_walkability  wa  ON p.gnaf_pid   = wa.gnaf_pid
-LEFT JOIN ind_os_distance  os  ON p.gnaf_pid   = os.gnaf_pid
-LEFT JOIN nh_inds_distance nh  ON p.gnaf_pid   = nh.gnaf_pid
-LEFT JOIN dest_distance_m   d  ON p.gnaf_pid   =  d.gnaf_pid
-LEFT JOIN ind_food         fd  ON p.gnaf_pid   = fd.gnaf_pid
+FROM parcel_indicators p
+LEFT JOIN abs_linkage      abs USING (mb_code_2016)
+LEFT JOIN dd_nh1600m       dd  USING(gnaf_pid)
+LEFT JOIN sc_nh1600m       sc  USING(gnaf_pid)
+LEFT JOIN ind_daily_living dl  USING(gnaf_pid)
+LEFT JOIN ind_walkability  wa  USING(gnaf_pid)
+LEFT JOIN ind_os_distance  os  USING(gnaf_pid)
+LEFT JOIN nh_inds_distance nh  USING(gnaf_pid)
+LEFT JOIN dest_distance_m   d  USING(gnaf_pid)
+LEFT JOIN ind_food         fd  USING(gnaf_pid)
+WHERE (p.exclude IS NULL OR p.exclude = 'not urban parcel_sos')
 ;
 
 COPY melb_ed_tga_residential_lots TO 'D:/ntnl_li_2018_template/data/ed-tga_melbourne_2018_20190403.csv' WITH DELIMITER ',' CSV HEADER;  
