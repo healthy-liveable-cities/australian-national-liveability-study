@@ -71,14 +71,8 @@ ind_matrix = ind_matrix.set_index('indicators')
 ind_matrix = ind_matrix.append(ind_destinations)
 ind_list = ind_matrix.index.values
 
-# Note that postgresql ignores null values when calculating averages
-# We can passively exploit this feature in the case of POS as those parcels with nulls will be 
-# ignored --- this is exactly what we want.  Excellent.
-ind_avg = ',\n'.join("AVG(" + ind_matrix['agg_scale'].apply(lambda x: '100.0*' if x == 100 else '1.0*') + '"' + ind_list+ '"' + " ) AS " +  '"' + ind_list+ '"')
-
-ind_sd = ',\n'.join("stddev_samp(" + ind_matrix['agg_scale'].apply(lambda x: '100.0*' if x == 100 else '1.0*') + '"' + ind_list+ '"' + " ) AS " + '"' + ind_list+ '"')
-
-indicator_scale_tuples =  list(zip(ind_matrix.index,ind_matrix.agg_scale))
+indicator_tuples =  list(zip(ind_matrix.index,ind_matrix.agg_scale,ind_matrix.aggregate_description))
+print("Creating Mesh Block level indicator table... "),
 sql = '''
 DROP TABLE IF EXISTS abs_indicators;
 CREATE TABLE abs_indicators AS
@@ -115,9 +109,10 @@ LEFT JOIN (
 GROUP BY mb_code_2016,sample_count
 ;
 '''.format(indicators = '"{}"'.format('","'.join(ind_list)),
-           jsonb_inds = jsonb_summary_sql(indicator_scale_tuples))
-print(sql)
-
+           jsonb_inds = jsonb_summary_sql(indicator_tuples))
+curs.execute(sql)
+conn.commit()
+print("Done.")
 # The above can be used like so:
 ## SELECT mb_code_2016,sample_count,sample_count_per_ha,jsonb_pretty(indicators) AS indicators FROM abs_indicators LIMIT 1;
 ## 
@@ -137,112 +132,90 @@ print(sql)
 ## FROM abs_indicators,jsonb_array_elements(indicators) ind LIMIT 1;
 ## '''.format(extract = ','.join(["(ind->'{i}')->'mean' AS {i}".format(i = i) for i in ind_list]))
 
-for standard in ['dwelling','person']:
-    sql = '''
-    DROP TABLE IF EXISTS {area_code_short}_ind_{standard};
-    CREATE TABLE {area_code_short}_ind_{standard} AS
-    SELECT 
-    {area_code},
-    {extract}
-    FROM abs_indicators,
-         jsonb_array_elements(indicators) ind
-    GROUP BY {area_code}
-    '''.format(area_code = 'sa2_name_2016',
-               area_code_short = 'sa2',
-               extract = ','.join(['''
-               ROUND((SUM({standard}*((ind->'{i}')->>'mean')::numeric)/SUM({standard}))::numeric,{rounding}) AS "{i}"
-               '''.format(i = i,rounding=1,standard = standard) for i in ind_list]),
-               standard = standard
-               )
-    curs.execute(sql)
-    conn.commit()
-
-                                                                                                                        
-
-
-
-# Create query for indicator range (including scaling of percent variables)
-ind_range = ',\n'.join("ROUND(MIN(" +
-                       ind_matrix['agg_scale'].apply(lambda x: '100.0*' if x == 100 else '1.0*') +
-                       '"' + ind_list+ '"' +
-                       ")::numeric,1)::text || ' to ' ||ROUND(MAX(" +
-                       ind_matrix['agg_scale'].apply(lambda x: '100.0*' if x == 100 else '1.0*') +
-                       '"' + ind_list+ '"' +
-                       ")::numeric,1)::text AS " + '"'+ 
-                       ind_list+ '"' )
-# Create query for median       
-ind_median = ',\n'.join("round(percentile_cont(0.5) WITHIN GROUP (ORDER BY " +
-                        ind_matrix['agg_scale'].apply(lambda x: '100.0*' if x == 100 else '1.0*')+ 
-                        '"' + ind_list + '"' + 
-                       ")::numeric,1) AS " + 
-                       '"' + ind_list+ '"')                       
-                       
-# Create query for Interquartile range interval (25% to 75%) to represent the range within which the middle 50% of observations lie                       
-ind_iqr = ',\n'.join("round(percentile_cont(0.25) WITHIN GROUP (ORDER BY " +
-                       ind_matrix['agg_scale'].apply(lambda x: '100.0*' if x == 100 else '1.0*') +
-                       '"' + ind_list+ '"' +
-                       ")::numeric,1)::text || ' to ' ||round(percentile_cont(0.75) WITHIN GROUP (ORDER BY " +
-                       ind_matrix['agg_scale'].apply(lambda x: '100.0*' if x == 100 else '1.0*') +
-                       '"' + ind_list+ '"' +
-                       ")::numeric,1)::text AS " +
-                       '"' + ind_list+ '"')                  
-
-# Create a second pass table including binary indicators
-## TO DO
-
-# Create query for percentile           
-ind_percentile = ',\n'.join("round(100*cume_dist() OVER(ORDER BY "+
-                            '"' + ind_list+ '"'
-                            " " +
-                            ind_matrix['polarity'] +
-                            ")::numeric,0) AS " +
-                            '"' + ind_list+ '"')        
-
-# Map query for raw indicators
-map_ind_raw = ',\n'.join("round(raw." +
-                         '"' + ind_list+ '"' +
-                         '::numeric,1) AS "r_' + ind_list+ '"')   
-                         
-# Map query for sd indicators
-map_ind_sd = ',\n'.join("round(sd." +
-                         '"' + ind_list+ '"' +
-                         '::numeric,1) AS "sd_' + ind_list+ '"')                          
- 
-# Map query for percentile indicators
-map_ind_percentile = ',\n'.join("round(perc." +
-                         '"' + ind_list+ '"' + 
-                          '::numeric,1) AS "p_' + ind_list+ '"')               
- 
-# Map query for range indicators
-map_ind_range = ',\n'.join("range." + 
-                         '"' + ind_list+ '"' + 
-                         ' AS "d_' + ind_list+ '"')                   
- 
-# Map query for median indicators
-map_ind_median = ',\n'.join("median." + 
-                         '"' + ind_list+ '"' + 
-                         ' AS "med_' + ind_list+ '"') 
-                         
-# Map query for iqr indicators
-map_ind_iqr = ',\n'.join("iqr." + 
-                         '"' + ind_list+ '"' + 
-                         ' AS "m_' + ind_list+ '"') 
-
-# Exclusion criteria              
-exclusion_criteria = 'WHERE  p.exclude IS NULL AND p.sos_name_2016 IS NOT NULL'.format(id = points_id.lower())
+areas = {'mb_code_2016':'mb',
+         'sa1_maincode':'sa1',
+         'sa2_name_2016':'sa2',
+         'sa3_name_2016':'sa3',
+         'sa4_name_2016':'sa4',
+         'region':'region'}
+print("Creating weighted area aggregate tables:")
+for area in areas:
+  if area!= 'region':       
+    for standard in ['dwelling','person']:
+        print("  - {}_ind_{}".format(areas[area],standard))
+        sql = '''
+        DROP TABLE IF EXISTS {area_code_short}_ind_{standard};
+        CREATE TABLE {area_code_short}_ind_{standard} AS
+        SELECT 
+        {area_code},
+        SUM({standard}) AS {standard},
+        SUM(sample_count) AS sample_count,
+        SUM(sample_count)/SUM(area_ha) AS sample_count_per_ha,
+        SUM(area_ha) AS area_ha,
+        {extract}
+        FROM abs_indicators,
+             jsonb_array_elements(indicators) ind
+        GROUP BY {area_code};
+        ALTER TABLE  {area_code_short}_ind_{standard} ADD PRIMARY KEY ({area_code});
+        '''.format(area_code = area,
+                   area_code_short = areas[area],
+                   extract = ','.join(['''
+                       (CASE                                                       
+                            WHEN COALESCE(SUM({standard}),0) = 0
+                                THEN NULL
+                            ELSE                             
+                                ROUND(
+                                  (SUM({standard}*((ind->'{i}')->>'mean')::numeric)/SUM({standard}))::numeric,
+                                  {rounding}
+                                  ) 
+                          END) AS "{i}"
+                   '''.format(i = i,rounding=1,standard = standard) for i in ind_list]),
+                   standard = standard
+                   )
+        curs.execute(sql)
+        conn.commit()
+  else:
+    for standard in ['dwelling','person']:
+        print("  - {}_ind_{}".format(areas[area],standard))
+        sql = '''
+        DROP TABLE IF EXISTS {area_code_short}_ind_{standard};
+        CREATE TABLE {area_code_short}_ind_{standard} AS
+        SELECT 
+        '{area_code}' AS region,
+        SUM({standard}) AS {standard},
+        SUM(sample_count) AS sample_count,
+        SUM(sample_count)/SUM(area_ha) AS sample_count_per_ha,
+        SUM(area_ha) AS area_ha,
+        {extract}
+        FROM abs_indicators,
+             jsonb_array_elements(indicators) ind
+        GROUP BY region;
+        ALTER TABLE  {area_code_short}_ind_{standard} ADD PRIMARY KEY (region);
+        '''.format(area_code = full_locale,
+                   area_code_short = areas[area],
+                   extract = ','.join(['''
+                       (CASE                                                       
+                            WHEN COALESCE(SUM({standard}),0) = 0
+                                THEN NULL                                          
+                            ELSE                                      
+                                ROUND(
+                                  (SUM({standard}*((ind->'{i}')->>'mean')::numeric)/SUM({standard}))::numeric,
+                                  {rounding}
+                                  ) 
+                          END) AS "{i}"
+                   '''.format(i = i,rounding=1,standard = standard) for i in ind_list]),
+                   standard = standard
+                   )
+        curs.execute(sql)
+        conn.commit()
+print("Done.")
 
 # The shape file for map features are output 
 map_features_outpath = os.path.join(folderPath,'study_region','wgs84_epsg4326','map_features')
 
 if not os.path.exists(map_features_outpath):
   os.makedirs(map_features_outpath)   
-
       
-      
-# SQL Settings
-conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
-curs = conn.cursor()
-
 areas = {'mb_code_2016':'mb',
          'sa1_maincode':'sa1',
          'ssc_name_2016':'ssc',
