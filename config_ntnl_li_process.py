@@ -286,6 +286,32 @@ def pretty(d, indent=0):
       else:
         print(' ' + str(value))
 
+def jsonb_summary_sql(indicators):
+    ''' 
+    given a list of indicators, return SQL code to summarise these in JSONB format for postgresql
+    '''
+    # ensure input is in list form
+    if not hasattr(indicators,"__iter__"):
+        indicators = [indicators]
+        
+    summary_queries = []
+    for ind in indicators:
+        sql = '''
+        to_jsonb( 
+               (SELECT d  FROM 
+                   (SELECT 
+                      AVG(p.{ind}) AS mean,
+                      STDDEV_SAMP(p.{ind}) AS sd,
+                      percentile_cont(ARRAY[0,0.01,0.025,0.25,0.5,0.75,0.975,0.99,1]) 
+                        WITHIN GROUP (ORDER BY {ind}) 
+                            AS percentiles
+                      ) d)
+                ) AS {ind}
+        '''.format(ind = ind)
+        summary_queries.append(sql)
+    return ','.join(summary_queries)
+
+
 # specify that the above modules and all variables below are imported on 'from config.py import *'
 __all__ = [x for x in dir() if x not in ['__file__','__all__', '__builtins__', '__doc__', '__name__', '__package__']]
  

@@ -78,6 +78,57 @@ ind_avg = ',\n'.join("AVG(" + ind_matrix['agg_scale'].apply(lambda x: '100.0*' i
 
 ind_sd = ',\n'.join("stddev_samp(" + ind_matrix['agg_scale'].apply(lambda x: '100.0*' if x == 100 else '1.0*') + '"' + ind_list+ '"' + " ) AS " + '"' + ind_list+ '"')
 
+sql = '''
+DROP TABLE IF EXISTS abs_indicators;
+CREATE TABLE abs_indicators AS
+SELECT a.mb_code_2016                                 ,
+       a.mb_category_name_2016                        ,
+       a.dwelling                                     ,
+       a.person                                       ,
+       a.sa1_maincode                                 ,
+       a.sa2_name_2016                                ,
+       a.sa3_name_2016                                ,
+       a.sa4_name_2016                                ,
+       a.gccsa_name                                   ,
+       a.state_name                                   ,
+       a.area_albers_sqkm                             ,
+       a.area_ha                                      ,
+       jsonb_agg(
+          to_jsonb(
+              (SELECT i FROM
+                  (SELECT
+                      {ind1},
+                      {ind2}
+                  ) i))) AS indicators            ,
+       sample_count                                   ,
+       sample_count / a.area_ha AS sample_count_per_ha,
+       a.geom                 
+FROM abs_linkage a
+LEFT JOIN (
+    SELECT mb_code_2016,
+           COUNT(p.*) AS sample_count       ,
+           to_jsonb( 
+           (SELECT d  FROM 
+               (SELECT 
+                  AVG(p.{ind1}) AS mean,
+                  STDDEV_SAMP(p.{ind1}) AS sd,
+                  percentile_cont(ARRAY[0,0.01,0.025,0.25,0.5,0.75,0.975,0.99,1]) WITHIN GROUP (ORDER BY {ind1}) AS percentiles
+                  ) d)) AS {ind1},
+           to_jsonb( 
+           (SELECT d  FROM 
+               (SELECT 
+                  AVG(p.{ind2}) AS mean,
+                  STDDEV_SAMP(p.{ind2}) AS sd,
+                  percentile_cont(ARRAY[0,0.01,0.025,0.25,0.5,0.75,0.975,0.99,1]) WITHIN GROUP (ORDER BY {ind2}) AS percentiles
+                  ) d)) AS {ind2}
+    FROM parcel_indicators p
+    WHERE exclude IS NULL
+    GROUP BY mb_code_2016) t USING (mb_code_2016)
+GROUP BY mb_code_2016,sample_count
+;
+'''.format(ind1 = 'os_public_01_soft',ind2 = 'walk_16')
+print(sql)
+
 # Create query for indicator range (including scaling of percent variables)
 ind_range = ',\n'.join("ROUND(MIN(" +
                        ind_matrix['agg_scale'].apply(lambda x: '100.0*' if x == 100 else '1.0*') +
