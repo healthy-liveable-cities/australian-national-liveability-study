@@ -286,28 +286,28 @@ def pretty(d, indent=0):
       else:
         print(' ' + str(value))
 
-def jsonb_summary_sql(indicators):
+def jsonb_summary_sql(indicator_scale_tuples):
     ''' 
     given a list of indicators, return SQL code to summarise these in JSONB format for postgresql
     '''
     # ensure input is in list form
-    if not hasattr(indicators,"__iter__"):
-        indicators = [indicators]
+    if not hasattr(indicator_scale_tuples,"__iter__"):
+        indicator_scale_tuple = [indicator_scale_tuples,1]
         
     summary_queries = []
-    for ind in indicators:
+    for ind in indicator_scale_tuples:
         sql = '''
         to_jsonb( 
                (SELECT d  FROM 
                    (SELECT 
-                      AVG(p.{ind}) AS mean,
-                      STDDEV_SAMP(p.{ind}) AS sd,
+                      {scale}*AVG("{ind}") AS mean,
+                      {scale}*STDDEV_SAMP("{ind}") AS sd,
                       percentile_cont(ARRAY[0,0.01,0.025,0.25,0.5,0.75,0.975,0.99,1]) 
-                        WITHIN GROUP (ORDER BY {ind}) 
+                        WITHIN GROUP (ORDER BY {scale}*"{ind}") 
                             AS percentiles
                       ) d)
-                ) AS {ind}
-        '''.format(ind = ind)
+                ) AS "{ind}"
+        '''.format(ind = ind[0],scale = ind[1])
         summary_queries.append(sql)
     return ','.join(summary_queries)
 

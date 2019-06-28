@@ -78,6 +78,7 @@ ind_avg = ',\n'.join("AVG(" + ind_matrix['agg_scale'].apply(lambda x: '100.0*' i
 
 ind_sd = ',\n'.join("stddev_samp(" + ind_matrix['agg_scale'].apply(lambda x: '100.0*' if x == 100 else '1.0*') + '"' + ind_list+ '"' + " ) AS " + '"' + ind_list+ '"')
 
+indicator_scale_tuples =  list(zip(ind_matrix.index,ind_matrix.agg_scale))
 sql = '''
 DROP TABLE IF EXISTS abs_indicators;
 CREATE TABLE abs_indicators AS
@@ -97,37 +98,68 @@ SELECT a.mb_code_2016                                 ,
           to_jsonb(
               (SELECT i FROM
                   (SELECT
-                      {ind1},
-                      {ind2}
+                      {indicators}
                   ) i))) AS indicators            ,
        sample_count                                   ,
        sample_count / a.area_ha AS sample_count_per_ha,
        a.geom                 
 FROM abs_linkage a
 LEFT JOIN (
-    SELECT mb_code_2016,
+    SELECT p.mb_code_2016,
            COUNT(p.*) AS sample_count       ,
-           to_jsonb( 
-           (SELECT d  FROM 
-               (SELECT 
-                  AVG(p.{ind1}) AS mean,
-                  STDDEV_SAMP(p.{ind1}) AS sd,
-                  percentile_cont(ARRAY[0,0.01,0.025,0.25,0.5,0.75,0.975,0.99,1]) WITHIN GROUP (ORDER BY {ind1}) AS percentiles
-                  ) d)) AS {ind1},
-           to_jsonb( 
-           (SELECT d  FROM 
-               (SELECT 
-                  AVG(p.{ind2}) AS mean,
-                  STDDEV_SAMP(p.{ind2}) AS sd,
-                  percentile_cont(ARRAY[0,0.01,0.025,0.25,0.5,0.75,0.975,0.99,1]) WITHIN GROUP (ORDER BY {ind2}) AS percentiles
-                  ) d)) AS {ind2}
+          {jsonb_inds}
     FROM parcel_indicators p
-    WHERE exclude IS NULL
-    GROUP BY mb_code_2016) t USING (mb_code_2016)
+    LEFT JOIN dest_closest_indicators USING(gnaf_pid)
+    WHERE p.exclude IS NULL
+    GROUP BY p.mb_code_2016) t USING (mb_code_2016)
 GROUP BY mb_code_2016,sample_count
 ;
-'''.format(ind1 = 'os_public_01_soft',ind2 = 'walk_16')
+'''.format(indicators = '"{}"'.format('","'.join(ind_list)),
+           jsonb_inds = jsonb_summary_sql(indicator_scale_tuples))
 print(sql)
+
+# The above can be used like so:
+## SELECT mb_code_2016,sample_count,sample_count_per_ha,jsonb_pretty(indicators) AS indicators FROM abs_indicators LIMIT 1;
+## 
+## SELECT mb_code_2016, 
+##        inds
+## FROM abs_indicators, 
+##     jsonb_array_elements(indicators) inds
+## LIMIT 10;
+## 
+## SELECT mb_code_2016,
+##        (ind->'walk_16')::jsonb->'mean' AS walk_16
+## FROM abs_indicators,jsonb_array_elements(indicators) ind LIMIT 1;
+
+## sql = '''
+## SELECT mb_code_2016,
+##        {extract}
+## FROM abs_indicators,jsonb_array_elements(indicators) ind LIMIT 1;
+## '''.format(extract = ','.join(["(ind->'{i}')->'mean' AS {i}".format(i = i) for i in ind_list]))
+
+for standard in ['dwelling','person']:
+    sql = '''
+    DROP TABLE IF EXISTS {area_code_short}_ind_{standard};
+    CREATE TABLE {area_code_short}_ind_{standard} AS
+    SELECT 
+    {area_code},
+    {extract}
+    FROM abs_indicators,
+         jsonb_array_elements(indicators) ind
+    GROUP BY {area_code}
+    '''.format(area_code = 'sa2_name_2016',
+               area_code_short = 'sa2',
+               extract = ','.join(['''
+               ROUND((SUM({standard}*((ind->'{i}')->>'mean')::numeric)/SUM({standard}))::numeric,{rounding}) AS "{i}"
+               '''.format(i = i,rounding=1,standard = standard) for i in ind_list]),
+               standard = standard
+               )
+    curs.execute(sql)
+    conn.commit()
+
+                                                                                                                        
+
+
 
 # Create query for indicator range (including scaling of percent variables)
 ind_range = ',\n'.join("ROUND(MIN(" +
