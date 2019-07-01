@@ -182,51 +182,7 @@ curs.execute(grant_query)
 conn.commit()
 print("Done.")
 
-
-# curs.execute(create_abslinkage_Table)
-# conn.commit()
-
-# create_non_abslinkage_Table     = '''
-  # DROP TABLE IF EXISTS non_abs_linkage;
-  # CREATE TABLE IF NOT EXISTS non_abs_linkage AS
-    # SELECT
-      # {0},
-      # ssc_code_2 AS ssc_code_2016,
-      # ssc_name_2 AS ssc_name_2016,
-      # lga_code_2 AS lga_code_2016,
-      # lga_name_2 AS lga_name_2016
-      # from parcel_dwellings a, 
-      # {1} b, 
-      # {2} c 
-      # where st_contains(b.geom,a.geom) AND st_contains(c.geom,a.geom);
-  # ALTER  TABLE non_abs_linkage ADD PRIMARY KEY ({0});
-  # '''.format(points_id,suburb_feature, lga_feature)
-
-
-# print("Create non-ABS linkage table (linking point IDs with suburbs and LGAs... "),
-# curs.execute(create_non_abslinkage_Table)
-# conn.commit()
-# print("Done")
-  
-# print("Import area level disadvantage data... "),
-# disadvantage = pandas.read_csv(area_info['disadvantage']['data'], index_col = area_info['disadvantage']['id'])
-# disadvantage.index = disadvantage.index.map(str)
-# region_limit = '''
-# SELECT {id} 
-  # FROM {table},{buffered_study_region}
- # WHERE ST_Intersects({table}.geom,{buffered_study_region}.geom)
- # '''.format(id = areas[area_info['disadvantage']['area']]['id'],
-            # table = os.path.splitext(os.path.basename(areas[area_info['disadvantage']['area']]['data']))[0].lower(),
-            # buffered_study_region = buffered_study_region)
-# areas_in_region = pandas.read_sql_query(region_limit,con=engine,index_col=areas[area_info['disadvantage']['area']]['id'])
-# disadvantage = areas_in_region.merge(disadvantage,how='left', left_index=True, right_index=True)
-# disadvantage.to_sql(area_info['disadvantage']['table'], index_label =area_info['disadvantage']['id'],con = engine, if_exists='replace')
-# print("Done.")
-
-
-# # Create study region tables
-# print("  - Study region tables (urban, not urban, all sos; within study region bounds)")
-# # Create study region tables
+# Create study region tables
 # create_study_region_tables = '''
   # DROP TABLE IF EXISTS study_region_all_sos;
   # CREATE TABLE study_region_all_sos AS 
