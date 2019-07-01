@@ -37,6 +37,7 @@ import subprocess as sp
 # Load settings from ind_study_region_matrix.xlsx
 xls = pandas.ExcelFile(os.path.join(sys.path[0],'ind_study_region_matrix.xlsx'))
 df_parameters = pandas.read_excel(xls, 'parameters',index_col=0)
+df_regions = pandas.read_excel(xls, 'regions',index_col=0)
 df_studyregion = pandas.read_excel(xls, 'study_regions',index_col=1)
 df_inds = pandas.read_excel(xls, 'ind_study_region_matrix')
 df_destinations = pandas.read_excel(xls, 'destinations')
@@ -71,7 +72,7 @@ state  = df_studyregion.loc[locale]['state']
 locale_dir = os.path.join(folderPath,'study_region','{}'.format(locale.lower()))
 
 # Study region boundary
-region_shape = os.path.join(folderPath,df_studyregion.loc[locale]['region_shape'])
+region_shape = df_studyregion.loc[locale]['region_shape']
 
 # SQL Query to select study region
 region_where_clause = df_studyregion.loc[locale]['region_where_clause']
@@ -88,11 +89,11 @@ if pandas.np.isnan(suffix):
 
 
 # derived study region name (no need to change!)
-study_region = '{0}_{1}'.format(region,year).lower()
+study_region = 'study_region'
 db = 'li_{0}_{1}{2}'.format(locale,year,suffix).lower()
 
 # Study region buffer
-buffered_study_region = '{0}_{1}{2}'.format(study_region,study_buffer,units)
+buffered_study_region = 'buffered_study_region'
 
 # Derived hex settings - no need to change
 hex_grid = '{0}_hex_{1}{2}_diag'.format(study_region,hex_diag,units)
@@ -125,62 +126,59 @@ grant_query = '''GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA pu
                  GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO {1};'''.format(arc_sde_user,db_user)
 
 # Region set up
-areas_of_interest = [int(x) for x in df_parameters.loc['regions_of_interest']['value'].split(',')]
-areas = {}
-for area in areas_of_interest + ['urban']:
-  prefix = area
-  if type(area) is int:
-    prefix = 'region{}'.format(area)
-  if df_parameters.loc['{}_data'.format(prefix)]['value'] != '':
-    areas[area] = {}
-    for field in ['data','name','id']:
-      if field=='data':
-        # join with data path prefix
-        areas[area][field] = os.path.join(folderPath,df_parameters.loc['{}_{}'.format(prefix,field)]['value'])
-        areas[area]['table'] = os.path.splitext(os.path.basename(areas[area]['data']))[0].lower()
-      elif field=='name': 
-        # split into full (f) and short (s) lower case versions; latter is safe for database use
-        areas[area]['name_f'] = df_parameters.loc['{}_name'.format(prefix)]['value'].split(',')[0]
-        if len(df_parameters.loc['{}_name'.format(prefix)]['value'].split(',')) > 1:
-          areas[area]['name_s'] = df_parameters.loc['{}_name'.format(prefix)]['value'].split(',')[1].lower()
-        else:
-          areas[area]['name_s'] = areas[area]['name_f'].lower()
-      else:
-        areas[area][field] = df_parameters.loc['{}_{}'.format(prefix,field)]['value']
+areas_of_interest = df_regions.index.values.tolist()
+geographies = df_regions[df_regions['purpose'].str.contains('geo')==True].index.values.tolist()
+geo_imports = df_regions.loc[df_regions.loc[geographies,'epsg'].dropna().index,['data','epsg']].groupby(['data','epsg']).size().reset_index()
+analysis_regions = df_regions[df_regions['purpose'].str.contains('analysis')==True].index.values.tolist()
+csv_linkage = df_regions[df_regions['format'].str.contains('csv')==True].index.values.tolist()
 
-area_info = {}
-for info in ['dwellings','disadvantage']:
-  area_info[info] = {}
-  if df_parameters.loc['{}_data'.format(info)]['value']!= '':
-    area_info[info]['data']      = os.path.join(folderPath,df_parameters.loc['{}_data'.format(info)]['value'])
-    area_info[info]['table']     = 'area_{}'.format(info)
-    area_info[info]['area']      = int(df_parameters.loc['{}_area'.format(info)]['value'])
-    area_info[info]['id']        = df_parameters.loc['{}_id'.format(info)]['value']
-    area_info[info]['field']     = df_parameters.loc['{}_field'.format(info)]['value']
-    area_info[info]['exclusion'] = df_parameters.loc['{}_exclusion'.format(info)]['value']
+# areas = {}
+# for area in areas_of_interest:
+  # prefix = area
+  # if type(area) is int:
+    # prefix = 'region{}'.format(area)
+  # if df_parameters.loc['{}_data'.format(prefix)]['value'] != '':
+    # areas[area] = {}
+    # areas[area]['format'] = df_parameters.loc['{}_{}'.format(prefix,'format')]['value'].split(' ')
+    # for field in ['data','name','abbreviation','epsg','id','linkage_table','linkage_id',exclusion']:
+      # if field=='data':
+        # if 'list' not in areas[area]['format']:
+            # # join with data path prefix
+            # areas[area][field] = os.path.join(folderPath,df_parameters.loc['{}_{}'.format(prefix,field)]['value'])
+            # areas[area]['table'] = os.path.splitext(os.path.basename(areas[area]['data']))[0].lower()
+        # else:
+            # areas[area][field] = [os.path.join(folderPath,x) for x in df_parameters.loc['{}_{}'.format(prefix,field)]['value'].split(',')]
+      # elif field=='name': 
+        # # split into full (f) and short (s) lower case versions; latter is safe for database use
+        # areas[area]['name_f'] = df_parameters.loc['{}_name'.format(prefix)]['value'].split(',')[0]
+        # if len(df_parameters.loc['{}_name'.format(prefix)]['value'].split(',')) > 1:
+          # areas[area]['name_s'] = df_parameters.loc['{}_name'.format(prefix)]['value'].split(',')[1].lower()
+        # else:
+          # areas[area]['name_s'] = areas[area]['name_f'].lower()
+      # elif field=='linkage': 
+        # if 'linkage' in areas[area]['format']:
+            # areas[area][field] =  df_parameters.loc['{}_{}'.format(prefix,field)]['value'].split(',')
+        # else:
+            # areas[area][field] = ''
+      # else:
+        # areas[area][field] = df_parameters.loc['{}_{}'.format(prefix,field)]['value']
 
-# This is a legacy configuration option not yet updated to the generic framework
-# ie. this configuration is Australia specific, but must be generalised to non-specific region
-# However, as of February 2019 I haven't had time to make the full update
-# This configuration retained for compatability with scripts until full re-write
-# Meshblock Dwellings feature name
-meshblocks = areas[0]['data']
-abs_SA1    = areas[1]['data']
-abs_SA2    = areas[2]['data']
-abs_SA3    = areas[3]['data']
-abs_SA4    = areas[4]['data']
-abs_lga    = areas[5]['data']
-abs_suburb = areas[6]['data']
-abs_SOS    = areas['urban']['data']
-
-suburb_feature = areas[6]['table']
-lga_feature = areas[5]['table']
+# area_info = {}
+# for info in ['dwellings','disadvantage']:
+  # area_info[info] = {}
+  # if df_parameters.loc['{}_data'.format(info)]['value']!= '':
+    # area_info[info]['data']      = os.path.join(folderPath,df_parameters.loc['{}_data'.format(info)]['value'])
+    # area_info[info]['table']     = 'area_{}'.format(info)
+    # area_info[info]['area']      = int(df_parameters.loc['{}_area'.format(info)]['value'])
+    # area_info[info]['id']        = df_parameters.loc['{}_id'.format(info)]['value']
+    # area_info[info]['field']     = df_parameters.loc['{}_field'.format(info)]['value']
+    # area_info[info]['exclusion'] = df_parameters.loc['{}_exclusion'.format(info)]['value']
 
 # meshblock ID MB_CODE_20 (varname is truncated by arcgis to 8 chars) datatype is varchar(11) 
-meshblock_id     = areas[0]['id']
-dwellings        = area_info['dwellings']['data']
-dwellings_id     = area_info['dwellings']['id']
-dwellings_field  = area_info['dwellings']['field']
+meshblock_id     = df_regions.iloc[0]['id']
+dwellings        = df_regions.loc['Dwellings','data']
+dwellings_id     = df_regions.loc['Dwellings','linkage_id']
+dwellings_field  = df_regions.loc['Dwellings','id']
 
 # parcels (point data locations used for sampling)
 # Note that the process assumes we have already transformed points to the project's spatial reference
