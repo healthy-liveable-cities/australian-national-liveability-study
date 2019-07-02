@@ -102,13 +102,13 @@ SELECT
 FROM parcel_dwellings p
 LEFT JOIN area_linkage a on p.mb_code_20 = a.mb_code_2016
 LEFT JOIN excluded_summary_parcels b on p.gnaf_pid = b.gnaf_pid
-GROUP BY p.mb_code_20,
+GROUP BY a.mb_code_2016,
          a.mb_category_name_2016,
          a.dwelling             ,
          a.person               ,
          a.area_ha              ,
          a.geom
-ORDER BY p.mb_code_20;
+ORDER BY a.mb_code_2016;
 
 -- SA1 summary
 DROP TABLE IF EXISTS excluded_summary_sa1;
@@ -125,7 +125,7 @@ SELECT
 FROM parcel_dwellings p
 LEFT JOIN area_linkage a on p.mb_code_20 = a.mb_code_2016
 LEFT JOIN excluded_summary_parcels b on p.gnaf_pid = b.gnaf_pid
-LEFT JOIN sa1_2016_aust s ON a.sa1_maincode_2016 = s.sa1_mainco
+LEFT JOIN sa1_2016_aust s USING (sa1_maincode_2016)
 GROUP BY a.sa1_maincode_2016,s.geom
 ORDER BY a.sa1_maincode_2016;
 

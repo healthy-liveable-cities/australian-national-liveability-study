@@ -45,7 +45,7 @@ conn.commit()
 nh_threshold = 1600
 for threshold_type in ['hard','soft']:
     populate_table = '''
-    -- Note that we take NULL for distance to closest in this context to mean absence of presence
+    -- Note that we take NULL for distance to closest in this context to mean areaence of presence
     -- Error checking at other stages of processing should confirm whether this is the case.
     ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {abbrev}_{threshold_type}_{nh_threshold}m float;
     UPDATE {table} t SET 
@@ -116,38 +116,36 @@ create_parcel_indicators = '''
 DROP TABLE IF EXISTS parcel_indicators;
 CREATE TABLE parcel_indicators AS
 SELECT
-p.{id}                   ,
-p.count_objectid         ,
-p.point_x                ,
-p.point_y                ,
-p.hex_id                 ,
-abs.mb_code_2016         ,
-abs.mb_category_name_2016,
-abs.dwelling             ,
-abs.person               ,
-abs.sa1_maincode         ,
-abs.sa2_name_2016        ,
-abs.sa3_name_2016        ,
-abs.sa4_name_2016        ,
-abs.gccsa_name           ,
-abs.state_name           ,
-non_abs.ssc_code_2016    ,
-non_abs.ssc_name_2016    ,
-non_abs.lga_code_2016    ,
-non_abs.lga_name_2016    ,
-sos.sos_name_2016        ,
-e.exclude                ,
+p.{id}                    ,
+p.count_objectid          ,
+p.point_x                 ,
+p.point_y                 ,
+p.hex_id                  ,
+area.mb_code_2016         ,
+area.mb_category_name_2016,
+area.sa1_maincode_2016    ,
+area.sa2_name_2016        ,
+area.sa3_name_2016        ,
+area.sa4_name_2016        ,
+area.gccsa_name_2016      ,
+area.state_name_2016      ,
+area.ssc_name_2016        ,
+area.lga_name_2016        ,
+area.ucl_name_2016        ,
+area.sos_name_2016        ,
+area.urban                ,
+area.irsd_score           ,
+e.exclude                 ,
 {indicators}            
 p.geom                   
 FROM
 parcel_dwellings p                                                                                 
-LEFT JOIN abs_linkage abs ON p.mb_code_20 = abs.mb_code_2016
-LEFT JOIN non_abs_linkage non_abs ON p.{id} = non_abs.{id}
-LEFT JOIN parcel_sos sos ON p.{id} = sos.{id}
+LEFT JOIN area_linkage area ON p.mb_code_20 = area.mb_code_2016
 LEFT JOIN (SELECT {id}, string_agg(indicator,',') AS exclude FROM excluded_parcels GROUP BY {id}) e 
     ON p.{id} = e.{id}
 {sources};
-CREATE UNIQUE INDEX IF NOT EXISTS parcel_indicators_idx ON  parcel_indicators ({id});
+CREATE UNIQUE INDEX IF NOT EXISTS ix_parcel_indicators ON  parcel_indicators ({id});
+CREATE INDEX IF NOT EXISTS gix_parcel_indicators ON parcel_indicators USING GIST (geom);
 '''.format(id = points_id, indicators = ind_queries, sources = ind_sources)
 
 # print("SQL query:")
@@ -178,19 +176,18 @@ p.point_y               ,
 p.hex_id                ,
 p.mb_code_2016          ,
 p.mb_category_name_2016 ,
-p.dwelling              ,
-p.person                ,
-p.sa1_maincode          ,
+p.sa1_maincode_2016     ,
 p.sa2_name_2016         ,
 p.sa3_name_2016         ,
 p.sa4_name_2016         ,
-p.gccsa_name            ,
-p.state_name            ,
-p.ssc_code_2016         ,
+p.gccsa_name_2016       ,
+p.state_name_2016       ,
 p.ssc_name_2016         ,
-p.lga_code_2016         ,
 p.lga_name_2016         ,
+p.ucl_name_2016         ,
 p.sos_name_2016         ,
+p.urban                 ,
+p.irsd_score            ,
 p.exclude               ,
 {d}                     ,
 p.geom                   
@@ -198,7 +195,8 @@ FROM
 parcel_indicators p                                                                                 
 LEFT JOIN dest_distance_m d
 USING ({id});
-CREATE UNIQUE INDEX IF NOT EXISTS dest_closest_indicators_idx ON  dest_closest_indicators ({id});
+CREATE UNIQUE INDEX IF NOT EXISTS ix_dest_closest_indicators ON  dest_closest_indicators ({id});
+CREATE INDEX IF NOT EXISTS gix_dest_closest_indicators ON dest_closest_indicators USING GIST (geom);
 '''.format(id = points_id, d = destinations)
 curs.execute(dest_closest_indicators)
 conn.commit()
@@ -226,19 +224,18 @@ p.point_y               ,
 p.hex_id                ,
 p.mb_code_2016          ,
 p.mb_category_name_2016 ,
-p.dwelling              ,
-p.person                ,
-p.sa1_maincode          ,
+p.sa1_maincode_2016     ,
 p.sa2_name_2016         ,
 p.sa3_name_2016         ,
 p.sa4_name_2016         ,
-p.gccsa_name            ,
-p.state_name            ,
-p.ssc_code_2016         ,
+p.gccsa_name_2016       ,
+p.state_name_2016       ,
 p.ssc_name_2016         ,
-p.lga_code_2016         ,
 p.lga_name_2016         ,
+p.ucl_name_2016         ,
 p.sos_name_2016         ,
+p.urban                 ,
+p.irsd_score            ,
 p.exclude               ,
 {d}                     ,
 p.geom                   

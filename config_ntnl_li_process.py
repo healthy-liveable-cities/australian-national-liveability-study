@@ -297,7 +297,7 @@ def jsonb_summary_sql(indicator_tuples):
         to_jsonb( 
                (SELECT d  FROM 
                    (SELECT 
-                      '{description}'::text AS description,
+                      $${description}$$::text AS description,
                       {scale}*AVG("{ind}") AS mean,
                       {scale}*STDDEV_SAMP("{ind}") AS sd,
                       percentile_cont(ARRAY[0,0.01,0.025,0.25,0.5,0.75,0.975,0.99,1]) 

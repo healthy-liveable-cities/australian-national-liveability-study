@@ -53,7 +53,7 @@ curs = conn.cursor()
 
 # Create area tables
 print("  - Analysis region tables... "),
-for area in [a for a in analysis_regions]:
+for area in analysis_regions:
     area_id = df_regions.loc[area,'id']
     abbrev = df_regions.loc[area,'abbreviation']
     print("     - {} ({})... ".format(area,area_id)),

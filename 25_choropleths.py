@@ -90,6 +90,13 @@ map_style = '''
 </style>
 '''   
 
+
+# The shape file for map features are output 
+map_features_outpath = os.path.join(folderPath,'study_region','wgs84_epsg4326','map_features')
+
+if not os.path.exists(map_features_outpath):
+  os.makedirs(map_features_outpath)   
+
 for locale in locales:
     full_locale = df_studyregion.loc[locale]['full_locale']
     print(full_locale)
