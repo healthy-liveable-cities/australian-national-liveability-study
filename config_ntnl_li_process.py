@@ -127,7 +127,7 @@ grant_query = '''GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA pu
 
 # Region set up
 areas_of_interest = df_regions.index.values.tolist()
-geographies = df_regions[df_regions['purpose'].str.contains('geo')==True].index.values.tolist()
+geographies = df_regions[df_regions['purpose'].str.contains('geo')==True].index.values.tolist() 
 geo_imports = df_regions.loc[df_regions.loc[geographies,'epsg'].dropna().index,['data','epsg']].groupby(['data','epsg']).size().reset_index()
 analysis_regions = df_regions[df_regions['purpose'].str.contains('analysis')==True].index.values.tolist()
 csv_linkage = df_regions[df_regions['format'].str.contains('csv')==True].index.values.tolist()

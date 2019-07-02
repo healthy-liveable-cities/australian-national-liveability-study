@@ -73,22 +73,5 @@ arcpy.BuildNetwork_na(in_network_dataset)
 print(" Done.")
 arcpy.CheckInExtension('Network')  
 
-# clipFeature(intersections,buffered_study_region,' ','intersections')
- 
-# #  Copy the intersections from gdb to postgis, correcting the projection in process
-# command = ' ogr2ogr -overwrite -progress -f "PostgreSQL" ' \
-       # + ' PG:"host={host} port=5432 dbname={db}'.format(host = db_host,db = db) \
-       # + ' user={user} password = {pwd}" '.format(user = db_user,pwd = db_pwd) \
-       # + ' {gdb} "{feature}" '.format(gdb = gdb_path,feature = basename(intersections)) \
-       # + ' -lco geometry_name="geom"'
-# sp.call(command, shell=True)
-
-# # connect to the PostgreSQL server and ensure privileges are granted for all public tables
-# conn = psycopg2.connect(dbname=db, user=db_user, password=db_pwd)
-# curs = conn.cursor()
-# curs.execute(grant_query)
-# conn.commit()
-# conn.close()
-
 # # output to completion log					
 script_running_log(script, task, start, locale)

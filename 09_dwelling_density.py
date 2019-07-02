@@ -9,7 +9,7 @@
 #            dwelling count, and 
 #            dwellings per hectare (dwelling density)
 #
-#          It requires that the sausagebuffer_1600 and abs_linkage scripts have been run
+#          It requires that the sausagebuffer_1600 and area_linkage scripts have been run
 #          as it uses the intersection of these spatial database features 
 #          to aggregate dwelling counts within meshblocks intersecting sausage buffers
 #
@@ -29,7 +29,7 @@ start = time.time()
 script = os.path.basename(sys.argv[0])
 task = 'calculate dwelling density (dwellings per hectare)'
 
-meshblock_table = "abs_linkage"
+meshblock_table = "area_linkage"
 buffer_table = "sausagebuffer_{}".format(distance)
 nh_sausagebuffer_summary = "nh{}m".format(distance)
 dd_table = 'dd_{}'.format(nh_sausagebuffer_summary)

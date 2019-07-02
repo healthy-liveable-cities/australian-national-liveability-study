@@ -43,7 +43,7 @@ null = " IS NULL ON CONFLICT ({id},indicator) DO NOTHING ".format(id = points_id
 # not connectivity errors.  
 if island_exception not in ['','None']:
   print("\nIsland exception has been defined: {}".format(island_exception))
-  island_exception = " a.gnaf_pid NOT IN (SELECT gnaf_pid FROM parcel_dwellings p LEFT JOIN abs_linkage s ON p.mb_code_20 = s.mb_code_2016 WHERE s.{island_exception}) AND ".format(island_exception=island_exception)
+  island_exception = " a.gnaf_pid NOT IN (SELECT gnaf_pid FROM parcel_dwellings p LEFT JOIN area_linkage s ON p.mb_code_20 = s.mb_code_2016 WHERE s.{island_exception}) AND ".format(island_exception=island_exception)
   island_reviewed = True
 if island_exception =='':
   print("No island exceptions have been noted, but no note has been made in configuration file to indicator this region's network islands have been reviewed.\n If there are no exceptions for this study region, please enter 'None' in the project configuration file or have someone else do this for you.")
@@ -57,13 +57,11 @@ query = '''
 {insert} 'no network buffer'    {table} sausagebuffer_1600 {match} b.geom      {null};
 {insert} 'null sc_nh1600m'      {table} sc_nh1600m         {match} sc_nh1600m  {null};
 {insert} 'null dd_nh1600m'      {table} dd_nh1600m         {match} dd_nh1600m  {null};
-{insert} 'null daily living'    {table} ind_daily_living   {match} {island_exception} dl_hard_1600m {null};
-{insert} 'not urban parcel_sos' {table} parcel_sos         {match} sos_name_2016 NOT IN ('Major Urban','Other Urban');
-{insert} 'null parcel_sos'      {table} parcel_sos         {match} sos_name_2016 IS NULL;
 {insert} 'area_ha < 16.5'       {table} nh1600m            {match} area_ha < 16.5;
-{insert} 'no IRSD sa1_maincode' {table} abs_linkage ON a.mb_code_20 = abs_linkage.mb_code_2016 
-    WHERE abs_linkage.sa1_maincode NOT IN (SELECT sa1_maincode FROM area_disadvantage)
-    ON CONFLICT ({id},indicator) DO NOTHING;
+{insert} 'null daily living'    {table} ind_daily_living   {match} {island_exception} dl_hard_1600m {null};
+{insert} 'not urban parcel_sos' {table} area_linkage ON a.mb_code_20 = area_linkage.mb_code_2016 WHERE sos_name_2016 NOT IN ('Major Urban','Other Urban');
+{insert} 'null parcel_sos'      {table} area_linkage ON a.mb_code_20 = area_linkage.mb_code_2016 WHERE sos_name_2016 {null};
+{insert} 'no IRSD sa1_maincode' {table} area_linkage ON a.mb_code_20 = area_linkage.mb_code_2016 WHERE irsd_score {null};
 '''.format(insert = insert, table = table, match = match, island_exception = island_exception, null = null, id = points_id.lower())
 
 # OUTPUT PROCESS
@@ -92,7 +90,7 @@ WHERE gnaf_pid IN (SELECT DISTINCT(gnaf_pid) gnaf_pid FROM excluded_parcels);
 DROP TABLE IF EXISTS excluded_summary_mb;
 CREATE TABLE excluded_summary_mb AS
 SELECT
-  p.mb_code_20 AS mb_code_2016,
+  a.mb_code_2016,
   COUNT(b.gnaf_pid) AS excluded_parcels,
   COUNT(p.gnaf_pid) AS total_parcels,
   ROUND(COUNT(b.gnaf_pid)::numeric/COUNT(p.gnaf_pid)::numeric,2)  AS prop_excluded,
@@ -102,7 +100,7 @@ SELECT
   a.area_ha              ,
   a.geom
 FROM parcel_dwellings p
-LEFT JOIN abs_linkage a on p.mb_code_20 = a.mb_code_2016
+LEFT JOIN area_linkage a on p.mb_code_20 = a.mb_code_2016
 LEFT JOIN excluded_summary_parcels b on p.gnaf_pid = b.gnaf_pid
 GROUP BY p.mb_code_20,
          a.mb_category_name_2016,
@@ -116,7 +114,7 @@ ORDER BY p.mb_code_20;
 DROP TABLE IF EXISTS excluded_summary_sa1;
 CREATE TABLE excluded_summary_sa1 AS
 SELECT
-  a.sa1_maincode,
+  a.sa1_maincode_2016,
   COUNT(b.gnaf_pid) AS excluded_parcels,
   COUNT(p.gnaf_pid) AS total_parcels,
   ROUND(COUNT(b.gnaf_pid)::numeric/COUNT(p.gnaf_pid)::numeric,2)  AS prop_excluded,
@@ -125,11 +123,11 @@ SELECT
   SUM(a.area_ha),
   s.geom
 FROM parcel_dwellings p
-LEFT JOIN abs_linkage a on p.mb_code_20 = a.mb_code_2016
+LEFT JOIN area_linkage a on p.mb_code_20 = a.mb_code_2016
 LEFT JOIN excluded_summary_parcels b on p.gnaf_pid = b.gnaf_pid
-LEFT JOIN main_sa1_2016_aust_full s ON a.sa1_maincode = s.sa1_mainco
-GROUP BY a.sa1_maincode,s.geom
-ORDER BY a.sa1_maincode;
+LEFT JOIN sa1_2016_aust s ON a.sa1_maincode_2016 = s.sa1_mainco
+GROUP BY a.sa1_maincode_2016,s.geom
+ORDER BY a.sa1_maincode_2016;
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO arc_sde;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO arc_sde;
