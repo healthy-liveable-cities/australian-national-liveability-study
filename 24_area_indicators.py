@@ -175,7 +175,8 @@ for area in analysis_regions:
         CREATE TABLE {abbrev}_ind_{standard} AS
         SELECT 
         {area_code},
-        SUM({standard}) AS {standard},
+        SUM(dwelling) AS dwelling,
+        SUM(person) AS person,
         SUM(sample_count) AS sample_count,
         SUM(sample_count)/SUM(area_ha) AS sample_count_per_ha,
         SUM(area_ha) AS area_ha,
@@ -210,7 +211,8 @@ for standard in ['dwelling','person']:
     CREATE TABLE {abbrev}_ind_{standard} AS
     SELECT 
     '{area_code}' AS region,
-    SUM({standard}) AS {standard},
+    SUM(dwelling) AS dwelling,
+    SUM(person) AS person,
     SUM(sample_count) AS sample_count,
     SUM(sample_count)/SUM(area_ha) AS sample_count_per_ha,
     SUM(area_ha) AS area_ha,
