@@ -72,7 +72,7 @@ ind_matrix = ind_matrix.append(ind_destinations)
 ind_list = ind_matrix.index.values
 
 indicator_tuples =  list(zip(ind_matrix.index,ind_matrix.agg_scale,ind_matrix.aggregate_description))
-print("Creating Mesh Block level indicator table... "),
+print("Creating Mesh Block level indicator table 'area_indicators_mb_json' (JSON nested summary statistics for each indicator at Mesh Block level)... "),
 sql = '''
 DROP TABLE IF EXISTS area_indicators_mb_json;
 CREATE TABLE area_indicators_mb_json AS
