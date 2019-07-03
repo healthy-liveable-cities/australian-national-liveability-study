@@ -182,7 +182,7 @@ for area in analysis_regions:
         SUM(area_ha) AS area_ha,
         {extract},
         ST_Union(geom) AS geom
-        FROM area_indicators_mb,
+        FROM area_indicators_mb_json,
              jsonb_array_elements(indicators) ind
         GROUP BY {area_code};
         ALTER TABLE  {abbrev}_ind_{standard} ADD PRIMARY KEY ({area_code});
@@ -218,7 +218,7 @@ for standard in ['dwelling','person']:
     SUM(area_ha) AS area_ha,
     {extract},
     ST_Union(geom) AS geom
-    FROM abs_indicators,
+    FROM area_indicators_mb_json,
          jsonb_array_elements(indicators) ind
     GROUP BY region;
     ALTER TABLE  {abbrev}_ind_{standard} ADD PRIMARY KEY (region);
