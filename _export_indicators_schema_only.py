@@ -11,6 +11,7 @@ import os
 import sys
 from sqlalchemy import create_engine
 import subprocess as sp
+from script_running_log import script_running_log
 
 date_time = time.strftime("%Y%m%d-%H%M")
 
@@ -34,8 +35,8 @@ engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_
                                                             host = db_host,
                                                             db   = db))
 sql = '''
-ALTER TABLE od_aos ADD COLUMN IF NOT EXISTS locale text;
-UPDATE od_aos SET locale = '{locale}';
+ALTER TABLE od_aos_jsonb ADD COLUMN IF NOT EXISTS locale text;
+UPDATE od_aos_jsonb SET locale = '{locale}';
 '''.format(locale = locale)
 curs.execute(sql)
 conn.commit()

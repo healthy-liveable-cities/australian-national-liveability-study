@@ -249,7 +249,7 @@ command = (
                                    table = buffered_study_region) 
       )
 print(command)
-sp.call(command, shell=True,cwd=os.path.dirname(os.path.join(folderPath,clean_intersections_gpkg)))
+sp.call(command, shell=True)
 
 # output to completion log					
 script_running_log(script, task, start, locale)

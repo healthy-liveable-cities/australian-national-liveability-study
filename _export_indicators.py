@@ -68,23 +68,16 @@ for locale in locales:
                                                                 host = db_host,
                                                                 db   = db))
     sql = '''
-    ALTER TABLE od_aos ADD COLUMN IF NOT EXISTS locale text;
-    UPDATE od_aos SET locale = '{locale}';
+    ALTER TABLE od_aos_jsonb ADD COLUMN IF NOT EXISTS locale text;
+    UPDATE od_aos_jsonb SET locale = '{locale}';
     '''.format(locale = locale)
     curs.execute(sql)
     conn.commit()
-    out_file = 'ntnl_li_inds_{}_{}_Fc.sql'.format(db,time.strftime("%Y%m%d-%H%M"))
+    out_file = 'ntnl_li_inds_{}_{}_Fc.sql'.format(locale,year)
     print("\tCreating sql dump to: {}".format(os.path.join(out_dir,out_file))),
     command = 'pg_dump -U {db_user} -h localhost -Fc -t "parcel_indicators" -t "dest_closest_indicators" -t "dest_array_indicators" -t "od_aos_jsonb" -t "open_space_areas" -t "ind_summary" -t "exclusion_summary"  {db} > {out_file}'.format(db = db,db_user = db_user,out_file=out_file)    
     sp.call(command, shell=True,cwd=out_dir)   
     print("Done.")
-    
-    # # Note - i generated the create table commands with the following dump applied to Albury Wodonga:
-    # out_file = 'ntnl_li_inds_schema.sql'.format(db)
-    # print("\tCreating sql dump to: {}".format(os.path.join(out_dir,out_file))),
-    # command = 'pg_dump -U {db_user} -h localhost --schema-only -t "parcel_indicators" -t "dest_closest_indicators" -t "dest_array_indicators" -t "od_aos_jsonb" -t "open_space_areas" -t "ind_summary" -t "exclusion_summary" {db} > {out_file}'.format(db = db,db_user = db_user,out_file=out_file)    
-    # sp.call(command, shell=True,cwd=out_dir)   
-    # print("Done.")
     
     # output to completion log    
     date_time = time.strftime("%Y%m%d-%H%M%S")
