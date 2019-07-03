@@ -16,7 +16,7 @@ from config_ntnl_li_process import *
 # simple timer for log file
 start = time.time()
 script = os.path.basename(sys.argv[0])
-task = 'create destination indicator tables'
+task = 'Create data checking tables (for use in diagnostics script)'
 
 # Connect to postgresql database     
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
