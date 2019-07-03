@@ -205,7 +205,10 @@ LEFT JOIN dest_distance_m d
 USING ({id});
 CREATE UNIQUE INDEX IF NOT EXISTS ix_dest_closest_indicators ON  dest_closest_indicators ({id});
 CREATE INDEX IF NOT EXISTS gix_dest_closest_indicators ON dest_closest_indicators USING GIST (geom);
-'''.format(id = points_id, d = destinations)
+'''.format(id = points_id, 
+           d = destinations, 
+           full_locale = full_locale,
+           locale = locale)
 curs.execute(dest_closest_indicators)
 conn.commit()
 print(" Done.")
@@ -254,7 +257,10 @@ parcel_indicators p
 LEFT JOIN dest_distances_cl_3200m d
 USING ({id});
 CREATE UNIQUE INDEX IF NOT EXISTS dest_array_indicators_idx ON  dest_array_indicators ({id});
-'''.format(id = points_id, d = destinations)
+'''.format(id = points_id, 
+           d = destinations, 
+           full_locale = full_locale,
+           locale = locale)
 
 curs.execute(dest_array_indicators)
 conn.commit()
