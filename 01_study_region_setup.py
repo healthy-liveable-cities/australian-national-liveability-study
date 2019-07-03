@@ -160,7 +160,7 @@ area_linkage = area_linkage.set_index(df_regions.loc[geographies[0],'id'])
 area_linkage.to_sql('area_linkage',con = engine, if_exists='replace')
 print("Done.")                   
 
-print("\nRemove area records where dwellings are zero and recreate area linkage table geometries and GIST index... "),
+print("\nRecreate area linkage table geometries and GIST index... "),
 # work around since geopandas isn't necessarily installed on our computers
 sql = '''
 ---- commented out dwelling exclusion; this is arguably excessive for the linkage table

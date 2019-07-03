@@ -117,10 +117,13 @@ DROP TABLE IF EXISTS parcel_indicators;
 CREATE TABLE parcel_indicators AS
 SELECT
 p.{id}                    ,
+p.{l
 p.count_objectid          ,
 p.point_x                 ,
 p.point_y                 ,
 p.hex_id                  ,
+'{full_locale}' AS study_region,
+'{locale}' AS locale      ,
 area.mb_code_2016         ,
 area.mb_category_name_2016,
 area.sa1_maincode_2016    ,
@@ -146,7 +149,11 @@ LEFT JOIN (SELECT {id}, string_agg(indicator,',') AS exclude FROM excluded_parce
 {sources};
 CREATE UNIQUE INDEX IF NOT EXISTS ix_parcel_indicators ON  parcel_indicators ({id});
 CREATE INDEX IF NOT EXISTS gix_parcel_indicators ON parcel_indicators USING GIST (geom);
-'''.format(id = points_id, indicators = ind_queries, sources = ind_sources)
+'''.format(id = points_id, 
+           indicators = ind_queries, 
+           sources = ind_sources, 
+           full_locale = full_locale,
+           locale = locale)
 
 # print("SQL query:")
 # print(create_parcel_indicators)
@@ -174,6 +181,8 @@ p.count_objectid        ,
 p.point_x               ,
 p.point_y               ,
 p.hex_id                ,
+'{full_locale}' AS study_region,
+'{locale}' AS locale      ,
 p.mb_code_2016          ,
 p.mb_category_name_2016 ,
 p.sa1_maincode_2016     ,
@@ -222,6 +231,8 @@ p.count_objectid        ,
 p.point_x               ,
 p.point_y               ,
 p.hex_id                ,
+'{full_locale}' AS study_region,
+'{locale}' AS locale      ,
 p.mb_code_2016          ,
 p.mb_category_name_2016 ,
 p.sa1_maincode_2016     ,
