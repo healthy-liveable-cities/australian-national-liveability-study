@@ -156,23 +156,23 @@ print('     - ind_summary_include')
 ind_summary_exclude.to_sql(name='ind_summary_exclude',con=engine,if_exists='replace')
 print('     - ind_summary_exclude')
 print("Done.")
-print("\nPlease review the following indicator summary and consider any oddities:"),
+# print("\nPlease review the following indicator summary and consider any oddities:"),
 # print for diagnostic purposes
 variables = ['mean','sd','min','p25','p50','p75','max','nulls','null_pct','count','count_pct']
-for i in ind_summary.index:
-    print('\n{}:'.format(ind_summary.loc[i]['unit_level_description']))
-    print('     {}'.format(i))
-    summary = list(ind_summary.loc[i,variables].values)
-    summary_urban = list(ind_summary_urban.loc[i,variables].values)
-    summary_not_urban = list(ind_summary_not_urban.loc[i,variables].values)
-    summary_include = list(ind_summary_include.loc[i,variables].values)
-    summary_exclude = list(ind_summary_exclude.loc[i,variables].values)
-    print('            {:>10} {:>10} {:>10} {:>10} {:>10} {:>10} {:>10} {:>10} {:>10} {:>10} {:>10}'.format(*variables))
-    print('Overall     {:10} {:10} {:10} {:10} {:10} {:10} {:10} {:10} {:10.2} {:10} {:10.2}'.format(*summary))
-    print('Urban       {:10} {:10} {:10} {:10} {:10} {:10} {:10} {:10} {:10.2} {:10} {:10.2}'.format(*summary_urban))
-    print('Not urban   {:10} {:10} {:10} {:10} {:10} {:10} {:10} {:10} {:10.2} {:10} {:10.2}'.format(*summary_not_urban))
-    print('Included    {:10} {:10} {:10} {:10} {:10} {:10} {:10} {:10} {:10.2} {:10} {:10.2}'.format(*summary_include))
-    print('Excluded    {:10} {:10} {:10} {:10} {:10} {:10} {:10} {:10} {:10.2} {:10} {:10.2}'.format(*summary_exclude))
+# for i in ind_summary.index:
+    # print('\n{}:'.format(ind_summary.loc[i]['unit_level_description']))
+    # print('     {}'.format(i))
+    # summary = list(ind_summary.loc[i,variables].values)
+    # summary_urban = list(ind_summary_urban.loc[i,variables].values)
+    # summary_not_urban = list(ind_summary_not_urban.loc[i,variables].values)
+    # summary_include = list(ind_summary_include.loc[i,variables].values)
+    # summary_exclude = list(ind_summary_exclude.loc[i,variables].values)
+    # print('            {:>10} {:>10} {:>10} {:>10} {:>10} {:>10} {:>10} {:>10} {:>10} {:>10} {:>10}'.format(*variables))
+    # print('Overall     {:10} {:10} {:10} {:10} {:10} {:10} {:10} {:10} {:10.2} {:10} {:10.2}'.format(*summary))
+    # print('Urban       {:10} {:10} {:10} {:10} {:10} {:10} {:10} {:10} {:10.2} {:10} {:10.2}'.format(*summary_urban))
+    # print('Not urban   {:10} {:10} {:10} {:10} {:10} {:10} {:10} {:10} {:10.2} {:10} {:10.2}'.format(*summary_not_urban))
+    # print('Included    {:10} {:10} {:10} {:10} {:10} {:10} {:10} {:10} {:10.2} {:10} {:10.2}'.format(*summary_include))
+    # print('Excluded    {:10} {:10} {:10} {:10} {:10} {:10} {:10} {:10} {:10.2} {:10} {:10.2}'.format(*summary_exclude))
 
 print("Creating row-wise tally of nulls for each parcel...")
 null_query_combined = '+\n'.join("(" + ind_matrix['indicators'] + " IS NULL::int)")
@@ -189,8 +189,7 @@ FROM parcel_indicators;
            null_query_combined = null_query_combined,
            total_inds = len(ind_list))
 
-# print("SQL query:")
-# print(null_query_combined_table)
+
 curs.execute(null_query_combined_table)
 conn.commit()
 print("Done.\n")
