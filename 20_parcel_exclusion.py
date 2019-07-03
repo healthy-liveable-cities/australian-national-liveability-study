@@ -161,7 +161,7 @@ if island_reviewed is False:
   print(" [study region *not yet flagged* as having been reviewed] ")
 if island_reviewed is True:
   print(" [study region is flagged as having been reviewed] ")
-print("(check table 'network_islands' to see if any large non-main network islands are legitimate islands;\nif so, they can be whitelisted in the project configuration file)\nSummary of network islands:")
+
 network_islands = '''
 --Create a geometry table for network island clusters 
 DROP TABLE IF EXISTS network_islands; 
@@ -187,12 +187,13 @@ GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO python;
 '''
 curs.execute(network_islands)
 conn.commit()
+print("(check table 'network_islands' to see if any large non-main network islands are legitimate islands;\nif so, they can be whitelisted in the project configuration file)\nSummary of network islands:")
 
-summary = pandas.read_sql_query('''
---Summarise length in descending order 
-SELECT ROUND(length::numeric,0)::int AS length_metres from network_islands ORDER BY length DESC;  
-''',con=engine) 
-print(summary)
+# summary = pandas.read_sql_query('''
+# --Summarise length in descending order 
+# SELECT ROUND(length::numeric,0)::int AS length_metres from network_islands ORDER BY length DESC;  
+# ''',con=engine) 
+# print(summary)
 
 print('')
 # output to completion log    
