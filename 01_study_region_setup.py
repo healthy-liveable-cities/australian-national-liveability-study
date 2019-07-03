@@ -38,90 +38,87 @@ from config_ntnl_li_process import *
 # simple timer for log file
 start = time.time()
 script = os.path.basename(sys.argv[0])
-task = 'Create ABS and non-ABS linkage tables using 2016 data sourced from ABS'
+task = '\nCreate area linkage tables using 2016 data sourced from ABS'
 
-# INPUT PARAMETERS
 engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_user,
                                                                       pwd  = db_pwd,
                                                                       host = db_host,
                                                                       db   = db))
 
-# OUTPUT PROCESS
-task = '\nCreate ABS and non-ABS linkage tables using 2016 data sourced from ABS'
 print("Commencing task: {} at {}".format(task,time.strftime("%Y%m%d-%H%M%S")))
 # connect to the PostgreSQL server
 conn = psycopg2.connect(dbname=db, user=db_user, password=db_pwd)
 curs = conn.cursor()
 
-# print("\nImport region data... "),
-# for geo in geo_imports.index.values:
-  # data = geo_imports.loc[geo,'data']
-  # if os.path.splitext(data)[1]=='.gpkg':
-      # from_epsg = int(geo_imports.loc[geo,'epsg'])
-      # command = (
-              # ' ogr2ogr -overwrite -progress -f "PostgreSQL" '
-              # ' -s_srs "EPSG:{from_epsg}" -t_srs "EPSG:{to_epsg}" ' 
-              # ' PG:"host={host} port=5432 dbname={db}'
-              # ' user={user} password = {pwd}" '
-              # ' "{gpkg}" '
-              # ' -lco geometry_name="geom"'.format(host = db_host,
-                                           # db = db,
-                                           # user = db_user,
-                                           # pwd = db_pwd,
-                                           # from_epsg = from_epsg,
-                                           # to_epsg = srid,
-                                           # gpkg = data) 
-              # )
-      # print(command)
-      # sp.call(command, shell=True,cwd=os.path.dirname(os.path.join(folderPath,clean_intersections_gpkg)))
+print("\nImport region data... "),
+for geo in geo_imports.index.values:
+  data = geo_imports.loc[geo,'data']
+  if os.path.splitext(data)[1]=='.gpkg':
+      from_epsg = int(geo_imports.loc[geo,'epsg'])
+      command = (
+              ' ogr2ogr -overwrite -progress -f "PostgreSQL" '
+              ' -s_srs "EPSG:{from_epsg}" -t_srs "EPSG:{to_epsg}" ' 
+              ' PG:"host={host} port=5432 dbname={db}'
+              ' user={user} password = {pwd}" '
+              ' "{gpkg}" '
+              ' -lco geometry_name="geom"'.format(host = db_host,
+                                           db = db,
+                                           user = db_user,
+                                           pwd = db_pwd,
+                                           from_epsg = from_epsg,
+                                           to_epsg = srid,
+                                           gpkg = data) 
+              )
+      print(command)
+      sp.call(command, shell=True,cwd=os.path.dirname(os.path.join(folderPath,clean_intersections_gpkg)))
 
-# print("Done.")
+print("Done.")
 
-# print("Create study region... "),
-# sql = '''
-# CREATE TABLE IF NOT EXISTS study_region AS 
-# SELECT ST_Union(geom) AS geom
-# FROM {} 
-# WHERE {}
-# '''.format(region_shape,region_where_clause)
-# curs.execute(sql)
-# conn.commit()
-# print("Done.")
+print("Create study region... "),
+sql = '''
+CREATE TABLE IF NOT EXISTS study_region AS 
+SELECT ST_Union(geom) AS geom
+FROM {} 
+WHERE {}
+'''.format(region_shape,region_where_clause)
+curs.execute(sql)
+conn.commit()
+print("Done.")
 
-# print("Create buffered study region... "),
-# sql = '''
-# CREATE TABLE IF NOT EXISTS buffered_study_region AS 
-# SELECT ST_Buffer(geom,{}) AS geom 
-# FROM study_region
-# '''.format(study_buffer)
-# curs.execute(sql)
-# conn.commit()
-# print("Done.")
+print("Create buffered study region... "),
+sql = '''
+CREATE TABLE IF NOT EXISTS buffered_study_region AS 
+SELECT ST_Buffer(geom,{}) AS geom 
+FROM study_region
+'''.format(study_buffer)
+curs.execute(sql)
+conn.commit()
+print("Done.")
 
-# print("Remove from region tables records whose geometries do not intersect buffered study region bounds ... ")
-# for area in df_regions.table.dropna().values:
-    # print(" - {}".format(area))
-    # curs.execute('''
-    # DELETE FROM  {area} a 
-          # USING {buffered_study_region} b 
-      # WHERE NOT ST_Intersects(a.geom,b.geom) 
-             # OR a.geom IS NULL;
-    # '''.format(area = area,
-               # buffered_study_region = buffered_study_region))
-    # conn.commit()
+print("Remove from region tables records whose geometries do not intersect buffered study region bounds ... ")
+for area in df_regions.table.dropna().values:
+    print(" - {}".format(area))
+    curs.execute('''
+    DELETE FROM  {area} a 
+          USING {buffered_study_region} b 
+      WHERE NOT ST_Intersects(a.geom,b.geom) 
+             OR a.geom IS NULL;
+    '''.format(area = area,
+               buffered_study_region = buffered_study_region))
+    conn.commit()
 
-# print("Create buffered study region... "),
-# sql = '''
-# CREATE TABLE IF NOT EXISTS buffered_study_region AS 
-# SELECT ST_Buffer(geom,{}) AS geom 
-# FROM study_region
-# '''.format(study_buffer)
-# curs.execute(sql)
-# conn.commit()
-# print("Done.")
+print("Create buffered study region... "),
+sql = '''
+CREATE TABLE IF NOT EXISTS buffered_study_region AS 
+SELECT ST_Buffer(geom,{}) AS geom 
+FROM study_region
+'''.format(study_buffer)
+curs.execute(sql)
+conn.commit()
+print("Done.")
 
-# print("Initiate area linkage table based on smallest region in region list (first entry: {})... )".format(geographies[0])),
-
+print("Initiate area linkage table based on smallest region in region list (first entry: {})... )".format(geographies[0])),
+print('''(note that a warning "Did not recognize type 'geometry' of column 'geom'" may appear; this is fine.)''')
 area_linkage = pandas.read_sql_table(df_regions.loc[geographies[0],'table'],con=engine,index_col=df_regions.loc[geographies[0],'id']).reset_index()
 
 # drop the geom column

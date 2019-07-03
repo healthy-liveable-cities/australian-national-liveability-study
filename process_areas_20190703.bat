@@ -9,6 +9,7 @@ FOR %%A  IN (%*) DO (
   python 21_parcel_indicators.py %%A
   python 22_data_checking.py %%A
   python 23_diagnostics.py %%A
+  python 24_area_indicators.py %%A
 )
 
 @pause
