@@ -120,6 +120,7 @@ WHERE a.irsd_score IS NOT NULL
   AND a.dwelling > 0
   AND a.urban = 'urban'
   AND a.study_region IS TRUE
+  AND sample_count > 0
 GROUP BY a.mb_code_2016,
          a.mb_category_name_2016 ,
          t.study_region,
