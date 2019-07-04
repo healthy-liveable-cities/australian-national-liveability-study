@@ -34,6 +34,7 @@ engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_
 # appended once the first table is expanded into soft and hard threshold indicator forms
 ind_matrix = df_inds[df_inds['locale'].str.contains('|'.join([locale,'\*']))].copy()
 ind_destinations = df_destinations[(df_destinations.locale == "*") | (df_destinations.locale == locale)].copy()
+ind_destinations['destination'] = ind_destinations['destination'].apply(lambda x: "dist_m_{}".format(x))
 ind_destinations = ind_destinations.set_index('destination')
 ind_destinations.index.name = 'indicators'
 ind_destinations = ind_destinations.loc[:,'unit_level_description':]

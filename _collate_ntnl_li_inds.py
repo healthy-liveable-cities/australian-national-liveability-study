@@ -72,7 +72,7 @@ CREATE INDEX ix_od_aos_jsonb_aos_id ON od_aos_jsonb USING btree (((attributes ->
 CREATE INDEX ix_od_aos_jsonb_distance ON od_aos_jsonb USING btree (((attributes -> 'distance'::text)));
 
 ALTER TABLE ONLY open_space_areas 
-  ADD CONSTRAINT pkey_open_space_areas PRIMARY KEY (gnaf_pid);
+  ADD CONSTRAINT pkey_open_space_areas PRIMARY KEY (aos_id,locale);
 CREATE INDEX gix_open_space_areas ON open_space_areas USING gist (geom);
 CREATE INDEX ginx_aos_jsb ON open_space_areas USING gin (attributes);
 

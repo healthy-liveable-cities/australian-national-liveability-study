@@ -180,23 +180,23 @@ conn.commit()
 # conn.commit()
 # print("Done.")
  
-# print("Make a summary table (if not exists) of parcel points lacking sausage buffer, grouped by section of state (the idea is, only a small proportion should be major or other urban"),
-# create_no_sausage_sos_tally = '''
-  # DROP TABLE IF EXISTS no_sausage_sos_tally;
-  # CREATE TABLE IF NOT EXISTS no_sausage_sos_tally AS
-  # SELECT a.sos_name_2016, 
-         # count(b.*) AS no_sausage_count,
-         # count(b.*) / (SELECT COUNT(*) FROM parcel_dwellings)::double precision AS no_sausage_prop
-  # FROM area_linkage a 
-  # LEFT JOIN no_sausage b ON a.mb_code_2016 = b.mb_code_20
-  # GROUP BY sos_name_2016 
-  # ORDER BY sos_name_2016 DESC;
-  # DELETE FROM no_sausage_sos_tally WHERE no_sausage_count = 0;
-  # CREATE UNIQUE INDEX IF NOT EXISTS ix_no_sausage_sos_tally ON no_sausage_sos_tally (sos_name_2016);
- # '''
-# curs.execute(create_no_sausage_sos_tally)
-# conn.commit()
-# print("Done.")
+print("Make a summary table (if not exists) of parcel points lacking sausage buffer, grouped by section of state (the idea is, only a small proportion should be major or other urban"),
+create_no_sausage_sos_tally = '''
+  DROP TABLE IF EXISTS no_sausage_sos_tally;
+  CREATE TABLE IF NOT EXISTS no_sausage_sos_tally AS
+  SELECT a.sos_name_2016, 
+         count(b.*) AS no_sausage_count,
+         count(b.*) / (SELECT COUNT(*) FROM parcel_dwellings)::double precision AS no_sausage_prop
+  FROM area_linkage a 
+  LEFT JOIN no_sausage b ON a.mb_code_2016 = b.mb_code_20
+  GROUP BY sos_name_2016 
+  ORDER BY sos_name_2016 DESC;
+  DELETE FROM no_sausage_sos_tally WHERE no_sausage_count = 0;
+  CREATE UNIQUE INDEX IF NOT EXISTS ix_no_sausage_sos_tally ON no_sausage_sos_tally (sos_name_2016);
+ '''
+curs.execute(create_no_sausage_sos_tally)
+conn.commit()
+print("Done.")
 
 print("Creating summary table  (if not exists) of parcel id and local neighbourhood area... "),
 createTable_nh1600m = '''

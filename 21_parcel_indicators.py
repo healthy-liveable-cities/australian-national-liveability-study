@@ -121,8 +121,8 @@ p.count_objectid          ,
 p.point_x                 ,
 p.point_y                 ,
 p.hex_id                  ,
-'{full_locale}' AS study_region,
-'{locale}' AS locale      ,
+'{full_locale}'::text AS study_region,
+'{locale}'::text AS locale      ,
 area.mb_code_2016         ,
 area.mb_category_name_2016,
 area.sa1_maincode_2016    ,
@@ -168,7 +168,7 @@ WHERE table_name = '{table}'
 AND column_name != '{id}';
 '''.format(id = points_id.lower(), table = table)
 curs.execute(sql)
-destinations = ','.join(['d."{}"'.format(x[0]) for x in curs.fetchall()])
+destinations = ','.join(['d."{dest}" AS "dist_m_{dest}"'.format(dest = x[0]) for x in curs.fetchall()])
 
 print("Creating distance to closest measures with classification data..."),
 dest_closest_indicators = '''
@@ -180,8 +180,8 @@ p.count_objectid        ,
 p.point_x               ,
 p.point_y               ,
 p.hex_id                ,
-'{full_locale}' AS study_region,
-'{locale}' AS locale      ,
+'{full_locale}'::text AS study_region,
+'{locale}'::text AS locale      ,
 p.mb_code_2016          ,
 p.mb_category_name_2016 ,
 p.sa1_maincode_2016     ,
@@ -221,7 +221,7 @@ WHERE table_name = '{table}'
 AND column_name != '{id}';
 '''.format(id = points_id.lower(), table = table)
 curs.execute(sql)
-destinations = ','.join(['d."{}"'.format(x[0]) for x in curs.fetchall()])
+destinations = ','.join(['d."{dest}" AS "dist_m_{dest}"'.format(dest = x[0]) for x in curs.fetchall()])
 
 print("Creating distance array measures with classification data..."),
 dest_array_indicators = '''
@@ -233,8 +233,8 @@ p.count_objectid        ,
 p.point_x               ,
 p.point_y               ,
 p.hex_id                ,
-'{full_locale}' AS study_region,
-'{locale}' AS locale      ,
+'{full_locale}'::text AS study_region,
+'{locale}'::text AS locale      ,
 p.mb_code_2016          ,
 p.mb_category_name_2016 ,
 p.sa1_maincode_2016     ,
@@ -269,7 +269,7 @@ print(" Done.")
 sql = '''
 DROP TABLE IF EXISTS exclusion_summary;
 CREATE TABLE exclusion_summary AS
-SELECT '{}' AS locale,
+SELECT '{}'::text AS locale,
        COALESCE(exclude,'Included (not excluded)') AS "Exclusions",
        count(*) 
 FROM parcel_indicators 
