@@ -18,7 +18,7 @@ task = 'create destination indicator tables'
 # Connect to postgresql database     
 db = 'li_australia_2018'
 year = 2018
-aedc_dir = os.path.join(folderPath,'study_region','ntnl_li_inds')
+ntnl_li_dir = os.path.join(folderPath,'study_region','ntnl_li_inds')
 print("This script assumes the database {db} has been created!\n".format(db = db))
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()
@@ -48,6 +48,10 @@ if res:
     ALTER TABLE open_space_areas DROP CONSTRAINT IF EXISTS pkey_open_space_areas;
     ALTER TABLE area_indicators_mb_json DROP CONSTRAINT IF EXISTS pkey_area_indicators_mb_json;
     ALTER TABLE li_inds_sa1_dwelling DROP CONSTRAINT IF EXISTS pkey_li_inds_sa1_dwelling;
+    '''
+    curs.execute(sql)
+    conn.commit()
+    sql = '''
     SELECT DISTINCT(locale) FROM parcel_indicators ORDER BY locale;
     '''
     curs.execute(sql)
@@ -55,7 +59,7 @@ if res:
 else:
     print("Create empty tables for parcel indicators... ")
     command = 'psql li_australia_2018 < ntnl_li_inds_schema.sql'
-    sp.call(command, shell=True,cwd=aedc_dir)   
+    sp.call(command, shell=True,cwd=ntnl_li_dir)   
     processed_locales = []
     print("Done.\n")
 
@@ -65,10 +69,10 @@ for locale in sorted(study_regions, key=str.lower):
   sql = 'ntnl_li_inds_{}_{}_Fc.sql'.format(locale,year)
   if locale in processed_locales:
     print((" - {:"+str(locale_field_length)+"}: previously processed").format(locale))
-  elif os.path.isfile(os.path.join(aedc_dir,sql)):
+  elif os.path.isfile(os.path.join(ntnl_li_dir,sql)):
     print((" - {:"+str(locale_field_length)+"}: processing now... ").format(locale)),
     command = 'pg_restore -a -Fc -d li_australia_2018 < {}'.format(sql)
-    sp.call(command, shell=True,cwd=aedc_dir)   
+    sp.call(command, shell=True,cwd=ntnl_li_dir)   
     print("Done!")
   else:
     print((" - {:"+str(locale_field_length)+"}: data apparently not available ").format(locale))
