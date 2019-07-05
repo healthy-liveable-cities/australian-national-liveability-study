@@ -35,16 +35,6 @@ ind_destinations = ind_destinations.set_index('destination')
 ind_destinations.index.name = 'indicators'
 ind_destinations = ind_destinations.loc[:,'unit_level_description':]
 
-# Get a list of destinations processed within this region for distance to closest
-# sql = '''SELECT DISTINCT(dest_name) dest_name FROM od_closest ORDER BY dest_name;'''
-sql = '''SELECT dest_name FROM dest_type ORDER BY dest_name;'''
-curs.execute(sql)
-categories = [x[0] for x in curs.fetchall()]
-
-# # get the set of distance to closest regions which match for this region
-# destinations = df_inds[df_inds['ind'].str.contains('destinations')]
-# current_categories = [x for x in categories if 'distance_m_{}'.format(x) in destinations.ind_plain.str.encode('utf8').tolist()]
-# ind_matrix = ind_matrix.append(destinations[destinations['ind_plain'].str.replace('distance_m_','').str.contains('|'.join(current_categories))])
 ind_matrix['order'] = list(ind_matrix.index)
 ind_soft = ind_matrix.loc[ind_matrix.tags=='_{threshold}',:].copy()
 ind_hard = ind_matrix.loc[ind_matrix.tags=='_{threshold}',:].copy()
@@ -62,8 +52,7 @@ ind_matrix.drop(ind_matrix[ind_matrix['updated?'] == 'n'].index, inplace=True)
 # or other keywords (policy, binary, obsolete, planned --- i don't know, whatever)
 # These tags are tacked on the end of the ind name seperated with underscores
 ind_matrix['indicators'] = ind_matrix['ind'] + ind_matrix['tags'].fillna('')
-# ind_matrix['sort_cat'] = pandas.Categorical(ind_matrix['ind'], categories=mylist, ordered=True)
-# ind_matrix.sort_values('sort_cat', inplace=True)
+
 # Compile list of indicators
 ind_matrix.sort_values('order', inplace=True)
 
