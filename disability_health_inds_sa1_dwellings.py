@@ -116,7 +116,15 @@ FROM li_inds_sa1_dwelling;
 '''.format(locale)
 
 df = pandas.read_sql_query(sql,con=engine)
-df.to_csv('D:/ntnl_li_2018_template/data/dh_inds_{}_sa1_dwellings_2018_20190704.csv'.format(locale),index=False)
+df.to_csv('D:/ntnl_li_2018_template/data/dh_inds_{}_sa1_dwellings_2018_{}.csv'.format(locale,time.strftime('%Y%d%m')),index=False)
+
+if locale!='australia':
+    sql = '''
+    ALTER TABLE open_space_areas ADD COLUMN IF NOT EXISTS locale text;
+    UPDATE open_space_areas SET locale = '{locale}';
+    '''.format(locale = locale)
+    curs.execute(sql)
+    conn.commit()
 
 out_dir = 'D:/ntnl_li_2018_template/data/'
 out_file = 'ntnl_li_inds_{}_{}_Fc.sql'.format(locale,year)
