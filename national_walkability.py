@@ -8,8 +8,8 @@ from script_running_log import script_running_log
 # Import custom variables for National Liveability indicator process
 from config_ntnl_li_process import *
 
-# locale = 'australia'
-# db = 'li_australia_2018'
+locale = 'australia'
+db = 'li_australia_2018'
 
 # simple timer for log file
 start = time.time()
@@ -103,3 +103,6 @@ for area in ['SA1']:
     curs.execute(sql)
     conn.commit()
     print("Done.")
+
+# Note: you can check out an individual Mesh Block's contribution to larger area's result using SQL code like:
+# SELECT w.* FROM area_linkage LEFT JOIN wa_1600m_ntnl_mb w USING (mb_code_2016) WHERE sa1_maincode_2016 = '10901117227';
