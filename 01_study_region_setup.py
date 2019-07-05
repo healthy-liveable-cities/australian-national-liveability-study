@@ -188,8 +188,8 @@ CREATE TABLE mb_dwellings AS
       SELECT *
         FROM area_linkage
        WHERE dwelling = 0;
-CREATE UNIQUE INDEX ix_mb_dwellings ON area_linkage (mb_code_2016);
-CREATE INDEX gix_mb_dwellings ON area_linkage USING GIST (geom);
+CREATE UNIQUE INDEX ix_mb_dwellings ON mb_dwellings (mb_code_2016);
+CREATE INDEX gix_mb_dwellings ON mb_dwellings USING GIST (geom);
 '''.format(table = df_regions.loc[geographies[0],'table'],
            id    = df_regions.loc[geographies[0],'id'])
 curs.execute(sql)

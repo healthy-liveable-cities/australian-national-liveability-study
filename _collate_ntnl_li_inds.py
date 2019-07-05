@@ -26,8 +26,30 @@ curs = conn.cursor()
 curs.execute('''SELECT 1 WHERE to_regclass('public.parcel_indicators') IS NOT NULL;''')
 res = curs.fetchone()
 if res:
-    print("AEDC AIFS table already exists.\n")
-    sql = '''SELECT DISTINCT(locale) FROM parcel_indicators ORDER BY locale;'''
+    print("Parcel indicators table already exists.  Dropping existing indices, and checking previously processed results\n")
+    sql = '''
+    DROP INDEX IF EXISTS ix_od_aos_jsonb_aos_id;
+    DROP INDEX IF EXISTS ix_od_aos_jsonb_distance;
+    DROP INDEX IF EXISTS ix_od_aos_jsonb;
+    DROP INDEX IF EXISTS ix_ind_summary_indicators;
+    DROP INDEX IF EXISTS gix_area_linkage;
+    DROP INDEX IF EXISTS gix_parcel_indicators;
+    DROP INDEX IF EXISTS gix_dest_closest_indicators;
+    DROP INDEX IF EXISTS gix_dest_array_indicators;
+    DROP INDEX IF EXISTS gix_open_space_areas;
+    DROP INDEX IF EXISTS gix_area_indicators_mb_json;
+    DROP INDEX IF EXISTS gix_li_inds_sa1_dwelling;
+    DROP INDEX IF EXISTS ginx_aos_jsb;
+    ALTER TABLE area_linkage DROP CONSTRAINT IF EXISTS pkey_area_linkage;
+    ALTER TABLE parcel_indicators DROP CONSTRAINT IF EXISTS pkey_parcel_indicators;
+    ALTER TABLE dest_closest_indicators DROP CONSTRAINT IF EXISTS pkey_dest_closest_indicators;
+    ALTER TABLE dest_array_indicators  DROP CONSTRAINT IF EXISTS pkey_dest_array_indicators;
+    ALTER TABLE od_aos_jsonb DROP CONSTRAINT IF EXISTS pkey_od_aos_jsonb;
+    ALTER TABLE open_space_areas DROP CONSTRAINT IF EXISTS pkey_open_space_areas;
+    ALTER TABLE area_indicators_mb_json DROP CONSTRAINT IF EXISTS pkey_area_indicators_mb_json;
+    ALTER TABLE li_inds_sa1_dwelling DROP CONSTRAINT IF EXISTS pkey_li_inds_sa1_dwelling;
+    SELECT DISTINCT(locale) FROM parcel_indicators ORDER BY locale;
+    '''
     curs.execute(sql)
     processed_locales = [x[0] for x in curs.fetchall()]
 else:
@@ -53,30 +75,34 @@ for locale in sorted(study_regions, key=str.lower):
 
 print("Create table indices... "),
 sql = '''
-ALTER TABLE ONLY parcel_indicators 
-  ADD CONSTRAINT pkey_parcel_indicators PRIMARY KEY (gnaf_pid);
+ALTER TABLE ONLY area_linkage ADD CONSTRAINT pkey_area_linkage PRIMARY KEY (mb_code_2016);
+CREATE INDEX gix_area_linkage ON area_linkage USING gist (geom);
+
+ALTER TABLE ONLY parcel_indicators ADD CONSTRAINT pkey_parcel_indicators PRIMARY KEY (gnaf_pid);
 CREATE INDEX gix_parcel_indicators ON parcel_indicators USING gist (geom);
 
-ALTER TABLE ONLY dest_closest_indicators 
-  ADD CONSTRAINT pkey_dest_closest_indicators PRIMARY KEY (gnaf_pid);
+ALTER TABLE ONLY dest_closest_indicators ADD CONSTRAINT pkey_dest_closest_indicators PRIMARY KEY (gnaf_pid);
 CREATE INDEX gix_dest_closest_indicators ON dest_closest_indicators USING gist (geom);
 
-ALTER TABLE ONLY dest_array_indicators 
-  ADD CONSTRAINT pkey_dest_array_indicators PRIMARY KEY (gnaf_pid);
+ALTER TABLE ONLY dest_array_indicators  ADD CONSTRAINT pkey_dest_array_indicators PRIMARY KEY (gnaf_pid);
 CREATE INDEX gix_dest_array_indicators ON dest_array_indicators USING gist (geom);
 
-ALTER TABLE ONLY od_aos_jsonb 
-  ADD CONSTRAINT pkey_od_aos_jsonb PRIMARY KEY (gnaf_pid);
+ALTER TABLE ONLY od_aos_jsonb ADD CONSTRAINT pkey_od_aos_jsonb PRIMARY KEY (gnaf_pid);
 CREATE INDEX ix_od_aos_jsonb ON od_aos_jsonb USING btree (gnaf_pid);
 CREATE INDEX ix_od_aos_jsonb_aos_id ON od_aos_jsonb USING btree (((attributes -> 'aos_id'::text)));
 CREATE INDEX ix_od_aos_jsonb_distance ON od_aos_jsonb USING btree (((attributes -> 'distance'::text)));
 
-ALTER TABLE ONLY open_space_areas 
-  ADD CONSTRAINT pkey_open_space_areas PRIMARY KEY (aos_id,locale);
+ALTER TABLE ONLY open_space_areas ADD CONSTRAINT pkey_open_space_areas PRIMARY KEY (aos_id,locale);
 CREATE INDEX gix_open_space_areas ON open_space_areas USING gist (geom);
 CREATE INDEX ginx_aos_jsb ON open_space_areas USING gin (attributes);
 
 CREATE INDEX ix_ind_summary_indicators ON ind_summary USING btree (indicators);
+
+ALTER TABLE ONLY area_indicators_mb_json ADD CONSTRAINT pkey_area_indicators_mb_json PRIMARY KEY (mb_code_2016);
+CREATE INDEX gix_area_indicators_mb_json ON area_indicators_mb_json USING gist (geom);
+
+ALTER TABLE ONLY li_inds_sa1_dwelling ADD CONSTRAINT pkey_li_inds_sa1_dwelling PRIMARY KEY (sa1_maincode_2016);
+CREATE INDEX gix_li_inds_sa1_dwelling ON li_inds_sa1_dwelling USING gist (geom);
 '''.format(id = points_id.lower())
 curs.execute(sql)
 conn.commit()
