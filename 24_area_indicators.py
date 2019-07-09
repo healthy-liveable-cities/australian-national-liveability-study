@@ -153,7 +153,7 @@ print("Done.")
 # ## SELECT mb_code_2016,
 # ##        (ind->'walk_16')::jsonb->'mean' AS walk_16
 # ## FROM abs_indicators,jsonb_array_elements(indicators) ind LIMIT 1;
-
+# # # SELECT mb_code_2016, (ind->'walk_16')::jsonb->'mean' AS walk_16 FROM abs_indicators,jsonb_array_elements(indicators) ind LIMIT 1;
 # ## sql = '''
 # ## SELECT mb_code_2016,
 # ##        {extract}
@@ -196,10 +196,7 @@ for area in ['SA1']:
                                 THEN NULL
                             -- else, calculate the value of the unit weighted indicator
                             ELSE                             
-                                ROUND(
-                                  (SUM({standard}*((ind->'{i}')->>'mean')::numeric)/SUM({standard}))::numeric,
-                                  {rounding}
-                                  ) 
+                                (SUM({standard}*((ind->'{i}')->>'mean')::numeric)/SUM({standard}))::numeric
                           END) AS "{i}"
                    '''.format(i = i,rounding=1,standard = standard) for i in ind_list]),
                    standard = standard

@@ -27,7 +27,7 @@ engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_
                                                                  pwd  = db_pwd,
                                                                  host = db_host,
                                                                  db   = db))
-print("Calculate parcel level natioanl walkability index... "),
+print("Calculate parcel level national walkability index... "),
 sql = '''
 -- Create national walkability index
 DROP TABLE IF EXISTS wa_1600m_ntnl;
