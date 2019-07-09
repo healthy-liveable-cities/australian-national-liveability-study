@@ -162,8 +162,7 @@ print("Done.")
 
 
 print("Creating weighted area aggregate tables:")
-# for area in analysis_regions:  
-for area in ['SA1']:  
+for area in analysis_regions:  
     area_id = df_regions.loc[area,'id']
     abbrev = df_regions.loc[area,'abbreviation']
     for standard in ['dwelling','person']:
@@ -198,7 +197,7 @@ for area in ['SA1']:
                             ELSE                             
                                 (SUM({standard}*((ind->'{i}')->>'mean')::numeric)/SUM({standard}))::numeric
                           END) AS "{i}"
-                   '''.format(i = i,rounding=1,standard = standard) for i in ind_list]),
+                   '''.format(i = i,standard = standard) for i in ind_list]),
                    standard = standard
                    )
         curs.execute(sql)
