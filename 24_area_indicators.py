@@ -162,9 +162,19 @@ print("Done.")
 
 
 print("Creating weighted area aggregate tables:")
-for area in analysis_regions:  
-    area_id = df_regions.loc[area,'id']
-    abbrev = df_regions.loc[area,'abbreviation']
+for area in analysis_regions + ['study region']:   
+    if area != 'study region':
+        area_id = df_regions.loc[area,'id']
+        abbrev = df_regions.loc[area,'abbreviation']
+        include_region = 'study_region,'
+    else: 
+        area_id = 'study_region'
+        abbrev  = 'region'
+        include_region = ''
+    if area != 'Section of State':
+        pkey = area_id
+    else: 
+        pkey = '{},study_region'.format(area_id)
     for standard in ['dwelling','person']:
         print("  - li_inds_{}_{}".format(abbrev,standard))
         sql = '''
@@ -185,9 +195,9 @@ for area in analysis_regions:
         FROM area_indicators_mb_json,
              jsonb_array_elements(indicators) ind
         GROUP BY {area_code},study_region,locale;
-        ALTER TABLE  li_inds_{abbrev}_{standard} ADD PRIMARY KEY ({area_code});
         '''.format(area_code = area_id,
                    abbrev = abbrev,
+                   include_region = include_region,
                    extract = ','.join(['''
                        (CASE             
                             -- if there are no units (dwellings or persons) the indicator is null
@@ -195,11 +205,18 @@ for area in analysis_regions:
                                 THEN NULL
                             -- else, calculate the value of the unit weighted indicator
                             ELSE                             
-                                (SUM({standard}*((ind->'{i}')->>'mean')::numeric)/SUM({standard}))::numeric
+                               (SUM({standard}*((ind->'{i}')->>'mean')::numeric)/SUM({standard}))::numeric
                           END) AS "{i}"
                    '''.format(i = i,standard = standard) for i in ind_list]),
                    standard = standard
                    )
+        curs.execute(sql)
+        conn.commit()
+        sql = '''
+        ALTER TABLE  li_inds_{abbrev}_{standard} ADD PRIMARY KEY ({pkey});
+        '''.format(pkey = pkey,
+                   abbrev = abbrev,
+                   standard = standard)
         curs.execute(sql)
         conn.commit()
 # # create study region result

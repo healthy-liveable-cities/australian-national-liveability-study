@@ -30,7 +30,7 @@ engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_
 print("Calculate parcel level national walkability index... "),
 sql = '''
 -- Create national walkability index
-DROP TABLE IF EXISTS wa_1600m_ntnl;
+-- DROP TABLE IF EXISTS wa_1600m_ntnl;
 CREATE TABLE IF NOT EXISTS wa_1600m_ntnl AS
 SELECT gnaf_pid,
        wa_dns_1600m_dd_2018,
@@ -57,8 +57,8 @@ print("Done.")
 
 print("Create mesh block level walkability aggregation... "),
 sql = '''
-    DROP TABLE IF EXISTS wa_1600m_ntnl_mb;
-    CREATE TABLE wa_1600m_ntnl_mb AS
+    -- DROP TABLE IF EXISTS wa_1600m_ntnl_mb;
+    CREATE TABLE IF NOT EXISTS wa_1600m_ntnl_mb AS
     SELECT a.mb_code_2016,
            a.dwelling,
            a.person,
@@ -82,24 +82,31 @@ curs.execute(sql)
 conn.commit()
 print("Done.")
 
-for area in ['SA1']:  
+for area in analysis_regions + ['study_region']:  
+  if area != 'Mesh Block':
     print("Create {} level walkability aggregation... ".format(area)),
-    area_id = df_regions.loc[area,'id']
-    abbrev = df_regions.loc[area,'abbreviation']
+    if area != 'study_region':
+        area_id = df_regions.loc[area,'id']
+        abbrev = df_regions.loc[area,'abbreviation']
+        linkage = 'LEFT JOIN area_linkage a USING (mb_code_2016)'
+    else:
+        area_id = 'study_region'
+        abbrev = 'region'
+        linkage = 'LEFT JOIN (SELECT DISTINCT ON (mb_code_2016) mb_code_2016, study_region FROM parcel_indicators) a USING (mb_code_2016)'
     sql = '''
     -- Create national walkability index
-    --DROP TABLE IF EXISTS wa_1600m_ntnl_{area};
+    DROP TABLE IF EXISTS wa_1600m_ntnl_{area};
     CREATE TABLE IF NOT EXISTS wa_1600m_ntnl_{area} AS
-    SELECT a.{area_code},
+    SELECT {area_code},
            SUM(w.dwelling) AS dwelling,
-           SUM(w.person) AS person,
+           SUM(w.person)  AS person,
            (SUM(w.dwelling* avg_wa_sco_1600m_national_2018)/SUM(w.dwelling))::numeric AS avg_wa_sco_1600m_national_2018_dwelling,
            (SUM(w.person* avg_wa_sco_1600m_national_2018)/SUM(w.person))::numeric AS avg_wa_sco_1600m_national_2018_person
     FROM wa_1600m_ntnl_mb w
-    LEFT JOIN area_linkage a USING (mb_code_2016)
+    {linkage}
     GROUP BY a.{area_code};
     CREATE UNIQUE INDEX IF NOT EXISTS ix_wa_1600m_ntnl_{area} ON   wa_1600m_ntnl_{area} ({area_code});  
-    '''.format(area = abbrev,area_code = area_id)
+    '''.format(area = abbrev,area_code = area_id, linkage = linkage)
     curs.execute(sql)
     conn.commit()
     print("Done.")

@@ -112,40 +112,7 @@ curs.execute(sql)
 conn.commit()
 print("Done.\n")
 
- 
-print("Create aedc match table... "),
-sql = '''
-DROP TABLE IF EXISTS aedc_aifs_linked;
-CREATE TABLE IF NOT EXISTS aedc_aifs_linked AS
-SELECT
-  aedc.project_id, 
-  latitude, 
-  longitude, 
-  epsg,
-  linkage.*,
-  aedc.geom AS aedc_geom
-FROM aedc_address AS aedc
-CROSS JOIN LATERAL 
-  (SELECT
-      ST_Distance(i.geom, aedc.geom) as match_distance_m,
-      i.*
-      FROM aedc_indicators_aifs i
-      WHERE i.exclude IS NULL
-      AND ST_DWithin(i.geom, aedc.geom, 500) 
-      ORDER BY aedc.geom <-> i.geom
-     LIMIT 1
-   ) AS linkage;
-CREATE INDEX IF NOT EXISTS aedc_participant_idx ON aedc_aifs_linked USING btree (project_id);
-CREATE INDEX IF NOT EXISTS aedc_gnaf_idx ON aedc_aifs_linked USING btree ({id});
-CREATE INDEX IF NOT EXISTS aedc_gnaf_gix ON aedc_aifs_linked USING GIST (geom);
-'''.format(id = points_id.lower())
-curs.execute(sql)
-conn.commit()
-print("Done.\n")
-
-
-
-# output to completion log    
+ # output to completion log    
 script_running_log(script, task, start, locale)
 conn.close()
 
