@@ -39,9 +39,6 @@ if locale not in uli_locations and uli_locations != '*':
   print("This location ('{locale}') is not marked for calculation of the Urban Liveability Index; check the ind_study_region_matrix file.".format(locale = locale))
   sys.exit()
 
-  
-id_inclusion_criteria = '''p.{id} NOT IN (SELECT DISTINCT({id}) FROM excluded_parcels)'''.format(id = points_id.lower())
-
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()  
 
@@ -76,39 +73,33 @@ print("Created custom function.")
 
 # create destination group based indicators specific to this liveability schema
 
-createTable = '''
+sql = '''
 DROP TABLE IF EXISTS li_inds ; 
 CREATE TABLE li_inds AS
 SELECT p.{id},
         COALESCE({street_connectivity},0) AS sc_nh1600m,
         COALESCE({dwelling_density},0) AS dd_nh1600m,
-        COALESCE(convenience_1600m_soft,0) AS convenience_1600m,
+        COALESCE(nh_inds_soft_1600m.convenience_osm_2018,0) AS convenience_1600m,
         COALESCE({supermarket_1km},0) AS supermarket_1km,
         COALESCE({pt_freq_400m},0) AS pt_regular_400m,
         COALESCE({pos_large_400m},0) AS pos_large_400m
 FROM parcel_indicators p
-LEFT JOIN (SELECT {id}, 
-                  MAX(COALESCE(ind_soft,0)) AS convenience_1600m_soft
-          FROM od_closest 
-         WHERE dest_class IN ('convenience_osm','newsagent_osm','petrolstation_osm') 
-         GROUP BY {id}) convenience_osm ON p.{id} = convenience_osm.{id}
-LEFT JOIN excluded_parcels x ON p.{id} = x.{id}
-WHERE x.{id} IS NULL;
+LEFT JOIN nh_inds_soft_1600m USING({id})
+WHERE exclude IS NULL;
 ALTER TABLE li_inds ADD PRIMARY KEY ({id});
   '''.format(id = points_id, 
              street_connectivity = uli['street_connectivity'],
              dwelling_density    = uli['dwelling_density'],
              supermarket_1km     = uli['supermarket_1km'],
              pt_freq_400m        = uli['pt_freq_400m'],
-             pos_large_400m      = uli['pos_large_400m'],
-             inclusion = id_inclusion_criteria)
+             pos_large_400m      = uli['pos_large_400m'])
 
-curs.execute(createTable)
+curs.execute(sql)
 conn.commit()
 print("Created liveability indicator table li_inds.")
 
 # The below uses our custom clean function, drawing on (indicator, min, max, mean, sd)
-createTable = '''
+sql = '''
 DROP TABLE IF EXISTS li_inds_clean ; 
 CREATE TABLE li_inds_clean AS
 SELECT i.{id},
@@ -128,12 +119,12 @@ FROM li_inds i,
  FROM li_inds) s;
 ALTER TABLE li_inds_clean ADD PRIMARY KEY ({id});
   '''.format(id = points_id)
-curs.execute(createTable)
+curs.execute(sql)
 conn.commit()
 print("Created table 'li_inds_clean'")
 
 
-createTable = '''
+sql = '''
 -- Note that in this normalisation stage, indicator polarity is adjusted for: air pollution has values substracted from 100, whilst positive indicators have them added.
 DROP TABLE IF EXISTS li_inds_norm ; 
 CREATE TABLE li_inds_norm AS    
@@ -155,11 +146,11 @@ FROM li_inds_clean c,
 ALTER TABLE li_inds_norm ADD PRIMARY KEY ({id});
 '''.format(id = points_id)
 
-curs.execute(createTable)
+curs.execute(sql)
 conn.commit()
 print("Created table 'li_inds_norm', a table of MPI-normalised indicators.")
  
-createTable = ''' 
+sql = ''' 
 -- 2. Create ULI
 -- rowmean*(1-(rowsd(z_j)/rowmean(z_j))^2) AS mpi_est_j
 DROP TABLE IF EXISTS uli ; 
@@ -181,25 +172,22 @@ GROUP BY {id};
 ALTER TABLE uli ADD PRIMARY KEY ({id});
 '''.format(id = points_id)
 
-curs.execute(createTable)
+curs.execute(sql)
 conn.commit()
 print("Created table 'uli', containing parcel level urban liveability index estimates, along with its required summary ingredients (mean, sd, coefficient of variation).")
 
-createTable  = '''
--- Create a temporary parcel indicators table containing the ULI
--- Then use this to replace the existing parcel_indicators table with the ULI containing version
-DROP TABLE IF EXISTS temp_uli;
-CREATE TABLE temp_uli AS
-SELECT p.*,
-       u.uli
-FROM parcel_indicators p
-LEFT JOIN uli u ON p.{id} = u.{id};
-DROP TABLE parcel_indicators;
-ALTER TABLE temp_uli RENAME TO parcel_indicators;
-ALTER TABLE parcel_indicators ADD PRIMARY KEY ({id});
+
+sql  = '''
+-- Add a ULI column if it doesn't already exist to the parcel indicators table
+-- and update it with the ULI values for those parcels
+ALTER TABLE parcel_indicators ADD COLUMN IF NOT EXISTS uli double precision;
+UPDATE parcel_indicators p
+   SET uli = u.uli
+  FROM uli u
+ WHERE p.{id} = u.{id};
 '''.format(id = points_id)
 
-curs.execute(createTable)
+curs.execute(sql)
 conn.commit()
 print("Replaced table 'parcel_indicators' with a new version, containing the ULI")
 
