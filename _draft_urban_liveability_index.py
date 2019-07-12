@@ -72,19 +72,58 @@ conn.commit()
 print("Created custom function.")
 
 # create destination group based indicators specific to this liveability schema
+sql = '''
+DROP TABLE IF EXISTS abs_ind_30_40;
+CREATE TABLE abs_ind_30_40
+(
+sa1_7digitcode_2016 text            ,
+bottom2Q_gt30pcent  int             ,
+bottom2Q_unknown    int             ,
+bottom2Q_total      int             ,
+pcent_30_40         double precision,
+);
+COPY abs_ind_30_40 FROM 'D:/ABS/data/abs_liveability/housing_3040_sa1_all_20190712.csv' WITH DELIMITER ',' CSV HEADER;
+'''
+curs.execute(sql)
+conn.commit()
+
 
 sql = '''
 DROP TABLE IF EXISTS li_inds ; 
 CREATE TABLE li_inds AS
 SELECT p.{id},
-        COALESCE({street_connectivity},0) AS sc_nh1600m,
-        COALESCE({dwelling_density},0) AS dd_nh1600m,
-        COALESCE(nh_inds_soft_1600m.convenience_osm_2018,0) AS convenience_1600m,
-        COALESCE({supermarket_1km},0) AS supermarket_1km,
+        COALESCE(p.{street_connectivity},0) AS sc_nh1600m,
+        COALESCE(p.{dwelling_density},0) AS dd_nh1600m,
+         COALESCE(threshold_soft(d."dist_m_museum_osm"                            , 3200),0) +
+         COALESCE(threshold_soft(LEAST(d."dist_m_cinema_osm",d."dist_m_theatre_osm"), 3200),0) +
+         COALESCE(threshold_soft(d."dist_m_libraries_2018"                        , 1000),0))/4.0 AS community_culture_leisure ,
+        (COALESCE(threshold_soft(d."dist_m_childcare_oshc_meet_2019"              , 1600),0) +
+         COALESCE(threshold_soft(d."dist_m_childcare_all_meet_2019"               , 800),0))/2.0 AS early_years,
+        (COALESCE(threshold_soft(d."dist_m_P_12_Schools_gov_2018"                 , 1600),0) +
+         COALESCE(threshold_soft(d."dist_m_secondary_schools2018"                 , 1600),0))/2.0 AS education ,
+        (COALESCE(threshold_soft(d."dist_m_nhsd_2017_aged_care_residential"       , 1000),0) +
+         COALESCE(threshold_soft(d."dist_m_nhsd_2017_pharmacy"                    , 1000),0) +
+         COALESCE(threshold_soft(d."dist_m_nhsd_2017_mc_family_health"            , 1000),0) +
+         COALESCE(threshold_soft(d."dist_m_nhsd_2017_dentist"                     , 1000),0) +
+         COALESCE(threshold_soft(d."dist_m_nhsd_2017_gp"                          , 1000),0))/5.0 AS health_services ,
+        (COALESCE(threshold_soft(d."dist_m_swimming_pool_osm"                     , 1200),0) +
+         COALESCE(threshold_soft(o."sport_distance_m"                             , 1000),0))/2.0 AS sport_rec,
+        (COALESCE(threshold_soft(d."dist_m_fruit_veg_osm"                         , 1000),0) +
+         COALESCE(threshold_soft(d."dist_m_meat_seafood_osm"                      , 3200),0) +
+         COALESCE(threshold_soft(d."dist_m_supermarket_osm"                       , 1000),0))/3.0 AS food,    
+        (COALESCE(threshold_soft(d."dist_m_convenience_osm"                       , 1000),0) +
+         COALESCE(threshold_soft(d."dist_m_newsagent_osm"                         , 3200),0) +
+         COALESCE(threshold_soft(d."dist_m_petrolstation_osm"                     , 1000),0))/3.0 AS convenience,         
         COALESCE({pt_freq_400m},0) AS pt_regular_400m,
-        COALESCE({pos_large_400m},0) AS pos_large_400m
+        COALESCE({pos_large_400m},0) AS pos_large_400m,
+        -- we coalesce 30:40 measures to 100, as nulls mean no one is in bottom two housing quintiles - really 0/0 implies 100% in this context
+        -- noting that null is not acceptable.  This should be discussed, but is workable for now.
+        COALESCE(pcent_30_40,100) AS abs_30_40
 FROM parcel_indicators p
-LEFT JOIN nh_inds_soft_1600m USING({id})
+LEFT JOIN area_linkage a USING (mb_code_2016)
+LEFT JOIN dest_closest_indicators d USING ({id})
+LEFT JOIN ind_os_distance o USING ({id})
+LEFT JOIN abs_ind_30_40 h ON a.sa1_7digitcode_2016 = h.sa1_7digitcode_2016
 WHERE exclude IS NULL;
 ALTER TABLE li_inds ADD PRIMARY KEY ({id});
   '''.format(id = points_id, 
