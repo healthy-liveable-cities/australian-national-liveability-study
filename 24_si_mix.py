@@ -41,7 +41,6 @@ UPDATE parcel_indicators p
                  COALESCE(threshold_soft("dist_m_nhsd_2017_dentist"                     , 1000),0) +
                  COALESCE(threshold_soft("dist_m_nhsd_2017_gp"                          , 1000),0) +
                  COALESCE(threshold_soft("dist_m_swimming_pool_osm"                     , 1200),0) +
-                 COALESCE(threshold_soft("dist_m_swimming_pool_osm"                     , 1200),0) +
                  COALESCE(threshold_soft("sport_distance_m"                             , 1000),0))
                  -- note: did not have community health centres
   FROM dest_closest_indicators d 
