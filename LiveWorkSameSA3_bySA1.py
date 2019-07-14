@@ -15,6 +15,7 @@ import os
 import sys
 import time
 import psycopg2 
+from sqlalchemy import create_engine
 
 from script_running_log import script_running_log
 
@@ -35,9 +36,16 @@ df = df.reset_index()
 df = pandas.melt(df, id_vars=['sa1_7digitcode_2016'], value_vars=list(df.columns-['sa1_7digitcode_2016']),var_name='sa3_work',value_name='count')
 df = df.astype(np.int64)
 
+# df2 = pandas.read_csv('D:/ABS/data/abs_liveability/sa1_live_sa3_work_long_20190712/sa1_live_sa3_work_long.csv', index_col=0,skiprows )
+
 # Get SA1 to SA3 look up table
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()
+
+engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_user,
+                                                                 pwd  = db_pwd,
+                                                                 host = db_host,
+                                                                 db   = db))
 
 sql = '''
 SELECT DISTINCT(sa1_7digitcode_2016),
@@ -52,37 +60,21 @@ area_lookup = pandas.DataFrame(curs.fetchall(), columns=['sa1_7digitcode_2016', 
 area_lookup = area_lookup.astype(np.int64)
 
 # Merge lookup with usual residence (UR) by place of work (POW)
-live_work = pandas.merge(area_lookup, df, how='left', left_on='sa1_7digitcode_2016', right_on='sa1_7digitcode_2016')
+live_work = pandas.merge(df, area_lookup, how='left', left_on='sa1_7digitcode_2016', right_on='sa1_7digitcode_2016')
+
 # remove those areas where no one works
-# live_work = live_work[live_work['count']!=0]
+live_work = live_work[live_work['count']!=0]
 live_work['local'] = live_work.apply(lambda x: x.sa3_live==x.sa3_work,axis=1)
 live_work= live_work.groupby('local').count.agg(['sum'])
 live_work= live_work.groupby(['sa1_7digitcode_2016','local'])['count'].agg(['sum']).unstack(fill_value = np.nan)
 live_work.columns = live_work.columns.droplevel()
 live_work = live_work.reset_index()
-live_work['total'] = live_work.apply(lambda x: x["True"]+x["False"],axis=1)
+live_work = live_work.set_index('sa1_7digitcode_2016')
+live_work = live_work.fillna(0)
+live_work = live_work.astype(np.int64)
+live_work['total'] = live_work.apply(lambda x: x[False]+x[True],axis=1)
+live_work['pct_live_work_local_area'] = live_work.apply(lambda x: 100*(x[True]/float(x['total'])),axis=1)
 
-df__SA3match['SA3_LiveWork'] = df__SA3match.apply(lambda x: x[x['sa3_code_2016']], axis=1)
-df__SA3match['SA3_TotalWork'] = df__SA3match['Total']-df__SA3match['POW not applicable']-df__SA3match['POW not stated']
-df__SA3match['SA3_propLiveWork'] = df__SA3match['SA3_LiveWork']/df__SA3match['SA3_TotalWork']
-
-output = df__SA3match[['SA3_LiveWork','SA3_TotalWork','SA3_propLiveWork']]
-
-try:
-  output.to_csv(os.path.join(folderPath,outfileName), index=True, index_label = indexName, encoding='utf-8')
-  print('Saved {}.'.format(outfileName))
-except:
-  print('Not saved.  Perhaps the file is open or name mis-specified?')
-  
-print('Final matrix summary statistics:')
-
-summary = output.reset_index().describe().T
-
-print(summary.to_string())
-
-
-summary.to_csv(os.path.join(os.path.dirname(outfileName),'SUMMARY_'+os.path.basename(outfileName)), encoding='utf-8')
-print('Saved summary statistics for {}.'.format(outfileName))
-
+live_work.to_sql('live_sa1_work_sa3', con=engine, if_exists='replace')
 # output to completion log
 script_running_log(script, task, start)
