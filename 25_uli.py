@@ -110,9 +110,10 @@ SELECT p.{id},
          COALESCE(threshold_soft(d."dist_m_petrolstation_osm"                     , 1000),0))/3.0 AS convenience,         
         COALESCE({pt_freq_400m},0) AS pt_regular_400m,
         COALESCE({pos_large_400m},0) AS pos_large_400m,
-        -- we coalesce 30:40 measures to 100, as nulls mean no one is in bottom two housing quintiles - really 0/0 implies 100% in this context
+        -- we coalesce 30:40 measures to 0, as nulls mean no one is in bottom two housing quintiles - really 0/0 implies 0% in this context
         -- noting that null is not acceptable.  This should be discussed, but is workable for now.
-        COALESCE(pcent_30_40,100) AS abs_30_40,
+        -- Later, we reverse polarity of 30 40 measure
+        COALESCE(pcent_30_40,0) AS abs_30_40,
         COALESCE(pct_live_work_local_area,0) AS abs_live_sa1_work_sa3
 FROM parcel_indicators p
 LEFT JOIN area_linkage a USING (mb_code_2016)
