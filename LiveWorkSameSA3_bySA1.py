@@ -66,7 +66,6 @@ live_work = pandas.merge(df, area_lookup, how='left', left_on='sa1_7digitcode_20
 # remove those areas where no one works
 live_work = live_work[live_work['count']!=0]
 live_work['local'] = live_work.apply(lambda x: x.sa3_live==x.sa3_work,axis=1)
-live_work= live_work.groupby('local').count.agg(['sum'])
 live_work= live_work.groupby(['sa1_7digitcode_2016','local'])['count'].agg(['sum']).unstack(fill_value = np.nan)
 live_work.columns = live_work.columns.droplevel()
 live_work = live_work.reset_index()
