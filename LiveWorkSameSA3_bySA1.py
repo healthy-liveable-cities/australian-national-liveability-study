@@ -31,7 +31,7 @@ task = 'create destination indicator tables'
 
 indexName = 'sa1_7digitcode_2016'
 
-df = pandas.read_csv('D:/ABS/data/abs_liveability/SA1 (UR) by SA3 (POW) - cleaned_20190712.csv', index_col=0)
+df = pandas.read_csv('D:/ABS/data/2016/abs_liveability/SA1 (UR) by SA3 (POW) - cleaned_20190712.csv', index_col=0)
 df = df.reset_index()
 df = pandas.melt(df, id_vars=['sa1_7digitcode_2016'], value_vars=list(df.columns-['sa1_7digitcode_2016']),var_name='sa3_work',value_name='count')
 df = df.astype(np.int64)
@@ -78,3 +78,4 @@ live_work['pct_live_work_local_area'] = live_work.apply(lambda x: 100*(x[True]/f
 live_work.to_sql('live_sa1_work_sa3', con=engine, if_exists='replace')
 # output to completion log
 script_running_log(script, task, start)
+conn.close()
