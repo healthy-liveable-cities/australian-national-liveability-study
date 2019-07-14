@@ -14,6 +14,7 @@
 import os
 import sys
 import time
+import numpy as np
 import psycopg2 
 from sqlalchemy import create_engine
 
