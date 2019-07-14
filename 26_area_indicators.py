@@ -43,8 +43,8 @@ ind_hard.replace(to_replace='{threshold}', value='hard', inplace=True,regex=True
 
 ind_matrix = pandas.concat([ind_matrix,ind_soft,ind_hard], ignore_index=True).sort_values('ind')
 ind_matrix.drop(ind_matrix[ind_matrix.tags == '_{threshold}'].index, inplace=True)
-# Restrict to indicators with a defined query
-ind_matrix = ind_matrix[pandas.notnull(ind_matrix['Query'])]
+# Restrict to indicators with a defined query, or is the 'ULI' or 'SI Mix' indicator
+ind_matrix = ind_matrix[pandas.notnull(ind_matrix['Query']) | ind_matrix.unit_level_description.isin(['Urban Liveability Index','Social infrastructure mix score (/13)'])]
 ind_matrix.drop(ind_matrix[ind_matrix['updated?'] == 'n'].index, inplace=True)
 
 # Make concatenated indicator and tag name (e.g. 'walk_14' + 'hard')
@@ -183,7 +183,7 @@ for area in analysis_regions + ['study region']:
         CREATE TABLE li_inds_{abbrev}_{standard} AS
         SELECT 
         {area_code},
-        study_region,
+        {include_region}
         locale,
         SUM(dwelling) AS dwelling,
         SUM(person) AS person,
@@ -335,7 +335,7 @@ for area in analysis_regions + ['study region']:
 # exclusion_criteria = 'WHERE  p.exclude IS NULL AND p.sos_name_2016 IS NOT NULL'.format(id = points_id.lower())
 
 # # The shape file for map features are output 
-# map_features_outpath = os.path.join(folderPath,'study_region','wgs84_epsg4326','map_features')
+map_features_outpath = os.path.join(folderPath,'study_region','wgs84_epsg4326','map_features')
 
 # if not os.path.exists(map_features_outpath):
   # os.makedirs(map_features_outpath)   
@@ -589,13 +589,14 @@ for area in analysis_regions + ['study region']:
   # curs.execute("SELECT AddGeometryColumn ('public','ind_description','geom',4326,'POINT',2);")
   # conn.commit()
 # # Output to geopackage using ogr2ogr; note that this command is finnicky and success depends on version of ogr2ogr that you have  
-# command = 'ogr2ogr -overwrite -f GPKG {path}/li_map_{db}.gpkg PG:"host={host} user={user} dbname={db} password={pwd}" '.format(path = map_features_outpath,
-                                                                                                                               # host = db_host,
-                                                                                                                               # user = db_user,
-                                                                                                                               # pwd = db_pwd,
-                                                                                                                               # db = db) \
-          # + ' "li_map_sa1" "li_map_ssc" "li_map_lga" "li_map_sos" "li_map_region" "ind_description" "boundaries_sa1" "boundaries_ssc" "boundaries_lga" "study_region_urban"  "study_region_not_urban" "area_no_dwelling" "area_no_irsd"'
+command = 'ogr2ogr -overwrite -f GPKG {path}/li_map_{db}.gpkg PG:"host={host} user={user} dbname={db} password={pwd}" '.format(path = map_features_outpath,
+                                                                                                                               host = db_host,
+                                                                                                                               user = db_user,
+                                                                                                                               pwd = db_pwd,
+                                                                                                                               db = db) \
+          + ' "li_map_sa1" "li_map_ssc" "li_map_lga" "li_map_sos" "li_map_region" "ind_description" "boundaries_sa1" "boundaries_ssc" "boundaries_lga" "study_region_urban"  "study_region_not_urban" "area_no_dwelling" "area_no_irsd"'
 # sp.call(command)
+print(command)
 # print("Done.")
 
 
