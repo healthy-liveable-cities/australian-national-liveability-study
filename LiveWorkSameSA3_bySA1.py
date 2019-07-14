@@ -33,7 +33,7 @@ indexName = 'sa1_7digitcode_2016'
 
 df = pandas.read_csv('D:/ABS/data/2016/abs_liveability/SA1 (UR) by SA3 (POW) - cleaned_20190712.csv', index_col=0)
 df = df.reset_index()
-df = pandas.melt(df, id_vars=['sa1_7digitcode_2016'], value_vars=[x for x in df.columns if x!='sa1_7digitcode_2016']),var_name='sa3_work',value_name='count')
+df = pandas.melt(df, id_vars=['sa1_7digitcode_2016'], value_vars=[x for x in df.columns if x!='sa1_7digitcode_2016'],var_name='sa3_work',value_name='count')
 df = df.astype(np.int64)
 
 # df2 = pandas.read_csv('D:/ABS/data/abs_liveability/sa1_live_sa3_work_long_20190712/sa1_live_sa3_work_long.csv', index_col=0,skiprows )
