@@ -88,7 +88,8 @@ CREATE TABLE uli_inds AS
 SELECT p.{id},
         COALESCE(p.{street_connectivity},0) AS sc_nh1600m,
         COALESCE(p.{dwelling_density},0) AS dd_nh1600m,
-        (COALESCE(threshold_soft(d."dist_m_museum_osm"                            , 3200),0) +
+        (COALESCE(threshold_soft("dist_m_community_centre_osm"                  , 1000),0) +
+         COALESCE(threshold_soft(LEAST(d."dist_m_museum_osm",d."dist_m_art_gallery_osm"), 3200),0) +
          COALESCE(threshold_soft(LEAST(d."dist_m_cinema_osm",d."dist_m_theatre_osm"), 3200),0) +
          COALESCE(threshold_soft(d."dist_m_libraries_2018"                        , 1000),0))/4.0 AS community_culture_leisure ,
         (COALESCE(threshold_soft(d."dist_m_childcare_oshc_meet_2019"              , 1600),0) +

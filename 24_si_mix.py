@@ -20,7 +20,7 @@ task = 'calculate social infrastructure mix score for {}'.format(locale)
 
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()
-
+ 
 print("Updating parcel indicators table with Social Infrastructure mix score... "),
 sql  = '''
 -- Add a SI mix column if it doesn't already exist to the parcel indicators table
@@ -28,7 +28,7 @@ sql  = '''
 ALTER TABLE parcel_indicators ADD COLUMN IF NOT EXISTS si_mix double precision;
 UPDATE parcel_indicators p
    SET si_mix = (COALESCE(threshold_soft("dist_m_community_centre_osm"                  , 1000),0) +
-                 COALESCE(threshold_soft("dist_m_museum_osm"                            , 3200),0) +
+                 COALESCE(threshold_soft(LEAST("dist_m_museum_osm","dist_m_art_gallery_osm"), 3200),0) +
                  COALESCE(threshold_soft(LEAST("dist_m_cinema_osm","dist_m_theatre_osm"), 3200),0) +
                  COALESCE(threshold_soft("dist_m_libraries_2018"                        , 1000),0) +
                  COALESCE(threshold_soft("dist_m_childcare_oshc_meet_2019"              , 1600),0) +
