@@ -33,7 +33,7 @@ UPDATE parcel_indicators p
                  COALESCE(threshold_soft("dist_m_libraries_2018"                        , 1000),0) +
                  COALESCE(threshold_soft("dist_m_childcare_oshc_meet_2019"              , 1600),0) +
                  COALESCE(threshold_soft("dist_m_childcare_all_meet_2019"               , 800),0)  +
-                 COALESCE(threshold_soft("dist_m_P_12_Schools_gov_2018"                 , 1600),0) +
+                 COALESCE(threshold_soft(LEAST("dist_m_P_12_Schools_gov_2018","primary_schools_gov_2018"), 1600),0) +
                  COALESCE(threshold_soft("dist_m_secondary_schools2018"                 , 1600),0) +
                  COALESCE(threshold_soft("dist_m_nhsd_2017_aged_care_residential"       , 1000),0) +
                  COALESCE(threshold_soft("dist_m_nhsd_2017_pharmacy"                    , 1000),0) +
