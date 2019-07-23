@@ -56,19 +56,15 @@ for locale in locales:
     conn = psycopg2.connect(database=db, user=db_user, password=db_pwd, host=db_host,port=db_port)
     curs = conn.cursor()
     sql = '''                                                                                                               
-        ALTER TABLE IF EXISTS gccsa_2018                             RENAME TO study_region                            ;
         ALTER TABLE IF EXISTS gccsa_2018_10000m                      RENAME TO study_region_10000m                     ;
         ALTER TABLE IF EXISTS gccsa_2018_hex_3000m_diag              RENAME TO study_region_hex_3000m_diag             ;
         ALTER TABLE IF EXISTS gccsa_2018_hex_3000m_diag_3000m_buffer RENAME TO study_region_hex_3000m_diag_3000m_buffer;
-        ALTER TABLE IF EXISTS sua_2016_aust                          RENAME TO study_region_aust                       ;
         ALTER TABLE IF EXISTS sua_2018_10000m                        RENAME TO study_region_10000m                     ;
         ALTER TABLE IF EXISTS sua_2018_hex_3000m_diag                RENAME TO study_region_hex_3000m_diag             ;
         ALTER TABLE IF EXISTS sua_2018_hex_3000m_diag_3000m_buffer   RENAME TO study_region_hex_3000m_diag_3000m_buffer;
-        ALTER TABLE IF EXISTS lga_2018                               RENAME TO study_region                            ;
         ALTER TABLE IF EXISTS lga_2018_10000m                        RENAME TO study_region_10000m                     ;
         ALTER TABLE IF EXISTS lga_2018_hex_3000m_diag                RENAME TO study_region_hex_3000m_diag             ;
         ALTER TABLE IF EXISTS lga_2018_hex_3000m_diag_3000m_buffer   RENAME TO study_region_hex_3000m_diag_3000m_buffer;
-        ALTER TABLE IF EXISTS study_region_2018                               RENAME TO study_region                            ;
         ALTER TABLE IF EXISTS study_region_2018_10000m                        RENAME TO study_region_10000m                     ;
         ALTER TABLE IF EXISTS study_region_2018_hex_3000m_diag                RENAME TO study_region_hex_3000m_diag             ;
         ALTER TABLE IF EXISTS study_region_2018_hex_3000m_diag_3000m_buffer   RENAME TO study_region_hex_3000m_diag_3000m_buffer;
