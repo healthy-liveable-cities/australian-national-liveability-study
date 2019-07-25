@@ -285,6 +285,13 @@ pandas.set_option('display.max_colwidth', -1)
 print("\n")
 print(df)
 
+
+# Drop index for ind_description table if it exists; 
+# this causes an error when (re-)creating the ind_description table if index exists
+curs.execute('DROP INDEX IF EXISTS ix_ind_description_index;')
+conn.commit()
+ind_matrix.to_sql(name='ind_description',con=engine,if_exists='replace')
+
 # output to completion log    
 script_running_log(script, task, start, locale)
 conn.close()
