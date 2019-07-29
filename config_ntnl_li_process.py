@@ -131,48 +131,7 @@ geographies = df_regions[df_regions['purpose'].str.contains('geo')==True].index.
 geo_imports = df_regions.loc[df_regions.loc[geographies,'epsg'].dropna().reset_index().name.dropna(),['data','epsg']].groupby(['data','epsg']).size().reset_index()
 analysis_regions = df_regions[df_regions['purpose'].str.contains('analysis')==True].index.values.tolist()
 csv_linkage = df_regions[df_regions['format'].str.contains('csv')==True].index.values.tolist()
-
-# areas = {}
-# for area in areas_of_interest:
-  # prefix = area
-  # if type(area) is int:
-    # prefix = 'region{}'.format(area)
-  # if df_parameters.loc['{}_data'.format(prefix)]['value'] != '':
-    # areas[area] = {}
-    # areas[area]['format'] = df_parameters.loc['{}_{}'.format(prefix,'format')]['value'].split(' ')
-    # for field in ['data','name','abbreviation','epsg','id','linkage_table','linkage_id',exclusion']:
-      # if field=='data':
-        # if 'list' not in areas[area]['format']:
-            # # join with data path prefix
-            # areas[area][field] = os.path.join(folderPath,df_parameters.loc['{}_{}'.format(prefix,field)]['value'])
-            # areas[area]['table'] = os.path.splitext(os.path.basename(areas[area]['data']))[0].lower()
-        # else:
-            # areas[area][field] = [os.path.join(folderPath,x) for x in df_parameters.loc['{}_{}'.format(prefix,field)]['value'].split(',')]
-      # elif field=='name': 
-        # # split into full (f) and short (s) lower case versions; latter is safe for database use
-        # areas[area]['name_f'] = df_parameters.loc['{}_name'.format(prefix)]['value'].split(',')[0]
-        # if len(df_parameters.loc['{}_name'.format(prefix)]['value'].split(',')) > 1:
-          # areas[area]['name_s'] = df_parameters.loc['{}_name'.format(prefix)]['value'].split(',')[1].lower()
-        # else:
-          # areas[area]['name_s'] = areas[area]['name_f'].lower()
-      # elif field=='linkage': 
-        # if 'linkage' in areas[area]['format']:
-            # areas[area][field] =  df_parameters.loc['{}_{}'.format(prefix,field)]['value'].split(',')
-        # else:
-            # areas[area][field] = ''
-      # else:
-        # areas[area][field] = df_parameters.loc['{}_{}'.format(prefix,field)]['value']
-
-# area_info = {}
-# for info in ['dwellings','disadvantage']:
-  # area_info[info] = {}
-  # if df_parameters.loc['{}_data'.format(info)]['value']!= '':
-    # area_info[info]['data']      = os.path.join(folderPath,df_parameters.loc['{}_data'.format(info)]['value'])
-    # area_info[info]['table']     = 'area_{}'.format(info)
-    # area_info[info]['area']      = int(df_parameters.loc['{}_area'.format(info)]['value'])
-    # area_info[info]['id']        = df_parameters.loc['{}_id'.format(info)]['value']
-    # area_info[info]['field']     = df_parameters.loc['{}_field'.format(info)]['value']
-    # area_info[info]['exclusion'] = df_parameters.loc['{}_exclusion'.format(info)]['value']
+areas = analysis_regions
 
 # meshblock ID MB_CODE_20 (varname is truncated by arcgis to 8 chars) datatype is varchar(11) 
 meshblock_id     = df_regions.iloc[0]['id']
@@ -270,7 +229,7 @@ school_table = os.path.splitext(os.path.basename(school_ratings))[0]
 childcare_table = os.path.splitext(os.path.basename(childcare_ratings))[0]
 
 # When destinations are imported for study region, we don't want to retain all of these; now, purge
-purge_dest_list = [x.lower() for x in list(set(destination_list+df_housekeeping.destinations_to_purge_after_import.tolist()))]
+purge_table_list = list(set(df_housekeeping.tables_to_drop_if_exist.tolist()))
 
 def pretty(d, indent=0):
    for key, value in d.items():

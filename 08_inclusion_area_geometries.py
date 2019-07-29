@@ -133,52 +133,6 @@ create_parcel_sos = '''
   '''.format(id = points_id)
 curs.execute(create_parcel_sos)
 conn.commit()
-## LEGACY CODE - NO LONGER REQUIRED (info all in area_linkage) BUT REQUIRES CHANGE TO CODE ELSEWHERE
-# # create excluded Mesh Block table
-# create_mb_excluded_no_irsd = '''  
-  # DROP TABLE IF EXISTS mb_excluded_no_irsd;
-  # CREATE TABLE mb_excluded_no_irsd AS
-  # SELECT * FROM abs_linkage 
-  # WHERE sa1_maincode NOT IN (SELECT sa1_maincode FROM area_disadvantage);
-  # '''
-# print("  - Meshblocks, excluded due to no IRSD")
-# curs.execute(create_mb_excluded_no_irsd)
-# conn.commit()
-
-# # create excluded Mesh Block table
-# create_mb_no_dwellings = '''  
-  # DROP TABLE IF EXISTS mb_no_dwellings;
-  # CREATE TABLE mb_no_dwellings AS
-  # SELECT meshblocks.* FROM meshblocks, {study_region}
-  # WHERE mb_code_20 NOT IN (SELECT mb_code_2016 FROM mb_dwellings)
-  # AND ST_Intersects(meshblocks.geom,{study_region}.geom);
-  # '''.format(study_region = study_region)
-# print("  - Meshblocks, excluded due to no dwellings")
-# curs.execute(create_mb_no_dwellings)
-# conn.commit()
-
-# # create excluded Mesh Block table
-# create_area_no_irsd = '''  
-  # DROP TABLE IF EXISTS area_no_irsd;
-  # CREATE TABLE area_no_irsd AS
-  # SELECT  'Meshblocks in SA1s without SEIFA IRSD (2016)'::varchar AS description, 
-          # ST_Union(geom) AS geom FROM mb_excluded_no_irsd;
-  # '''
-# print("  - Total area excluded due to no IRSD")
-# curs.execute(create_area_no_irsd)
-# conn.commit()
-
-# # create excluded Mesh Block table
-# create_area_no_dwelling = '''  
-  # DROP TABLE IF EXISTS area_no_dwelling;
-  # CREATE TABLE area_no_dwelling AS
-  # SELECT 'Meshblocks with no dwellings (2016)'::varchar AS description,
-          # ST_Union(geom) AS geom  FROM mb_no_dwellings;
-  # '''
- # print("  - Total area excluded due to no dwellings")
-# curs.execute(create_area_no_dwelling)
-# conn.commit()
-# print("Done.")
  
 print("Make a summary table (if not exists) of parcel points lacking sausage buffer, grouped by section of state (the idea is, only a small proportion should be major or other urban"),
 create_no_sausage_sos_tally = '''
