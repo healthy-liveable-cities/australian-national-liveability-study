@@ -4,7 +4,6 @@ echo  Manningham catchup
 python grant_query.py %*
 
 FOR %%A  IN (%*) DO (
-    python 02_road_network_setup.py %%A 
     python 03_hex_grid_setup.py %%A 
     python 04_create_meshblock_dwellings.py %%A 
     python 05_parcel_dwellings_setup.py %%A 
