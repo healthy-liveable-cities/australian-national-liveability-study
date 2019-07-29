@@ -446,5 +446,5 @@ pg_dump -U postgres -h localhost -W  {tables} {db} > {dir}/li_map_{db}.sql
 
 print('''
 \nAlso, can you send the following line of text to Carl please to aid collation of study regions?
-psql observatory < {dir}/li_map_{db}.sql postgres
+psql obs_source < {dir}/li_map_{db}.sql postgres
 '''.format(dir = locale_dir,db = db))
