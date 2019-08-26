@@ -44,7 +44,7 @@ ind_hard.replace(to_replace='{threshold}', value='hard', inplace=True,regex=True
 ind_matrix = pandas.concat([ind_matrix,ind_soft,ind_hard], ignore_index=True).sort_values('ind')
 ind_matrix.drop(ind_matrix[ind_matrix.tags == '_{threshold}'].index, inplace=True)
 # Restrict to indicators with a defined query, or is the 'ULI' or 'SI Mix' indicator
-ind_matrix = ind_matrix[pandas.notnull(ind_matrix['Query']) | ind_matrix.unit_level_description.isin(['Urban Liveability Index','Social infrastructure mix score (/13)'])]
+ind_matrix = ind_matrix[pandas.notnull(ind_matrix['Query']) | ind_matrix.unit_level_description.isin(['Urban Liveability Index','Social infrastructure mix score (/15)'])]
 ind_matrix.drop(ind_matrix[ind_matrix['updated?'] == 'n'].index, inplace=True)
 
 # Make concatenated indicator and tag name (e.g. 'walk_14' + 'hard')
