@@ -56,7 +56,7 @@ FROM (SELECT {id},
                    threshold_soft("nhsd_2017_gp"                       ,1600)  AS "nhsd_2017_gp"                      ,
                    threshold_soft("nhsd_2017_hospital"                 ,1600)  AS "nhsd_2017_hospital"                ,
                    threshold_soft("supermarket_osm"                    ,1600)  AS "supermarket_osm"                   ,
-                   threshold_soft("u3a_mildura_2019"                   ,1600)  AS "u3a"                               ,
+                   threshold_soft("u3a"                   ,1600)  AS "u3a"                               ,
                    threshold_soft("gtfs_2018_stops"                    ,1600)  AS "gtfs_2018_stops"                   ,
                    threshold_soft("place_of_worship_osm"               ,1600)  AS "place_of_worship_osm" 
               FROM dest_distance_m
@@ -65,11 +65,11 @@ FROM (SELECT {id},
                     (SELECT 1 
                     FROM excluded_parcels e
                    WHERE dest_distance_m.{id} = e.{id})
-                AND EXISTS 
-                    -- Only include those parcels in the included parcels table 'study_parcels'
-                    (SELECT 1 
-                    FROM study_parcels s
-                   WHERE dest_distance_m.{id} = s.{id})
+                  AND EXISTS 
+                      -- Only include those parcels in the included parcels table 'study_parcels'
+                      (SELECT 1 
+                      FROM study_parcels s
+                     WHERE dest_distance_m.{id} = s.{id})
               )
                 t) as t_outer;
 
@@ -97,7 +97,7 @@ SELECT t.{area}  ,
        ntile(10) OVER(ORDER BY z_pt  DESC) as pt_decile,
        ntile(10) OVER(ORDER BY z_pow  DESC) as pow_decile,
        ntile(10) OVER(ORDER BY older_services  DESC) as older_services_decile 
-FROM (SELECT abs_linkage.{area},
+FROM (SELECT area_linkage.{area},
              COUNT(*) AS sample_point_count,
              AVG(z_ac ) AS z_ac ,
              AVG(z_acr ) AS z_acr ,
@@ -110,10 +110,10 @@ FROM (SELECT abs_linkage.{area},
              AVG(z_pow)  AS z_pow,
              AVG(older_services) AS older_services
       FROM parcel_dwellings p
-      LEFT JOIN abs_linkage ON p.mb_code_20 = abs_linkage.mb_code_2016
+      LEFT JOIN area_linkage ON p.mb_code_20 = area_linkage.mb_code_2016
       LEFT JOIN ind_older_services ON p.{id} = ind_older_services.{id}
       WHERE ind_older_services.{id} IS NOT NULL
-      GROUP BY abs_linkage.{area}
+      GROUP BY area_linkage.{area}
       ) as t;
   '''.format(id = points_id.lower(),area = area)        
 
