@@ -77,46 +77,44 @@ for area in analysis_regions + ['study region']:
     if area != 'study region':
         area_id = df_regions.loc[area,'id']
         abbrev = df_regions.loc[area,'abbreviation']
-        include_region = 'study_region,'
+        include_region = 'dwellings.study_region,'
     else: 
         area_id = 'study_region'
         abbrev  = 'region'
         include_region = ''
     if area != 'Section of State':
         pkey = area_id
-    else: 
-        pkey = '{},study_region'.format(area_id)
-    print("  - li_inds_{}_policy".format(abbrev))
-    sql = '''
-    DROP TABLE IF EXISTS li_inds_{abbrev}_policy;
-    DROP TABLE IF EXISTS li_inds_{abbrev}_policy;
-    CREATE TABLE li_inds_{abbrev}_policy AS
-    SELECT 
-    dwellings.{area_id},
-    dwellings.{include_region}
-    dwellings.locale,
-    dwellings.dwelling,
-    dwellings.person,
-    dwellings.sample_count,
-    dwellings.sample_count_per_ha,
-    dwellings.area_ha,
-    {policy_indicators},
-    dwellings.geom
-    FROM li_inds_{abbrev}_dwelling dwellings
-    LEFT JOIN li_inds_{abbrev}_person persons USING ({area_id});
-    '''.format(area_id = area_id,
-               abbrev = abbrev,
-               include_region = include_region,
-               policy_indicators = ','.join(queries)
-               )
-    curs.execute(sql)
-    conn.commit()
-    sql = '''
-    ALTER TABLE  li_inds_{abbrev}_policy ADD PRIMARY KEY ({pkey});
-    '''.format(pkey = pkey,
-               abbrev = abbrev)
-    curs.execute(sql)
-    conn.commit()
+        print("  - li_inds_{}_policy".format(abbrev))
+        sql = '''
+        DROP TABLE IF EXISTS li_inds_{abbrev}_policy;
+        DROP TABLE IF EXISTS li_inds_{abbrev}_policy;
+        CREATE TABLE li_inds_{abbrev}_policy AS
+        SELECT 
+        dwellings.{area_id},
+        {include_region}
+        dwellings.locale,
+        dwellings.dwelling,
+        dwellings.person,
+        dwellings.sample_count,
+        dwellings.sample_count_per_ha,
+        dwellings.area_ha,
+        {policy_indicators},
+        dwellings.geom
+        FROM li_inds_{abbrev}_dwelling dwellings
+        LEFT JOIN li_inds_{abbrev}_person persons USING ({area_id});
+        '''.format(area_id = area_id,
+                abbrev = abbrev,
+                include_region = include_region,
+                policy_indicators = ','.join(queries)
+                )
+        curs.execute(sql)
+        conn.commit()
+        sql = '''
+        ALTER TABLE  li_inds_{abbrev}_policy ADD PRIMARY KEY ({pkey});
+        '''.format(pkey = pkey,
+                abbrev = abbrev)
+        curs.execute(sql)
+        conn.commit()
 
 # output to completion log    
 script_running_log(script, task, start, locale)
