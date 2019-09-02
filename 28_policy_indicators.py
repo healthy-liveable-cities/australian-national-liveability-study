@@ -67,12 +67,12 @@ queries = []
 for t in zip(ind_policy.index,ind_policy.agg_split_greq):
     ind_standard = ind_policy.loc[t[0],'agg_standard']
     if str(ind_policy.loc[t[0],'agg_alt_variable'])=='nan':
-        sql = '''\n{}."{}" >= {}'''.format(ind_standard,*t)
+        sql = '''\n{standard}."{ind}" >= {split} AS {ind}'''.format(standard=ind_standard,ind = t[0],split=t[1])
     else:
-        sql = '''\n{}."{}" >= {}'''.format(ind_standard,ind_policy.loc[t[0],'agg_alt_variable'],t[1])
+        sql = '''\n{standard}."{ind}" >= {split} AS {source}'''.format(standard=ind_standard,ind = ind_policy.loc[t[0],'agg_alt_variable'],split=t[1],source=t[0])
     queries.append(sql)
 
-print("Creating weighted area aggregate tables:")
+print("Creating policy indicator tables:")
 for area in analysis_regions + ['study region']:   
     if area != 'study region':
         area_id = df_regions.loc[area,'id']
@@ -92,18 +92,18 @@ for area in analysis_regions + ['study region']:
     DROP TABLE IF EXISTS li_inds_{abbrev}_policy;
     CREATE TABLE li_inds_{abbrev}_policy AS
     SELECT 
-    dwelling.{area_id},
-    dwelling.{include_region}
-    dwelling.locale,
-    dwelling.dwelling,
-    dwelling.person,
-    dwelling.sample_count,
-    dwelling.sample_count_per_ha,
-    dwelling.area_ha,
+    dwellings.{area_id},
+    dwellings.{include_region}
+    dwellings.locale,
+    dwellings.dwelling,
+    dwellings.person,
+    dwellings.sample_count,
+    dwellings.sample_count_per_ha,
+    dwellings.area_ha,
     {policy_indicators},
-    dwelling.geom
-    FROM li_inds_{abbrev}_dwellings dwellings
-         LEFT JOIN li_inds_{abbrev}_person persons USING ({area_id});
+    dwellings.geom
+    FROM li_inds_{abbrev}_dwelling dwellings
+    LEFT JOIN li_inds_{abbrev}_person persons USING ({area_id});
     '''.format(area_id = area_id,
                abbrev = abbrev,
                include_region = include_region,
@@ -112,10 +112,9 @@ for area in analysis_regions + ['study region']:
     curs.execute(sql)
     conn.commit()
     sql = '''
-    ALTER TABLE  li_inds_{abbrev}_{standard} ADD PRIMARY KEY ({pkey});
+    ALTER TABLE  li_inds_{abbrev}_policy ADD PRIMARY KEY ({pkey});
     '''.format(pkey = pkey,
-               abbrev = abbrev,
-               standard = standard)
+               abbrev = abbrev)
     curs.execute(sql)
     conn.commit()
 
