@@ -68,12 +68,14 @@ if locale!='australia':
     os_public_01_hard                            ,
     os_public_02_hard                            ,
     trans_06_hard
-    FROM li_inds_sa1_dwelling;  
+    FROM li_inds_sa1_dwelling
+    ORDER BY study_region, sa1_maincode_2016 ASC;    
     '''.format(locale)
 else:
     sql = '''
     SELECT
     a.sa1_maincode_2016                            ,
+    l.sa1_7digitcode_2016                          ,
     a.study_region                                 ,
     a.locale                                       ,
     a.dwelling                                     ,
@@ -111,10 +113,12 @@ else:
     a.os_public_02_hard                            ,
     a.trans_06_hard
     FROM li_inds_sa1_dwelling a
-    LEFT JOIN wa_1600m_ntnl_sa1 w USING (sa1_maincode_2016);  
+    LEFT JOIN wa_1600m_ntnl_sa1 w USING (sa1_maincode_2016)
+    LEFT JOIN area_linkage l USING (sa1_maincode_2016)
+    ORDER BY study_region, sa1_maincode_2016 ASC;  
     '''.format(locale)
 df = pandas.read_sql_query(sql,con=engine)
-df.to_csv('D:/ntnl_li_2018_template/data/study_region/dh_inds/dh_inds_{}_sa1_dwellings_2018_{}.csv'.format(locale,time.strftime('%Y%d%m')),index=False)
+df.to_csv('D:/ntnl_li_2018_template/data/study_region/dh_inds/dh_inds_{}_sa1_dwellings_2018_{}.csv'.format(locale,time.strftime('%Y%m%d')),index=False)
 
 if locale!='australia':
     sql = '''

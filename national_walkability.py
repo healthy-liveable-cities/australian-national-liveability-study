@@ -57,7 +57,7 @@ print("Done.")
 
 print("Create mesh block level walkability aggregation... "),
 sql = '''
-    -- DROP TABLE IF EXISTS wa_1600m_ntnl_mb;
+    DROP TABLE IF EXISTS wa_1600m_ntnl_mb;
     CREATE TABLE IF NOT EXISTS wa_1600m_ntnl_mb AS
     SELECT a.mb_code_2016,
            a.dwelling,
