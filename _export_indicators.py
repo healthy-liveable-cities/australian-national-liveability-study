@@ -9,6 +9,7 @@ import time
 import psycopg2 
 import subprocess as sp     # for executing external commands (e.g. pgsql2shp)
 from sqlalchemy import create_engine
+from datetime import datetime
 
 from script_running_log import script_running_log
 
@@ -20,6 +21,9 @@ start = time.time()
 script = os.path.basename(sys.argv[0])
 task = 'Export indicators for national collation ({})'.format(locale)
 print(task)
+
+date = datetime.today().strftime('%Y%m%d')
+
 # Connect to postgresql database     
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()
@@ -37,8 +41,10 @@ if locale!='australia':
     '''.format(locale = locale)
     curs.execute(sql)
     conn.commit()
-    out_dir = 'D:/ntnl_li_2018_template/data/studyregion/ntnl_li_inds'
-    out_file = 'ntnl_li_inds_{}_{}_Fc.sql'.format(locale,year)
+    out_dir = 'D:/ntnl_li_2018_template/data/study_region/_exports'
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
+    out_file = 'li_{}_{}_{}_Fc.sql'.format(locale,year,date)
     print("Creating sql dump to: {}".format(os.path.join(out_dir,out_file))),
     command = 'pg_dump -U {db_user} -h localhost -Fc -t "parcel_indicators" -t "dest_closest_indicators" -t "dest_array_indicators" -t "od_aos_jsonb" -t "open_space_areas" -t "ind_summary" -t "exclusion_summary" -t "area_indicators_mb_json" -t "area_linkage" {db} > {out_file}'.format(db = db,db_user = db_user,out_file=out_file)    
     sp.call(command, shell=True,cwd=out_dir)   
