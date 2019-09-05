@@ -18,7 +18,7 @@ from config_ntnl_li_process import *
 # simple timer for log file
 start = time.time()
 script = os.path.basename(sys.argv[0])
-task = 'Create area level indicator tables for Disability and Health ({})'.format(locale)
+task = 'Export indicators for national collation ({})'.format(locale)
 print(task)
 # Connect to postgresql database     
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
