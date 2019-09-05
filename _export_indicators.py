@@ -40,7 +40,7 @@ if locale!='australia':
     out_dir = 'D:/ntnl_li_2018_template/data/studyregion/ntnl_li_inds'
     out_file = 'ntnl_li_inds_{}_{}_Fc.sql'.format(locale,year)
     print("Creating sql dump to: {}".format(os.path.join(out_dir,out_file))),
-    command = 'pg_dump -U {db_user} -h localhost -Fc -t "parcel_indicators" -t "dest_closest_indicators" -t "dest_array_indicators" -t "od_aos_jsonb" -t "open_space_areas" -t "ind_summary" -t "exclusion_summary" -t "area_indicators_mb_json" -t "area_linkage" -t "li_inds_sa1_dwelling" {db} > {out_file}'.format(db = db,db_user = db_user,out_file=out_file)    
+    command = 'pg_dump -U {db_user} -h localhost -Fc -t "parcel_indicators" -t "dest_closest_indicators" -t "dest_array_indicators" -t "od_aos_jsonb" -t "open_space_areas" -t "ind_summary" -t "exclusion_summary" -t "area_indicators_mb_json" -t "area_linkage" {db} > {out_file}'.format(db = db,db_user = db_user,out_file=out_file)    
     sp.call(command, shell=True,cwd=out_dir)   
     print("Done.")
 
