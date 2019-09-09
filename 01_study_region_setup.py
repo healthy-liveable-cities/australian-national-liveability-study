@@ -187,7 +187,7 @@ DROP TABLE IF EXISTS mb_dwellings;
 CREATE TABLE mb_dwellings AS 
       SELECT *
         FROM area_linkage
-       WHERE dwelling = 0;
+       WHERE dwelling > 0;
 CREATE UNIQUE INDEX ix_mb_dwellings ON mb_dwellings (mb_code_2016);
 CREATE INDEX gix_mb_dwellings ON mb_dwellings USING GIST (geom);
 '''.format(table = df_regions.loc[geographies[0],'table'],
