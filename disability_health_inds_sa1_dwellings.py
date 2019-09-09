@@ -114,7 +114,11 @@ else:
     a.trans_06_hard
     FROM li_inds_sa1_dwelling a
     LEFT JOIN wa_1600m_ntnl_sa1 w USING (sa1_maincode_2016)
-    LEFT JOIN area_linkage l USING (sa1_maincode_2016)
+    LEFT JOIN (SELECT DISTINCT 
+                  sa1_maincode_2016,
+                  sa1_7digitcode_2016 
+               FROM area_linkage) l 
+               USING (sa1_maincode_2016)
     ORDER BY study_region, sa1_maincode_2016 ASC;  
     '''.format(locale)
 df = pandas.read_sql_query(sql,con=engine)
