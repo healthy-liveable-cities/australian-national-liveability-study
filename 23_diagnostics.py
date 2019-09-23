@@ -152,13 +152,13 @@ with pandas.ExcelWriter(outfile) as writer:
                                     LEFT JOIN (SELECT dest_class, 
                                                         COALESCE(SUM(count),0) AS urban_count 
                                                     FROM sos_dest_counts 
-                                                WHERE sos_name_2  IN ('Major Urban','Other Urban')
+                                                WHERE sos_name_2016  IN ('Major Urban','Other Urban')
                                                 GROUP BY dest_class) u
                                             ON a.dest_class = u.dest_class
                                     LEFT JOIN (SELECT dest_class, 
                                                         COALESCE(SUM(count),0) AS not_urban_count 
                                                     FROM sos_dest_counts 
-                                                WHERE sos_name_2 NOT IN ('Major Urban','Other Urban')
+                                                WHERE sos_name_2016 NOT IN ('Major Urban','Other Urban')
                                                 GROUP BY dest_class) n
                                             ON a.dest_class = n.dest_class
                                     ORDER BY a.domain,a.dest_name_full,a.dest_class;
