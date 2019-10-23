@@ -4,7 +4,7 @@
 # Author:  Carl Higgs
 #
 # All scripts within the process folder draw on the sources, parameters and modules
-# specified in the file ind_study_region_matrix.xlsx to source and output 
+# specified in the file _project_configuration.xlsx to source and output 
 # resources. It is the best definition of where resources are sourced from and 
 # how the methods used have been parameterised.
 #
@@ -24,7 +24,7 @@
 # overrides are required.
 #
 # The file which draws on the project, study region, destination and local settings 
-# specificied in the ind_study_region_matrix.xlsx file and implements these across 
+# specificied in the _project_configuration.xlsx file and implements these across 
 # scripts is THIS FILE _project_setup.py
 
 # import modules
@@ -34,12 +34,12 @@ import time
 import pandas
 import subprocess as sp
 
-# Load settings from ind_study_region_matrix.xlsx
-xls = pandas.ExcelFile(os.path.join(sys.path[0],'ind_study_region_matrix.xlsx'))
+# Load settings from _project_configuration.xlsx
+xls = pandas.ExcelFile(os.path.join(sys.path[0],'_project_configuration.xlsx'))
 df_parameters = pandas.read_excel(xls, 'parameters',index_col=0)
 df_regions = pandas.read_excel(xls, 'regions',index_col=0)
 df_studyregion = pandas.read_excel(xls, 'study_regions',index_col=1)
-df_inds = pandas.read_excel(xls, 'ind_study_region_matrix')
+df_inds = pandas.read_excel(xls, '_project_configuration')
 df_destinations = pandas.read_excel(xls, 'destinations')
 df_osm = pandas.read_excel(xls, 'osm_and_open_space_defs')
 df_osm_dest = pandas.read_excel(xls, 'osm_dest_definitions')
@@ -208,7 +208,7 @@ combined_dest_template = os.path.join(folderPath,
 outCombinedFeature = 'study_destinations'
 
 # array / list of destinations 
-# IMPORTANT -- These are specified in the 'destinations' worksheet of the ind_study_region_matrix.xlsx file
+# IMPORTANT -- These are specified in the 'destinations' worksheet of the _project_configuration.xlsx file
 #               - specify: destination, domain, cutoff and count distances as required
 #
 #           -- If new destinations are added, they should be appended to end of list 
