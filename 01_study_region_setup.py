@@ -32,7 +32,7 @@ import arcpy
 from script_running_log import script_running_log
 
 # Import custom variables for National Liveability indicator process
-from config_ntnl_li_process import *
+from _project_setup import *
 
 
 # simple timer for log file

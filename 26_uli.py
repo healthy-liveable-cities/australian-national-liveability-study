@@ -14,7 +14,7 @@ from sqlalchemy import create_engine
 from script_running_log import script_running_log
 
 # Import custom variables for National Liveability indicator process
-from config_ntnl_li_process import *
+from _project_setup import *
 
 # simple timer for log file
 start = time.time()
@@ -36,7 +36,7 @@ for ind in ['dwelling_density','street_connectivity','walkability','pt_freq_400m
 ind_matrix = ind_matrix[ind_matrix['ind']=='uli']
 uli_locations = ind_matrix[ind_matrix['ind']=='uli']['locale'].iloc[0].encode('utf')
 if locale not in uli_locations and uli_locations != '*':
-  print("This location ('{locale}') is not marked for calculation of the Urban Liveability Index; check the ind_study_region_matrix file.".format(locale = locale))
+  print("This location ('{locale}') is not marked for calculation of the Urban Liveability Index; check the _project_configuration file.".format(locale = locale))
   sys.exit()
 
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)

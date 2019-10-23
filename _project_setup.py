@@ -1,4 +1,4 @@
-# Script:  config_ntnl_li_process.py
+# Script:  _project_setup.py
 # Liveability indicator calculation template custom configuration file
 # Version: 20180907
 # Author:  Carl Higgs
@@ -25,7 +25,7 @@
 #
 # The file which draws on the project, study region, destination and local settings 
 # specificied in the ind_study_region_matrix.xlsx file and implements these across 
-# scripts is THIS FILE config_ntnl_li_process.py
+# scripts is THIS FILE _project_setup.py
 
 # import modules
 import os
