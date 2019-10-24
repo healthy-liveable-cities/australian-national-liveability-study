@@ -60,8 +60,8 @@ def renameSkinny(is_geo, in_obj, out_obj, keep_fields_list=[''], rename_fields_l
 # Note that feature point sources always are a list (often of one source, but formatting as a list
 # easily allows for contexts of multiple point data sources; e.g. cities across state boundaries)
 
-if arcpy.Exists(parcel_dwellings):
-    arcpy.Delete_management(parcel_dwellings)
+if arcpy.Exists(sample_point_feature):
+    arcpy.Delete_management(sample_point_feature)
 
 for feature in points:  
   print("Processing point source {}...".format(feature))
@@ -125,18 +125,18 @@ for feature in points:
              rename_fields_list = newfields,
              where_clause = '')
   print("Done.")	 
-  if not arcpy.Exists(parcel_dwellings):
-    arcpy.CopyFeatures_management('tempFull', parcel_dwellings)    
+  if not arcpy.Exists(sample_point_feature):
+    arcpy.CopyFeatures_management('tempFull', sample_point_feature)    
   else:
-    arcpy.Append_management('tempFull', parcel_dwellings,schema_type = "NO_TEST")   
+    arcpy.Append_management('tempFull', sample_point_feature,schema_type = "NO_TEST")   
 
 
 # gdb to pgsql
-#  Copy the parcel_dwellings from gdb to postgis, correcting the projection in process
+#  Copy the sample_point_feature from gdb to postgis, correcting the projection in process
 command = 'ogr2ogr -overwrite -progress -f "PostgreSQL" ' \
         + 'PG:"host={host} port=5432 dbname={db} '.format(host = db_host,db = db) \
         + 'user={user} password = {pwd} " '.format(user = db_user,pwd = db_pwd) \
-        + '{gdb} "{feature}" '.format(gdb = gdb_path,feature = parcel_dwellings) \
+        + '{gdb} "{feature}" '.format(gdb = gdb_path,feature = sample_point_feature) \
         + '-a_srs "EPSG:{from_srs} " '.format(from_srs = points_srid) \
         + '-t_srs "EPSG:{to_srs} " '.format(to_srs = srid) \
         + '-lco geometry_name="geom" '
@@ -155,7 +155,7 @@ conn.close()
 # I found projecting with manual specification from EPSG 7844 to 7845 formally fixed the definition.
 # Copied back to ArcGIS, the spatial reference is now recognised correctly as GDA2020 GA LLC
 arcpy.env.workspace = db_sde_path
-arcpy.CopyFeatures_management('public.parcel_dwellings', os.path.join(gdb_path,'parcel_dwellings'))
+arcpy.CopyFeatures_management('public.sample_point_feature', os.path.join(gdb_path,'sample_point_feature'))
 
 # output to completion log					
 script_running_log(script, task, start, locale)

@@ -33,7 +33,7 @@ create_table = '''
 DROP TABLE IF EXISTS {table}; 
 CREATE TABLE {table} AS 
 SELECT p.{id} 
-  FROM parcel_dwellings p 
+  FROM sample_point_feature p 
 WHERE NOT EXISTS (SELECT 1 
                     FROM excluded_parcels e
                    WHERE p.{id} = e.{id})
@@ -141,7 +141,7 @@ e.exclude                 ,
 {indicators}            
 p.geom                   
 FROM
-parcel_dwellings p                                                                                 
+sample_point_feature p                                                                                 
 LEFT JOIN area_linkage area ON p.mb_code_20 = area.mb_code_2016
 LEFT JOIN (SELECT {id}, string_agg(indicator,',') AS exclude FROM excluded_parcels GROUP BY {id}) e 
     ON p.{id} = e.{id}

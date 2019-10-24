@@ -43,7 +43,7 @@ script = os.path.basename(sys.argv[0])
 arcpy.env.workspace = gdb_path  
 
 # Specify points
-points   = parcel_dwellings
+points   = sample_point_feature
 denominator = int(arcpy.GetCount_management(points).getOutput(0))
 
 # Output databases
@@ -216,7 +216,7 @@ def CreateSausageBufferFunction(hex):
   # list of OIDs to iterate over
   antijoin = '''
     SELECT p.{id}
-    FROM parcel_dwellings p
+    FROM sample_point_feature p
     WHERE hex_id = {hex}
     AND NOT EXISTS 
     (SELECT 1 FROM {table} s WHERE s.{id} = p.{id});
@@ -366,7 +366,7 @@ if __name__ == '__main__':
   # fetch list of successfully processed buffers, if any
   unprocessed_hexes = '''
     SELECT DISTINCT(hex_id)
-    FROM parcel_dwellings p
+    FROM sample_point_feature p
     WHERE NOT EXISTS 
     (SELECT 1 FROM {table} s WHERE s.{id} = p.{id});
   '''.format(table = sausage_buffer_table,
@@ -395,7 +395,7 @@ if __name__ == '__main__':
       
   # Create summary table of parcel id and area
   print("Creating summary table of points with no sausage (are they mostly non-urban?)... "),  
-  curs.execute("DROP TABLE IF EXISTS no_sausage; CREATE TABLE no_sausage AS SELECT * FROM parcel_dwellings WHERE {0} NOT IN (SELECT {0} FROM {1});".format(points_id,sausage_buffer_table))
+  curs.execute("DROP TABLE IF EXISTS no_sausage; CREATE TABLE no_sausage AS SELECT * FROM sample_point_feature WHERE {0} NOT IN (SELECT {0} FROM {1});".format(points_id,sausage_buffer_table))
   conn.commit()    
   print("Done.")
   

@@ -39,7 +39,7 @@ xls = pandas.ExcelFile(os.path.join(sys.path[0],'_project_configuration.xlsx'))
 df_parameters = pandas.read_excel(xls, 'parameters',index_col=0)
 df_regions = pandas.read_excel(xls, 'regions',index_col=0)
 df_studyregion = pandas.read_excel(xls, 'study_regions',index_col=1)
-df_inds = pandas.read_excel(xls, '_project_configuration')
+df_inds = pandas.read_excel(xls, 'indicators')
 df_destinations = pandas.read_excel(xls, 'destinations')
 df_osm = pandas.read_excel(xls, 'osm_and_open_space_defs')
 df_osm_dest = pandas.read_excel(xls, 'osm_dest_definitions')
@@ -87,13 +87,12 @@ if pandas.np.isnan(suffix):
   # this implies all suffixes are blank and this has been interpreted as 'nan'
   suffix = ''
 
-
 # derived study region name (no need to change!)
 study_region = 'study_region'
-db = 'li_{0}_{1}{2}'.format(locale,year,suffix).lower()
+db = '{}_{}_{}{}'.format(project_prefix,locale,year,suffix).lower()
 
 # Study region buffer
-buffered_study_region = 'buffered_study_region'
+buffered_study_region = 'study_region_{}{}'.format(study_buffer,units)
 
 # Derived hex settings - no need to change
 hex_grid = '{0}_hex_{1}{2}_diag'.format(study_region,hex_diag,units)
@@ -107,12 +106,13 @@ gdb_path    = os.path.join(locale_dir,gdb)
 db_sde_path = os.path.join(locale_dir,db_sde)
 dbComment = 'Liveability indicator data for {0} {1}.'.format(locale,year)
 
-
 os.environ['PGHOST']     = db_host
 os.environ['PGPORT']     = str(db_port)
 os.environ['PGUSER']     = db_user
 os.environ['PGPASSWORD'] = db_pwd
 os.environ['PGDATABASE'] = db
+
+preprocessed_data = os.path.join(folderPath,'study_region',locale,preprocessed_data.format(locale = locale))
 
 osm_data = os.path.join(df_studyregion.loc[locale]['osm_data'])
 osm2pgsql_exe = os.path.join(folderPath,df_parameters.loc['osm2pgsql_exe']['value'])
@@ -149,25 +149,12 @@ points = points.split(',')
 # but our last run of scripts invested in this, so for now we'll leave it in so things work
 # A better name might be something like 'units_of_analysis' or 'included_points'
 # I don't know; but that is what this refers to. Its just a name.
-parcel_dwellings = 'parcel_dwellings'
+sample_point_feature = '{}_accesspts_edited'.format(locale)
 
 # roads
 # Define network data name structures
 network_source = os.path.join(locale_dir,df_studyregion.loc[locale]['network_folder'])
-network_template = os.path.join(folderPath,road_data,df_parameters.loc['network_template']['value'])
-
-# Intersections with 3plus ways
-clean_intersections_locale = df_studyregion.loc[locale]['clean_intersections_locale']
-# intersections = os.path.join(folderPath,'roads/GDA2020_GA_LCC_3plus_way_intersections.gdb/intersections_2018_{}_gccsa10km'.format(locale.lower()))
-
-# Derived network data variables - no need to change, assuming the above works
-network_source_feature = '{}'.format(network_source_feature_dataset)
-
-# network dataset, without specifying the location (e.g. if gdb is work environment)
-in_network_dataset = os.path.join('{}'.format(network_source_feature_dataset),
-                                '{}_ND'.format(network_source_feature_dataset))
-# network dataset, with full path
-in_network_dataset_path = os.path.join(gdb_path,in_network_dataset)
+network_template = os.path.join(folderPath,df_parameters.loc['network_template']['value'])
 
 # Island exceptions are defined using ABS constructs in the project configuration file.
 # They identify contexts where null indicator values are expected to be legitimate due to true network isolation, 
@@ -185,7 +172,7 @@ snap_to_grid = 0.001
 if no_foward_edge_issues == 1:
   snap_to_grid = 0.01
   
-# Destinations - locate destinations.gdb within dest_dir (ie. 'D:\ntnl_li_2018\data\destinations\' or whereever your ntnl_li_2018 folder is located)
+# Destinations
 # Destinations data directory
 dest_dir = os.path.join(folderPath,df_parameters.loc['dest_dir']['value'])
 src_destinations = os.path.join(dest_dir,df_parameters.loc['src_destinations']['value'])

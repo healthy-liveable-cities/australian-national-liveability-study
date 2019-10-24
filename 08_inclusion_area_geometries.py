@@ -1,7 +1,7 @@
 # Script:  area_linkage_tables.py
 # Purpose: Create ABS and non-ABS linkage tables using 2016 data sourced from ABS
 #
-#          Parcel address points are already associated with Meshblock in the parcel_dwellings table
+#          Parcel address points are already associated with Meshblock in the sample_point_feature table
 #          Further linkage with the abs_linkage table (actually, a reduced version of the existing mb_dwellings)
 #          facilitates aggregation to ABS area units such as SA1, SA2, SA3, SA4.
 #
@@ -128,7 +128,7 @@ create_parcel_sos = '''
   CREATE TABLE parcel_sos AS 
   SELECT a.{id},
          sos_name_2016 
-  FROM parcel_dwellings a LEFT JOIN area_linkage b ON a.mb_code_20 = b.mb_code_2016;
+  FROM sample_point_feature a LEFT JOIN area_linkage b ON a.mb_code_20 = b.mb_code_2016;
   CREATE UNIQUE INDEX IF NOT EXISTS parcel_sos_idx ON  parcel_sos (gnaf_pid);
   '''.format(id = points_id)
 curs.execute(create_parcel_sos)
@@ -140,7 +140,7 @@ create_no_sausage_sos_tally = '''
   CREATE TABLE IF NOT EXISTS no_sausage_sos_tally AS
   SELECT a.sos_name_2016, 
          count(b.*) AS no_sausage_count,
-         count(b.*) / (SELECT COUNT(*) FROM parcel_dwellings)::double precision AS no_sausage_prop
+         count(b.*) / (SELECT COUNT(*) FROM sample_point_feature)::double precision AS no_sausage_prop
   FROM area_linkage a 
   LEFT JOIN no_sausage b ON a.mb_code_2016 = b.mb_code_20
   GROUP BY sos_name_2016 

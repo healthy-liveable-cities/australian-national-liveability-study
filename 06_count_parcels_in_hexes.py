@@ -26,7 +26,7 @@ arcpy.env.workspace = gdb_path
 arcpy.env.overwriteOutput = True 
 
 ## specify locations
-points = 'parcel_dwellings'
+points = 'sample_point_feature'
 
 ## Log file details (including header row)
 log_table = 'hex_parcels'
@@ -72,7 +72,7 @@ def writeLog(hex,parcelCount,cumfreq,percentile):
 # OUTPUT PROCESS
 try:    
   # Prepare to loop over points within polygons
-  arcpy.MakeFeatureLayer_management (parcel_dwellings, "pointsLayer")
+  arcpy.MakeFeatureLayer_management (sample_point_feature, "pointsLayer")
   
   denominator = int(arcpy.GetCount_management('pointsLayer').getOutput(0))
   cumfreq = 0

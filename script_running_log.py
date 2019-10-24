@@ -9,7 +9,7 @@ import sys
 import time
 import psycopg2
 # Import custom variables for National Liveability indicator process
-from config_ntnl_li_process import db,db_user,db_pwd
+from _project_setup import db,db_user,db_pwd
 
 # Define script logging to study region database function
 def script_running_log(script = '', task = '', start = '', prefix = ''):

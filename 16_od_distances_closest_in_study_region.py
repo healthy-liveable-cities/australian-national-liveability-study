@@ -43,7 +43,7 @@ arcpy.env.qualifiedFieldNames = False
 arcpy.env.overwriteOutput = True 
 
 # Specify geodatabase with feature classes of "origins"
-origin_points   = parcel_dwellings
+origin_points   = sample_point_feature
 origin_pointsID = points_id
 
 ## specify "destination_points" (e.g. destinations)
@@ -74,7 +74,7 @@ curs.execute("SELECT dest_name,dest_class,cutoff_closest FROM dest_type WHERE cu
 destination_list = list(curs)
 
 # tally expected hex-destination result set  
-curs.execute("SELECT COUNT(*) FROM parcel_dwellings;")
+curs.execute("SELECT COUNT(*) FROM sample_point_feature;")
 completion_goal = list(curs)[0][0] * len(set([x[1] for x in destination_list]))
 
 # get pid name

@@ -33,7 +33,7 @@ arcpy.env.qualifiedFieldNames = False
 arcpy.env.overwriteOutput = True 
 
 # Specify geodatabase with feature classes of "origins"
-origin_points   = parcel_dwellings
+origin_points   = sample_point_feature
 origin_pointsID = points_id
 
 ## specify "destination_points" (e.g. destinations)
@@ -90,7 +90,7 @@ if pid !='MainProcess':
   destination_list = list(curs)
   
   # tally expected parcel-destination class result set  
-  curs.execute("SELECT COUNT(*) FROM parcel_dwellings;")
+  curs.execute("SELECT COUNT(*) FROM sample_point_feature;")
   completion_goal = list(curs)[0][0] * len(set([x[0] for x in destination_list]))
   conn.close()
 
@@ -160,7 +160,7 @@ def ODMatrixWorkerFunction(hex):
         null_dest_insert = '''
          INSERT INTO {table} ({id}, hex, dest_class, distances)  
          SELECT gnaf_pid,{hex}, dest_class, '{curlyo}{curlyc}'::int[] 
-           FROM parcel_dwellings 
+           FROM sample_point_feature 
          CROSS JOIN (SELECT DISTINCT(dest_class) dest_class 
                        FROM dest_type 
                       WHERE dest_class IN ('{dest_list}')) d
@@ -190,7 +190,7 @@ def ODMatrixWorkerFunction(hex):
             destStartTime = time.time()
             if dest_count > 0:
               curs.execute('''SELECT {id} 
-                              FROM parcel_dwellings p 
+                              FROM sample_point_feature p 
                               WHERE hex_id = {hex}
                               AND NOT EXISTS (SELECT 1 FROM {table} o 
                                               WHERE hex = {hex}
@@ -249,7 +249,7 @@ def ODMatrixWorkerFunction(hex):
               null_dest_insert = '''
                 INSERT INTO {table} ({id}, hex, dest_class, distances)  
                 SELECT gnaf_pid,{hex}, '{dest_class}', '{curlyo}{curlyc}'::int[] 
-                  FROM parcel_dwellings 
+                  FROM sample_point_feature 
                  WHERE hex_id = {hex} 
                  ON CONFLICT DO NOTHING;
                 '''.format(table = result_table,
@@ -281,7 +281,7 @@ def ODMatrixWorkerFunction(hex):
               null_dest_insert = '''
                INSERT INTO {table} ({id}, hex, dest_class, distances)  
                SELECT gnaf_pid,{hex}, '{dest_class}', '{curlyo}{curlyc}'::int[] 
-                 FROM parcel_dwellings p
+                 FROM sample_point_feature p
                WHERE hex_id = {hex}
                  AND NOT EXISTS (SELECT 1 FROM {table} o 
                                   WHERE dest_class = '{dest_class}' 
@@ -356,7 +356,7 @@ if __name__ == '__main__':
           parcels.count, 
           processed.processed
    FROM (SELECT COUNT(DISTINCT(dest_class)) FROM dest_type WHERE cutoff_count IS NOT NULL and count > 0) destinations,
-        (SELECT COUNT(*) FROM parcel_dwellings) parcels,
+        (SELECT COUNT(*) FROM sample_point_feature) parcels,
         (SELECT processed FROM {}) processed;
   '''.format(progress_table)
   curs.execute(evaluate_progress)
@@ -380,7 +380,7 @@ if __name__ == '__main__':
             parcels.count, 
             processed.processed
      FROM (SELECT COUNT(DISTINCT(dest_class)) FROM dest_type WHERE cutoff_count IS NOT NULL and count > 0) destinations,
-          (SELECT COUNT(*) FROM parcel_dwellings) parcels,
+          (SELECT COUNT(*) FROM sample_point_feature) parcels,
           (SELECT processed FROM {}) processed;
     '''.format(progress_table)
     curs.execute(evaluate_progress)

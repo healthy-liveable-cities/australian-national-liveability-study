@@ -36,7 +36,7 @@ arcpy.env.qualifiedFieldNames = False
 arcpy.env.overwriteOutput = True 
 
 # Specify geodatabase with feature classes of "origins"
-origin_points   = parcel_dwellings
+origin_points   = sample_point_feature
 origin_pointsID = points_id
 
 ## specify "destinations"
@@ -173,7 +173,7 @@ def ODMatrixWorkerFunction(hex):
       evaluate_os_intersection = '''
       INSERT INTO od_aos ({id},aos_id)
       SELECT {id},-9999
-      FROM parcel_dwellings p
+      FROM sample_point_feature p
       WHERE hex_id = {hex};
        '''.format(id = points_id.lower(),
                  hex = hex[0])
@@ -199,7 +199,7 @@ def ODMatrixWorkerFunction(hex):
         SELECT {id}, 
                 aos_id,
                 0
-        FROM parcel_dwellings p, open_space_areas o
+        FROM sample_point_feature p, open_space_areas o
         WHERE hex_id = {hex} 
         AND ST_Intersects(p.geom,o.geom)
         ON CONFLICT ({id}, aos_id) 
@@ -284,7 +284,7 @@ def ODMatrixWorkerFunction(hex):
       FROM  od_aos o
       WHERE EXISTS 
       (SELECT 1 
-         FROM parcel_dwellings t
+         FROM sample_point_feature t
         WHERE t.hex_id = {hex} 
           AND t.{id} = o.{id})
       GROUP BY o.{id}
@@ -365,7 +365,7 @@ if __name__ == '__main__':
   antijoin = '''
     SELECT p.hex_id, 
            jsonb_agg(jsonb_strip_nulls(to_jsonb(p.{id}))) AS incomplete
-    FROM parcel_dwellings p
+    FROM sample_point_feature p
     WHERE NOT EXISTS 
     (SELECT 1 FROM od_aos_jsonb s WHERE s.{id} = p.{id})
     GROUP BY p.hex_id;

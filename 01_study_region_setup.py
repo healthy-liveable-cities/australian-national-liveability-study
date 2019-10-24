@@ -1,7 +1,7 @@
 # Script:  area_linkage_tables.py
 # Purpose: Create ABS and non-ABS linkage tables using 2016 data sourced from ABS
 #
-#          Parcel address points are already associated with Meshblock in the parcel_dwellings table
+#          Parcel address points are already associated with Meshblock in the sample_point_feature table
 #          Further linkage with the abs_linkage table (actually, a reduced version of the existing mb_dwellings)
 #          facilitates aggregation to ABS area units such as SA1, SA2, SA3, SA4.
 #
@@ -43,7 +43,8 @@ task = '\nCreate area linkage tables using 2016 data sourced from ABS'
 engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_user,
                                                                       pwd  = db_pwd,
                                                                       host = db_host,
-                                                                      db   = db))
+                                                                      db   = db), 
+                       use_native_hstore=False)
 
 print("Commencing task: {} at {}".format(task,time.strftime("%Y%m%d-%H%M%S")))
 # connect to the PostgreSQL server
@@ -70,30 +71,50 @@ for geo in geo_imports.index.values:
                                            gpkg = data) 
               )
       print(command)
-      sp.call(command, shell=True,cwd=os.path.dirname(os.path.join(folderPath,clean_intersections_gpkg)))
+      sp.call(command, shell=True,cwd=os.path.dirname(os.path.join(folderPath)))
 
 print("Done.")
 
-print("Create study region... "),
-sql = '''
-CREATE TABLE IF NOT EXISTS study_region AS 
-SELECT ST_Union(geom) AS geom
-FROM {} 
-WHERE {}
-'''.format(region_shape,region_where_clause)
-curs.execute(sql)
-conn.commit()
-print("Done.")
+print("Import pre-processed data for the Highlife study... "),
+tables = [['clean_intersections_12m'],
+          ['edges'],
+          ['nodes'],
+          ['osm_20190902_line'],
+          ['osm_20190902_point'],
+          ['osm_20190902_polygon'],
+          ['osm_20190902_roads'],
+          ['{}_au_2019'.format(locale),                            'study_region'],
+          ['{}_au_2019_10000m'.format(locale),                     'study_region_10000m'],
+          ['{}_au_2019_hex_3200m_diag'.format(locale),             'study_region_hex_3200m_diag'],
+          ['{}_au_2019_hex_3200m_diag_3200m_buffer'.format(locale),'study_region_hex_3200m_diag_3200m_buffer'],
+          ['{}_AccessPts_Edited'.format(locale).lower()],
+          ['{}_Footprints_v3'.format(locale).lower(),'footprints']
+          ]
 
-print("Create buffered study region... "),
-sql = '''
-CREATE TABLE IF NOT EXISTS buffered_study_region AS 
-SELECT ST_Buffer(geom,{}) AS geom 
-FROM study_region
-'''.format(study_buffer)
-curs.execute(sql)
-conn.commit()
-print("Done.")
+command = (
+              ' ogr2ogr -overwrite -progress -f "PostgreSQL" '
+              ' -t_srs "EPSG:{to_epsg}" ' 
+              ' PG:"host={host} port=5432 dbname={db}'
+              ' user={user} password = {pwd}" '
+              ' "{gpkg}" '
+              ' -lco geometry_name="geom"'.format(host = db_host,
+                                           db = db,
+                                           user = db_user,
+                                           pwd = db_pwd,
+                                           to_epsg = srid,
+                                           gpkg = preprocessed_data) 
+              )
+print(command)
+sp.call(command, shell=True,cwd=os.path.dirname(preprocessed_data))
+
+for t in tables:
+    if len(t) == 2:
+        sql = '''ALTER TABLE IF EXISTS {} RENAME TO {}'''.format(t[0],t[1])
+        curs.execute(sql)
+        conn.commit()
+        sql = '''ALTER INDEX IF EXISTS {}_fid_seq RENAME TO {}_fid_seq'''.format(t[0],t[1])
+        curs.execute(sql)
+        conn.commit()
 
 print("Remove from region tables records whose geometries do not intersect buffered study region bounds ... ")
 for area in df_regions.table.dropna().values:
@@ -106,16 +127,6 @@ for area in df_regions.table.dropna().values:
     '''.format(area = area,
                buffered_study_region = buffered_study_region))
     conn.commit()
-
-print("Create buffered study region... "),
-sql = '''
-CREATE TABLE IF NOT EXISTS buffered_study_region AS 
-SELECT ST_Buffer(geom,{}) AS geom 
-FROM study_region
-'''.format(study_buffer)
-curs.execute(sql)
-conn.commit()
-print("Done.")
 
 print("Initiate area linkage table based on smallest region in region list (first entry: {})... )".format(geographies[0])),
 print('''(note that a warning "Did not recognize type 'geometry' of column 'geom'" may appear; this is fine.)''')
@@ -134,18 +145,18 @@ for csv in csv_linkage:
     print('  - {}'.format(retain))
     if len(data_list) > 1:
         dfs = [pandas.read_csv(f, 
-                                   compression='infer', 
-                                   header=0, 
-                                   sep=',', 
-                                   quotechar='"') 
+                               compression='infer', 
+                               header=0, 
+                               sep=',', 
+                               quotechar='"') 
                     for f in data_list]
         df = pandas.concat(dfs).sort_index()
     else:
         df = pandas.read_csv(data_list[0], 
-                                   compression='infer', 
-                                   header=0, 
-                                   sep=',', 
-                                   quotechar='"') 
+                             compression='infer', 
+                             header=0, 
+                             sep=',', 
+                             quotechar='"') 
     df.columns = map(str.lower, df.columns)
     df = df.loc[:,retain].reset_index()
     df[linkage_id] = df[linkage_id].astype(str) 
@@ -219,7 +230,7 @@ SpatialRef = arcpy.SpatialReference(SpatialRef)
 # Create output gdb if not already existing
 if os.path.exists(gdb_path):
   print("Using extant file geodatabase: {}".format(gdb_path)) 
-if not os.path.exists(gdb_path):
+else:
   arcpy.CreateFileGDB_management(locale_dir,gdb)
   print("File geodatabase created: {}".format(gdb_path))
 
@@ -227,30 +238,22 @@ if not os.path.exists(gdb_path):
 arcpy.env.workspace = db_sde_path
 arcpy.env.overwriteOutput = True
 
-arcpy.CopyFeatures_management('public.{}'.format(study_region), os.path.join(gdb_path,study_region))
-arcpy.CopyFeatures_management('public.{}'.format(buffered_study_region), os.path.join(gdb_path,buffered_study_region))
-arcpy.CopyFeatures_management('public.mb_dwellings', os.path.join(gdb_path,'mb_dwellings'))
-
-# output buffered studyregion shp
-locale_4326_shp = os.path.join(locale_dir,'{}_{}_{}m_epsg4326'.format(locale.lower(),study_region,study_buffer))
-
-command = (
-      ' ogr2ogr -f "ESRI Shapefile" {out_feature}.shp  '
-      ' -s_srs "EPSG:{from_epsg}" -t_srs "EPSG:{to_epsg}" ' 
-      ' PG:"host={host} port=5432 dbname={db}'
-      ' user={user} password = {pwd}" '
-      ' "{table}" '.format(host = db_host,
-                                   db = db,
-                                   user = db_user,
-                                   pwd = db_pwd,
-                                   out_feature = locale_4326_shp,
-                                   from_epsg = srid,
-                                   to_epsg = 4326,
-                                   table = buffered_study_region) 
-      )
-print(command)
-sp.call(command, shell=True)
-
+features = ['{}'.format(study_region),
+            '{}'.format(buffered_study_region),
+            sample_point_feature,
+            'edges',
+            'nodes',
+            'mb_dwellings']
+for feature in features:
+    print(feature)
+    try:
+        if arcpy.Exists('public.{}'.format(feature)):
+            arcpy.CopyFeatures_management('public.{}'.format(feature), os.path.join(gdb_path,feature))
+        else:
+            print("It seems that the feature doesn't exist...")
+    except:
+       print("... that didn't work ...")
+       
 # output to completion log					
 script_running_log(script, task, start, locale)
 conn.close()

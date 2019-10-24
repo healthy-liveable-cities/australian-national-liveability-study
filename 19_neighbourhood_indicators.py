@@ -332,7 +332,7 @@ res = curs.fetchone()
 if res:
     print("Table exists.")
 if res is None:
-    create_table = '''DROP TABLE IF EXISTS {table}; CREATE TABLE {table} AS SELECT {id} FROM parcel_dwellings;'''.format(table = table[0], id = points_id.lower())
+    create_table = '''DROP TABLE IF EXISTS {table}; CREATE TABLE {table} AS SELECT {id} FROM sample_point_feature;'''.format(table = table[0], id = points_id.lower())
     curs.execute(create_table)
     conn.commit()
     for threshold_type in ['hard','soft']:
@@ -367,7 +367,7 @@ res = curs.fetchone()
 if res:
     print("Table exists.")
 if res is None:
-    create_table = '''DROP TABLE IF EXISTS {table}; CREATE TABLE {table} AS SELECT {id} FROM parcel_dwellings;'''.format(table = table[0], id = points_id.lower())
+    create_table = '''DROP TABLE IF EXISTS {table}; CREATE TABLE {table} AS SELECT {id} FROM sample_point_feature;'''.format(table = table[0], id = points_id.lower())
     curs.execute(create_table)
     conn.commit()
     
@@ -412,7 +412,7 @@ res = curs.fetchone()
 if res:
     print("Table exists.")
 if res is None:
-    create_table = '''DROP TABLE IF EXISTS {table}; CREATE TABLE {table} AS SELECT {id} FROM parcel_dwellings;'''.format(table = table[0], id = points_id.lower())
+    create_table = '''DROP TABLE IF EXISTS {table}; CREATE TABLE {table} AS SELECT {id} FROM sample_point_feature;'''.format(table = table[0], id = points_id.lower())
     curs.execute(create_table)
     conn.commit()
     # we just calculate walkability at 1600m, so we'll set nh_threshold to that value
@@ -509,7 +509,7 @@ table = ['ind_os_distances_3200m','os']
 print(" - {table}".format(table = table[0])),
 
 sql = '''
-CREATE TABLE IF NOT EXISTS {table} AS SELECT {id} FROM parcel_dwellings;
+CREATE TABLE IF NOT EXISTS {table} AS SELECT {id} FROM sample_point_feature;
 '''.format(table = table[0], id = points_id.lower())
 curs.execute(sql)
 conn.commit()
@@ -542,10 +542,10 @@ for aos in aos_of_interest:
         ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {measure} int[];
         UPDATE {table} t 
         SET {measure} = os_filtered.distances
-        FROM parcel_dwellings orig
+        FROM sample_point_feature orig
         LEFT JOIN (SELECT p.{id}, 
                         array_agg(distance) AS distances
-                    FROM parcel_dwellings p
+                    FROM sample_point_feature p
                     LEFT JOIN 
                     (SELECT {id},
                             (obj->>'aos_id')::int AS aos_id,
@@ -576,10 +576,10 @@ if not res:
     ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {measure} int[];
     UPDATE {table} t 
     SET {measure} = os_filtered.distances
-    FROM parcel_dwellings orig
+    FROM sample_point_feature orig
     LEFT JOIN (SELECT p.{id}, 
                     array_agg(distance) AS distances
-            FROM parcel_dwellings p
+            FROM sample_point_feature p
             LEFT JOIN (SELECT {id},
                                 (obj->>'aos_id')::int AS aos_id,
                                 (obj->>'distance')::int AS distance
@@ -615,11 +615,11 @@ if not res:
     ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {measure} int[];
     UPDATE {table} t 
     SET {measure} = os_filtered.distances
-    FROM parcel_dwellings orig
+    FROM sample_point_feature orig
     LEFT JOIN (SELECT DISTINCT ON (p.{id}) 
                     p.{id}, 
                     array_agg(distance) AS distances
-            FROM parcel_dwellings p
+            FROM sample_point_feature p
             LEFT JOIN   
                         (SELECT {id},  
                         (obj->>'aos_id')::int AS aos_id, 
@@ -792,7 +792,7 @@ for nh_distance in [800,1600]:
         AVG(sum) AS average_sum_of_naplan_{nh_distance}m, 
         AVG(non_null_count) AS average_test_count_{nh_distance}m, 
         AVG(sum/ nullif(non_null_count::float,0)) AS naplan_average_{nh_distance}m 
-    FROM parcel_dwellings p 
+    FROM sample_point_feature p 
     LEFT JOIN  
         -- get the distances and ids for all AOS with schools within 3200 m
         (SELECT {id}, 
@@ -820,7 +820,7 @@ CREATE TABLE IF NOT EXISTS ind_school_naplan_cl_3200m AS
 SELECT p.{id},  
        max(naplan."sum"/nullif(naplan.non_null_count::float,0)) AS closest_school_naplan_average,
        o.distance
-FROM parcel_dwellings p 
+FROM sample_point_feature p 
 LEFT JOIN  
     -- get the distanc and id for closest AOS with school within 3200 m
     (SELECT DISTINCT ON ({id})
