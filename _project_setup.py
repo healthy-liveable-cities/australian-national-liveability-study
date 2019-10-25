@@ -155,6 +155,10 @@ sample_point_feature = '{}_accesspts_edited'.format(locale)
 # Define network data name structures
 network_source = os.path.join(locale_dir,df_studyregion.loc[locale]['network_folder'])
 network_template = os.path.join(folderPath,df_parameters.loc['network_template']['value'])
+in_network_dataset = os.path.join('{}'.format(network_source_feature_dataset),
+                                '{}_ND'.format(network_source_feature_dataset))
+# network dataset, with full path
+in_network_dataset_path = os.path.join(gdb_path,in_network_dataset)
 
 # Island exceptions are defined using ABS constructs in the project configuration file.
 # They identify contexts where null indicator values are expected to be legitimate due to true network isolation, 
