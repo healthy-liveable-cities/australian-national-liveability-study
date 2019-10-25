@@ -95,9 +95,11 @@ db = '{}_{}_{}{}'.format(project_prefix,locale,year,suffix).lower()
 buffered_study_region = 'study_region_{}{}'.format(study_buffer,units)
 
 # Derived hex settings - no need to change
-hex_grid = '{0}_hex_{1}{2}_diag'.format(study_region,hex_diag,units)
-hex_grid_buffer =  '{0}_hex_{1}{2}_diag_{3}{2}_buffer'.format(study_region,hex_diag,units,hex_buffer)
-hex_side = float(hex_diag)*0.5
+poly_check = ['{}'.format(polygon_feature),'{}'.format(polygon_id),'{}'.format(polygon_unit)]
+if True in [x in ['','nan'] for x in poly_check]:
+    hex_grid = '{0}_hex_{1}{2}_diag'.format(study_region,hex_diag,units)
+    hex_grid_buffer =  '{0}_hex_{1}{2}_diag_{3}{2}_buffer'.format(study_region,hex_diag,units,hex_buffer)
+    hex_side = float(hex_diag)*0.5
 
 # Database names -- derived from above parameters; (no need to change!)
 gdb       = '{}.gdb'.format(db)
@@ -111,6 +113,9 @@ os.environ['PGPORT']     = str(db_port)
 os.environ['PGUSER']     = db_user
 os.environ['PGPASSWORD'] = db_pwd
 os.environ['PGDATABASE'] = db
+
+# Sample point feature name
+sample_point_feature = '{}_accesspts_edited'.format(locale)
 
 preprocessed_data = os.path.join(folderPath,'study_region',locale,preprocessed_data.format(locale = locale))
 
@@ -139,17 +144,6 @@ dwellings        = df_regions.loc['Dwellings','data']
 dwellings_id     = df_regions.loc['Dwellings','linkage_id']
 dwellings_field  = df_regions.loc['Dwellings','id']
 
-# parcels (point data locations used for sampling)
-# Note that the process assumes we have already transformed points to the project's spatial reference
-# Point data locations (e.g. GNAF address point features)
-points = df_studyregion.loc[locale]['points']
-points = points.split(',')
-
-# The below is perhaps a redundant naming convention,
-# but our last run of scripts invested in this, so for now we'll leave it in so things work
-# A better name might be something like 'units_of_analysis' or 'included_points'
-# I don't know; but that is what this refers to. Its just a name.
-sample_point_feature = '{}_accesspts_edited'.format(locale)
 
 # roads
 # Define network data name structures

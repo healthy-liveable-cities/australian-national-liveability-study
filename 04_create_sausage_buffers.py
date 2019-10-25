@@ -1,8 +1,8 @@
 # Script:  createSausageBuffer_Loop.py
 # Purpose: This script creates sausage buffers for specified input distance.  
 # It:
-#  -- iterates over hexes not previously processed
-#  -- it loops over points within hexes not previously processed
+#  -- iterates over polygons not previously processed
+#  -- it loops over points within polygons not previously processed
 #  -- outputs the lines from a network service area of specified route length
 #  -- the final line feature which is stored in the project postgresql database
 #     is then buffered a specified distance
@@ -50,16 +50,16 @@ denominator = int(arcpy.GetCount_management(points).getOutput(0))
 sausage_buffer_table = "sausagebuffer_{}".format(distance)
 nh_sausagebuffer_summary = "nh{}m".format(distance)
 
-# if issues have arisen in processing, commencement hex and object may be specified here
-hexStart    = 0
-# set object floor - ie. objects subsequent to this within hex are processed
+# if issues have arisen in processing, commencement polygon and object may be specified here
+polygonStart    = 0
+# set object floor - ie. objects subsequent to this within polygon are processed
 objectFloor = 0
 
 # point chunk size (for looping within polygon)
 group_by = 1000
 
 ## Log file details (including header row)
-log_table = 'log_hex_sausage_buffer'
+log_table = 'log_sausage_buffer'
 
 # temp --- using SSD copies to save write/read time, and avoid multiprocessing conflicts
 if not os.path.exists(temp):
@@ -68,7 +68,7 @@ if not os.path.exists(temp):
 createTable_log     = '''
   --DROP TABLE IF EXISTS {0};
   CREATE TABLE IF NOT EXISTS {0}
-    (hex integer PRIMARY KEY, 
+    (polygon integer PRIMARY KEY, 
     parcel_count integer NOT NULL, 
     status varchar, 
     moment varchar, 
@@ -83,15 +83,17 @@ queryInsert      = '''
 queryUpdate      = '''
   ON CONFLICT ({0}) 
   DO UPDATE SET {1}=EXCLUDED.{1},{2}=EXCLUDED.{2},{3}=EXCLUDED.{3},{4}=EXCLUDED.{4} 
-  '''.format('hex','parcel_count','status','moment','mins')  
+  '''.format('polygon','parcel_count','status','moment','mins')  
 
 createTable_sausageBuffer = '''
-  --DROP TABLE IF EXISTS {0};
-  CREATE TABLE IF NOT EXISTS {0}
-    ({1} varchar PRIMARY KEY, 
-     hex integer,
+  --DROP TABLE IF EXISTS {table};
+  CREATE TABLE IF NOT EXISTS {table}
+    ({id} {type} PRIMARY KEY, 
+     polygon integer,
      geom geometry);  
-  '''.format(sausage_buffer_table,points_id.lower())
+  '''.format(table = sausage_buffer_table,
+             id = points_id.lower(),
+             type = points_id_type)
 
 createTable_processor_log = '''
   DROP TABLE IF EXISTS processor_log;
@@ -100,32 +102,25 @@ createTable_processor_log = '''
      name varchar);  
   '''
   
-queryInsertSausage = '''
-  INSERT INTO {} VALUES
-  '''.format(sausage_buffer_table)  
-  
 # Define log file write method
-def writeLog(hex = 0,parcel_count = 0,status = 'NULL',mins = 0, create = log_table):
+def writeLog(polygon = 0,parcel_count = 0,status = 'NULL',mins = 0, create = log_table):
   try:
-
     if create == 'create':  
       curs.execute(createTable_log)
       conn.commit()
-      
-      # print('{:>10} {:>15} {:>20} {:>15} {:>11}'.format('HexID','parcel_count','Status','Time','Minutes'))
+      # print('{:>10} {:>15} {:>20} {:>15} {:>11}'.format('polygonID','parcel_count','Status','Time','Minutes'))
     else:
       moment = time.strftime("%Y%m%d-%H%M%S")
       # print to screen regardless
-      # print('{:9.0f} {:14.0f}  {:>19s} {:>14s}   {:9.2f}'.format(hex, parcel_count, status, moment, mins))
+      # print('{:9.0f} {:14.0f}  {:>19s} {:>14s}   {:9.2f}'.format(polygon, parcel_count, status, moment, mins))
       
       # write to sql table
-      curs.execute("{0} ({1},{2},'{3}','{4}',{5}) {6};".format(queryInsert,hex, parcel_count, status, moment, mins, queryUpdate))
+      curs.execute("{0} ({1},{2},'{3}','{4}',{5}) {6};".format(queryInsert,polygon, parcel_count, status, moment, mins, queryUpdate))
       conn.commit()
-      
   except:
     print('''Issue with log file using parameters:
-             hex: {}  parcel_count: {}  status: {}   mins:  {}  create:  {}
-             '''. format(hex, parcel_count, status, mins, create))
+             polygon: {}  parcel_count: {}  status: {}   mins:  {}  create:  {}
+             '''. format(polygon, parcel_count, status, mins, create))
 
 def unique_values(table, field):
   data = arcpy.da.TableToNumPyArray(table, [field])
@@ -195,59 +190,63 @@ if __name__ != '__main__':
   
   
 # Worker/Child PROCESS main function
-def CreateSausageBufferFunction(hex): 
+def CreateSausageBufferFunction(polygon): 
   # initiate postgresql connection
   conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
   curs = conn.cursor() 
-  
-  # Worker Task is hex-specific by definition/parallel
-  hexStartTime = time.time()
-  
-  # fcBufferLines  = "Lines_Buffer_{}".format(hex)
+  # Worker Task is polygon-specific by definition/parallel
+  polygonStartTime = time.time()
+  # fcBufferLines  = "Lines_Buffer_{}".format(polygon)
   fcLines  = os.path.join(arcpy.env.scratchGDB,"Lines")
-  
-  if hex < hexStart:
-    # print('hex {} is prior to requested start point, hex {} and is assumed processed; Skipping.'.format(hex,str(hexStart)))
+  if polygon < polygonStart:
+    # print('polygon {} is prior to requested start point, polygon {} and is assumed processed; Skipping.'.format(polygon,str(polygonStart)))
     return(1)
-    
   # make sure Network Analyst licence is 'checked out'
   arcpy.CheckOutExtension('Network')
-  
   # list of OIDs to iterate over
   antijoin = '''
-    SELECT p.{id}
-    FROM sample_point_feature p
-    WHERE hex_id = {hex}
+    SELECT p.{id}::text
+    FROM {sample_point_feature} p
+    WHERE {polygon_id} = {polygon}
     AND NOT EXISTS 
     (SELECT 1 FROM {table} s WHERE s.{id} = p.{id});
-  '''.format(id = points_id.lower(), hex  = hex, table = sausage_buffer_table)
+  '''.format(sample_point_feature = sample_point_feature,
+             id = points_id.lower(), 
+             polygon_id = polygon_id, 
+             polygon = polygon, 
+             table = sausage_buffer_table)
   curs.execute(antijoin)
   point_id_list = [x[0] for x in  list(curs)]
   valid_pointCount = len(point_id_list) 
   # Prepare to loop over points within polygons
-  where_clause = '''"HEX_ID" = {hex} AND "{id}" in ('{id_list}')'''.format(hex = hex, 
-                                                                   id  = points_id,
-                                                                   id_list = "','".join(point_id_list))
-  arcpy.MakeFeatureLayer_management(points, 
-                                    "selection_{}".format(pid), 
-                                    where_clause = where_clause)
-  pointCount = int(arcpy.GetCount_management("selection_{}".format(pid)).getOutput(0))
+  if 'int' in points_id_type:
+      where_clause = '''
+       "{polygon_id}" = {polygon} AND "{id}" in ({id_list})
+       '''.format(polygon_id = polygon_id, 
+                  polygon = polygon, 
+                  id  = points_id,
+                  id_list = ",".join(point_id_list))
+  else:
+      where_clause = '''
+       "{polygon_id}" = {polygon} AND "{id}" in ('{id_list}')
+       '''.format(polygon_id = polygon_id, 
+                  polygon = polygon, 
+                  id  = points_id,
+                  id_list = "','".join(point_id_list))
   
+  arcpy.MakeFeatureLayer_management(points, "selection_{}".format(pid), where_clause = where_clause)
+  pointCount = int(arcpy.GetCount_management("selection_{}".format(pid)).getOutput(0))
   if pointCount == 0:
-    # print('No unprocessed parcels within hex {}; Skipping.'.format(hex))
+    # print('No unprocessed parcels within polygon {}; Skipping.'.format(polygon))
     return(2)
-    
-  if hex==hexStart:
+  if polygon==polygonStart:
     count =  max(1,(objectFloor//group_by)+1)
     current_floor =  objectFloor
-    
   else:
     count = 1          
     current_floor = 0    
-
   if valid_pointCount == 0:
     return(3)  
-  
   # commence iteration
   row_count = 0
   while (current_floor < valid_pointCount):  
@@ -258,16 +257,16 @@ def CreateSausageBufferFunction(hex):
       current_max = min(current_floor + group_by,valid_pointCount)
       if current_floor > 0:
         current_floor +=1
-      
-      chunkSQL = ''' "{id}" in ('{id_list}')'''.format(id = points_id,
-                                                       id_list = "','".join(point_id_list[current_floor:current_max+1]))
+      if 'int' in points_id_type:
+          id_list = ",".join(point_id_list[current_floor:current_max+1])
+          chunkSQL = ''' "{id}" in ({id_list})'''.format(id = points_id,id_list = id_list)
+      else:
+          id_list = "','".join(point_id_list[current_floor:current_max+1])
+          chunkSQL = ''' "{id}" in ('{id_list}')'''.format(id = points_id,id_list = id_list)
       place = "after defining chunkSQL"
-
+      
       chunk_group = arcpy.SelectLayerByAttribute_management("selection_{}".format(pid), where_clause = chunkSQL)
       place = "after defining chunk_group"
-      
-      # iterCount = int(arcpy.GetCount_management(chunk_group).getOutput(0))
-      # print("now processing points {} to {} inclusive of {} unprocessed points within hex {} on processor {}".format(current_floor, current_max, valid_pointCount, hex, pid))
       
       # Process: Add Locations
       arcpy.AddLocations_na(in_network_analysis_layer = os.path.join(arcpy.env.scratchGDB,"ServiceArea"), 
@@ -311,32 +310,45 @@ def CreateSausageBufferFunction(hex):
         for row in cursor:
           id =  row[0].encode('utf-8')
           wkt = row[1].encode('utf-8').replace(' NAN','').replace(' M ','')
-          curs.execute(queryInsertSausage + "( '{0}',{1},ST_Buffer(ST_SnapToGrid(ST_GeometryFromText('{2}', {3}),{5}),{4}));".format(id,hex,wkt,srid,line_buffer,snap_to_grid))
+          sql = '''
+                INSERT INTO {table} VALUES
+                ( 
+                 '{id}',
+                 {polygon},
+                 ST_Buffer(ST_SnapToGrid(ST_GeometryFromText('{wkt}', {srid}),{snap_to_grid}),{line_buffer})
+                );
+          '''.format(table = sausage_buffer_table,
+                     id,
+                     polygon,
+                     wkt,
+                     srid,
+                     snap_to_grid,
+                     line_buffer
+                     )
+          curs.execute(sql)
           place = "after curs.execute insert sausage buffer" 
           conn.commit()
           place = "after conn.commit for insert sausage buffer" 
           row_count+=1  
       place = "after SearchCursor"           
-
       current_floor = (group_by * count)
       count += 1   
       place = "after increment floor and count"  
     except:
        print('''HEY, IT'S AN ERROR: {}
-                ERROR CONTEXT: hex: {} current_floor: {} current_max: {} row_count: {}
-                PLACE: {}'''.format(sys.exc_info(),hex,current_floor,current_max,row_count,place))
-       writeLog(hex,row_count, "ERROR",(time.time()-hexStartTime)/60, log_table)   
+                ERROR CONTEXT: polygon: {} current_floor: {} current_max: {} row_count: {}
+                PLACE: {}'''.format(sys.exc_info(),polygon,current_floor,current_max,row_count,place))
+       writeLog(polygon,row_count, "ERROR",(time.time()-polygonStartTime)/60, log_table)   
        return(666)
     finally:
        # clean up  
        arcpy.Delete_management("tempLayer_{}".format(pid))
        arcpy.Delete_management(fcLines)
-
   curs.execute("SELECT COUNT({}) FROM {};".format(points_id.lower(),sausage_buffer_table))
   numerator = list(curs)
   numerator = int(numerator[0][0])
-  writeLog(hex,row_count, "COMPLETED",(time.time()-hexStartTime)/60, log_table)   
-  progressor(numerator,denominator,start,"{} / {} points processed. Last completed hex: {}".format(numerator,denominator,hex))
+  writeLog(polygon,row_count, "COMPLETED",(time.time()-polygonStartTime)/60, log_table)   
+  progressor(numerator,denominator,start,"{} / {} {} points processed. Last completed polygon group: {}".format(numerator,denominator,polygon_unit,polygon))
   arcpy.Delete_management("selection_{}".format(pid))
   arcpy.CheckInExtension('Network')
   conn.close()
@@ -364,23 +376,25 @@ if __name__ == '__main__':
   conn.commit()
   
   # fetch list of successfully processed buffers, if any
-  unprocessed_hexes = '''
-    SELECT DISTINCT(hex_id)
-    FROM sample_point_feature p
+  unprocessed_polygons = '''
+    SELECT DISTINCT({polygon_id})
+    FROM {sample_point_feature} p
     WHERE NOT EXISTS 
     (SELECT 1 FROM {table} s WHERE s.{id} = p.{id});
-  '''.format(table = sausage_buffer_table,
-             id = points_id.lower())
-  curs.execute(unprocessed_hexes)
+  '''.format(sample_point_feature = sample_point_feature,
+             table = sausage_buffer_table,
+             id = points_id.lower(),
+             polygon_id = polygon_id)
+  curs.execute(unprocessed_polygons)
 
-  # compile list of remaining hexes to process
-  remaining_hex_list = [int(x[0]) for x in list(curs)]
-  
-  # Setup a pool of workers/child processes and split log output
-  pool = multiprocessing.Pool(nWorkers)
-  
-  # Divide work by hexes
-  pool.map(CreateSausageBufferFunction, remaining_hex_list, chunksize=1)
+  # compile list of remaining polygons to process
+  remaining_polygon_list = [int(x[0]) for x in list(curs)]
+  remaining_polygons = len(remaining_polygon_list)
+  if remaining_polygons > 0:
+      # Setup a pool of workers/child processes and split log output
+      pool = multiprocessing.Pool(nWorkers)
+      # Divide work by polygons
+      pool.map(CreateSausageBufferFunction, remaining_polygon_list, chunksize=remaining_polygons/nWorkers)
       
   # Create sausage buffer spatial index
   print("Creating sausage buffer spatial index... "),
@@ -395,7 +409,15 @@ if __name__ == '__main__':
       
   # Create summary table of parcel id and area
   print("Creating summary table of points with no sausage (are they mostly non-urban?)... "),  
-  curs.execute("DROP TABLE IF EXISTS no_sausage; CREATE TABLE no_sausage AS SELECT * FROM sample_point_feature WHERE {0} NOT IN (SELECT {0} FROM {1});".format(points_id,sausage_buffer_table))
+  sql = '''
+  DROP TABLE IF EXISTS no_sausage; 
+  CREATE TABLE no_sausage AS 
+  SELECT * FROM {sample_point_feature} 
+  WHERE {points_id} NOT IN (SELECT {points_id} FROM {sausage_buffer_table});
+  '''.format(sample_point_feature = sample_point_feature,
+             points_id=points_id,
+             sausage_buffer_table=sausage_buffer_table)
+  curs.execute(sql)
   conn.commit()    
   print("Done.")
   
