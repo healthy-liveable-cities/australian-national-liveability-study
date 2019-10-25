@@ -66,9 +66,9 @@ for area in analysis_regions:
         additional_fields = ''
     sql = '''  
       -- remove previous legacy table -- now redundant
-      DROP TABLE IF EXISTS area_{abbrev};
-      DROP TABLE IF EXISTS area_{abbrev}_included;
-      CREATE TABLE area_{abbrev}_included AS
+      -- DROP TABLE IF EXISTS area_{abbrev};
+      -- DROP TABLE IF EXISTS area_{abbrev}_included;
+      CREATE TABLE IF NOT EXISTS area_{abbrev}_included AS
       SELECT {area_id}, 
              {additional_fields}
              SUM(dwelling) AS dwellings,
@@ -93,8 +93,8 @@ for area in analysis_regions:
 
 print("  - SOS region tables")
 create_study_region_tables = '''
-  DROP TABLE IF EXISTS study_region_all_sos;
-  CREATE TABLE study_region_all_sos AS 
+  -- DROP TABLE IF EXISTS study_region_all_sos;
+  CREATE TABLE IF NOT EXISTS study_region_all_sos AS 
   SELECT sos_name_2016, 
          SUM(dwelling) AS dwelling,
          SUM(person) AS person,
@@ -103,11 +103,11 @@ create_study_region_tables = '''
     FROM area_linkage
     WHERE study_region IS TRUE
     GROUP BY sos_name_2016;
-  CREATE UNIQUE INDEX ix_study_region_all_sos ON study_region_all_sos (sos_name_2016);
+  CREATE UNIQUE INDEX IF NOT EXISTS ix_study_region_all_sos ON study_region_all_sos (sos_name_2016);
   CREATE INDEX IF NOT EXISTS gix_study_region_all_sos ON study_region_all_sos USING GIST (geom);
   
-  DROP TABLE IF EXISTS study_region_urban;
-  CREATE TABLE study_region_urban AS 
+  -- DROP TABLE IF EXISTS study_region_urban;
+  CREATE TABLE IF NOT EXISTS study_region_urban AS 
   SELECT urban, 
          SUM(dwelling) AS dwelling,
          SUM(person) AS person,
@@ -116,45 +116,41 @@ create_study_region_tables = '''
     FROM area_linkage
     WHERE study_region IS TRUE
     GROUP BY urban;
-  CREATE UNIQUE INDEX ix_study_region_urban ON study_region_urban (urban);
+  CREATE UNIQUE INDEX IF NOT EXISTS ix_study_region_urban ON study_region_urban (urban);
   CREATE INDEX IF NOT EXISTS gix_study_region_urban ON study_region_urban USING GIST (geom);
 '''.format(region = region.lower(), year = year)
 curs.execute(create_study_region_tables)
 conn.commit()
 
+sql = '''
+ALTER TABLE {sample_point_feature} ADD COLUMN IF NOT EXISTS mb_code_2016 text;
+UPDATE {sample_point_feature} set mb_code_2016 = t.mb_code_2016
+FROM (SELECT p.{points_id}, 
+             m.mb_code_2016
+      FROM {sample_point_feature} AS p 
+      INNER JOIN mb_2016_aust AS m
+       ON (ST_Intersects(p.geom, m.geom) 
+         AND NOT ST_Touches(p.geom, m.geom) )) t;
+'''.format(sample_point_feature = sample_point_feature, points_id = points_id)
+curs.execute(sql)
+conn.commit()
+
 print("  - SOS indexed by parcel")
 create_parcel_sos = '''
-  DROP TABLE IF EXISTS parcel_sos;
-  CREATE TABLE parcel_sos AS 
+  -- DROP TABLE IF EXISTS parcel_sos;
+  CREATE TABLE IF NOT EXISTS parcel_sos AS 
   SELECT a.{id},
          sos_name_2016 
-  FROM sample_point_feature a LEFT JOIN area_linkage b ON a.mb_code_20 = b.mb_code_2016;
-  CREATE UNIQUE INDEX IF NOT EXISTS parcel_sos_idx ON  parcel_sos (gnaf_pid);
-  '''.format(id = points_id)
+  FROM {sample_point_feature} a LEFT JOIN area_linkage b ON a.mb_code_2016 = b.mb_code_2016;
+  CREATE UNIQUE INDEX IF NOT EXISTS parcel_sos_idx ON  parcel_sos ({id});
+  '''.format(id = points_id,sample_point_feature = sample_point_feature)
 curs.execute(create_parcel_sos)
 conn.commit()
  
-print("Make a summary table (if not exists) of parcel points lacking sausage buffer, grouped by section of state (the idea is, only a small proportion should be major or other urban"),
-create_no_sausage_sos_tally = '''
-  DROP TABLE IF EXISTS no_sausage_sos_tally;
-  CREATE TABLE IF NOT EXISTS no_sausage_sos_tally AS
-  SELECT a.sos_name_2016, 
-         count(b.*) AS no_sausage_count,
-         count(b.*) / (SELECT COUNT(*) FROM sample_point_feature)::double precision AS no_sausage_prop
-  FROM area_linkage a 
-  LEFT JOIN no_sausage b ON a.mb_code_2016 = b.mb_code_20
-  GROUP BY sos_name_2016 
-  ORDER BY sos_name_2016 DESC;
-  DELETE FROM no_sausage_sos_tally WHERE no_sausage_count = 0;
-  CREATE UNIQUE INDEX IF NOT EXISTS ix_no_sausage_sos_tally ON no_sausage_sos_tally (sos_name_2016);
- '''
-curs.execute(create_no_sausage_sos_tally)
-conn.commit()
-print("Done.")
 
 print("Creating summary table  (if not exists) of parcel id and local neighbourhood area... "),
 createTable_nh1600m = '''
-  DROP TABLE IF EXISTS nh1600m;
+  -- DROP TABLE IF EXISTS nh1600m;
   CREATE TABLE IF NOT EXISTS nh1600m AS
     SELECT {0}, area_sqm, area_sqm/1000000 AS area_sqkm, area_sqm/10000 AS area_ha FROM 
       (SELECT {0}, ST_AREA(geom) AS area_sqm FROM {1}) AS t;

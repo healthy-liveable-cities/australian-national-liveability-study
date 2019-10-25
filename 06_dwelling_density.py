@@ -35,34 +35,40 @@ nh_sausagebuffer_summary = "nh{}m".format(distance)
 dd_table = 'dd_{}'.format(nh_sausagebuffer_summary)
 
 createTable_dd = '''
-  --DROP TABLE IF EXISTS {0};
-  CREATE TABLE IF NOT EXISTS {0}
-  ({1} varchar PRIMARY KEY,
+  --DROP TABLE IF EXISTS {table};
+  CREATE TABLE IF NOT EXISTS {table}
+  ({id} {type} PRIMARY KEY,
    dwellings integer,
    area_ha double precision,
    mb_area_ha double precision,
    dd_nh1600m double precision,
    mb_dd_nh1600m double precision
   ); 
-  '''.format(dd_table,points_id.lower())
+  '''.format(table = dd_table,
+             id  = points_id.lower(),
+             type = points_id_type)
   
 query_A = '''
-INSERT INTO {0} ({1},dwellings,area_ha,mb_area_ha,dd_nh1600m,mb_dd_nh1600m)
-(SELECT s.{1},  
+INSERT INTO {table} ({id},dwellings,area_ha,mb_area_ha,dd_nh1600m,mb_dd_nh1600m)
+(SELECT s.{id},  
         sum(dwelling) AS dwellings,
         nh.area_ha,
         sum(t.area_ha) AS mb_area_ha,
         sum(t.dwelling)/nh.area_ha::double precision as dd_nh1600m,
         sum(t.dwelling)/sum(t.area_ha)::double precision AS mb_dd_nh1600m
-  FROM {2} s
-  LEFT JOIN {4} nh ON s.gnaf_pid = nh.gnaf_pid
-  LEFT JOIN {3} t ON ST_intersects(s.geom, t.geom)
-  WHERE s.{1} IN
-'''.format(dd_table,points_id.lower(),buffer_table,meshblock_table,nh_sausagebuffer_summary)
+  FROM {buffer_table} s
+  LEFT JOIN {buffer_summary} nh ON s.{id} = nh.{id}
+  LEFT JOIN {meshblock_table} t ON ST_intersects(s.geom, t.geom)
+  WHERE s.{id} IN
+'''.format(table = dd_table,
+           id = points_id.lower(),
+           buffer_table = buffer_table,
+           meshblock_table = meshblock_table,
+           buffer_summary = nh_sausagebuffer_summary)
   
 query_C = '''
-  GROUP BY s.{0},nh.area_ha) ON CONFLICT DO NOTHING;
-  '''.format(points_id.lower())
+  GROUP BY s.{id},nh.area_ha) ON CONFLICT DO NOTHING;
+  '''.format(id = points_id.lower())
 
 #  Size of tuple chunk sent to postgresql 
 sqlChunkify = 500
@@ -92,7 +98,7 @@ print("{:4.2f} mins.".format((time.time() - start)/60))
 try:   
   print("fetch list of processed parcels, if any..."), 
   # (for string match to work, had to select first item of returned tuple)
-  curs.execute("SELECT {id} FROM {nh_geom} WHERE {id} NOT IN (SELECT {id} FROM dd_nh1600m);".format(id = points_id.lower(),
+  curs.execute("SELECT {id}::text FROM {nh_geom} WHERE {id} NOT IN (SELECT {id} FROM dd_nh1600m);".format(id = points_id.lower(),
   nh_geom  = buffer_table))
   point_id_list = [x[0] for x in  list(curs)]
   print("Done.")

@@ -317,13 +317,13 @@ def CreateSausageBufferFunction(polygon):
                  {polygon},
                  ST_Buffer(ST_SnapToGrid(ST_GeometryFromText('{wkt}', {srid}),{snap_to_grid}),{line_buffer})
                 );
-          '''.format(table = sausage_buffer_table,
-                     id,
-                     polygon,
-                     wkt,
-                     srid,
-                     snap_to_grid,
-                     line_buffer
+          '''.format(table        = sausage_buffer_table,
+                     id           = id                  ,
+                     polygon      = polygon             ,
+                     wkt          = wkt                 ,
+                     srid         = srid                ,
+                     snap_to_grid = snap_to_grid        ,
+                     line_buffer  = line_buffer
                      )
           curs.execute(sql)
           place = "after curs.execute insert sausage buffer" 
