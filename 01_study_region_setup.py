@@ -241,8 +241,6 @@ arcpy.env.overwriteOutput = True
 features = ['{}'.format(study_region),
             '{}'.format(buffered_study_region),
             sample_point_feature,
-            'edges',
-            'nodes',
             'mb_dwellings']
 for feature in features:
     print(feature)
@@ -253,7 +251,38 @@ for feature in features:
             print("It seems that the feature doesn't exist...")
     except:
        print("... that didn't work ...")
-       
+
+## NOTE:
+# The scripts copying of resources from Postgis using the arcpy spatial database engine (SDE) connection
+# to a file geodatabase (GDB) for network analysis did not work, and nor did manually attempting to copy 
+# from the SDE to the GDB.  
+# In lieu of this, features were first exported to a 'processing' geopackage, 
+# and then manually copied to each regions' GDB using ArcCatalog.  
+
+print("Exporting to GPKG as intermediary step in case of automated copy failure; can then manually copy to the study region gdb")
+features = ['area_linkage',
+            '{}'.format(study_region),
+            '{}'.format(buffered_study_region),
+            sample_point_feature,
+            'footprints',
+            'edges',
+            'nodes',
+            'mb_dwellings']
+processing_gpkg = os.path.join(folderPath,'study_region',locale,'{}_processing.gpkg'.format(locale))
+command = (
+        ' ogr2ogr -overwrite -f GPKG  '
+        ' {gpkg} ' 
+        ' PG:"host={host} port=5432 dbname={db} user={user} password = {pwd}" '
+        ' {tables} '.format(gpkg = processing_gpkg,
+                              host = db_host,
+                              db = db,
+                              user = db_user,
+                              pwd = db_pwd,
+                              tables = ' '.join(features)
+                              )
+)                              
+sp.call(command, shell=True)
+print("Done.")
 # output to completion log					
 script_running_log(script, task, start, locale)
 conn.close()
