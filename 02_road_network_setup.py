@@ -64,11 +64,10 @@ arcpy.CheckOutExtension('Network')
 # # This was achieved for the current OSMnx schema with the below code
 # arcpy.CreateTemplateFromNetworkDataset_na(network_dataset="D:/ntnl_li_2018_template/data/li_melb_2016_osmnx.gdb/PedestrianRoads/PedestrianRoads_ND", 
                                           # output_network_dataset_template="D:/ntnl_li_2018_template/data/roads/osmnx_nd_template.xml")
-if not arcpy.Exists(network_source_feature_dataset):
-    print("Creating network dataset from template..."),                                          
-    arcpy.CreateNetworkDatasetFromTemplate_na(network_template, 
-                                              network_source_feature_dataset)
-    print(" Done.")
+print("Creating network dataset from template..."),                                          
+arcpy.CreateNetworkDatasetFromTemplate_na(network_template, 
+                                          network_source_feature_dataset)
+print(" Done.")
                         
 # build the road network       
 print("Build network..."),                  
