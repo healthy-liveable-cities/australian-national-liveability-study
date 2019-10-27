@@ -70,7 +70,7 @@ for geo in geo_imports.index.values:
                                            gpkg = data) 
               )
       print(command)
-      sp.call(command, shell=True,cwd=os.path.dirname(os.path.join(folderPath,clean_intersections_gpkg)))
+      sp.call(command, shell=True,cwd=os.path.dirname(os.path.join(folderPath)))
 
 print("Done.")
 
@@ -106,16 +106,6 @@ for area in df_regions.table.dropna().values:
     '''.format(area = area,
                buffered_study_region = buffered_study_region))
     conn.commit()
-
-print("Create buffered study region... "),
-sql = '''
-CREATE TABLE IF NOT EXISTS buffered_study_region AS 
-SELECT ST_Buffer(geom,{}) AS geom 
-FROM study_region
-'''.format(study_buffer)
-curs.execute(sql)
-conn.commit()
-print("Done.")
 
 print("Initiate area linkage table based on smallest region in region list (first entry: {})... )".format(geographies[0])),
 print('''(note that a warning "Did not recognize type 'geometry' of column 'geom'" may appear; this is fine.)''')

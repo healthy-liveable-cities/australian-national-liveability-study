@@ -1,0 +1,10 @@
+DROP TABLE IF EXISTS parcel_indicators       ;
+DROP TABLE IF EXISTS dest_closest_indicators ;
+DROP TABLE IF EXISTS dest_array_indicators   ;
+DROP TABLE IF EXISTS od_aos_jsonb            ;
+DROP TABLE IF EXISTS open_space_areas        ;
+DROP TABLE IF EXISTS ind_summary             ;
+DROP TABLE IF EXISTS exclusion_summary       ;
+DROP TABLE IF EXISTS area_indicators_mb_json ;
+DROP TABLE IF EXISTS area_linkage            ;
+DROP TABLE IF EXISTS li_inds_sa1_dwelling    ;

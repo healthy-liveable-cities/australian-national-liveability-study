@@ -600,7 +600,6 @@ if not res:
     conn.commit()
 print("."),
 
-
 measure = 'pos_toilet_distances_3200m'
 sql = '''
 SELECT column_name 
