@@ -13,7 +13,7 @@ script = os.path.basename(sys.argv[0])
 task = 'Purge results relating to old incomplete NHSD dataset from database'
 
 # Import custom variables for National Liveability indicator process
-from config_ntnl_li_process import *
+from _project_setup import *
 
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()

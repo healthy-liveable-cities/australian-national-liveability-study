@@ -25,7 +25,7 @@ import arcpy
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 
 # Import custom variables for National Liveability indicator process
-from config_ntnl_li_process import *
+from _project_setup import *
 
 # simple timer for log file
 start = time.time()
@@ -39,7 +39,7 @@ if not os.path.exists(locale_dir):
     os.makedirs(locale_dir)    
 
 # INPUT PARAMETERS
-# note: these are in general defined in and loaded from config_ntnl_li_process.py
+# note: these are in general defined in and loaded from _project_setup.py
 
 # default database
 print("Please enter default PostgreSQL database details to procede with new database creation, or close terminal to abort.")

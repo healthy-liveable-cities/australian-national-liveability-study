@@ -59,7 +59,7 @@ Now, you can close this command window, and relaunch it (you don't need administ
 Re-open cmd.exe and navigate to the project script folder, D:\ntnl_li_2018_template\process
 
 To use the create_pedestrian_networks.py script it is assumed that you have
-set up your new study region in the project configuration file (ind_study_region_matrix.xlsx)
+set up your new study region in the project configuration file (_project_configuration.xlsx)
 run the following, say for Mildura:
   python 00_create_database.py mildura 
   python 01_study_region_setup.py mildura
@@ -90,7 +90,7 @@ from sqlalchemy import create_engine
 from geoalchemy2 import Geometry
 from script_running_log import script_running_log
 # Import custom variables for National Liveability indicator process
-from config_ntnl_li_process import *
+from _project_setup import *
 
 # simple timer for log file
 start = time.time()

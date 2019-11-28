@@ -16,7 +16,7 @@ from script_running_log import script_running_log
 date_time = time.strftime("%Y%m%d-%H%M")
 
 # Import custom variables for National Liveability indicator process
-from config_ntnl_li_process import *
+from _project_setup import *
 
 out_dir = os.path.join(folderPath,'study_region','ntnl_li_inds')
 if not os.path.exists(out_dir):

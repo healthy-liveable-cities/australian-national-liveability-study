@@ -10,7 +10,7 @@ import psycopg2
 from script_running_log import script_running_log
 
 # Import custom variables for National Liveability indicator process
-from config_ntnl_li_process import *
+from _project_setup import *
 
 # simple timer for log file
 start_beginning = time.time()
@@ -58,7 +58,7 @@ required_fields_list = df_osm["required_tags"].dropna().tolist()
 
 for shape in ['line','point','polygon','roads']:
   # Define tags for which presence of values is suggestive of some kind of open space 
-  # These are defined in the ind_study_region_matrix worksheet 'open_space_defs' under the 'required_tags' column.
+  # These are defined in the indicator_setup worksheet 'open_space_defs' under the 'required_tags' column.
   required_tags = '\n'.join(['ALTER TABLE {prefix}_{shape} ADD COLUMN IF NOT EXISTS "{field}" varchar;'.format(prefix = osm_prefix,shape = shape, field = x.encode('utf')) for x in required_fields_list])
 
   sql = ['''

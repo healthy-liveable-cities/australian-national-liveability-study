@@ -5,7 +5,7 @@
 
 # Import custom variables for National Liveability indicator process
 import psycopg2 
-from config_ntnl_li_process import *
+from _project_setup import *
 
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()

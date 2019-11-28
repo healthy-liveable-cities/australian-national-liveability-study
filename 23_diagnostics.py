@@ -12,8 +12,8 @@ from sqlalchemy import create_engine
 
 date_time = time.strftime("%Y%m%d-%H%M")
 
-# Load settings from ind_study_region_matrix.xlsx
-xls = pandas.ExcelFile(os.path.join(sys.path[0],'ind_study_region_matrix.xlsx'))
+# Load settings from _project_configuration.xlsx
+xls = pandas.ExcelFile(os.path.join(sys.path[0],'_project_configuration.xlsx'))
 df_about = pandas.read_excel(xls, 'about')
 print(df_about.iloc[0].reset_index()['index'].to_string(index=False).encode('utf'))
 df_parameters = pandas.read_excel(xls, 'parameters',index_col=0)

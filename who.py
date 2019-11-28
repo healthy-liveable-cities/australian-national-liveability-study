@@ -9,8 +9,8 @@ import os
 import sys
 import pandas
 
-# Load settings from ind_study_region_matrix.xlsx
-xls = pandas.ExcelFile(os.path.join(sys.path[0],'ind_study_region_matrix.xlsx'))
+# Load settings from _project_configuration.xlsx
+xls = pandas.ExcelFile(os.path.join(sys.path[0],'_project_configuration.xlsx'))
 df_about = pandas.read_excel(xls, 'about')
 df_studyregion = pandas.read_excel(xls, 'study_regions',index_col=1)
 
