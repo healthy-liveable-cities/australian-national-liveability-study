@@ -372,6 +372,11 @@ if __name__ == '__main__':
   curs.execute(create_progress_table)
   conn.commit()
   print("Done.")
+  destination_list = ad_hoc_destinations  
+  # tally expected parcel-destination class result set  
+  curs.execute("SELECT COUNT(*) FROM parcel_dwellings;")
+  # completion_goal = list(curs)[0][0] * len(set([x[0] for x in destination_list]))
+  completion_goal = list(curs)[0][0] * len(destination_list)
   evaluate_progress = '''
    SELECT destinations.count * parcels.count, 
           destinations.count, 
@@ -386,7 +391,7 @@ if __name__ == '__main__':
   '''.format(progress = progress_table,dest_list = " '{}'".format("','".join(destination_list)))
   curs.execute(evaluate_progress)
   results = list(curs)[0]
-  goal = results[0]
+  goal = completion_goal
   destinations = results[1]
   parcels = results[2]
   processed = results[3]
@@ -413,7 +418,7 @@ if __name__ == '__main__':
   '''.format(progress = progress_table,dest_list = " '{}'".format("','".join(destination_list)))
     curs.execute(evaluate_progress)
     results = list(curs)[0]
-    goal = results[0]
+    goal = completion_goal
     destinations = results[1]
     parcels = results[2]
     processed = results[3]

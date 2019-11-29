@@ -90,7 +90,7 @@ curs = conn.cursor()
 # define reduced set of destinations and cutoffs (ie. only those with cutoffs defined)
 # curs.execute("SELECT dest_name,dest_class,cutoff_closest FROM dest_type WHERE cutoff_closest IS NOT NULL AND count > 0;")
 # destination_list = list(curs)
-destination_list = ad_hoc_destinations
+destination_list = [(x,x,1600) for x  in ad_hoc_destinations]
 
 # tally expected hex-destination result set  
 curs.execute("SELECT COUNT(*) FROM parcel_dwellings;")
