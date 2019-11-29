@@ -41,6 +41,7 @@ dest_processed_list = [x[(x.find(' ')+1):x.find(' (Point)')] for x in dest_proce
 
 # list destinations which have OpenStreetMap specified as their data source
 dest_osm_list = [x.encode('utf') for x in df_osm_dest.dest_name.unique().tolist()]
+df_osm_dest['pre-condition'] = df_osm_dest['pre-condition'].replace('NULL','OR')
 
 print("\nCopy all pre-processed destinations to postgis..."),
 command = (
@@ -125,7 +126,7 @@ for dest in destination_list:
         '''.format(dest = dest)
         curs.execute(enforce_point)
         conn.commit()
-        
+            
         # get primary key, this would ideally be 'objectid', but we can't assume
         get_primary_key_field = '''
           SELECT a.attname
@@ -137,6 +138,19 @@ for dest in destination_list:
         '''.format(dest = dest)
         curs.execute(get_primary_key_field)
         dest_pkey = list(curs)[0][0]
+        # Remove potential duplicate locations --- e.g. multiple hospitals in same unique location
+        delete_duplicate_locations = '''
+        DELETE FROM {dest}
+          WHERE "{dest_pkey}" NOT IN
+            (SELECT DISTINCT ON (geom) 
+                    "{dest_pkey}"
+             FROM {dest});
+        '''.format(dest_pkey = dest_pkey,dest=dest)
+        curs.execute(delete_duplicate_locations)
+        conn.commit()        
+        # update dest_count
+        curs.execute('''SELECT count(*) FROM {dest};'''.format(dest = dest))
+        dest_count = int(list(curs)[0][0])   
         
         # it is possible that dest_class is not unique hence, the dest_oid will not be unique
         # unless we ensure it reflects a cumulative running index over previous and current dests
@@ -171,9 +185,28 @@ for dest in destination_list:
         conn.commit()
         # print destination name and tally which have been imported
         print("{dest:50} {dest_count:=10d}".format(dest = dest,dest_count = dest_count))
-        
+        curs.execute('DROP TABLE {dest}'.format(dest = dest))
+        conn.commit()  
   elif dest in dest_osm_list:
-    dest_condition = ' OR '.join(df_osm_dest[df_osm_dest['dest_name']==dest].apply(lambda x: "{} IS NOT NULL".format(x.key) if x.value=='NULL' else "{} = '{}'".format(x.key,x.value),axis=1).tolist())
+    # dest_condition = ' OR '.join(df_osm_dest[df_osm_dest['dest_name']==dest].apply(lambda x: "{} IS NOT NULL".format(x.key) if x.value=='NULL' else "{} = '{}'".format(x.key,x.value),axis=1).tolist())
+    dest_condition = []
+    for condition in ['AND','OR','NOT']:
+    # for condition in df_osm_dest[df_osm_dest['dest_name']==dest]['pre-condition'].unique():
+        # print(condition)
+        if condition == 'AND':
+            clause = ' AND '.join(df_osm_dest[(df_osm_dest['dest_name']==dest)&(df_osm_dest['pre-condition']=='AND')].apply(lambda x: "{} IS NOT NULL".format(x.key) if x.value=='NULL' else "{} = '{}'".format(x.key,x.value),axis=1).values.tolist())
+            dest_condition.append(clause)
+        if condition == 'OR':
+            clause = ' OR '.join(df_osm_dest[(df_osm_dest['dest_name']==dest)&(df_osm_dest['pre-condition']=='OR')].apply(lambda x: "{} IS NOT NULL".format(x.key) if x.value=='NULL' else "{} = '{}'".format(x.key,x.value),axis=1).values.tolist())
+            dest_condition.append(clause)
+        if condition != 'NOT':
+            clause = ' AND '.join(df_osm_dest[(df_osm_dest['dest_name']==dest)&(df_osm_dest['pre-condition']=='NOT')].apply(lambda x: "{} IS NOT NULL".format(x.key) if x.value=='NULL' else "{} != '{}' OR access IS NULL".format(x.key,x.value),axis=1).values.tolist())
+            dest_condition.append(clause)
+    dest_condition = [x for x in dest_condition if x!='']
+    if len(dest_condition)==1:
+        dest_condition = dest_condition[0]
+    else:
+        dest_condition = '({})'.format(') AND ('.join(dest_condition))
     combine__point_destinations = '''
       INSERT INTO study_destinations (dest_oid,orig_id, dest_class,dest_name,geom)
       SELECT '{dest_class},' || ROW_NUMBER() OVER (ORDER BY osm_id), osm_id, '{dest_class}', '{dest}', d.geom 
@@ -201,8 +234,19 @@ for dest in destination_list:
                osm_prefix = osm_prefix,
                dest_condition = dest_condition)
     curs.execute(combine_poly_destinations)
-    conn.commit()      
-    
+    conn.commit()    
+    # Remove potential duplicate locations --- e.g. multiple hospitals in same unique location
+    delete_duplicate_locations = '''
+    DELETE FROM study_destinations
+      WHERE dest_name = '{dest}'
+        AND dest_oid NOT IN
+        (SELECT DISTINCT ON (geom) 
+                dest_oid
+         FROM study_destinations 
+         WHERE dest_name = '{dest}');
+    '''.format(dest=dest) 
+    curs.execute(delete_duplicate_locations)
+    conn.commit() 
     curs.execute('''SELECT count(*) FROM study_destinations WHERE dest_name = '{dest}';'''.format(dest = dest))
     dest_count = int(list(curs)[0][0])  
     
