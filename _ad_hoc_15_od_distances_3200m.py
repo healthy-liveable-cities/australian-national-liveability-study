@@ -36,7 +36,11 @@ ad_hoc_destinations = ['gtfs_20191008_20191205_bus_0015',
                        'gtfs_20191008_20191205_tram_any',
                        'nhsd_2017_other_community_health_care',
                        'hlc_2016_community_centres',
-                       'public_swimming_pool_osm']
+                       'public_swimming_pool_osm',
+					   'secondary_schools_catholic',
+                       'secondary_schools_gov',
+                       'secondary_schools_indep'
+                       ]
 
 # simple timer for log file
 start = time.time()
