@@ -93,9 +93,18 @@ conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()  
 
 # define reduced set of destinations and cutoffs (ie. only those with cutoffs defined)
-# curs.execute("SELECT dest_name,dest_class,cutoff_closest FROM dest_type WHERE cutoff_closest IS NOT NULL AND count > 0;")
-# destination_list = list(curs)
-destination_list = [(x,x,1600) for x  in ad_hoc_destinations]
+sql = '''
+    SELECT dest_name,
+           dest_class,
+           cutoff_closest 
+      FROM dest_type 
+     WHERE cutoff_closest IS NOT NULL
+       AND count > 0
+       AND dest_class IN ('{}');
+       '''.format("','".join(ad_hoc_destinations))
+curs.execute(sql)
+destination_list = list(curs)
+# destination_list = [(x,x,1600) for x  in ad_hoc_destinations]
 
 # tally expected hex-destination result set  
 curs.execute("SELECT COUNT(*) FROM parcel_dwellings;")
