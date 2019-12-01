@@ -107,7 +107,12 @@ destination_list = list(curs)
 # destination_list = [(x,x,1600) for x  in ad_hoc_destinations]
 
 # tally expected hex-destination result set  
-curs.execute("SELECT COUNT(*) FROM parcel_dwellings;")
+sql = '''
+	SELECT COUNT(*) 
+	  FROM parcel_dwellings 
+	LEFT JOIN excluded_parcels e USING({id}) 
+	WHERE e.{id} IS NULL;'''.format(id = origin_pointsID)
+curs.execute(sql)
 completion_goal = list(curs)[0][0] * len(set([x[1] for x in destination_list]))
 
 # get pid name
@@ -177,13 +182,17 @@ def ODMatrixWorkerFunction(hex):
     return(1)
     
   try:    
-    # identify any points from this hex without a sausage buffer; lets not consider them
+    # Exclude any sample points already marked for exclusion from analysis
     exclude_points = ""
-    # sql = '''SELECT gnaf_pid FROM no_sausage WHERE hex_id = {}'''.format(hex)
-    # curs.execute(sql)
-    # if len(list(curs)) > 0:
-      # exclude_points = '''AND {id} NOT IN ('{exclude}')'''.format(id = origin_pointsID,
-                                                                  # exclude = ','.join([x[0] for x in list(curs)]))
+    sql = '''SELECT DISTINCT(gnaf_pid) 
+	           FROM excluded_parcels 
+		  LEFT JOIN parcel_dwellings USING ({id}) 
+		      WHERE hex_id = {hex}
+	'''.format(hex=hex,id=origin_pointsID)
+    curs.execute(sql)
+    if len(list(curs)) > 0:
+      exclude_points = '''AND {id} NOT IN ('{exclude}')'''.format(id = origin_pointsID,
+                                                                  exclude = "','".join([x[0] for x in list(curs)]))
     # select origin points 
     arcpy.MakeFeatureLayer_management (origin_points, "origin_points_layer")
     origin_selection = arcpy.SelectLayerByAttribute_management("origin_points_layer", 
@@ -396,7 +405,27 @@ if __name__ == '__main__':
   curs.execute(sql)
   conn.commit()
   print(" Done.")
-  
+
+  # BELOW IS COMMENTED OUT --- There is a not null exclusion criteria, so instead, we elsewhere restrict analysis to those with expected valid results
+  # print("Propagate exclusions from excluded parcel list to results table as nulls (search for destinations for these sample points is a waste of time)")
+  # sql = '''
+	# INSERT INTO od_closest_20191129 ({id},dest_class,dest_name, oid)
+		# SELECT e.gnaf_pid,
+			   # d.dest_class,
+			   # d.dest_name,
+			   # -777 AS oid
+		  # FROM dest_type d,
+			   # (SELECT DISTINCT(gnaf_pid) FROM excluded_parcels) e
+		 # WHERE cutoff_closest IS NOT NULL
+		   # AND count > 0
+		   # AND dest_class IN ('{destinations}')
+	# ON CONFLICT ({id},dest_class) 
+	# DO NOTHING;
+	# '''.format(id = origin_pointsID,
+				# destinations = "','".join(ad_hoc_destinations))
+  # curs.execute(sql)
+  # conn.commit()
+
   print("Setup a pool of workers/child processes and split log output..."),
   # Parallel processing setting
   # (now set as parameter in indicator_setup xlsx file)
