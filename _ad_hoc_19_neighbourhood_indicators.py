@@ -184,7 +184,7 @@ for era in ['','_20191129']:
 # Neighbourhood_indicators
 print("Create nh_inds_distance (curated distance to closest table for re-use by other indicators)... "),
 nh_distance = '''
--- DROP TABLE IF EXISTS {table};
+DROP TABLE IF EXISTS {table};
 CREATE TABLE IF NOT EXISTS {table} AS
 SELECT 
        p.{id},
@@ -213,8 +213,47 @@ SELECT
              array_min(art_centre_osm.distances)) AS culture_osm_2018,            
        LEAST(array_min(bar_osm.distances), 
              array_min(nightclub_osm.distances),
-             array_min(pub_osm.distances)) AS alcohol_nightlife_osm_2018
+             array_min(pub_osm.distances)) AS alcohol_nightlife_osm_2018,            
+       LEAST(array_min(P_12_Schools_gov.distances), 
+             array_min(primary_schools_gov.distances) AS schools_primary_all_gov,           
+       LEAST(array_min(P_12_Schools_gov.distances), 
+             array_min(secondary_schools_gov.distances) AS schools_secondary_all_gov,
+       LEAST(array_min(gtfs_20191008_20191205_bus_0015.distances),
+             array_min(gtfs_20191008_20191205_ferry_0015.distances),
+             array_min(gtfs_20191008_20191205_train_0015.distances),
+             array_min(gtfs_20191008_20191205_tram_0015.distances)) AS gtfs_20191008_20191205_frequent_pt_0015,
+       LEAST(array_min(gtfs_20191008_20191205_bus_0030.distances),
+             array_min(gtfs_20191008_20191205_ferry_0030.distances),
+             array_min(gtfs_20191008_20191205_train_0030.distances),
+             array_min(gtfs_20191008_20191205_tram_0030.distances)) AS gtfs_20191008_20191205_frequent_pt_0030,
+       LEAST(array_min(gtfs_20191008_20191205_bus_0045.distances),
+             array_min(gtfs_20191008_20191205_ferry_0045.distances),
+             array_min(gtfs_20191008_20191205_train_0045.distances),
+             array_min(gtfs_20191008_20191205_tram_0045.distances)) AS gtfs_20191008_20191205_frequent_pt_0045,
+       LEAST(array_min(gtfs_20191008_20191205_bus_any.distances),
+             array_min(gtfs_20191008_20191205_ferry_any.distances),
+             array_min(gtfs_20191008_20191205_train_any.distances),
+             array_min(gtfs_20191008_20191205_tram_any.distances)) AS gtfs_20191008_20191205_any_pt
 FROM parcel_dwellings p
+LEFT JOIN d_3200m_cl.P_12_Schools_gov   ON p.{id}    = d_3200m_cl.P_12_Schools_gov.{id}
+LEFT JOIN d_3200m_cl.primary_schools_gov   ON p.{id}    = d_3200m_cl.primary_schools_gov.{id}
+LEFT JOIN d_3200m_cl.secondary_schools_gov   ON p.{id}    = d_3200m_cl.secondary_schools_gov.{id}
+LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_bus_0015   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_bus_0015.{id}
+LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_ferry_0015   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_ferry_0015.{id}
+LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_train_0015   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_train_0015.{id}
+LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_tram_0015   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_tram_0015.{id}
+LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_bus_0030   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_bus_0030.{id}
+LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_ferry_0030   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_ferry_0030.{id}
+LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_train_0030   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_train_0030.{id}
+LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_tram_0030   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_tram_0030.{id}
+LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_bus_0045   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_bus_0045.{id}
+LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_ferry_0045   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_ferry_0045.{id}
+LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_train_0045   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_train_0045.{id}
+LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_tram_0045   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_tram_0045.{id}
+LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_bus_any   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_bus_any.{id}
+LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_ferry_any   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_ferry_any.{id}
+LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_train_any   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_train_any.{id}
+LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_tram_any   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_tram_any.{id}
 LEFT JOIN d_3200m_cl.convenience_osm   ON p.{id}    = d_3200m_cl.convenience_osm.{id}
 LEFT JOIN d_3200m_cl.newsagent_osm     ON p.{id}    = d_3200m_cl.newsagent_osm.{id}
 LEFT JOIN d_3200m_cl.petrolstation_osm ON p.{id}    = d_3200m_cl.petrolstation_osm.{id}
@@ -239,7 +278,8 @@ LEFT JOIN d_3200m_cl.art_gallery_osm ON p.{id}  = d_3200m_cl.art_gallery_osm.{id
 LEFT JOIN d_3200m_cl.art_centre_osm  ON p.{id}  = d_3200m_cl.art_centre_osm.{id} 
 LEFT JOIN d_3200m_cl.bar_osm         ON p.{id}  = d_3200m_cl.bar_osm.{id} 
 LEFT JOIN d_3200m_cl.nightclub_osm   ON p.{id}  = d_3200m_cl.nightclub_osm.{id}
-LEFT JOIN d_3200m_cl.pub_osm         ON p.{id}  = d_3200m_cl.pub_osm.{id}  ;
+LEFT JOIN d_3200m_cl.pub_osm         ON p.{id}  = d_3200m_cl.pub_osm.{id}  
+;
 CREATE UNIQUE INDEX IF NOT EXISTS {table}_idx ON  {table} ({id}); 
 '''.format(id = points_id.lower(),table = 'nh_inds_distance')
 curs.execute(nh_distance)
@@ -251,7 +291,7 @@ for threshold_type in ['hard','soft']:
     for nh_threshold in [400,800,1000,1600]:
         print("  - nh_inds_{threshold_type}_{nh_threshold}m".format(threshold_type = threshold_type, nh_threshold = nh_threshold))
         sql = '''
-        -- DROP TABLE IF EXISTS nh_inds_{threshold_type}_{nh_threshold}m;
+        DROP TABLE IF EXISTS nh_inds_{threshold_type}_{nh_threshold}m;
         CREATE TABLE IF NOT EXISTS nh_inds_{threshold_type}_{nh_threshold}m AS
         SELECT  
         {id},
