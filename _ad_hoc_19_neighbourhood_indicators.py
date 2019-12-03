@@ -214,10 +214,10 @@ SELECT
        LEAST(array_min(bar_osm.distances), 
              array_min(nightclub_osm.distances),
              array_min(pub_osm.distances)) AS alcohol_nightlife_osm_2018,            
-       LEAST(array_min(P_12_Schools_gov.distances), 
-             array_min(primary_schools_gov.distances) AS schools_primary_all_gov,           
-       LEAST(array_min(P_12_Schools_gov.distances), 
-             array_min(secondary_schools_gov.distances) AS schools_secondary_all_gov,
+       LEAST(array_min("P_12_Schools_gov".distances), 
+             array_min(primary_schools_gov.distances)) AS schools_primary_all_gov,           
+       LEAST(array_min("P_12_Schools_gov".distances), 
+             array_min(secondary_schools_gov.distances)) AS schools_secondary_all_gov,
        LEAST(array_min(gtfs_20191008_20191205_bus_0015.distances),
              array_min(gtfs_20191008_20191205_ferry_0015.distances),
              array_min(gtfs_20191008_20191205_train_0015.distances),
@@ -235,7 +235,7 @@ SELECT
              array_min(gtfs_20191008_20191205_train_any.distances),
              array_min(gtfs_20191008_20191205_tram_any.distances)) AS gtfs_20191008_20191205_any_pt
 FROM parcel_dwellings p
-LEFT JOIN d_3200m_cl.P_12_Schools_gov   ON p.{id}    = d_3200m_cl.P_12_Schools_gov.{id}
+LEFT JOIN d_3200m_cl."P_12_Schools_gov"   ON p.{id}    = d_3200m_cl."P_12_Schools_gov".{id}
 LEFT JOIN d_3200m_cl.primary_schools_gov   ON p.{id}    = d_3200m_cl.primary_schools_gov.{id}
 LEFT JOIN d_3200m_cl.secondary_schools_gov   ON p.{id}    = d_3200m_cl.secondary_schools_gov.{id}
 LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_bus_0015   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_bus_0015.{id}
