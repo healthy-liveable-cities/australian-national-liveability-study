@@ -48,6 +48,7 @@ if locale!='australia':
                '-t "score_card_sa2_person" -t "score_card_sa3_dwelling" -t "score_card_sa3_person" '
                '-t "score_card_sa4_dwelling" -t "score_card_sa4_person" -t "score_card_sos_dwelling" '
                '-t "score_card_sos_person" -t "score_card_ssc_dwelling" -t "score_card_ssc_person" '
+               '-t "ind_score_card" '
                '{db} > {out_file}'
                ).format(db = db,db_user = db_user,out_file=out_file)  
     sp.call(command, shell=True,cwd=out_dir)   
