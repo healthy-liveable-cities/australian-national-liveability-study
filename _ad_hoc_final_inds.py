@@ -161,51 +161,70 @@ sql = '''
 DROP TABLE IF EXISTS uli_inds ; 
 CREATE TABLE uli_inds AS
 SELECT p.{id},
-        COALESCE(p.{street_connectivity},0) AS sc_nh1600m,
-        COALESCE(p.{dwelling_density},0) AS dd_nh1600m,
-        (COALESCE(threshold_soft("dist_m_community_centre_osm"                  , 1000),0) +
-         COALESCE(threshold_soft(LEAST(d."dist_m_museum_osm",d."dist_m_art_gallery_osm"), 3200),0) +
-         COALESCE(threshold_soft(LEAST(d."dist_m_cinema_osm",d."dist_m_theatre_osm"), 3200),0) +
-         COALESCE(threshold_soft(d."dist_m_libraries_2018"                        , 1000),0))/4.0 AS community_culture_leisure ,
-        (COALESCE(threshold_soft(d."dist_m_childcare_oshc_meet_2019"              , 1600),0) +
-         COALESCE(threshold_soft(d."dist_m_childcare_all_meet_2019"               , 800),0))/2.0 AS early_years,
-        (COALESCE(threshold_soft(d."dist_m_P_12_Schools_gov_2018"                 , 1600),0) +
-         COALESCE(threshold_soft(d."dist_m_secondary_schools2018"                 , 1600),0))/2.0 AS education ,
-        (COALESCE(threshold_soft(d."dist_m_nhsd_2017_aged_care_residential"       , 1000),0) +
-         COALESCE(threshold_soft(d."dist_m_nhsd_2017_pharmacy"                    , 1000),0) +
-         COALESCE(threshold_soft(d."dist_m_nhsd_2017_mc_family_health"            , 1000),0) +
-         COALESCE(threshold_soft(d."dist_m_nhsd_2017_dentist"                     , 1000),0) +
-         COALESCE(threshold_soft(d."dist_m_nhsd_2017_gp"                          , 1000),0))/5.0 AS health_services ,
-        (COALESCE(threshold_soft(d."dist_m_swimming_pool_osm"                     , 1200),0) +
-         COALESCE(threshold_soft(o."sport_distance_m"                             , 1000),0))/2.0 AS sport_rec,
-        (COALESCE(threshold_soft(d."dist_m_fruit_veg_osm"                         , 1000),0) +
-         COALESCE(threshold_soft(d."dist_m_meat_seafood_osm"                      , 3200),0) +
-         COALESCE(threshold_soft(d."dist_m_supermarket_osm"                       , 1000),0))/3.0 AS food,    
-        (COALESCE(threshold_soft(d."dist_m_convenience_osm"                       , 1000),0) +
-         COALESCE(threshold_soft(d."dist_m_newsagent_osm"                         , 3200),0) +
-         COALESCE(threshold_soft(d."dist_m_petrolstation_osm"                     , 1000),0))/3.0 AS convenience,         
-        COALESCE({pt_freq_400m},0) AS pt_regular_400m,
-        COALESCE({pos_large_400m},0) AS pos_large_400m,
-        -- we coalesce 30:40 measures to 0, as nulls mean no one is in bottom two housing quintiles - really 0/0 implies 0% in this context
-        -- noting that null is not acceptable.  This should be discussed, but is workable for now.
-        -- Later, we reverse polarity of 30 40 measure
-        COALESCE(pcent_30_40,0) AS abs_30_40,
-        COALESCE(pct_live_work_local_area,0) AS abs_live_sa1_work_sa3
-FROM parcel_indicators p
+    COALESCE(sc_nh1600m,0) AS sc_nh1600m,
+    COALESCE(dd_nh1600m,0) AS dd_nh1600m,
+   (COALESCE(threshold_soft(nh_inds_distance.community_centre_hlc_2016_osm_2018, 1000),0) +
+    COALESCE(threshold_soft(LEAST(array_min("museum_osm".distances),array_min("art_gallery_osm".distances)), 3200),0) +
+    COALESCE(threshold_soft(LEAST(array_min("cinema_osm".distances),array_min("theatre_osm".distances)), 3200),0) +
+    COALESCE(threshold_soft(array_min("libraries".distances), 1000),0))/4.0 AS community_culture_leisure ,
+   (COALESCE(threshold_soft(array_min("childcare_oshc_meet".distances), 1600),0) +
+    COALESCE(threshold_soft(array_min("childcare_all_meet".distances), 800),0))/2.0 AS early_years,
+   (COALESCE(threshold_soft(nh_inds_distance.schools_primary_all_gov, 1600),0) +
+    COALESCE(threshold_soft(nh_inds_distance.schools_primary_all_gov, 1600),0))/2.0 AS education ,
+   (COALESCE(threshold_soft(array_min("nhsd_2017_aged_care_residential".distances), 1000),0) +
+    COALESCE(threshold_soft(array_min("nhsd_2017_pharmacy".distances), 1000),0) +
+    COALESCE(threshold_soft(array_min("nhsd_2017_mc_family_health".distances), 1000),0) +
+    COALESCE(threshold_soft(array_min("nhsd_2017_other_community_health_care".distances), 1000),0) +
+    COALESCE(threshold_soft(array_min("nhsd_2017_dentist".distances), 1000),0) +
+    COALESCE(threshold_soft(array_min("nhsd_2017_gp".distances), 1000),0))/6.0 AS health_services ,
+   (COALESCE(threshold_soft(array_min("public_swimming_pool_osm".distances), 1200),0) +
+    COALESCE(threshold_soft(ind_os_distance.sport_distance_m, 1000),0))/2.0 AS sport_rec,
+   (COALESCE(threshold_soft(array_min("fruit_veg_osm".distances), 1000),0) +
+    COALESCE(threshold_soft(array_min("meat_seafood_osm".distances), 3200),0) +
+    COALESCE(threshold_soft(array_min("supermarket_osm".distances), 1000),0))/3.0 AS food,    
+   (COALESCE(threshold_soft(array_min("convenience_osm".distances), 1000),0) +
+    COALESCE(threshold_soft(array_min("newsagent_osm".distances), 3200),0) +
+    COALESCE(threshold_soft(array_min("petrolstation_osm".distances), 1000),0))/3.0 AS convenience,         
+    COALESCE(threshold_soft(gtfs_20191008_20191205_frequent_pt_0030,400),0) AS pt_regular_400m,
+    COALESCE(threshold_soft(ind_os_distance.pos_15k_sqm_distance_m,400),0) AS pos_large_400m,
+    COALESCE({pos_large_400m},0) AS pos_large_400m,
+    -- we coalesce 30:40 measures to 0, as nulls mean no one is in bottom two housing quintiles - really 0/0 implies 0% in this context
+    -- noting that null is not acceptable.  This should be discussed, but is workable for now.
+    -- Later, we reverse polarity of 30 40 measure
+    COALESCE(pcent_30_40,0) AS abs_30_40,
+    COALESCE(pct_live_work_local_area,0) AS abs_live_sa1_work_sa3
+FROM parcel_dwellings p
 LEFT JOIN area_linkage a USING (mb_code_2016)
-LEFT JOIN dest_closest_indicators d USING ({id})
-LEFT JOIN ind_os_distance o USING ({id})
+LEFT JOIN (SELECT DISTINCT(id) FROM excluded_parcels) e ON p.{id} = e.{id}
+LEFT JOIN nh_inds_distance ON p.{id} = nh_inds_distance.{id}
+LEFT JOIN sc_nh1600m ON p.{id} = sc_nh1600m.{id}
+LEFT JOIN dd_nh1600m ON p.{id} = dd_nh1600m.{id}
+LEFT JOIN ind_os_distance ON p.{id} = ind_os_distance.{id};
 LEFT JOIN abs_ind_30_40 h ON a.sa1_7digitcode_2016 = h.sa1_7digitcode_2016::text
 LEFT JOIN live_sa1_work_sa3 l ON a.sa1_7digitcode_2016 = l.sa1_7digitcode_2016::text
-WHERE p.exclude IS NULL;
+LEFT JOIN d_3200m_cl."public_swimming_pool_osm" ON p.{id} = d_3200m_cl."public_swimming_pool_osm".{id}
+LEFT JOIN d_3200m_cl."fruit_veg_osm" ON p.{id} = d_3200m_cl."fruit_veg_osm".{id}
+LEFT JOIN d_3200m_cl."meat_seafood_osm" ON p.{id} = d_3200m_cl."meat_seafood_osm".{id}
+LEFT JOIN d_3200m_cl."supermarket_osm" ON p.{id} = d_3200m_cl."supermarket_osm".{id}
+LEFT JOIN d_3200m_cl."convenience_osm" ON p.{id} = d_3200m_cl."convenience_osm".{id}
+LEFT JOIN d_3200m_cl."newsagent_osm" ON p.{id} = d_3200m_cl."newsagent_osm".{id}
+LEFT JOIN d_3200m_cl."petrolstation_osm" ON p.{id} = d_3200m_cl."petrolstation_osm".{id}
+LEFT JOIN d_3200m_cl."art_gallery_osm" ON p.{id} = d_3200m_cl."art_gallery_osm".{id}
+LEFT JOIN d_3200m_cl."cinema_osm" ON p.{id} = d_3200m_cl."cinema_osm".{id}
+LEFT JOIN d_3200m_cl."theatre_osm" ON p.{id} = d_3200m_cl."theatre_osm".{id}
+LEFT JOIN d_3200m_cl."libraries" ON p.{id} = d_3200m_cl."libraries".{id}
+LEFT JOIN d_3200m_cl."childcare_oshc_meet" ON p.{id} = d_3200m_cl."childcare_oshc_meet".{id}
+LEFT JOIN d_3200m_cl."childcare_all_meet" ON p.{id} = d_3200m_cl."childcare_all_meet".{id}
+LEFT JOIN d_3200m_cl."nhsd_2017_aged_care_residential" ON p.{id} = d_3200m_cl."nhsd_2017_aged_care_residential".{id}
+LEFT JOIN d_3200m_cl."nhsd_2017_pharmacy" ON p.{id} = d_3200m_cl."nhsd_2017_pharmacy".{id}
+LEFT JOIN d_3200m_cl."nhsd_2017_mc_family_health" ON p.{id} = d_3200m_cl."nhsd_2017_mc_family_health".{id}
+LEFT JOIN d_3200m_cl."nhsd_2017_other_community_health_care" ON p.{id} = d_3200m_cl."nhsd_2017_other_community_health_care".{id}
+LEFT JOIN d_3200m_cl."nhsd_2017_dentist" ON p.{id} = d_3200m_cl."nhsd_2017_dentist".{id}
+LEFT JOIN d_3200m_cl."nhsd_2017_gp" ON p.{id} = d_3200m_cl."nhsd_2017_gp".{id}
+LEFT JOIN d_3200m_cl."public_swimming_pool_osm" ON p.{id} = d_3200m_cl."public_swimming_pool_osm".{id}
+WHERE e.{id} IS NULL;
 ALTER TABLE uli_inds ADD PRIMARY KEY ({id});
-  '''.format(id = points_id, 
-             street_connectivity = uli['street_connectivity'],
-             dwelling_density    = uli['dwelling_density'],
-             supermarket_1km     = uli['supermarket_1km'],
-             pt_freq_400m        = uli['pt_freq_400m'],
-             pos_large_400m      = uli['pos_large_400m'])
-
+'''.format(id = points_id)
 curs.execute(sql)
 conn.commit()
 print("Created liveability indicator table uli_inds.")
