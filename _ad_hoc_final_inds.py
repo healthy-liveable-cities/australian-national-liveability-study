@@ -158,8 +158,8 @@ print("Created custom function.")
 # collate indicators for national liveability index
 
 sql = '''
-DROP TABLE IF EXISTS uli_inds ; 
-CREATE TABLE uli_inds AS
+-- DROP TABLE IF EXISTS uli_inds ; 
+CREATE TABLE IF NOT EXISTS uli_inds AS
 SELECT p.{id},
     COALESCE(sc_nh1600m,0) AS sc_nh1600m,
     COALESCE(dd_nh1600m,0) AS dd_nh1600m,
@@ -187,28 +187,27 @@ SELECT p.{id},
     COALESCE(threshold_soft(array_min("petrolstation_osm".distances), 1000),0))/3.0 AS convenience,         
     COALESCE(threshold_soft(gtfs_20191008_20191205_frequent_pt_0030,400),0) AS pt_regular_400m,
     COALESCE(threshold_soft(ind_os_distance.pos_15k_sqm_distance_m,400),0) AS pos_large_400m,
-    COALESCE({pos_large_400m},0) AS pos_large_400m,
     -- we coalesce 30:40 measures to 0, as nulls mean no one is in bottom two housing quintiles - really 0/0 implies 0% in this context
     -- noting that null is not acceptable.  This should be discussed, but is workable for now.
     -- Later, we reverse polarity of 30 40 measure
     COALESCE(pcent_30_40,0) AS abs_30_40,
     COALESCE(pct_live_work_local_area,0) AS abs_live_sa1_work_sa3
 FROM parcel_dwellings p
-LEFT JOIN area_linkage a USING (mb_code_2016)
-LEFT JOIN (SELECT DISTINCT(id) FROM excluded_parcels) e ON p.{id} = e.{id}
+LEFT JOIN area_linkage a ON p.mb_code_20 = a.mb_code_2016
+LEFT JOIN (SELECT DISTINCT({id}) FROM excluded_parcels) e ON p.{id} = e.{id}
 LEFT JOIN nh_inds_distance ON p.{id} = nh_inds_distance.{id}
 LEFT JOIN sc_nh1600m ON p.{id} = sc_nh1600m.{id}
 LEFT JOIN dd_nh1600m ON p.{id} = dd_nh1600m.{id}
-LEFT JOIN ind_os_distance ON p.{id} = ind_os_distance.{id};
+LEFT JOIN ind_os_distance ON p.{id} = ind_os_distance.{id}
 LEFT JOIN abs_ind_30_40 h ON a.sa1_7digitcode_2016 = h.sa1_7digitcode_2016::text
 LEFT JOIN live_sa1_work_sa3 l ON a.sa1_7digitcode_2016 = l.sa1_7digitcode_2016::text
-LEFT JOIN d_3200m_cl."public_swimming_pool_osm" ON p.{id} = d_3200m_cl."public_swimming_pool_osm".{id}
 LEFT JOIN d_3200m_cl."fruit_veg_osm" ON p.{id} = d_3200m_cl."fruit_veg_osm".{id}
 LEFT JOIN d_3200m_cl."meat_seafood_osm" ON p.{id} = d_3200m_cl."meat_seafood_osm".{id}
 LEFT JOIN d_3200m_cl."supermarket_osm" ON p.{id} = d_3200m_cl."supermarket_osm".{id}
 LEFT JOIN d_3200m_cl."convenience_osm" ON p.{id} = d_3200m_cl."convenience_osm".{id}
 LEFT JOIN d_3200m_cl."newsagent_osm" ON p.{id} = d_3200m_cl."newsagent_osm".{id}
 LEFT JOIN d_3200m_cl."petrolstation_osm" ON p.{id} = d_3200m_cl."petrolstation_osm".{id}
+LEFT JOIN d_3200m_cl."museum_osm" ON p.{id} = d_3200m_cl."museum_osm".{id}
 LEFT JOIN d_3200m_cl."art_gallery_osm" ON p.{id} = d_3200m_cl."art_gallery_osm".{id}
 LEFT JOIN d_3200m_cl."cinema_osm" ON p.{id} = d_3200m_cl."cinema_osm".{id}
 LEFT JOIN d_3200m_cl."theatre_osm" ON p.{id} = d_3200m_cl."theatre_osm".{id}
@@ -223,7 +222,7 @@ LEFT JOIN d_3200m_cl."nhsd_2017_dentist" ON p.{id} = d_3200m_cl."nhsd_2017_denti
 LEFT JOIN d_3200m_cl."nhsd_2017_gp" ON p.{id} = d_3200m_cl."nhsd_2017_gp".{id}
 LEFT JOIN d_3200m_cl."public_swimming_pool_osm" ON p.{id} = d_3200m_cl."public_swimming_pool_osm".{id}
 WHERE e.{id} IS NULL;
-ALTER TABLE uli_inds ADD PRIMARY KEY ({id});
+CREATE UNIQUE INDEX IF NOT EXISTS ix_uli_inds ON  uli_inds ({id});
 '''.format(id = points_id)
 curs.execute(sql)
 conn.commit()
@@ -343,20 +342,6 @@ curs.execute(sql)
 conn.commit()
 print("Created table 'uli', containing parcel level urban liveability index estimates, along with its required summary ingredients (mean, sd, coefficient of variation).")
 
-
-sql  = '''
--- Add a ULI column if it doesn't already exist to the parcel indicators table
--- and update it with the ULI values for those parcels
-ALTER TABLE parcel_indicators ADD COLUMN IF NOT EXISTS uli double precision;
-UPDATE parcel_indicators p
-   SET uli = u.uli
-  FROM uli u
- WHERE p.{id} = u.{id};
-'''.format(id = points_id)
-
-curs.execute(sql)
-conn.commit()
-print("Replaced table 'parcel_indicators' with a new version, containing the ULI")
 
 
 
