@@ -109,37 +109,39 @@ print("Created custom function.")
 
 
 # collate indicators for national liveability index
-
+# Note - we coalesce null values to 0.0001, as if any variable has an average of zero 
+# which might arise if no one has access to frequent pt, for example, then
+# that will result in a division by zero error when normalising the data
 sql = '''
 DROP TABLE IF EXISTS uli_inds ; 
 CREATE TABLE IF NOT EXISTS uli_inds AS
 SELECT p.{id},
-    COALESCE(sc_nh1600m,0) AS sc_nh1600m,
-    COALESCE(dd_nh1600m,0) AS dd_nh1600m,
-   (COALESCE(threshold_soft(nh_inds_distance.community_centre_hlc_2016_osm_2018, 1000),0) +
-    COALESCE(threshold_soft(LEAST(array_min("museum_osm".distances),array_min("art_gallery_osm".distances)), 3200),0) +
-    COALESCE(threshold_soft(LEAST(array_min("cinema_osm".distances),array_min("theatre_osm".distances)), 3200),0) +
-    COALESCE(threshold_soft(array_min("libraries".distances), 1000),0))/4.0 AS community_culture_leisure ,
-   (COALESCE(threshold_soft(array_min("childcare_oshc_meet".distances), 1600),0) +
-    COALESCE(threshold_soft(array_min("childcare_all_meet".distances), 800),0))/2.0 AS early_years,
-   (COALESCE(threshold_soft(nh_inds_distance.schools_primary_all_gov, 1600),0) +
-    COALESCE(threshold_soft(nh_inds_distance.schools_primary_all_gov, 1600),0))/2.0 AS education ,
-   (COALESCE(threshold_soft(array_min("nhsd_2017_aged_care_residential".distances), 1000),0) +
-    COALESCE(threshold_soft(array_min("nhsd_2017_pharmacy".distances), 1000),0) +
-    COALESCE(threshold_soft(array_min("nhsd_2017_mc_family_health".distances), 1000),0) +
-    COALESCE(threshold_soft(array_min("nhsd_2017_other_community_health_care".distances), 1000),0) +
-    COALESCE(threshold_soft(array_min("nhsd_2017_dentist".distances), 1000),0) +
-    COALESCE(threshold_soft(array_min("nhsd_2017_gp".distances), 1000),0))/6.0 AS health_services ,
-   (COALESCE(threshold_soft(array_min("public_swimming_pool_osm".distances), 1200),0) +
-    COALESCE(threshold_soft(ind_os_distance.sport_distance_m, 1000),0))/2.0 AS sport_rec,
-   (COALESCE(threshold_soft(array_min("fruit_veg_osm".distances), 1000),0) +
-    COALESCE(threshold_soft(array_min("meat_seafood_osm".distances), 3200),0) +
-    COALESCE(threshold_soft(array_min("supermarket_osm".distances), 1000),0))/3.0 AS food,    
-   (COALESCE(threshold_soft(array_min("convenience_osm".distances), 1000),0) +
-    COALESCE(threshold_soft(array_min("newsagent_osm".distances), 3200),0) +
-    COALESCE(threshold_soft(array_min("petrolstation_osm".distances), 1000),0))/3.0 AS convenience,         
-    COALESCE(threshold_soft(gtfs_20191008_20191205_frequent_pt_0030,400),0) AS pt_regular_400m,
-    COALESCE(threshold_soft(ind_os_distance.pos_15k_sqm_distance_m,400),0) AS pos_large_400m,
+    COALESCE(sc_nh1600m,0.0001) AS sc_nh1600m,
+    COALESCE(dd_nh1600m,0.0001) AS dd_nh1600m,
+   (COALESCE(threshold_soft(nh_inds_distance.community_centre_hlc_2016_osm_2018, 1000),0.0001) +
+    COALESCE(threshold_soft(LEAST(array_min("museum_osm".distances),array_min("art_gallery_osm".distances)), 3200),0.0001) +
+    COALESCE(threshold_soft(LEAST(array_min("cinema_osm".distances),array_min("theatre_osm".distances)), 3200),0.0001) +
+    COALESCE(threshold_soft(array_min("libraries".distances), 1000),0.0001))/4.0 AS community_culture_leisure ,
+   (COALESCE(threshold_soft(array_min("childcare_oshc_meet".distances), 1600),0.0001) +
+    COALESCE(threshold_soft(array_min("childcare_all_meet".distances), 800),0.0001))/2.0 AS early_years,
+   (COALESCE(threshold_soft(nh_inds_distance.schools_primary_all_gov, 1600),0.0001) +
+    COALESCE(threshold_soft(nh_inds_distance.schools_primary_all_gov, 1600),0.0001))/2.0 AS education ,
+   (COALESCE(threshold_soft(array_min("nhsd_2017_aged_care_residential".distances), 1000),0.0001) +
+    COALESCE(threshold_soft(array_min("nhsd_2017_pharmacy".distances), 1000),0.0001) +
+    COALESCE(threshold_soft(array_min("nhsd_2017_mc_family_health".distances), 1000),0.0001) +
+    COALESCE(threshold_soft(array_min("nhsd_2017_other_community_health_care".distances), 1000),0.0001) +
+    COALESCE(threshold_soft(array_min("nhsd_2017_dentist".distances), 1000),0.0001) +
+    COALESCE(threshold_soft(array_min("nhsd_2017_gp".distances), 1000),0.0001))/6.0 AS health_services ,
+   (COALESCE(threshold_soft(array_min("public_swimming_pool_osm".distances), 1200),0.0001) +
+    COALESCE(threshold_soft(ind_os_distance.sport_distance_m, 1000),0.0001))/2.0 AS sport_rec,
+   (COALESCE(threshold_soft(array_min("fruit_veg_osm".distances), 1000),0.0001) +
+    COALESCE(threshold_soft(array_min("meat_seafood_osm".distances), 3200),0.0001) +
+    COALESCE(threshold_soft(array_min("supermarket_osm".distances), 1000),0.0001))/3.0 AS food,    
+   (COALESCE(threshold_soft(array_min("convenience_osm".distances), 1000),0.0001) +
+    COALESCE(threshold_soft(array_min("newsagent_osm".distances), 3200),0.0001) +
+    COALESCE(threshold_soft(array_min("petrolstation_osm".distances), 1000),0.0001))/3.0 AS convenience,         
+    COALESCE(threshold_soft(gtfs_20191008_20191205_frequent_pt_0030,400),0.0001) AS pt_regular_400m,
+    COALESCE(threshold_soft(ind_os_distance.pos_15k_sqm_distance_m,400),0.0001) AS pos_large_400m,
     -- we coalesce 30:40 measures to 0, as nulls mean no one is in bottom two housing quintiles - really 0/0 implies 0% in this context
     -- noting that null is not acceptable.  This should be discussed, but is workable for now.
     -- Later, we reverse polarity of 30 40 measure
