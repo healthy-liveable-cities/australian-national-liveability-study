@@ -400,36 +400,6 @@ CREATE UNIQUE INDEX {table}_idx ON  {table} ({id});
 curs.execute(sql)
 conn.commit()
 print(" Done.")
-
-
-# Walkability was inadvertantly not run in the ad hoc script for nh inds
-table = 'ind_walkability'
-abbrev = 'wa'
-print(" - {}".format(table)),
-t = 'soft'
-d = 1600
-sql = '''
-DROP TABLE IF EXISTS {table};
-CREATE TABLE {table} AS
-SELECT dl.{id},
-       dl.z_dl,
-       sc.z_sc,
-       dd.z_dd,
-       dl.z_dl + sc.z_sc + dd.z_dd AS {abbrev}_{t}_{d}m
-FROM 
-(SELECT {id}, (dl_{t}_{d}m - AVG(dl_{t}_{d}m) OVER())/stddev_pop(dl_{t}_{d}m) OVER() as z_dl FROM ind_daily_living) dl
-LEFT JOIN (SELECT {id}, (sc_nh1600m - AVG(sc_nh1600m) OVER())/stddev_pop(sc_nh1600m) OVER() as z_sc FROM sc_nh1600m) sc ON sc.{id} = dl.{id}
-LEFT JOIN (SELECT {id}, (dd_nh1600m - AVG(dd_nh1600m) OVER())/stddev_pop(dd_nh1600m) OVER() as z_dd FROM dd_nh1600m) dd ON dd.{id} = dl.{id};
-CREATE UNIQUE INDEX IF NOT EXISTS {table}_idx ON  {table} ({id});
-'''.format(id = points_id,
-           table = table,
-           t = t,
-           d = d,
-           abbrev = abbrev)
-curs.execute(sql)
-conn.commit()
-print(" Done.") 
- 
  
 table = 'ind_si_mix'
 abbrev = 'si'

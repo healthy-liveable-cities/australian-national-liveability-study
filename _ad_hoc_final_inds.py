@@ -18,81 +18,42 @@ script = os.path.basename(sys.argv[0])
 task = 'calculate final indicators for 21 city scorecards'
 
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
-curs = conn.cursor()
+curs = conn.cursor()  
 
-# Walkability was inadvertantly not run in the ad hoc script for nh inds
-table = 'ind_walkability'
-abbrev = 'wa'
-print(" - {}".format(table)),
-t = 'soft'
-d = 1600
+engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_user,
+                                                                 pwd  = db_pwd,
+                                                                 host = db_host,
+                                                                 db   = db))
+# Calculate urban walkability index
+print("Creating urban walkability index... "),   
+table = ['ind_walkability','wa']
 sql = '''
-DROP TABLE IF EXISTS {table};
-CREATE TABLE {table} AS
-SELECT dl.{id},
+DROP TABLE IF EXISTS {table}; 
+CREATE TABLE {table} AS 
+SELECT p.{id},
        dl.z_dl,
        sc.z_sc,
        dd.z_dd,
-       dl.z_dl + sc.z_sc + dd.z_dd AS {abbrev}_{t}_{d}m
-FROM 
-(SELECT {id}, (dl_{t}_{d}m - AVG(dl_{t}_{d}m) OVER())/stddev_pop(dl_{t}_{d}m) OVER() as z_dl FROM ind_daily_living) dl
-LEFT JOIN (SELECT {id}, (sc_nh1600m - AVG(sc_nh1600m) OVER())/stddev_pop(sc_nh1600m) OVER() as z_sc FROM sc_nh1600m) sc ON sc.{id} = dl.{id}
-LEFT JOIN (SELECT {id}, (dd_nh1600m - AVG(dd_nh1600m) OVER())/stddev_pop(dd_nh1600m) OVER() as z_dd FROM dd_nh1600m) dd ON dd.{id} = dl.{id};
-CREATE UNIQUE INDEX IF NOT EXISTS {table}_idx ON  {table} ({id});
-'''.format(id = points_id,
-           table = table,
-           t = t,
-           d = d,
-           abbrev = abbrev)
-curs.execute(sql)
-conn.commit()
-print(" Done.") 
- 
- 
-table = 'ind_si_mix'
-abbrev = 'si'
-print(" - {}".format(table)),
-
-sql = '''
--- DROP TABLE IF EXISTS {table};
-CREATE TABLE IF NOT EXISTS {table} AS
-SELECT p.{id},
-    (COALESCE(threshold_soft(nh_inds_distance.community_centre_hlc_2016_osm_2018, 1000),0) +
-    COALESCE(threshold_soft(LEAST(array_min("museum_osm".distances),array_min("art_gallery_osm".distances)), 3200),0) +
-    COALESCE(threshold_soft(LEAST(array_min("cinema_osm".distances),array_min("theatre_osm".distances)), 3200),0) +
-    COALESCE(threshold_soft(array_min("libraries".distances), 1000),0) +
-    COALESCE(threshold_soft(array_min("childcare_oshc_meet".distances), 1600),0) +
-    COALESCE(threshold_soft(array_min("childcare_all_meet".distances), 800),0)  +
-    COALESCE(threshold_soft(nh_inds_distance.schools_primary_all_gov, 1600),0) +
-    COALESCE(threshold_soft(nh_inds_distance.schools_primary_all_gov, 1600),0) +
-    COALESCE(threshold_soft(array_min("nhsd_2017_aged_care_residential".distances), 1000),0) +
-    COALESCE(threshold_soft(array_min("nhsd_2017_pharmacy".distances), 1000),0) +
-    COALESCE(threshold_soft(array_min("nhsd_2017_mc_family_health".distances), 1000),0) +
-    COALESCE(threshold_soft(array_min("nhsd_2017_other_community_health_care".distances), 1000),0) +
-    COALESCE(threshold_soft(array_min("nhsd_2017_dentist".distances), 1000),0) +
-    COALESCE(threshold_soft(array_min("nhsd_2017_gp".distances), 1000),0) +
-    COALESCE(threshold_soft(array_min("public_swimming_pool_osm".distances), 1200),0) +
-    COALESCE(threshold_soft(ind_os_distance.sport_distance_m, 1000),0)) AS si_mix
-    FROM parcel_dwellings p
-    LEFT JOIN nh_inds_distance ON p.{id} = nh_inds_distance.{id}
-    LEFT JOIN d_3200m_cl."museum_osm" ON p.{id} = d_3200m_cl."museum_osm".{id}
-    LEFT JOIN d_3200m_cl."art_gallery_osm" ON p.{id} = d_3200m_cl."art_gallery_osm".{id}
-    LEFT JOIN d_3200m_cl."cinema_osm" ON p.{id} = d_3200m_cl."cinema_osm".{id}
-    LEFT JOIN d_3200m_cl."theatre_osm" ON p.{id} = d_3200m_cl."theatre_osm".{id}
-    LEFT JOIN d_3200m_cl."libraries" ON p.{id} = d_3200m_cl."libraries".{id}
-    LEFT JOIN d_3200m_cl."childcare_oshc_meet" ON p.{id} = d_3200m_cl."childcare_oshc_meet".{id}
-    LEFT JOIN d_3200m_cl."childcare_all_meet" ON p.{id} = d_3200m_cl."childcare_all_meet".{id}
-    LEFT JOIN d_3200m_cl."nhsd_2017_aged_care_residential" ON p.{id} = d_3200m_cl."nhsd_2017_aged_care_residential".{id}
-    LEFT JOIN d_3200m_cl."nhsd_2017_pharmacy" ON p.{id} = d_3200m_cl."nhsd_2017_pharmacy".{id}
-    LEFT JOIN d_3200m_cl."nhsd_2017_mc_family_health" ON p.{id} = d_3200m_cl."nhsd_2017_mc_family_health".{id}
-    LEFT JOIN d_3200m_cl."nhsd_2017_other_community_health_care" ON p.{id} = d_3200m_cl."nhsd_2017_other_community_health_care".{id}
-    LEFT JOIN d_3200m_cl."nhsd_2017_dentist" ON p.{id} = d_3200m_cl."nhsd_2017_dentist".{id}
-    LEFT JOIN d_3200m_cl."nhsd_2017_gp" ON p.{id} = d_3200m_cl."nhsd_2017_gp".{id}
-    LEFT JOIN d_3200m_cl."public_swimming_pool_osm" ON p.{id} = d_3200m_cl."public_swimming_pool_osm".{id}
-    LEFT JOIN ind_os_distance ON p.{id} = ind_os_distance.{id};
-    CREATE UNIQUE INDEX IF NOT EXISTS {table}_idx ON  {table} ({id});
-'''.format(id = points_id,
-           table = table)
+    dl.z_dl + sc.z_sc + dd.z_dd AS walkability_index 
+  FROM parcel_dwellings p 
+    LEFT JOIN (SELECT {id}, 
+                (dl_soft_1600m - AVG(dl_soft_1600m) 
+                    OVER())
+                    /stddev_pop(dl_soft_1600m) OVER() as z_dl 
+              FROM ind_daily_living) dl  ON dl.{id} = p.{id}
+    LEFT JOIN (SELECT {id}, (sc_nh1600m - AVG(sc_nh1600m) OVER())
+                  /stddev_pop(sc_nh1600m) OVER() as z_sc 
+               FROM sc_nh1600m) sc ON sc.{id} = p.{id}
+    LEFT JOIN (SELECT {id}, (dd_nh1600m - AVG(dd_nh1600m) OVER())
+                 /stddev_pop(dd_nh1600m) OVER() as z_dd 
+               FROM dd_nh1600m) dd ON dd.{id} = p.{id}
+WHERE NOT EXISTS (SELECT 1 
+                    FROM excluded_parcels e
+                   WHERE p.{id} = e.{id});
+CREATE UNIQUE INDEX {table}_idx ON  {table} ({id});
+'''.format(table = table[0], 
+           abbrev = table[1], 
+           id = points_id)
 curs.execute(sql)
 conn.commit()
 print(" Done.")
@@ -116,14 +77,6 @@ uli_locations = ind_matrix[ind_matrix['ind']=='uli']['locale'].iloc[0].encode('u
 if locale not in uli_locations and uli_locations != '*':
   print("This location ('{locale}') is not marked for calculation of the Urban Liveability Index; check the indicator_setup file.".format(locale = locale))
   sys.exit()
-
-conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
-curs = conn.cursor()  
-
-engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_user,
-                                                                 pwd  = db_pwd,
-                                                                 host = db_host,
-                                                                 db   = db))
 
 # Define function to shape if variable is outlying  
 createFunction = '''
@@ -158,7 +111,7 @@ print("Created custom function.")
 # collate indicators for national liveability index
 
 sql = '''
--- DROP TABLE IF EXISTS uli_inds ; 
+DROP TABLE IF EXISTS uli_inds ; 
 CREATE TABLE IF NOT EXISTS uli_inds AS
 SELECT p.{id},
     COALESCE(sc_nh1600m,0) AS sc_nh1600m,
@@ -342,12 +295,217 @@ curs.execute(sql)
 conn.commit()
 print("Created table 'uli', containing parcel level urban liveability index estimates, along with its required summary ingredients (mean, sd, coefficient of variation).")
 
+print('\r\nCreate address level score card...'),
+sql = '''
+DROP TABLE IF EXISTS ind_score_card;
+CREATE TABLE IF NOT EXISTS ind_score_card AS
+SELECT 
+    p.{id}                    ,
+    p.count_objectid          ,
+    p.point_x                 ,
+    p.point_y                 ,
+    p.hex_id                  ,
+    '{full_locale}'::text AS study_region,
+    '{locale}'::text AS locale      ,
+    area.mb_code_2016         ,
+    area.mb_category_name_2016,
+    area.sa1_maincode_2016    ,
+    area.sa2_name_2016        ,
+    area.sa3_name_2016        ,
+    area.sa4_name_2016        ,
+    area.gccsa_name_2016      ,
+    area.state_name_2016      ,
+    area.ssc_name_2016        ,
+    area.lga_name_2016        ,
+    area.ucl_name_2016        ,
+    area.sos_name_2016        ,
+    area.urban                ,
+    area.irsd_score           ,
+    e.exclude                 ,
+    dl_soft_1600m AS daily_living,
+    sc_nh1600m AS street_connectivity,
+    dd_nh1600m AS dwelling_density,
+    ind_walkability.walkability_index,
+    uli.uli AS liveability_index,
+    array_min(activity_centres.distances) AS closest_activity_centre,
+    array_min(alcohol_offlicence.distances) AS closest_alcohol_offlicence,
+    ind_si_mix.si_mix AS social_infrastructure_mix,
+    threshold_hard(nh_inds_distance.gtfs_20191008_20191205_frequent_pt_0030,400) AS frequent_pt_400m,
+    threshold_hard(ind_os_distance.pos_15k_sqm_distance_m,400) AS large_pos_400m,
+    live_sa1_work_sa3.pct_live_work_local_area ,
+    abs_ind_30_40.pcent_30_40 as pct_30_40_affordable_housing,
+    p.geom              
+FROM     
+parcel_dwellings p                                                                                 
+LEFT JOIN area_linkage area ON p.mb_code_20 = area.mb_code_2016
+LEFT JOIN (SELECT {id}, string_agg(indicator,',') AS exclude 
+           FROM excluded_parcels GROUP BY {id}) e 
+       ON p.{id} = e.{id}
+LEFT JOIN ind_daily_living ON p.{id} = ind_daily_living.{id}
+LEFT JOIN sc_nh1600m ON p.{id} = sc_nh1600m.{id}
+LEFT JOIN dd_nh1600m ON p.{id} = dd_nh1600m.{id}
+LEFT JOIN uli ON p.{id} = uli.{id}
+LEFT JOIN ind_walkability ON p.{id} = ind_walkability.{id}
+LEFT JOIN d_3200m_cl.activity_centres ON p.{id} = d_3200m_cl.activity_centres.{id}
+LEFT JOIN d_3200m_cl.alcohol_offlicence ON p.{id} = d_3200m_cl.alcohol_offlicence.{id}
+LEFT JOIN ind_si_mix ON p.{id} = ind_si_mix.{id}
+LEFT JOIN nh_inds_distance ON p.{id} = nh_inds_distance.{id}
+LEFT JOIN ind_os_distance ON p.{id} = ind_os_distance.{id}
+LEFT JOIN live_sa1_work_sa3 ON area.sa1_7digitcode_2016 = live_sa1_work_sa3.sa1_7digitcode_2016::text
+LEFT JOIN abs_ind_30_40 ON area.sa1_7digitcode_2016 = abs_ind_30_40.sa1_7digitcode_2016::text;
+CREATE UNIQUE INDEX IF NOT EXISTS ix_score_card ON  ind_score_card ({id});
+CREATE INDEX IF NOT EXISTS gix_score_card ON ind_score_card USING GIST (geom);
+'''.format(id = points_id, 
+           full_locale = full_locale,
+           locale = locale)
+curs.execute(sql)
+conn.commit()
+print('Done.')
 
+print('\r\nCreate area level score cards...')
+print('  - Mesh Block')
+sql = '''
+DROP TABLE IF EXISTS ind_score_card_mb_init;
+CREATE TABLE IF NOT EXISTS ind_score_card_mb_init AS
+SELECT a.mb_code_2016          ,
+       a.mb_category_name_2016 ,
+       t.study_region,
+       t.locale,
+       a.dwelling              ,
+       a.person                ,
+       a.sa1_maincode_2016     ,
+       a.sa2_name_2016         ,
+       a.sa3_name_2016         ,
+       a.sa4_name_2016         ,
+       a.gccsa_name_2016       ,
+       a.state_name_2016       ,
+       a.ssc_name_2016         ,
+       a.lga_name_2016         ,
+       a.ucl_name_2016         ,
+       a.sos_name_2016         ,
+       a.urban                 ,
+       a.irsd_score            ,
+       a.area_ha               ,
+        daily_living,
+        street_connectivity,
+        dwelling_density,
+        walkability_index,
+        liveability_index,
+        social_infrastructure_mix,
+        closest_activity_centre,
+        closest_alcohol_offlicence,
+        frequent_pt_400m,
+        large_pos_400m,
+        pct_live_work_local_area, 
+        pct_30_40_affordable_housing,
+       sample_count                                   ,
+       sample_count / a.area_ha AS sample_count_per_ha,
+       a.geom                 
+FROM area_linkage a 
+LEFT JOIN (
+    SELECT  p.mb_code_2016,
+            string_agg(DISTINCT(p.study_region),',')::varchar study_region,
+            string_agg(DISTINCT(p.locale),',')::varchar locale,
+            COUNT(p.*) AS sample_count       ,
+            AVG(daily_living) AS daily_living,
+            AVG(street_connectivity) AS street_connectivity,
+            AVG(walkability_index) AS walkability_index,
+            AVG(dwelling_density) AS dwelling_density,
+            AVG(liveability_index) AS liveability_index,
+            AVG(closest_activity_centre) AS closest_activity_centre,
+            AVG(closest_alcohol_offlicence) AS closest_alcohol_offlicence,
+            AVG(social_infrastructure_mix)  AS social_infrastructure_mix,
+            100 * AVG(frequent_pt_400m) AS frequent_pt_400m,
+            100 * AVG(large_pos_400m) AS large_pos_400m,
+            AVG(pct_live_work_local_area) pct_live_work_local_area ,
+            AVG(pct_30_40_affordable_housing) as pct_30_40_affordable_housing
+    FROM ind_score_card p
+    WHERE p.exclude IS NULL
+    GROUP BY p.mb_code_2016) t USING (mb_code_2016)
+WHERE a.irsd_score IS NOT NULL
+  AND a.dwelling > 0
+  AND a.urban = 'urban'
+  AND a.study_region IS TRUE
+  AND sample_count > 0
+;
+CREATE UNIQUE INDEX IF NOT EXISTS ix_area_indicators_mb_json ON  area_indicators_mb_json (mb_code_2016);
+CREATE INDEX IF NOT EXISTS gix_area_indicators_mb_json ON area_indicators_mb_json USING GIST (geom);
+'''
+curs.execute(sql)
+conn.commit()
+print('Done.')
 
+ind_list = ['daily_living',
+        'street_connectivity',
+        'dwelling_density',
+        'walkability_index',
+        'liveability_index',
+        'social_infrastructure_mix',
+        'closest_activity_centre',
+        'closest_alcohol_offlicence',
+        'frequent_pt_400m',
+        'large_pos_400m',
+        'pct_live_work_local_area', 
+        'pct_30_40_affordable_housing']
+
+print("Creating weighted area aggregate tables:")
+for area in analysis_regions + ['study region']:   
+    if area != 'study region':
+        area_id = df_regions.loc[area,'id']
+        abbrev = df_regions.loc[area,'abbreviation']
+        include_region = 'study_region,'
+    else: 
+        area_id = 'study_region'
+        abbrev  = 'region'
+        include_region = ''
+    if area != 'Section of State':
+        pkey = area_id
+    else: 
+        pkey = '{},study_region'.format(area_id)
+    for standard in ['dwelling','person']:
+        print("  - score_card_{}_{}".format(abbrev,standard))
+        sql = '''
+        DROP TABLE IF EXISTS score_card_{abbrev}_{standard};
+        CREATE TABLE score_card_{abbrev}_{standard} AS
+        SELECT 
+        {area_code},
+        {include_region}
+        locale,
+        SUM(dwelling) AS dwelling,
+        SUM(person) AS person,
+        SUM(sample_count) AS sample_count,
+        SUM(sample_count)/SUM(area_ha) AS sample_count_per_ha,
+        SUM(area_ha) AS area_ha,
+        {extract},
+        ST_Union(geom) AS geom
+        FROM ind_score_card_mb_init
+        GROUP BY {area_code},study_region,locale;
+        '''.format(area_code = area_id,
+                   abbrev = abbrev,
+                   include_region = include_region,
+                   extract = ','.join(['''
+                       (CASE             
+                            -- if there are no units (dwellings or persons) the indicator is null
+                            WHEN COALESCE(SUM({standard}),0) = 0
+                                THEN NULL
+                            -- else, calculate the value of the unit weighted indicator
+                            ELSE                             
+                               ((SUM({standard}*{i})::numeric)/SUM({standard}))::numeric
+                          END) AS "{i}"
+                   '''.format(i = i,standard = standard) for i in ind_list]),
+                   standard = standard
+                   )
+        curs.execute(sql)
+        conn.commit()
+        sql = '''
+        ALTER TABLE  score_card_{abbrev}_{standard} ADD PRIMARY KEY ({pkey});
+        '''.format(pkey = pkey,
+                   abbrev = abbrev,
+                   standard = standard)
+        curs.execute(sql)
+        conn.commit()
 
 
 # print("Done!")
 # # output to completion log    
 # script_running_log(script, task, start)
-  
-

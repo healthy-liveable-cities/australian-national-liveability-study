@@ -26,47 +26,6 @@ engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_
                                                                  pwd  = db_pwd,
                                                                  host = db_host,
                                                                  db   = db))
-# Calculate urban walkability index
-print("Creating urban walkability index."),   
-table = ['ind_walkability','wa']
-create_table = '''
-DROP TABLE IF EXISTS {table}; 
-CREATE TABLE {table} AS 
-SELECT p.{id} 
-  FROM parcel_dwellings p 
-WHERE NOT EXISTS (SELECT 1 
-                    FROM excluded_parcels e
-                   WHERE p.{id} = e.{id})
-;
-'''.format(table = table[0], id = points_id.lower())
-curs.execute(create_table)
-conn.commit()
-# we just calculate walkability at 1600m, so we'll set nh_threshold to that value
-nh_threshold = 1600
-for threshold_type in ['hard','soft']:
-    populate_table = '''
-    -- Note that we take NULL for distance to closest in this context to mean areaence of presence
-    -- Error checking at other stages of processing should confirm whether this is the case.
-    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {abbrev}_{threshold_type}_{nh_threshold}m float;
-    UPDATE {table} t SET 
-    {abbrev}_{threshold_type}_{nh_threshold}m = dl.z_dl + sc.z_sc + dd.z_dd
-    FROM (SELECT {id}, (dl_{threshold_type}_{nh_threshold}m - AVG(dl_{threshold_type}_{nh_threshold}m) OVER())/stddev_pop(dl_{threshold_type}_{nh_threshold}m) OVER() as z_dl FROM ind_daily_living) dl
-    LEFT JOIN (SELECT {id}, (sc_nh1600m - AVG(sc_nh1600m) OVER())/stddev_pop(sc_nh1600m) OVER() as z_sc FROM sc_nh1600m) sc ON sc.{id} = dl.{id}
-    LEFT JOIN (SELECT {id}, (dd_nh1600m - AVG(dd_nh1600m) OVER())/stddev_pop(dd_nh1600m) OVER() as z_dd FROM dd_nh1600m) dd ON dd.{id} = dl.{id}
-    WHERE t.{id} = dl.{id};
-    '''.format(table = table[0], 
-               abbrev = table[1], 
-               id = points_id.lower(),
-               threshold_type = threshold_type, 
-               nh_threshold = nh_threshold)
-    curs.execute(populate_table)
-    conn.commit()
-    print("."),
-create_index = '''CREATE UNIQUE INDEX {table}_idx ON  {table} ({id});  '''.format(table = table[0], id = points_id.lower())
-curs.execute(create_index)
-conn.commit()
-print(" Done.")
-
 
 # Indicator configuration sheet is 'df_inds', read in from config file in the config script
 # Restrict to indicators associated with study region (except distance to closest dest indicators)
