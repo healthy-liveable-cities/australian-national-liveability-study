@@ -18,9 +18,9 @@ date_time = time.strftime("%Y%m%d-%H%M")
 # Import custom variables for National Liveability indicator process
 from _project_setup import *
 
-out_dir = os.path.join(folderPath,'study_region','ntnl_li_inds')
+out_dir = os.path.join(folderPath,'study_region','_exports')
 if not os.path.exists(out_dir):
-        os.makedirs(out_
+        os.makedirs(out_dir)
 os.environ['PGPASSWORD'] = db_pwd
 
 # simple timer for log file
@@ -46,7 +46,9 @@ command = (
            '-t "score_card_sa2_person" -t "score_card_sa3_dwelling" -t "score_card_sa3_person" '
            '-t "score_card_sa4_dwelling" -t "score_card_sa4_person" -t "score_card_sos_dwelling" '
            '-t "score_card_sos_person" -t "score_card_ssc_dwelling" -t "score_card_ssc_person" '
-           '{db} > {out_file}'.format(db = db,db_user = db_user,out_file=out_file)    
+           '-t "ind_score_card" '
+           '{db} > {out_file}'
+           ).format(db = db,db_user = db_user,out_file=out_file)    
 sp.call(command, shell=True,cwd=out_dir)   
 print("Done.")
 
