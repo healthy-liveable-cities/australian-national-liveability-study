@@ -123,7 +123,7 @@ SELECT p.{id},
    (COALESCE(threshold_soft(array_min("childcare_oshc_meet".distances), 1600),0) +
     COALESCE(threshold_soft(array_min("childcare_all_meet".distances), 800),0))/2.0 AS early_years,
    (COALESCE(threshold_soft(nh_inds_distance.schools_primary_all_gov, 1600),0) +
-    COALESCE(threshold_soft(nh_inds_distance.schools_primary_all_gov, 1600),0))/2.0 AS education ,
+    COALESCE(threshold_soft(nh_inds_distance.schools_secondary_all_gov, 1600),0))/2.0 AS education ,
    (COALESCE(threshold_soft(array_min("nhsd_2017_aged_care_residential".distances), 1000),0) +
     COALESCE(threshold_soft(array_min("nhsd_2017_pharmacy".distances), 1000),0) +
     COALESCE(threshold_soft(array_min("nhsd_2017_mc_family_health".distances), 1000),0) +
