@@ -44,27 +44,44 @@ if not os.path.exists(locale_dir):
 # default database
 print("Please enter default PostgreSQL database details to procede with new database creation, or close terminal to abort.")
 admin_db   = raw_input("Database: ")    
-admin_user_name = raw_input("Username: ")
-admin_pwd = getpass.getpass("Password for user {} on database {}: ".format(admin_user_name, admin_db))
+admin_user = raw_input("Username: ")
+admin_pwd = getpass.getpass("Password for user {} on database {}: ".format(admin_user, admin_db))
+
+              
+## OUTPUT PROCESS
+
+print("Connecting to default database to action queries.")
+conn = psycopg2.connect(dbname=admin_db, user=admin_user, password=admin_pwd)
+conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+curs = conn.cursor()
+
+
 
 # SQL queries
-createDB = '''
-  CREATE DATABASE {}
-  WITH OWNER = {} 
-  ENCODING = 'UTF8' 
-  LC_COLLATE = 'English_Australia.1252' 
-  LC_CTYPE = 'English_Australia.1252' 
-  TABLESPACE = pg_default 
-  CONNECTION LIMIT = -1
-  TEMPLATE template0;
-  '''.format(db,admin_user_name)  
 
-commentDB = '''
-  COMMENT ON DATABASE {} IS '{}';
-  '''.format(db,dbComment)
+print('Creating database if not exists {}... '.format(db)),
+curs.execute("SELECT COUNT(*) = 0 FROM pg_catalog.pg_database WHERE datname = '{}'".format(db))
+not_exists_row = curs.fetchone()
+not_exists = not_exists_row[0]
+if not_exists:
+  sql = '''
+    CREATE DATABASE {db}
+    WITH OWNER = {admin_user} 
+    ENCODING = 'UTF8' 
+    LC_COLLATE = 'English_Australia.1252' 
+    LC_CTYPE = 'English_Australia.1252' 
+    TABLESPACE = pg_default 
+    CONNECTION LIMIT = -1
+    TEMPLATE template0;
+     COMMENT ON DATABASE {db} IS '{dbComment}';
+    '''.format(db = db,
+               admin_user = admin_user,
+               dbComment = dbComment)  
+  curs.execute(sql) 
+print('Done.')
 
-
-createUser = '''
+print('Creating user {}  if not exists... '.format(db_user)),
+sql = '''
   DO
   $do$
   BEGIN
@@ -78,9 +95,11 @@ createUser = '''
   END
   $do$;
   '''.format(db_user, db_pwd)  
+curs.execute(sql)
+print('Done.')
 
-
-createUser_ArcSDE = '''
+print('Creating ArcSDE user {} if not exists... '.format(arc_sde_user)),
+sql = '''
   DO
   $do$
   BEGIN
@@ -101,16 +120,29 @@ createUser_ArcSDE = '''
   END
   $do$;
   '''.format(arc_sde_user, db_pwd)  
-  
-create_extensions = '''
+curs.execute(sql)
+print('Done.')  
+conn.close()  
+
+print("Connecting to {}.".format(db))
+conn = psycopg2.connect(dbname=db, user=admin_user, password=admin_pwd)
+conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+curs = conn.cursor()
+
+ 
+print('Creating required extensions ... '),
+sql = '''
   CREATE EXTENSION IF NOT EXISTS postgis; 
   CREATE EXTENSION IF NOT EXISTS postgis_sfcgal;
   SELECT postgis_full_version(); 
   CREATE EXTENSION IF NOT EXISTS hstore; 
   CREATE EXTENSION IF NOT EXISTS tablefunc;
   '''
-
-create_threshold_functions = '''
+curs.execute(sql)
+print('Done.')
+ 
+print('Creating threshold functions ... '),
+sql = '''
 CREATE OR REPLACE FUNCTION threshold_hard(in int, in int, out int) 
     RETURNS NULL ON NULL INPUT
     AS $$ SELECT ($1 < $2)::int $$
@@ -121,47 +153,24 @@ CREATE OR REPLACE FUNCTION threshold_soft(in int, in int, out double precision)
     AS $$ SELECT 1 - 1/(1+exp(-5*($1-$2)/($2::float))) $$
     LANGUAGE SQL;    
   '''
-                   
-## OUTPUT PROCESS
-
-print("Connecting to default database to action queries.")
-conn = psycopg2.connect(dbname=admin_db, user=admin_user_name, password=admin_pwd)
-conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
-curs = conn.cursor()
-
-print('Creating database if not exists {}... '.format(db)),
-curs.execute("SELECT COUNT(*) = 0 FROM pg_catalog.pg_database WHERE datname = '{}'".format(db))
-not_exists_row = curs.fetchone()
-not_exists = not_exists_row[0]
-if not_exists:
-  curs.execute(createDB) 
+curs.execute(sql)
 print('Done.')
 
-print('Adding comment "{}"... '.format(dbComment)),
-curs.execute(commentDB)
-print('Done.')
-
-
-print('Creating user {}  if not exists... '.format(db_user)),
-curs.execute(createUser)
-print('Done.')
-
-print('Creating ArcSDE user {} if not exists... '.format(arc_sde_user)),
-curs.execute(createUser_ArcSDE)
-print('Done.')  
-conn.close()  
-
-print("Connecting to {}.".format(db))
-conn = psycopg2.connect(dbname=db, user=admin_user_name, password=admin_pwd)
-conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
-curs = conn.cursor()
-
-print('Creating required extensions ... '),
-curs.execute(create_extensions)
-print('Done.')
-
-print('Creating threshold functions ... '),
-curs.execute(create_threshold_functions)
+print('Creating distance results schema {}... '.format(distance_schema)),
+sql = '''
+CREATE SCHEMA IF NOT EXISTS {};
+GRANT postgres TO python;
+'''.format(distance_schema)
+curs.execute(sql)
+for user in ['arc_sde','python']:
+    sql = '''
+    GRANT USAGE ON SCHEMA {schema} TO {user} ;
+    GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA {schema} TO {user};
+    GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA {schema} TO {user};
+    GRANT ALL ON ALL TABLES IN SCHEMA {schema} TO {user};
+    '''.format(schema=distance_schema, user = user)
+    curs.execute(sql)
+    conn.commit()
 print('Done.')
 
 if not os.path.isfile(os.path.join(locale_dir,db_sde)):

@@ -2,9 +2,7 @@
 # Author:  Carl Higgs
 # Date:    20180626
 
-
 import subprocess as sp     # for executing external commands (e.g. pgsql2shp or ogr2ogr)
-import arcpy
 import time
 import psycopg2
 from script_running_log import script_running_log
@@ -33,22 +31,22 @@ sp.call(command, shell=True, cwd=osm2pgsql_exe)
 print("Done.")
 
 
-print("Copy the network edges and nodes from gdb to postgis..."),
-command = (
-        ' ogr2ogr -overwrite -progress -f "PostgreSQL" ' 
-        ' PG:"host={host} port=5432 dbname={db}'
-        ' user={user} password = {pwd}" '
-        ' {gdb} {feature} '
-        ' -lco geometry_name="geom"'.format(host = db_host,
-                                     db = db,
-                                     user = db_user,
-                                     pwd = db_pwd,
-                                     gdb = gdb_path,
-                                     feature = '"edges" "nodes"') 
-        )
-print(command)
-sp.call(command, shell=True)
-print("Done (although, if it didn't work you can use the printed command above to do it manually)")
+# print("Copy the network edges and nodes from gdb to postgis..."),
+# command = (
+        # ' ogr2ogr -overwrite -progress -f "PostgreSQL" ' 
+        # ' PG:"host={host} port=5432 dbname={db}'
+        # ' user={user} password = {pwd}" '
+        # ' {gdb} {feature} '
+        # ' -lco geometry_name="geom"'.format(host = db_host,
+                                     # db = db,
+                                     # user = db_user,
+                                     # pwd = db_pwd,
+                                     # gdb = gdb_path,
+                                     # feature = '"edges" "nodes"') 
+        # )
+# print(command)
+# sp.call(command, shell=True)
+# print("Done (although, if it didn't work you can use the printed command above to do it manually)")
 
 # connect to the PostgreSQL server and ensure privileges are granted for all public tables
 curs.execute(grant_query)
@@ -63,7 +61,7 @@ for shape in ['line','point','polygon','roads']:
 
   sql = ['''
   -- Add geom column to polygon table, appropriately transformed to project spatial reference system
-  ALTER TABLE {osm_prefix}_{shape} ADD COLUMN geom geometry; 
+  ALTER TABLE {osm_prefix}_{shape} ADD COLUMN IF NOT EXISTS geom geometry; 
   UPDATE {osm_prefix}_{shape} SET geom = ST_Transform(way,{srid}); 
   CREATE INDEX {osm_prefix}_{shape}_idx ON {osm_prefix}_{shape} USING GIST (geom);
   '''.format(osm_prefix = osm_prefix, shape = shape,srid=srid),

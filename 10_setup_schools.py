@@ -28,7 +28,7 @@ from _project_setup import *
 # simple timer for log file
 start = time.time()
 script = os.path.basename(sys.argv[0])
-task = 'Prepare Areas of Open Space (AOS)'
+task = 'Prepare school data'
 
 # connect to the PostgreSQL server and ensure privileges are granted for all public tables
 conn = psycopg2.connect(dbname=db, user=db_user, password=db_pwd)

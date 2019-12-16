@@ -48,7 +48,7 @@ if not os.path.exists(temp):
     os.makedirs(temp)
 
 createTable_log     = '''
-  DROP TABLE IF EXISTS {0};
+  -- DROP TABLE IF EXISTS {0};
   CREATE TABLE IF NOT EXISTS {0}
     (polygon integer PRIMARY KEY, 
     parcel_count integer NOT NULL, 
@@ -68,7 +68,7 @@ queryUpdate      = '''
   '''.format('polygon','parcel_count','status','moment','mins')  
 
 createTable_sausageBuffer = '''
-  DROP TABLE IF EXISTS {table};
+  -- DROP TABLE IF EXISTS {table};
   CREATE TABLE IF NOT EXISTS {table}
     ({id} {type} PRIMARY KEY, 
      polygon integer,

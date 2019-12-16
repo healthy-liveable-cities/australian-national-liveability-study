@@ -125,10 +125,18 @@ osm2pgsql_style = os.path.join(folderPath,df_parameters.loc['osm2pgsql_style']['
 osm_source = df_studyregion.loc[locale]['osm_source']
 osm_prefix = df_studyregion.loc[locale]['osm_prefix']
 
-grant_query = '''GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {0};
-                 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO {0};
-                 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {1};
-                 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO {1};'''.format(arc_sde_user,db_user)
+distance_schema = 'd_3200m_cl'
+
+grant_query = '''
+    GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {db_user};
+    GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO {db_user};
+    GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {arc_sde_user};
+    GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO {arc_sde_user};
+    GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA {distance_schema} TO {db_user};
+    GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA {distance_schema} TO {db_user};
+    GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA {distance_schema} TO {arc_sde_user};
+    GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA {distance_schema} TO {arc_sde_user};
+    '''.format(db_user=db_user, arc_sde_user = arc_sde_user,distance_schema = distance_schema)
 
 # Region set up
 areas_of_interest = df_regions.index.values.tolist()

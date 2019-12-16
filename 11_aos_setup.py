@@ -354,8 +354,7 @@ WITH clusters AS(
        AND is_school IS FALSE
        AND (linear_feature IS FALSE 
             OR 
-            (acceptable_linear_feature IS TRUE
-            AND within_public IS TRUE))
+            acceptable_linear_feature IS TRUE)
        AND linear_waterway IS NULL
   UNION
     SELECT unnest(ST_ClusterWithin(not_public_os.geom, .001)) AS gc
