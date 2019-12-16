@@ -83,6 +83,8 @@ if pid !='MainProcess':
   arcpy.MakeFeatureLayer_management (sample_point_feature, "sample_point_feature_layer")
   arcpy.MakeFeatureLayer_management (outCombinedFeature, "destination_points_layer")       
   arcpy.MakeFeatureLayer_management(polygon_feature, "polygon_layer")   
+  cl_sql = '''({points_id},'{curlyo}{distance}{curlyc}'::int[])'''
+  sqlChunkify = 500
   # initial postgresql connection
   conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
   curs = conn.cursor()  
@@ -106,7 +108,19 @@ def list_df_values_by_id(df,a,b):
     arrays = np.split(values,index[1:])
     df2 = pandas.DataFrame({a:ukeys,b:[sorted(list(u)) for u in arrays]})
     return df2  
-  
+
+def add_locations(network,sub_layer,in_table,field):
+    arcpy.AddLocations_na(in_network_analysis_layer = network, 
+        sub_layer                      = sub_layer, 
+        in_table                       = in_table, 
+        field_mappings                 = "Name {} #".format(field), 
+        search_tolerance               = "{} Meters".format(tolerance), 
+        search_criteria                = "{} SHAPE;{} NONE".format(network_edges,network_junctions), 
+        append                         = "CLEAR", 
+        snap_to_position_along_network = "NO_SNAP", 
+        exclude_restricted_elements    = "INCLUDE",
+        search_query                   = "{} #;{} #".format(network_edges,network_junctions))
+
 # Worker/Child PROCESS
 def ODMatrixWorkerFunction(polygon): 
   # Connect to SQL database 
@@ -144,7 +158,7 @@ def ODMatrixWorkerFunction(polygon):
     dest_in_polygon = arcpy.SelectLayerByLocation_management("destination_points_layer", 'WITHIN_A_DISTANCE',polygon_selection,3200)
     for dest_class in destination_list:
         destStartTime = time.time()
-        result_table = '{distance_schema}."{dest_class}"'.format(distance_schema = distance_schema,
+        result_table = '{distance_schema}.{dest_class}'.format(distance_schema = distance_schema,
                                                                  dest_class = dest_class)
         # fetch count of successfully processed results for this destination in this polygon
         sql = '''
@@ -176,37 +190,8 @@ def ODMatrixWorkerFunction(polygon):
         destination_selection = arcpy.SelectLayerByAttribute_management(dest_in_polygon, where_clause = sql)
         destination_selection_count = int(arcpy.GetCount_management(destination_selection).getOutput(0))
         if destination_selection_count == 0: 
-            place = 'zero dest in polygon, so find closest'
-            # print(place)
-            null_dest_insert = '''
-             INSERT INTO {result_table} ({points_id},distances)  
-             SELECT p.{points_id},
-                    '{curlyo}{curlyc}'::int[]
-               FROM {sample_point_feature} p
-               LEFT JOIN {result_table} r ON p.{points_id} = r.{points_id}
-              WHERE {polygon_id} = {polygon}
-                AND r.{points_id} IS NULL
-                 ON CONFLICT DO NOTHING;
-             '''.format(result_table = result_table,
-                        sample_point_feature = sample_point_feature,
-                        points_id = points_id,
-                        polygon_id = polygon_id,   
-                        curlyo = '{',
-                        curlyc = '}',                     
-                        polygon = polygon)
-            # print(null_dest_insert)                    
-            curs.execute(null_dest_insert)
-            conn.commit()
-            # update current progress
-            place = "update progress (zero destinations)"
-            sql = '''
-              UPDATE {progress_table} 
-              SET processed = processed+{count}
-              '''.format(progress_table = progress_table,
-                         count = remaining_to_process)
-            curs.execute(sql)
-            conn.commit() 
-        if already_processed > 0:
+            place = 'zero dest in polygon, solve later'
+        if remaining_to_process > 0:
             curs.execute('''SELECT p.{points_id} 
                             FROM {sample_point_feature} p 
                             LEFT JOIN {result_table} r ON p.{points_id} = r.{points_id}
@@ -217,75 +202,25 @@ def ODMatrixWorkerFunction(polygon):
                                     polygon_id = polygon_id, 
                                     points_id = points_id.lower(), 
                                     polygon = polygon))
-            remaining_parcels = [x[0] for x in list(curs)]
+            remaining_points = [str(x[0]) for x in list(curs)]
             sql = '''
-              {polygon_id} = {polygon} AND {points_id} IN ('{parcels}')
+              {polygon_id} = {polygon} AND {points_id} IN ({points})
               '''.format(polygon = polygon,
                          polygon_id = polygon_id,   
                          points_id = points_id,
-                         parcels = "','".join(remaining_parcels))
+                         points = ",".join(remaining_points))
             origin_subset = arcpy.SelectLayerByAttribute_management("sample_point_feature_layer", 
                                                                     where_clause = sql)
-            # OD Matrix Setup      
-            arcpy.AddLocations_na(in_network_analysis_layer = outNALayer, 
-                sub_layer                      = originsLayerName, 
-                in_table                       = origin_subset, 
-                field_mappings                 = "Name {} #".format(points_id), 
-                search_tolerance               = "{} Meters".format(tolerance), 
-                search_criteria                = "{} SHAPE;{} NONE".format(network_edges,network_junctions), 
-                append                         = "CLEAR", 
-                snap_to_position_along_network = "NO_SNAP", 
-                exclude_restricted_elements    = "INCLUDE",
-                search_query                   = "{} #;{} #".format(network_edges,network_junctions))
+            add_locations(outNALayer,originsLayerName,origin_subset,points_id)
         else:
-            # OD Matrix Setup      
-            arcpy.AddLocations_na(in_network_analysis_layer = outNALayer, 
-                sub_layer                      = originsLayerName, 
-                in_table                       = origin_selection, 
-                field_mappings                 = "Name {} #".format(points_id), 
-                search_tolerance               = "{} Meters".format(tolerance), 
-                search_criteria                = "{} SHAPE;{} NONE".format(network_edges,network_junctions), 
-                append                         = "CLEAR", 
-                snap_to_position_along_network = "NO_SNAP", 
-                exclude_restricted_elements    = "INCLUDE",
-                search_query                   = "{} #;{} #".format(network_edges,network_junctions))
-            
+            add_locations(outNALayer,originsLayerName,origin_selection,points_id)            
         # select destination points 
-        arcpy.AddLocations_na(in_network_analysis_layer = outNALayer, 
-            sub_layer                      = destinationsLayerName, 
-            in_table                       = destination_selection, 
-            field_mappings                 = "Name {} #".format(destination_id), 
-            search_tolerance               = "{} Meters".format(tolerance), 
-            search_criteria                = "{} SHAPE;{} NONE".format(network_edges,network_junctions), 
-            append                         = "CLEAR", 
-            snap_to_position_along_network = "NO_SNAP", 
-            exclude_restricted_elements    = "INCLUDE",
-            search_query                   = "{} #;{} #".format(network_edges,network_junctions))
+        add_locations(outNALayer,destinationsLayerName,destination_selection,destination_id)
         
         # Process: Solve
         result = arcpy.Solve_na(outNALayer, terminate_on_solve_error = "CONTINUE")
         if result[1] == u'false':
-            place = 'OD results processed, but no results recorded'
-            sql = '''
-             INSERT INTO {result_table} ({points_id},distances)  
-             SELECT p.{points_id},
-                    '{curlyo}{curlyc}'::int[]
-               FROM {sample_point_feature} p
-               LEFT JOIN {result_table} r ON p.{points_id} = r.{points_id}
-              WHERE {polygon_id} = {polygon}
-                AND r.{points_id} IS NULL
-                 ON CONFLICT DO NOTHING;
-             '''.format(result_table = result_table,
-                        sample_point_feature = sample_point_feature,
-                        points_id = points_id,
-                        polygon_id = polygon_id,   
-                        curlyo = '{',
-                        curlyc = '}',                     
-                        polygon = polygon)
-              # print(null_dest_insert)                           
-            curs.execute(sql)
-            conn.commit()
-            place = "update progress (post OD matrix results, no results)"
+            place = 'OD results processed, but no results recorded in 3200m; solve later'
         else:
             place = 'results were returned, now processing...'
             # Extract lines layer, export to SQL database
@@ -302,27 +237,89 @@ def ODMatrixWorkerFunction(polygon):
             df = df[[points_id,'distances']]
             # df[points_id] = df[points_id].astype(object)
             # APPEND RESULTS TO EXISTING TABLE
-            df.to_sql(result_table,con = engine,index = False, if_exists='append')
-            # Where results don't exist for a destination class, ensure a null array is recorded
+            df = df.drop_duplicates(subset=[points_id])
+            place = 'df:\r\n{}'.format(df)
+            df.to_sql('{}'.format(dest_class),con = engine,schema = distance_schema, index = False, if_exists='append')
+        # Solve final closest analysis for points with no destination in 3200m
+        curs.execute('''SELECT p.{points_id} 
+                        FROM {sample_point_feature} p 
+                        LEFT JOIN {result_table} r ON p.{points_id} = r.{points_id}
+                        WHERE {polygon_id} = {polygon}
+                          AND r.{points_id} IS NULL;
+                     '''.format(result_table = result_table,
+                                sample_point_feature = sample_point_feature,
+                                polygon_id = polygon_id, 
+                                points_id = points_id.lower(), 
+                                polygon = polygon))
+        remaining_points = [str(x[0]) for x in list(curs)]
+        if len(remaining_points) > 0:
             sql = '''
-             INSERT INTO {result_table} ({points_id}, distances)  
-             SELECT p.{points_id},'{curlyo}{curlyc}'::int[] 
-               FROM {sample_point_feature} p
-               LEFT JOIN {result_table} r ON p.{points_id} = r.{points_id}
-             WHERE {polygon_id} = {polygon}
-               AND r.{points_id} is NULL
-                 ON CONFLICT DO NOTHING;
-             '''.format(result_table = result_table,
-                        sample_point_feature = sample_point_feature,
-                        points_id = points_id.lower(), 
-                        polygon_id = polygon_id,   
-                        polygon = polygon,
-                        curlyo = '{',
-                        curlyc = '}')   
-            # print(null_dest_insert)                          
-            curs.execute(sql)
-            conn.commit()       
-            place = "update progress (post OD matrix results, successful)"
+              {polygon_id} = {polygon} AND {points_id} IN ({points})
+              '''.format(polygon = polygon,
+                         polygon_id = polygon_id,   
+                         points_id = points_id,
+                         points = ",".join(remaining_points))
+            origin_subset = arcpy.SelectLayerByAttribute_management("sample_point_feature_layer", 
+                                                                    where_clause = sql)    
+            sql = '''dest_class = '{}' '''.format(dest_class)
+            destination_selection = arcpy.SelectLayerByAttribute_management("destination_points_layer", where_clause = sql)                                                                
+            add_locations(cl_outNALayer,cl_originsLayerName,origin_subset,points_id)            
+            add_locations(cl_outNALayer,cl_destinationsLayerName,destination_selection,destination_id)
+            # Process: Solve
+            result = arcpy.Solve_na(cl_outNALayer, terminate_on_solve_error = "CONTINUE")
+            if result[1] == u'false':
+                print('Polygon {polygon} has no solution.')
+                place = 'OD results processed, but no results recorded'
+                sql = '''
+                 INSERT INTO {result_table} ({points_id},distances)  
+                 SELECT p.{points_id},
+                        '{curlyo}{curlyc}'::int[]
+                   FROM {sample_point_feature} p
+                   LEFT JOIN {result_table} r ON p.{points_id} = r.{points_id}
+                  WHERE {polygon_id} = {polygon}
+                    AND r.{points_id} IS NULL
+                     ON CONFLICT DO NOTHING;
+                 '''.format(result_table = result_table,
+                            sample_point_feature = sample_point_feature,
+                            points_id = points_id,
+                            polygon_id = polygon_id,   
+                            curlyo = '{',
+                            curlyc = '}',                     
+                            polygon = polygon)
+                  # print(null_dest_insert)                           
+                curs.execute(sql)
+                conn.commit()
+            else:
+                place = 'OD results processed; results to be recorded'
+                outputLines = arcpy.da.SearchCursor(ODLinesSubLayer, fields)
+                count = 0
+                chunkedLines = list()
+                for outputLine in outputLines :
+                    count += 1
+                    origin_id = outputLine[0].split('-')[0].strip(' ')
+                    distance  = int(round(outputLine[1]))
+                    sql = cl_sql.format(points_id  = origin_id,  
+                                        curlyo = '{',
+                                        curlyc = '}',      
+                                        distance  = distance)
+                    chunkedLines.append(sql)
+                    if(count % sqlChunkify == 0):
+                        sql = '''
+                        INSERT INTO {result_table} AS o VALUES {values}
+                        '''.format(result_table=result_table, 
+                                   points_id = points_id,
+                                    values = ','.join(chunkedLines))
+                        curs.execute(sql)
+                        conn.commit()
+                        chunkedLines = list()
+                if(count % sqlChunkify != 0):
+                    sql = '''
+                    INSERT INTO {result_table} AS o VALUES {values} 
+                    '''.format(result_table=result_table, 
+                                   points_id = points_id,
+                                values = ','.join(chunkedLines))
+                    curs.execute(sql)
+                    conn.commit()            
         # update current progress
         sql = '''
           UPDATE {progress_table} SET processed = processed+{count}
@@ -343,7 +340,7 @@ def ODMatrixWorkerFunction(polygon):
                                                                      polygon,
                                                                      time.strftime("%Y%m%d-%H%M%S"))) 
   except:
-      print('''Error: {}\nPlace: {}'''.format( sys.exc_info(),place))  
+      print('''Error: {}\nPolygon: {}\nDestination: {}\nPlace: {}\nSQL: {}'''.format( sys.exc_info(),polygon,dest_class,place,sql))  
   finally:
       arcpy.CheckInExtension('Network')
       conn.close()
@@ -362,14 +359,13 @@ if __name__ == '__main__':
   destination_list = [x[0] for x in list(curs)]
   
   for dest_class in destination_list:
-      result_table = '{distance_schema}."{dest_class}"'.format(distance_schema = distance_schema,
+      result_table = '{distance_schema}.{dest_class}'.format(distance_schema = distance_schema,
                                                                dest_class = dest_class)
       sql = '''
         DROP TABLE IF EXISTS {result_table};
         CREATE TABLE IF NOT EXISTS {result_table}
         ({points_id} {points_id_type} NOT NULL ,
-         distances int[] NOT NULL, 
-         PRIMARY KEY({points_id})
+         distances int[] NOT NULL
          );
          '''.format(result_table=result_table,
                     points_id=points_id,
@@ -388,17 +384,17 @@ if __name__ == '__main__':
   conn.commit()
   print("Done.")
   sql = '''
-   SELECT destinations.count * parcels.count, 
+   SELECT destinations.count * points.count, 
           destinations.count, 
-          parcels.count
+          points.count
    FROM (SELECT COUNT(DISTINCT(dest_class)) FROM dest_type WHERE cutoff_count IS NOT NULL and count > 0) destinations,
-        (SELECT COUNT(*) FROM {sample_point_feature}) parcels;
+        (SELECT COUNT(*) FROM {sample_point_feature}) points;
   '''.format(sample_point_feature=sample_point_feature)
   curs.execute(sql)
   results = list(curs)[0]
   goal = results[0]
   destinations = results[1]
-  parcels = results[2]
+  points = results[2]
   print("Commence multiprocessing..."),
   # Parallel processing setting
   pool = multiprocessing.Pool(processes=nWorkers)
@@ -413,12 +409,12 @@ if __name__ == '__main__':
   # # Iterate process over polygons across nWorkers
   pool.map(ODMatrixWorkerFunction, iteration_list, chunksize=1)
   sql = '''
-   SELECT destinations.count * parcels.count, 
+   SELECT destinations.count * points.count, 
           destinations.count, 
-          parcels.count, 
+          points.count, 
           processed.processed
    FROM (SELECT COUNT(DISTINCT(dest_class)) FROM dest_type WHERE cutoff_count IS NOT NULL and count > 0) destinations,
-        (SELECT COUNT(*) FROM {sample_point_feature}) parcels,
+        (SELECT COUNT(*) FROM {sample_point_feature}) points,
         (SELECT processed FROM {progress_table}) processed;
   '''.format(sample_point_feature = sample_point_feature,
              progress_table = progress_table)
@@ -426,13 +422,13 @@ if __name__ == '__main__':
   results = list(curs)[0]
   goal = results[0]
   destinations = results[1]
-  parcels = results[2]
+  points = results[2]
   processed = results[3]
   if processed < goal:
     print('''The script has finished running, however the number of results processed {} is still less than the goal{}.  There may be a bug, so please investigate how this has occurred in more depth.'''.format(processed,goal))
   else: 
-    print('''It appears that {} destinations have already been processed for {} parcels, yielding {} results.'''.format(destinations,
-                                                                                                                        parcels,
+    print('''It appears that {} destinations have already been processed for {} points, yielding {} results.'''.format(destinations,
+                                                                                                                        points,
                                                                                                                         processed))
     if processed > goal:
       print('''The number of processed results is larger than the completion goal however ({})'''.format(goal))
