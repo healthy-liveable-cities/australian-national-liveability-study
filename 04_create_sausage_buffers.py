@@ -59,7 +59,7 @@ objectFloor = 0
 group_by = 1000
 
 ## Log file details (including header row)
-log_table = 'log_sausage_buffer'
+log_table = 'log_{}'.format(sausage_buffer_table)
 
 # temp --- using SSD copies to save write/read time, and avoid multiprocessing conflicts
 if not os.path.exists(temp):
@@ -146,13 +146,13 @@ if __name__ != '__main__':
   
   # any new processes commencing must be reassigned to work from one of n scratch gdb
   if int(pid) > nWorkers:
-    curs.execute("DELETE FROM processor_log WHERE pid = {};")
+    curs.execute("DELETE FROM processor_log WHERE pid = {};".format(pid))
     conn.commit()
-    curs.execute("SELECT pid FROM processor_log;".format(int(pid)))
+    curs.execute("SELECT pid FROM processor_log;")
     processor_list = [f[0] for f in list(curs)]
     processor_number = next(iter(set(range(min(processor_list)+1, max(processor_list))) - set(processor_list)))
     pid = processor_number
-    curs.execute("INSERT INTO processor_log VALUES ({pid}, '{}');".format(pid, multiprocessing.current_process().name))
+    curs.execute("INSERT INTO processor_log VALUES ({}, '{}');".format(pid, multiprocessing.current_process().name))
     conn.commit()
     
   temp_gdb = os.path.join(temp,"scratch_{}_{}".format(db,pid))
