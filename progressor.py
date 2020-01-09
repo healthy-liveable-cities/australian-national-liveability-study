@@ -16,7 +16,8 @@
 
 def progressor(num = 0, denom = 100, start = None, task = ''):
   import time
-  
+  num = int(num)
+  denom = int(denom)
   if (num < 0):
     print("Possible error: numerator is negative - is this right?")
     

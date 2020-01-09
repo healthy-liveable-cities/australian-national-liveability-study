@@ -1,0 +1,462 @@
+# Script:  15_od_distances_3200m.py
+# Purpose: This script records the distances to all destinations within 3200m, and the closest
+# Authors: Carl Higgs
+# Date: 20190208
+
+import arcpy, arcinfo
+import os
+import time
+import multiprocessing
+import sys
+import psycopg2 
+import numpy as np
+from sqlalchemy import create_engine
+from sqlalchemy.types import BigInteger
+# from progressor import progressor
+from tqdm import tqdm
+
+from script_running_log import script_running_log
+
+# Import custom variables for National Liveability indicator process
+from _project_setup import *
+
+# simple timer for log file
+start = time.time()
+script = os.path.basename(sys.argv[0])
+
+# ArcGIS environment settings
+arcpy.env.workspace = gdb_path  
+# create project specific folder in temp dir for scratch.gdb, if not exists
+if not os.path.exists(os.path.join(temp,db)):
+    os.makedirs(os.path.join(temp,db))
+    
+arcpy.env.scratchWorkspace = os.path.join(temp,db)  
+arcpy.env.qualifiedFieldNames = False  
+arcpy.env.overwriteOutput = True 
+
+# Get a list of feature 
+featureClasses = arcpy.ListFeatureClasses()
+
+sample_point_feature = parcel_dwellings
+hex_feature = hex_grid
+
+# SQL Settings
+# result_table is now in loop
+progress_table = "progress_od_3200m"
+
+# get pid name
+pid = multiprocessing.current_process().name
+
+if pid !='MainProcess':
+  # Make 3200m OD cost matrix layer
+  result_object = arcpy.MakeODCostMatrixLayer_na(in_network_dataset = in_network_dataset, 
+                                                 out_network_analysis_layer = "ODmatrix", 
+                                                 impedance_attribute = "Length", 
+                                                 default_cutoff = 3200,
+                                                 UTurn_policy = "ALLOW_UTURNS", 
+                                                 hierarchy = "NO_HIERARCHY", 
+                                                 output_path_shape = "NO_LINES")                                 
+  outNALayer = result_object.getOutput(0)
+  #Store the layer names that we will use later
+  subLayerNames = arcpy.na.GetNAClassNames(outNALayer)
+  originsLayerName = subLayerNames["Origins"]
+  destinationsLayerName = subLayerNames["Destinations"]
+  linesLayerName = subLayerNames["ODLines"]
+  ODLinesSubLayer = arcpy.mapping.ListLayers(outNALayer, linesLayerName)[0]
+  
+  # Make CLOSEST OD cost matrix layer
+  cl_result_object = arcpy.MakeODCostMatrixLayer_na(in_network_dataset = in_network_dataset, 
+                                                   out_network_analysis_layer = "ODmatrix", 
+                                                   impedance_attribute = "Length", 
+                                                   default_number_destinations_to_find = 1,
+                                                   UTurn_policy = "ALLOW_UTURNS", 
+                                                   hierarchy = "NO_HIERARCHY", 
+                                                   output_path_shape = "NO_LINES")
+  cl_outNALayer = cl_result_object.getOutput(0)
+  #Store the layer names that we will use later
+  cl_subLayerNames = arcpy.na.GetNAClassNames(cl_outNALayer)
+  cl_originsLayerName = cl_subLayerNames["Origins"]
+  cl_destinationsLayerName = cl_subLayerNames["Destinations"]
+  cl_linesLayerName = cl_subLayerNames["ODLines"]
+  cl_ODLinesSubLayer = arcpy.mapping.ListLayers(cl_outNALayer, cl_linesLayerName)[0]
+  
+  # Define fields and features
+  fields = ['Name', 'Total_Length']
+  arcpy.MakeFeatureLayer_management (sample_point_feature, "sample_point_feature_layer")
+  arcpy.MakeFeatureLayer_management (outCombinedFeature, "destination_points_layer")       
+  arcpy.MakeFeatureLayer_management(hex_feature, "hex_layer")   
+  cl_sql = '''('{points_id}','{curlyo}{distance}{curlyc}'::int[])'''
+  sqlChunkify = 500
+  
+# initial postgresql connection
+conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
+curs = conn.cursor()  
+
+# define reduced set of destinations and cutoffs (ie. only those with cutoffs defined)
+curs.execute("SELECT DISTINCT(dest_class) FROM dest_type WHERE cutoff_count IS NOT NULL AND count > 0;")
+destination_list = [x[0] for x in list(curs)]
+  
+# tally expected parcel-destination class result set  
+curs.execute("SELECT COUNT(*) FROM {sample_point_feature};".format(sample_point_feature = sample_point_feature))
+sample_point_count = list(curs)[0][0]
+completion_goal = sample_point_count * len(destination_list)
+conn.close()
+
+# pbar = tqdm(total=completion_goal,unit='results')
+
+print("\n")
+def list_df_values_by_id(df,a,b):
+    """ Custom pandas group by function using numpy 
+        Sorts values 'b' as lists grouped by values 'a'  
+    """
+    df = df[[a,b]]
+    keys, values = df.sort_values(a).values.T
+    ukeys, index = np.unique(keys,True)
+    arrays = np.split(values,index[1:])
+    df2 = pandas.DataFrame({a:ukeys,b:[sorted(list(u)) for u in arrays]})
+    return df2  
+
+def add_locations(network,sub_layer,in_table,field):
+    arcpy.AddLocations_na(in_network_analysis_layer = network, 
+        sub_layer                      = sub_layer, 
+        in_table                       = in_table, 
+        field_mappings                 = "Name {} #".format(field), 
+        search_tolerance               = "{} Meters".format(tolerance), 
+        search_criteria                = "{} SHAPE;{} NONE".format(network_edges,network_junctions), 
+        append                         = "CLEAR", 
+        snap_to_position_along_network = "NO_SNAP", 
+        exclude_restricted_elements    = "INCLUDE",
+        search_query                   = "{} #;{} #".format(network_edges,network_junctions))
+
+# Worker/Child PROCESS
+def ODMatrixWorkerFunction(hex): 
+  # Connect to SQL database 
+  try:
+    conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
+    curs = conn.cursor()
+    engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_user,
+                                                                      pwd  = db_pwd,
+                                                                      host = db_host,
+                                                                      db   = db), 
+                       use_native_hstore=False)
+  except:
+    print("SQL connection error")
+    print(sys.exc_info()[1])
+    return 100
+  # make sure Network Analyst licence is 'checked out'
+  arcpy.CheckOutExtension('Network')
+ 
+  # Worker Task is hex-specific by definition/parallel
+  # Skip if hex was finished in previous run
+  hexStartTime = time.time() 
+  try:   
+    place = "origin selection"  
+    # select origin points    
+    sql = '''{hex_id} = {hex}'''.format(hex_id = hex_id, hex = hex)
+    origin_selection = arcpy.SelectLayerByAttribute_management("sample_point_feature_layer", 
+                                                                where_clause = sql)
+    origin_point_count = int(arcpy.GetCount_management(origin_selection).getOutput(0))
+    # Skip hexs with zero adresses
+    if origin_point_count == 0:
+        return(2)
+    place = 'before hex selection'
+    sql = '''OBJECTID = {hex}'''.format(hex=hex)
+    hex_selection = arcpy.SelectLayerByAttribute_management("hex_layer", where_clause = sql)
+    place = 'before destination in hex selection'
+    dest_in_hex = arcpy.SelectLayerByLocation_management("destination_points_layer", 
+                                                         'WITHIN_A_DISTANCE',
+                                                         hex_selection,
+                                                         3200)
+    # Loop over destinations
+    # for dest_class in tqdm(destination_list,"hex: {}".format(hex)):
+    for dest_class in destination_list:
+        destStartTime = time.time()
+        result_table = '{distance_schema}."{dest_class}"'.format(distance_schema = distance_schema,
+                                                                 dest_class = dest_class)
+        # fetch count of successfully processed results for this destination in this hex
+        sql = '''
+          SELECT COUNT(*)
+            FROM {result_table}
+        LEFT JOIN {sample_point_feature} p USING ({points_id})
+           WHERE p.{hex_id} = {hex};
+        '''.format(result_table = result_table, 
+                   sample_point_feature = sample_point_feature,
+                   points_id = points_id,
+                   hex_id = hex_id,   
+                   hex = hex,
+                   dest_class=dest_class)
+        curs.execute(sql)
+        already_processed = list(curs)[0][0]
+        if already_processed == origin_point_count:
+            # update current progress
+            place = "update progress (destination already processed)"
+            sql = '''
+              UPDATE {progress_table} 
+              SET processed = processed+{count}
+              '''.format(progress_table = progress_table,
+                         count = origin_point_count)
+            curs.execute(sql)
+            conn.commit() 
+            place = "check progress"
+            sql = '''SELECT processed from {progress_table}'''.format(progress_table = progress_table)
+            curs.execute(sql)
+            progress = int(list(curs)[0][0])
+            # pbar.update(progress)
+            continue
+        remaining_to_process = origin_point_count - already_processed
+        sql = '''dest_class = '{}' '''.format(dest_class)
+        destination_selection = arcpy.SelectLayerByAttribute_management(dest_in_hex, where_clause = sql)
+        destination_selection_count = int(arcpy.GetCount_management(destination_selection).getOutput(0))
+        if destination_selection_count == 0: 
+            place = 'zero dest in hex, solve later'
+        # Add origins
+        if remaining_to_process > 0:
+            curs.execute('''SELECT p.{points_id} 
+                            FROM {sample_point_feature} p 
+                            LEFT JOIN {result_table} r ON p.{points_id} = r.{points_id}
+                            WHERE {hex_id} = {hex}
+                              AND r.{points_id} IS NULL;
+                         '''.format(hex_id = hex_id,
+                                    result_table = result_table,
+                                    sample_point_feature = sample_point_feature,
+                                    points_id = points_id.lower(), 
+                                    hex = hex))
+            remaining_points = [str(x[0]) for x in list(curs)]
+            sql = '''
+              {hex_id} = {hex} AND {points_id} IN ('{points}')
+              '''.format(hex_id = hex_id,
+                         hex = hex,
+                         points_id = points_id,
+                         points = "','".join(remaining_points))
+            origin_subset = arcpy.SelectLayerByAttribute_management("sample_point_feature_layer", 
+                                                                    where_clause = sql)
+            add_locations(outNALayer,originsLayerName,origin_subset,points_id)
+        else:
+            add_locations(outNALayer,originsLayerName,origin_selection,points_id)            
+        # Add destinations
+        add_locations(outNALayer,destinationsLayerName,destination_selection,destination_id)
+        
+        # Process: Solve
+        result = arcpy.Solve_na(outNALayer, terminate_on_solve_error = "CONTINUE")
+        if result[1] == u'false':
+            place = 'OD results processed, but no results recorded in 3200m; solve later'
+        else:
+            place = 'results were returned, now processing...'
+            # Extract lines layer, export to SQL database
+            outputLines = arcpy.da.SearchCursor(ODLinesSubLayer, fields)        
+            # new pandas approach to od counts
+            data = [x for x in outputLines]
+            df = pandas.DataFrame(data = data, columns = ['od','distances'])
+            df.distances = df.distances.astype('int')
+            df[[points_id,'d']] = df['od'].str.split(' - ',expand=True)
+            # custom group function
+            df = list_df_values_by_id(df,points_id,'distances')
+            # df["dest_class"] = dest_class
+            # df["hex"] = hex
+            df = df[[points_id,'distances']]
+            # df[points_id] = df[points_id].astype(object)
+            # APPEND RESULTS TO EXISTING TABLE
+            df = df.drop_duplicates(subset=[points_id])
+            place = 'df:\r\n{}'.format(df)
+            df.to_sql('{}'.format(dest_class),con = engine,schema = distance_schema, index = False, if_exists='append')
+        # Solve final closest analysis for points with no destination in 3200m
+        curs.execute('''SELECT p.{points_id} 
+                        FROM {sample_point_feature} p 
+                        LEFT JOIN {result_table} r ON p.{points_id} = r.{points_id}
+                        WHERE {hex_id} = {hex}
+                          AND r.{points_id} IS NULL;
+                     '''.format(result_table = result_table,
+                                sample_point_feature = sample_point_feature,
+                                hex_id = hex_id, 
+                                points_id = points_id.lower(), 
+                                hex = hex))
+        remaining_points = [str(x[0]) for x in list(curs)]
+        if len(remaining_points) > 0:
+            sql = '''
+              {hex_id} = {hex} AND {points_id} IN ('{points}')
+              '''.format(hex = hex,
+                         hex_id = hex_id,   
+                         points_id = points_id,
+                         points = "','".join(remaining_points))
+            origin_subset = arcpy.SelectLayerByAttribute_management("sample_point_feature_layer", 
+                                                                    where_clause = sql)    
+            sql = '''dest_class = '{}' '''.format(dest_class)
+            destination_selection = arcpy.SelectLayerByAttribute_management("destination_points_layer", where_clause = sql)                                                                
+            add_locations(cl_outNALayer,cl_originsLayerName,origin_subset,points_id)            
+            add_locations(cl_outNALayer,cl_destinationsLayerName,destination_selection,destination_id)
+            # Process: Solve
+            result = arcpy.Solve_na(cl_outNALayer, terminate_on_solve_error = "CONTINUE")
+            if result[1] == u'false':
+                print('\tHex {hex} has no solution.'.format(hex))
+                place = 'OD results processed, but no results recorded'
+                sql = '''
+                 INSERT INTO {result_table} ({points_id},distances)  
+                 SELECT p.{points_id},
+                        '{curlyo}{curlyc}'::int[]
+                   FROM {sample_point_feature} p
+                   LEFT JOIN {result_table} r ON p.{points_id} = r.{points_id}
+                  WHERE {hex_id} = {hex}
+                    AND r.{points_id} IS NULL
+                     ON CONFLICT DO NOTHING;
+                 '''.format(result_table = result_table,
+                            sample_point_feature = sample_point_feature,
+                            points_id = points_id,
+                            hex_id = hex_id,   
+                            curlyo = '{',
+                            curlyc = '}',                     
+                            hex = hex)
+                  # print(null_dest_insert)                           
+                curs.execute(sql)
+                conn.commit()
+            else:
+                place = 'OD results processed; results to be recorded'
+                outputLines = arcpy.da.SearchCursor(ODLinesSubLayer, fields)
+                count = 0
+                chunkedLines = list()
+                for outputLine in outputLines :
+                    count += 1
+                    origin_id = outputLine[0].split('-')[0].strip(' ')
+                    distance  = int(round(outputLine[1]))
+                    sql = cl_sql.format(points_id  = origin_id,  
+                                        curlyo = '{',
+                                        curlyc = '}',      
+                                        distance  = distance)
+                    chunkedLines.append(sql)
+                    if(count % sqlChunkify == 0):
+                        sql = '''
+                        INSERT INTO {result_table} AS o VALUES {values}
+                        '''.format(result_table=result_table, 
+                                   points_id = points_id,
+                                    values = ','.join(chunkedLines))
+                        curs.execute(sql)
+                        conn.commit()
+                        chunkedLines = list()
+                if(count % sqlChunkify != 0):
+                    sql = '''
+                    INSERT INTO {result_table} AS o VALUES {values} 
+                    '''.format(result_table=result_table, 
+                                   points_id = points_id,
+                                values = ','.join(chunkedLines))
+                    curs.execute(sql)
+                    conn.commit()            
+        # update current progress
+        sql = '''
+          UPDATE {progress_table} SET processed = processed+{count}
+          '''.format(progress_table = progress_table,
+                     count = remaining_to_process)
+        curs.execute(sql)
+        conn.commit()
+        place = "check progress"
+        sql = '''SELECT processed from {progress_table}'''.format(progress_table = progress_table)
+        curs.execute(sql)
+        progress = int(list(curs)[0][0])
+        # pbar.update(progress)
+        # place = 'final progress'
+        # progress_string = '''{}/{}; last hex processed: {}, at {}'''.format(progress,
+                                                                     # completion_goal,
+                                                                     # hex,
+                                                                     # time.strftime("%Y%m%d-%H%M%S"))
+        # progressor(progress,completion_goal,start,progress_string) 
+  except:
+      print('''Error: {}\nhex: {}\nDestination: {}\nPlace: {}\nSQL: {}'''.format( sys.exc_info(),hex,dest_class,place,sql))  
+  finally:
+      arcpy.CheckInExtension('Network')
+      conn.close()
+    
+# MAIN PROCESS
+if __name__ == '__main__':
+  task = 'Record distances from origins to destinations within 3200m, and closest'
+  print("Commencing task ({}): {} at {}".format(db,task,time.strftime("%Y%m%d-%H%M%S")))
+  # initial postgresql connection
+  conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
+  curs = conn.cursor()  
+
+  print("Create a table for tracking progress... "), 
+  sql = '''
+    DROP TABLE IF EXISTS {progress_table};
+    CREATE TABLE IF NOT EXISTS {progress_table} AS SELECT 0 AS processed;
+    '''.format(progress_table = progress_table)
+  curs.execute(sql)
+  conn.commit()  
+  print("Done.")
+
+  print("Prepare destinations for processing, tallying processed results... "),
+  # for dest_class in tqdm(destination_list):
+  for dest_class in destination_list:
+      result_table = '{distance_schema}."{dest_class}"'.format(distance_schema = distance_schema,
+                                                               dest_class = dest_class)
+      sql = '''
+        -- DROP TABLE IF EXISTS {result_table};
+        CREATE TABLE IF NOT EXISTS {result_table}
+        ({points_id} {points_id_type} NOT NULL ,
+         distances int[] NOT NULL
+         );
+         '''.format(result_table=result_table,
+                    points_id=points_id,
+                    points_id_type=points_id_type)
+      curs.execute(sql)
+      conn.commit()
+      
+  print("\nDone.")
+  
+  sql = '''
+   SELECT destinations.count * points.count, 
+          destinations.count, 
+          points.count
+   FROM (SELECT COUNT(DISTINCT(dest_class)) 
+           FROM dest_type 
+           WHERE cutoff_count IS NOT NULL 
+             AND count > 0) destinations,
+        (SELECT COUNT(*) FROM {sample_point_feature}) points;
+  '''.format(sample_point_feature=sample_point_feature)
+  curs.execute(sql)
+  results = list(curs)[0]
+  goal = results[0]
+  destinations = results[1]
+  points = results[2]
+  print("Commence multiprocessing..."),
+  # Parallel processing setting
+  pool = multiprocessing.Pool(processes=nWorkers)
+  # get list of hexs over which to iterate
+  sql = '''
+    SELECT DISTINCT hex FROM hex_parcels;
+      '''
+  curs.execute(sql)
+  iteration_list = np.asarray([x[0] for x in list(curs)])
+  # # Iterate process over hexs across nWorkers
+  # pool.map(ODMatrixWorkerFunction, iteration_list, chunksize=1)
+  r = list(tqdm(pool.imap(ODMatrixWorkerFunction, iteration_list), total=len(iteration_list), unit='hex'))
+  sql = '''
+   SELECT destinations.count * points.count, 
+          destinations.count, 
+          points.count, 
+          processed.processed
+   FROM (SELECT COUNT(DISTINCT(dest_class)) FROM dest_type 
+          WHERE cutoff_count IS NOT NULL 
+            AND count > 0) destinations,
+        (SELECT COUNT(*) FROM {sample_point_feature}) points,
+        (SELECT processed FROM {progress_table}) processed;
+  '''.format(sample_point_feature = sample_point_feature,
+             progress_table = progress_table)
+  curs.execute(sql)
+  results = list(curs)[0]
+  goal = results[0]
+  destinations = results[1]
+  points = results[2]
+  processed = results[3]
+  if processed < goal:
+    print('''The script has finished running, however the number of results processed {} is still less than the goal{}.  There may be a bug, so please investigate how this has occurred in more depth.'''.format(processed,goal))
+  else: 
+    print('''It appears that {} destinations have already been processed for {} points, yielding {} results.'''.format(destinations,
+                                                                                                                        points,
+                                                                                                                        processed))
+    if processed > goal:
+      print('''The number of processed results is larger than the completion goal however ({})'''.format(goal))
+      print('''So it appears something has gone wrong. Please check how this might have occurred.  There may be a bug.''')
+    else:
+      print('''That appears to be equal to the completion goal of {} results; so all good!  It looks like this script is done.'''.format(goal))
+  # output to completion log    
+  if processed == goal:
+    # this script will only be marked as successfully complete if the number of results processed matches the completion goal.
+    script_running_log(script, task, start, locale)
+  conn.close()

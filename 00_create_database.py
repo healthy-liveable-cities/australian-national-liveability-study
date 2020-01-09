@@ -164,6 +164,23 @@ print('Creating threshold functions ... '),
 curs.execute(create_threshold_functions)
 print('Done.')
 
+print('Creating distance results schema {}... '.format(distance_schema)),
+sql = '''
+CREATE SCHEMA IF NOT EXISTS {};
+GRANT postgres TO python;
+'''.format(distance_schema)
+curs.execute(sql)
+for user in ['arc_sde','python']:
+    sql = '''
+    GRANT USAGE ON SCHEMA {schema} TO {user} ;
+    GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA {schema} TO {user};
+    GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA {schema} TO {user};
+    GRANT ALL ON ALL TABLES IN SCHEMA {schema} TO {user};
+    '''.format(schema=distance_schema, user = user)
+    curs.execute(sql)
+    conn.commit()
+print('Done.')
+
 if not os.path.isfile(os.path.join(locale_dir,db_sde)):
   print('Creating ArcGIS spatial database connection file ... '),
   arcpy.CreateDatabaseConnection_management(out_folder_path = locale_dir,

@@ -12,12 +12,21 @@
 # Import custom variables for National Liveability indicator process
 import sys
   
+distance_schema = 'd_3200m_cl'
+db_user = 'python'
+arc_sde_user = 'arc_sde'
+
 grant_query = '''
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO arc_sde;
-GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO arc_sde;
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO python;
-GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO python;
-'''
+    GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {db_user};
+    GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO {db_user};
+    GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {arc_sde_user};
+    GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO {arc_sde_user};
+    GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA {distance_schema} TO {db_user};
+    GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA {distance_schema} TO {db_user};
+    GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA {distance_schema} TO {arc_sde_user};
+    GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA {distance_schema} TO {arc_sde_user};
+    '''.format(db_user=db_user, arc_sde_user = arc_sde_user,distance_schema = distance_schema)
+
 if len(sys.argv) < 2:
   print(grant_query)
 else:

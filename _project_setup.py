@@ -99,6 +99,8 @@ buffered_study_region = 'buffered_study_region'
 hex_grid = '{0}_hex_{1}{2}_diag'.format(study_region,hex_diag,units)
 hex_grid_buffer =  '{0}_hex_{1}{2}_diag_{3}{2}_buffer'.format(study_region,hex_diag,units,hex_buffer)
 hex_side = float(hex_diag)*0.5
+hex_id = 'hex_id'
+hex_feature = 'hex_parcels'
 
 # Database names -- derived from above parameters; (no need to change!)
 gdb       = '{}.gdb'.format(db)
@@ -106,7 +108,6 @@ db_sde    = '{}.sde'.format(db)
 gdb_path    = os.path.join(locale_dir,gdb)
 db_sde_path = os.path.join(locale_dir,db_sde)
 dbComment = 'Liveability indicator data for {0} {1}.'.format(locale,year)
-
 
 os.environ['PGHOST']     = db_host
 os.environ['PGPORT']     = str(db_port)
