@@ -120,14 +120,6 @@ sql = '''
 '''
 curs.execute(sql)
 destination_list = [x[0] for x in list(curs)]
-  
-# tally expected parcel-destination class result set  
-curs.execute("SELECT COUNT(*) FROM {sample_point_feature};".format(sample_point_feature = sample_point_feature))
-sample_point_count = list(curs)[0][0]
-completion_goal = sample_point_count * len(destination_list)
-conn.close()
-
-# pbar = tqdm(total=completion_goal,unit='results')
 
 print("\n")
 def list_df_values_by_id(df,a,b):
@@ -155,6 +147,24 @@ def add_locations(network,sub_layer,in_table,field):
 
 # Worker/Child PROCESS
 def ODMatrixWorkerFunction(hex): 
+  '''
+    Iterate over polygons to processes OD matrices for destinations.
+    
+    input: hex
+    output: Records results to Postgis database in destination specific tables
+            in defined schema (e.g. d_3200m_cl).
+            
+            Results are recorded for distances to all destinations up to 3200m, or closest,
+            (which may be more than 3200m away) in a jsonb list format, indexed by point id.            
+            
+            Later scripts process the results into indicators.
+            
+            For example, 
+                Continuous indicator:
+                  the minimum of each recorded list is the 'closest destination'
+                Binary indicator:
+                  the smallest value below some threshold distance indicates access within that distance
+  '''
   # Connect to SQL database 
   try:
     conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
@@ -171,8 +181,6 @@ def ODMatrixWorkerFunction(hex):
   # make sure Network Analyst licence is 'checked out'
   arcpy.CheckOutExtension('Network')
  
-  # Worker Task is hex-specific by definition/parallel
-  # Skip if hex was finished in previous run
   hexStartTime = time.time() 
   try:   
     place = "origin selection"  
@@ -213,20 +221,6 @@ def ODMatrixWorkerFunction(hex):
         curs.execute(sql)
         already_processed = list(curs)[0][0]
         if already_processed == origin_point_count:
-            # update current progress
-            place = "update progress (destination already processed)"
-            sql = '''
-              UPDATE {progress_table} 
-              SET processed = processed+{count}
-              '''.format(progress_table = progress_table,
-                         count = origin_point_count)
-            curs.execute(sql)
-            conn.commit() 
-            place = "check progress"
-            sql = '''SELECT processed from {progress_table}'''.format(progress_table = progress_table)
-            curs.execute(sql)
-            progress = int(list(curs)[0][0])
-            # pbar.update(progress)
             continue
         remaining_to_process = origin_point_count - already_processed
         sql = '''dest_class = '{}' '''.format(dest_class)
@@ -370,24 +364,6 @@ def ODMatrixWorkerFunction(hex):
                                 values = ','.join(chunkedLines))
                     curs.execute(sql)
                     conn.commit()            
-        # update current progress
-        sql = '''
-          UPDATE {progress_table} SET processed = processed+{count}
-          '''.format(progress_table = progress_table,
-                     count = remaining_to_process)
-        curs.execute(sql)
-        conn.commit()
-        place = "check progress"
-        sql = '''SELECT processed from {progress_table}'''.format(progress_table = progress_table)
-        curs.execute(sql)
-        progress = int(list(curs)[0][0])
-        # pbar.update(progress)
-        # place = 'final progress'
-        # progress_string = '''{}/{}; last hex processed: {}, at {}'''.format(progress,
-                                                                     # completion_goal,
-                                                                     # hex,
-                                                                     # time.strftime("%Y%m%d-%H%M%S"))
-        # progressor(progress,completion_goal,start,progress_string) 
   except:
       print('''Error: {}\nhex: {}\nDestination: {}\nPlace: {}\nSQL: {}'''.format( sys.exc_info(),hex,dest_class,place,sql))  
   finally:
@@ -401,16 +377,7 @@ if __name__ == '__main__':
   # initial postgresql connection
   conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
   curs = conn.cursor()  
-
-  print("Create a table for tracking progress... "), 
-  sql = '''
-    DROP TABLE IF EXISTS {progress_table};
-    CREATE TABLE IF NOT EXISTS {progress_table} AS SELECT 0 AS processed;
-    '''.format(progress_table = progress_table)
-  curs.execute(sql)
-  conn.commit()  
-  print("Done.")
-
+  
   print("Create tables for all destinations listed in dest_type table... "),
   sql = '''SELECT DISTINCT(d.dest_class) FROM dest_type d'''
   curs.execute(sql)
@@ -431,21 +398,11 @@ if __name__ == '__main__':
       
   print("\nDone.")
   
-  sql = '''
-   SELECT destinations.count * points.count, 
-          destinations.count, 
-          points.count
-   FROM (SELECT COUNT(DISTINCT(dest_class)) 
-           FROM dest_type 
-           WHERE cutoff_count IS NOT NULL 
-             AND count > 0) destinations,
-        (SELECT COUNT(*) FROM {sample_point_feature}) points;
-  '''.format(sample_point_feature=sample_point_feature)
-  curs.execute(sql)
-  results = list(curs)[0]
-  goal = results[0]
-  destinations = results[1]
-  points = results[2]
+  print("\nPreviously processed destinations:")
+  print([d for d in full_destination_list if d not in destination_list])
+  print("\nDestinations to process:")
+  print(destination_list)
+  
   # Parallel processing setting
   pool = multiprocessing.Pool(processes=nWorkers)
   # get list of hexs over which to iterate
@@ -458,37 +415,8 @@ if __name__ == '__main__':
   # pool.map(ODMatrixWorkerFunction, iteration_list, chunksize=1)
   # # The below code implements a progress counter using hex iterations
   r = list(tqdm(pool.imap(ODMatrixWorkerFunction, iteration_list), total=len(iteration_list), unit='hex'))
-  sql = '''
-   SELECT destinations.count * points.count, 
-          destinations.count, 
-          points.count, 
-          processed.processed
-   FROM (SELECT COUNT(DISTINCT(dest_class)) FROM dest_type 
-          WHERE cutoff_count IS NOT NULL 
-            AND count > 0) destinations,
-        (SELECT COUNT(*) FROM {sample_point_feature}) points,
-        (SELECT processed FROM {progress_table}) processed;
-  '''.format(sample_point_feature = sample_point_feature,
-             progress_table = progress_table)
-  curs.execute(sql)
-  results = list(curs)[0]
-  goal = results[0]
-  destinations = results[1]
-  points = results[2]
-  processed = results[3]
-  if processed < goal:
-    print('''The script has finished running, however the number of results processed {} is still less than the goal{}.  There may be a bug, so please investigate how this has occurred in more depth.'''.format(processed,goal))
-  else: 
-    print('''It appears that {} destinations have already been processed for {} points, yielding {} results.'''.format(destinations,
-                                                                                                                        points,
-                                                                                                                        processed))
-    if processed > goal:
-      print('''The number of processed results is larger than the completion goal however ({})'''.format(goal))
-      print('''So it appears something has gone wrong. Please check how this might have occurred.  There may be a bug.''')
-    else:
-      print('''That appears to be equal to the completion goal of {} results; so all good!  It looks like this script is done.'''.format(goal))
-  
-  # index tables
+    
+  # Ensure all tables are indexed, and contain only unique ids
   for dest_class in full_destination_list:
       result_table = '{distance_schema}."{dest_class}"'.format(distance_schema = distance_schema,
                                                                dest_class = dest_class)
@@ -500,8 +428,36 @@ if __name__ == '__main__':
                     dest_class=dest_class)
       curs.execute(sql)
       conn.commit()
-  # output to completion log    
-  if processed == goal:
-    # this script will only be marked as successfully complete if the number of results processed matches the completion goal.
-    script_running_log(script, task, start, locale)
+      
+  print("Processed destination summary\n(tables in schema {distance_schema})\n").format(distance_schema = distance_schema)
+  engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_user,
+                                                                    pwd  = db_pwd,
+                                                                    host = db_host,
+                                                                    db   = db), 
+                     use_native_hstore=False)
+  sql = '''
+     SELECT dest_class,table_name,row_count
+      FROM dest_type d
+      LEFT JOIN (SELECT table_name, 
+                        (xpath('/row/cnt/text()', xml_count))[1]::text::int AS row_count
+                   FROM (
+                     SELECT table_name, 
+                            table_schema, 
+                            query_to_xml(format('SELECT COUNT(*) as cnt 
+                                                   FROM %I.%I', 
+                                                        table_schema, 
+                                                        table_name)
+                                                , false, true, '') as xml_count
+                     FROM information_schema.tables
+                     WHERE table_schema = '{distance_schema}' --<< change here for the schema you want
+                   ) t
+                ) completed_tables ON d.dest_class = completed_tables.table_name
+     WHERE d.cutoff_count IS NOT NULL 
+       AND d.count > 0
+       AND COALESCE(row_count,0) < (SELECT COUNT(*) FROM parcel_dwellings);
+    '''.format(distance_schema = distance_schema)
+  result_summary = pandas.read_sql(sql, engine, index_col=table_name)
+  print(result_summary)
+  # Log completion   
+  script_running_log(script, task, start, locale)
   conn.close()
