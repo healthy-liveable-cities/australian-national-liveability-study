@@ -307,11 +307,10 @@ def ODMatrixWorkerFunction(hex):
             result = arcpy.Solve_na(cl_outNALayer, terminate_on_solve_error = "CONTINUE")
             if result[1] == u'false':
                 alert = (
-                         "\tHex {hex}, {dest_class}: no solution for {n} points {remaining_points}"
+                         "\t{dest_class}\tHex {hex:5} No solution for {n} points"
                          ).format(hex = hex,
                                   dest_class = dest_class,
-                                  n = len(remaining_points),
-                                  remaining_points = remaining_points)
+                                  n = len(remaining_points))
                 print(alert)
                 place = 'OD results processed, but no results recorded'
                 sql = '''
