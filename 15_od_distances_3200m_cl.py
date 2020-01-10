@@ -92,8 +92,33 @@ if pid !='MainProcess':
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()  
 
-# define reduced set of destinations and cutoffs (ie. only those with cutoffs defined)
-curs.execute("SELECT DISTINCT(dest_class) FROM dest_type WHERE cutoff_count IS NOT NULL AND count > 0;")
+# Compile a list of destinations to be processed
+# ie. those which record a positive count in the dest_type table for this study region
+# and the table for which if existing in the d_3200m_cl schema has a row count of 
+# less than the total number of address points used for analysis in this city
+# (ie. the count of parcel_dwellings)
+sql = '''
+ SELECT dest_class,table_name,row_count
+  FROM dest_type d
+  LEFT JOIN (SELECT table_name, 
+                    (xpath('/row/cnt/text()', xml_count))[1]::text::int AS row_count
+               FROM (
+                 SELECT table_name, 
+                        table_schema, 
+                        query_to_xml(format('SELECT COUNT(*) as cnt 
+                                               FROM %I.%I', 
+                                                    table_schema, 
+                                                    table_name)
+                                            , false, true, '') as xml_count
+                 FROM information_schema.tables
+                 WHERE table_schema = 'd_3200m_cl' --<< change here for the schema you want
+               ) t
+            ) completed_tables ON d.dest_class = completed_tables.table_name
+ WHERE d.cutoff_count IS NOT NULL 
+   AND d.count > 0
+   AND COALESCE(row_count,0) < (SELECT COUNT(*) FROM parcel_dwellings);
+'''
+curs.execute(sql)
 destination_list = [x[0] for x in list(curs)]
   
 # tally expected parcel-destination class result set  
@@ -287,7 +312,13 @@ def ODMatrixWorkerFunction(hex):
             # Process: Solve
             result = arcpy.Solve_na(cl_outNALayer, terminate_on_solve_error = "CONTINUE")
             if result[1] == u'false':
-                print('\tHex {hex} has no solution.'.format(hex))
+                alert = (
+                         "\tHex {hex}, {dest_class}: no solution for {n} points {remaining_points}"
+                         ).format(hex = hex,
+                                  dest_class = dest_class,
+                                  n = len(remaining_points),
+                                  remaining_points = remaining_points)
+                print(alert)
                 place = 'OD results processed, but no results recorded'
                 sql = '''
                  INSERT INTO {result_table} ({points_id},distances)  
@@ -310,7 +341,7 @@ def ODMatrixWorkerFunction(hex):
                 conn.commit()
             else:
                 place = 'OD results processed; results to be recorded'
-                outputLines = arcpy.da.SearchCursor(ODLinesSubLayer, fields)
+                outputLines = arcpy.da.SearchCursor(cl_ODLinesSubLayer, fields)
                 count = 0
                 chunkedLines = list()
                 for outputLine in outputLines :
@@ -380,13 +411,14 @@ if __name__ == '__main__':
   conn.commit()  
   print("Done.")
 
-  print("Prepare destinations for processing, tallying processed results... "),
-  # for dest_class in tqdm(destination_list):
-  for dest_class in destination_list:
+  print("Create tables for all destinations listed in dest_type table... "),
+  sql = '''SELECT DISTINCT(d.dest_class) FROM dest_type d'''
+  curs.execute(sql)
+  full_destination_list = [x[0] for x in list(curs)]
+  for dest_class in full_destination_list:
       result_table = '{distance_schema}."{dest_class}"'.format(distance_schema = distance_schema,
                                                                dest_class = dest_class)
       sql = '''
-        -- DROP TABLE IF EXISTS {result_table};
         CREATE TABLE IF NOT EXISTS {result_table}
         ({points_id} {points_id_type} NOT NULL ,
          distances int[] NOT NULL
@@ -414,7 +446,6 @@ if __name__ == '__main__':
   goal = results[0]
   destinations = results[1]
   points = results[2]
-  print("Commence multiprocessing..."),
   # Parallel processing setting
   pool = multiprocessing.Pool(processes=nWorkers)
   # get list of hexs over which to iterate
@@ -425,6 +456,7 @@ if __name__ == '__main__':
   iteration_list = np.asarray([x[0] for x in list(curs)])
   # # Iterate process over hexs across nWorkers
   # pool.map(ODMatrixWorkerFunction, iteration_list, chunksize=1)
+  # # The below code implements a progress counter using hex iterations
   r = list(tqdm(pool.imap(ODMatrixWorkerFunction, iteration_list), total=len(iteration_list), unit='hex'))
   sql = '''
    SELECT destinations.count * points.count, 
@@ -455,6 +487,19 @@ if __name__ == '__main__':
       print('''So it appears something has gone wrong. Please check how this might have occurred.  There may be a bug.''')
     else:
       print('''That appears to be equal to the completion goal of {} results; so all good!  It looks like this script is done.'''.format(goal))
+  
+  # index tables
+  for dest_class in full_destination_list:
+      result_table = '{distance_schema}."{dest_class}"'.format(distance_schema = distance_schema,
+                                                               dest_class = dest_class)
+      sql = '''
+        CREATE UNIQUE INDEX IF NOT EXISTS {dest_class}_idx ON  {result_table} ({id})
+         );
+         '''.format(result_table=result_table,
+                    id=points_id,
+                    dest_class=dest_class)
+      curs.execute(sql)
+      conn.commit()
   # output to completion log    
   if processed == goal:
     # this script will only be marked as successfully complete if the number of results processed matches the completion goal.
