@@ -6,4 +6,8 @@ FOR %%A  IN (%*) DO (
   python python 15_od_distances_3200m_cl.py %%A
 )
 
+FOR %%A  IN (%*) DO (
+  python python 15_od_distances_3200m_cl.py %%A
+)
+
 @pause
