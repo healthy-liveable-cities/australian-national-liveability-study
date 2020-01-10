@@ -394,10 +394,8 @@ conn.commit()
 
 # calculate food indicators at both 1600 m and 3200 m 
 print(" - ind_food... "),
-# curs.execute('''SELECT 1 WHERE to_regclass('public.{table}') IS NOT NULL;'''.format(table = 'ind_food'))
-# res = curs.fetchone()
-# I am forcing the recreation of this table 
-res = False
+curs.execute('''SELECT 1 WHERE to_regclass('public.{table}') IS NOT NULL;'''.format(table = 'ind_food'))
+res = curs.fetchone()
 if res:
     print("Table exists.")
 else:
