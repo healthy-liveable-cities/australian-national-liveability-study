@@ -136,9 +136,6 @@ curs.execute(create_threshold_functions)
 conn.commit()
 print('Done.')
 
-# Restrict to indicators associated with study region (except distance to closest dest indicators)
-ind_matrix = df_inds[df_inds['locale'].str.contains('|'.join([locale,'\*']))]
-
 # Get a list of all potential destinations for distance to closest 
 # (some may not be present in region, will be null, so we can refer to them in later queries)
 # destination names
@@ -151,135 +148,111 @@ array_categories = [x for x in df_destinations.destination_class.tolist()]
 array_category_list = ','.join(array_categories)
 array_category_types = '"{}" int[]'.format('" int[], "'.join(array_categories))
 
-print("Check that there are not entries in the 'log_od_distances' table which are not present as results in the 'od_closest' table... ")
-# Check if the table exists; if it does, these areas have previously been re-imported, so no need to re-do
-curs.execute('''SELECT DISTINCT(dest_name) FROM log_od_distances WHERE dest_name NOT IN (SELECT DISTINCT(dest_name) FROM od_closest);''')
-orphan_destinations = [x[0] for x in curs.fetchall()]
-if len(orphan_destinations) > 0:
-    print('''
-    Note: The following entries in your 'log_od_distances' table 
-    (which logs destinations processed in hexes for distance to closest analysis)
-    are not present in the od_closest table:
-    {}
-    The non-presence of these records is suprising and may relate to an error in processing
-    at some stage in the workflow.  
-    
-    These records will now be removed from the log_od_distances table, and it is recommended 
-    that you re-run the script distance to closest analysis script (at the time of writing,
-    16_od_distances_closest_in_study_region.py) for this study region.
-    '''.format('\n'.join(orphan_destinations)))
-    curs.execute('''DELETE FROM log_od_distances WHERE dest_name NOT IN (SELECT DISTINCT(dest_name) FROM od_closest);''')
-    conn.commit()
-else:
-    print("  - all good!")
-    
-print("Create summary table of destination distances (dest_distance_m)... ")
-wide_table = 'dest_distance_m'
-long_table = 'od_closest'
-destination_names = ',\n'.join(['''MIN(CASE WHEN dest_name = '{d}' THEN distance END) AS "{d}"'''.format(d = d) for d in categories])
-sql = '''
-DROP TABLE IF EXISTS {wide_table}_old;
-ALTER TABLE IF EXISTS {wide_table} RENAME TO {wide_table}_old;
-ALTER INDEX IF EXISTS {wide_table}_idx RENAME TO {wide_table}_old_idx;
-CREATE TABLE {wide_table} AS
-SELECT {id},
-       {destinations}
-FROM {long_table}
-GROUP BY {id};
-CREATE UNIQUE INDEX IF NOT EXISTS {wide_table}_idx ON {wide_table} ({id});
-'''.format(wide_table = wide_table,
-           long_table = long_table,
-           id = points_id.lower(),
-           destinations = destination_names)
-curs.execute(sql)
-conn.commit()
-print("Done.")
-
-print("Create summary table of distances to destinations in 3200 metres (dest_distances_3200m)... "),
-wide_table = 'dest_distances_3200m'
-long_table = 'od_distances_3200m'
-destination_classes = ',\n'.join(['''MIN(CASE WHEN dest_class = '{d}' THEN distances END) AS "{d}"'''.format(d = d) for d in array_categories])
-sql = '''
-DROP TABLE IF EXISTS {wide_table}_old;
-ALTER TABLE IF EXISTS {wide_table} RENAME TO {wide_table}_old;
-ALTER INDEX IF EXISTS {wide_table}_idx RENAME TO {wide_table}_old_idx;
-CREATE TABLE {wide_table} AS
-SELECT {id},
-       {destinations}
-FROM {long_table}
-GROUP BY {id};
-CREATE UNIQUE INDEX IF NOT EXISTS {wide_table}_idx ON {wide_table} ({id});
-'''.format(wide_table = wide_table,
-           long_table = long_table,
-           id = points_id.lower(),
-           destinations = destination_classes)
-curs.execute(sql)
-conn.commit()
-print("Done.")
-
-print("Combine destination array and closest tables..."),
-# Get a list of all potential destinations for distance to closest 
-# (some may not be present in region, will be null, so we can refer to them in later queries)
-# destination names
-categories = [x for x in df_destinations.destination.tolist()]
-array_categories = [x for x in df_destinations.destination_class.tolist()]
-dest_tuples = ',\n'.join(['''array_append_if_gr(dests."{0}",cl."{1}") AS "{0}"'''.format(*dest) for dest in zip(array_categories,categories)])
-table = 'dest_distances_cl_3200m'
-curs.execute('''
-DROP TABLE IF EXISTS {table};
-CREATE TABLE {table} AS
-SELECT {id}, 
-       {destinations}
-FROM dest_distances_3200m dests 
-LEFT JOIN dest_distance_m cl
-USING ({id});
-CREATE UNIQUE INDEX IF NOT EXISTS {table}_idx ON  {table} ({id}); 
-'''.format(table = table,
-           id = points_id.lower(),
-           destinations = dest_tuples))
-conn.commit()
-print(" Done.")
-
 # Neighbourhood_indicators
 print("Create nh_inds_distance (curated distance to closest table for re-use by other indicators)... "),
 nh_distance = '''
 DROP TABLE IF EXISTS {table};
 CREATE TABLE IF NOT EXISTS {table} AS
 SELECT 
-       {id},
-       activity_centres_2017                                                       AS activity_centres_hlc_2017     , 
-       LEAST(convenience_osm,newsagent_osm,petrolstation_osm,market_osm)           AS convenience_osm_2018          , 
-       supermarkets_2017                                                           AS supermarket_hlc_2017          , 
-       supermarket_osm                                                             AS supermarket_osm_2018          , 
-       gtfs_2018_stops                                                             AS pt_any_gtfs_hlc_2018          ,
-       gtfs_2018_stop_30_mins_final                                                AS pt_freq_gtfs_hlc_2018         ,
-       childcare_all_meet_2019                                                     AS childcare_meets_acequa_2019   ,
-       primary_schools2018                                                         AS primary_school_acara_2017     ,
-       secondary_schools2018                                                       AS secondary_school_acara_2017   ,
-       LEAST(community_centre_osm,place_of_worship_osm)                            AS community_pow_osm_2018        ,
-       libraries_2018                                                              AS libraries_hlc_2018            ,
-       postoffice_osm                                                              AS postoffice_osm_2018           ,
-       nhsd_2017_dentist                                                           AS dentist_nhsd_2017             ,
-       nhsd_2017_pharmacy                                                          AS pharmacy_nhsd_2017            ,
-       nhsd_2017_gp                                                                AS gp_nhsd_2017                  ,
-       LEAST(bakery_osm,meat_seafood_osm,fruit_veg_osm,deli_osm)                   AS food_fresh_specialty_osm_2018 ,
-       fastfood_2017                                                               AS food_fast_hlc_2017            ,
-       LEAST(fastfood_osm,food_court_osm)                                          AS food_fast_osm_2018            ,
-       LEAST(restaurant_osm,cafe_osm,pub_osm)                                      AS food_dining_osm_2018          ,
-       LEAST(museum_osm, theatre_osm, cinema_osm, art_gallery_osm, art_centre_osm) AS culture_osm_2018              ,
-       LEAST(bar_osm, nightclub_osm,pub_osm)                                       AS alcohol_nightlife_osm_2018    ,
-       alcohol_osm                                                                 AS alcohol_offlicence_osm_2018   ,
-       alcohol_offlicence                                                          AS alcohol_offlicence_hlc_2017_19,
-       alcohol_onlicence                                                           AS alcohol_onlicence_hlc_2017_19 ,  
-       tobacco_osm                                                                 AS tobacco_osm_2018              ,
-       gambling_osm                                                                AS gambling_osm_2018           
-FROM dest_distance_m;
+       p.{id},
+       LEAST(array_min(convenience_osm.distances),
+             array_min(newsagent_osm.distances),
+             array_min(petrolstation_osm.distances),
+             array_min(market_osm.distances)) AS convenience_osm_2018,
+       LEAST(array_min(supermarket.distances),
+             array_min(supermarket_osm.distances)) AS supermarket_hlc_2017_osm_2018,
+       LEAST(array_min(community_centre_osm.distances),
+             array_min(hlc_2016_community_centres.distances)) AS community_centre_hlc_2016_osm_2018,
+       LEAST(array_min(bakery_osm.distances),
+             array_min(meat_seafood_osm.distances),
+             array_min(fruit_veg_osm.distances),
+             array_min(deli_osm.distances)) AS food_fresh_specialty_osm_2018,
+       LEAST(array_min(fastfood_osm.distances),
+             array_min(food_court_osm.distances),
+             array_min(fast_food.distances)) AS food_fast_hlc_2017_osm_2018,         
+       LEAST(array_min(restaurant_osm.distances),
+             array_min(cafe_osm.distances),
+             array_min(pub_osm.distances)) AS food_dining_osm_2018,     
+       LEAST(array_min(museum_osm.distances), 
+             array_min(theatre_osm.distances), 
+             array_min(cinema_osm.distances), 
+             array_min(art_gallery_osm.distances), 
+             array_min(art_centre_osm.distances)) AS culture_osm_2018,            
+       LEAST(array_min(bar_osm.distances), 
+             array_min(nightclub_osm.distances),
+             array_min(pub_osm.distances)) AS alcohol_nightlife_osm_2018,            
+       LEAST(array_min("P_12_Schools_gov".distances), 
+             array_min(primary_schools_gov.distances)) AS schools_primary_all_gov,           
+       LEAST(array_min("P_12_Schools_gov".distances), 
+             array_min(secondary_schools_gov.distances)) AS schools_secondary_all_gov,
+       LEAST(array_min(gtfs_20191008_20191205_bus_0015.distances),
+             array_min(gtfs_20191008_20191205_ferry_0015.distances),
+             array_min(gtfs_20191008_20191205_train_0015.distances),
+             array_min(gtfs_20191008_20191205_tram_0015.distances)) AS gtfs_20191008_20191205_frequent_pt_0015,
+       LEAST(array_min(gtfs_20191008_20191205_bus_0030.distances),
+             array_min(gtfs_20191008_20191205_ferry_0030.distances),
+             array_min(gtfs_20191008_20191205_train_0030.distances),
+             array_min(gtfs_20191008_20191205_tram_0030.distances)) AS gtfs_20191008_20191205_frequent_pt_0030,
+       LEAST(array_min(gtfs_20191008_20191205_bus_0045.distances),
+             array_min(gtfs_20191008_20191205_ferry_0045.distances),
+             array_min(gtfs_20191008_20191205_train_0045.distances),
+             array_min(gtfs_20191008_20191205_tram_0045.distances)) AS gtfs_20191008_20191205_frequent_pt_0045,
+       LEAST(array_min(gtfs_20191008_20191205_bus_any.distances),
+             array_min(gtfs_20191008_20191205_ferry_any.distances),
+             array_min(gtfs_20191008_20191205_train_any.distances),
+             array_min(gtfs_20191008_20191205_tram_any.distances)) AS gtfs_20191008_20191205_any_pt
+FROM parcel_dwellings p
+LEFT JOIN d_3200m_cl."P_12_Schools_gov"   ON p.{id}    = d_3200m_cl."P_12_Schools_gov".{id}
+LEFT JOIN d_3200m_cl.primary_schools_gov   ON p.{id}    = d_3200m_cl.primary_schools_gov.{id}
+LEFT JOIN d_3200m_cl.secondary_schools_gov   ON p.{id}    = d_3200m_cl.secondary_schools_gov.{id}
+LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_bus_0015   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_bus_0015.{id}
+LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_ferry_0015   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_ferry_0015.{id}
+LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_train_0015   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_train_0015.{id}
+LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_tram_0015   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_tram_0015.{id}
+LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_bus_0030   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_bus_0030.{id}
+LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_ferry_0030   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_ferry_0030.{id}
+LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_train_0030   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_train_0030.{id}
+LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_tram_0030   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_tram_0030.{id}
+LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_bus_0045   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_bus_0045.{id}
+LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_ferry_0045   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_ferry_0045.{id}
+LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_train_0045   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_train_0045.{id}
+LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_tram_0045   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_tram_0045.{id}
+LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_bus_any   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_bus_any.{id}
+LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_ferry_any   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_ferry_any.{id}
+LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_train_any   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_train_any.{id}
+LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_tram_any   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_tram_any.{id}
+LEFT JOIN d_3200m_cl.convenience_osm   ON p.{id}    = d_3200m_cl.convenience_osm.{id}
+LEFT JOIN d_3200m_cl.newsagent_osm     ON p.{id}    = d_3200m_cl.newsagent_osm.{id}
+LEFT JOIN d_3200m_cl.petrolstation_osm ON p.{id}    = d_3200m_cl.petrolstation_osm.{id}
+LEFT JOIN d_3200m_cl.market_osm        ON p.{id}    = d_3200m_cl.market_osm.{id}
+LEFT JOIN d_3200m_cl.supermarket ON p.{id}    = d_3200m_cl.supermarket.{id}
+LEFT JOIN d_3200m_cl.supermarket_osm ON p.{id} = d_3200m_cl.supermarket_osm.{id} 
+LEFT JOIN d_3200m_cl.community_centre_osm ON p.{id} = d_3200m_cl.community_centre_osm.{id}
+LEFT JOIN d_3200m_cl.hlc_2016_community_centres ON p.{id} = d_3200m_cl.hlc_2016_community_centres.{id}
+LEFT JOIN d_3200m_cl.bakery_osm       ON p.{id} = d_3200m_cl.bakery_osm.{id}
+LEFT JOIN d_3200m_cl.meat_seafood_osm ON p.{id} = d_3200m_cl.meat_seafood_osm.{id}
+LEFT JOIN d_3200m_cl.fruit_veg_osm   ON p.{id}  = d_3200m_cl.fruit_veg_osm.{id}
+LEFT JOIN d_3200m_cl.deli_osm        ON p.{id}  = d_3200m_cl.deli_osm.{id}
+LEFT JOIN d_3200m_cl.fastfood_osm    ON p.{id}  = d_3200m_cl.fastfood_osm.{id}
+LEFT JOIN d_3200m_cl.food_court_osm  ON p.{id}  = d_3200m_cl.food_court_osm.{id}            
+LEFT JOIN d_3200m_cl.fast_food   ON p.{id}  = d_3200m_cl.fast_food.{id}
+LEFT JOIN d_3200m_cl.restaurant_osm  ON p.{id}  = d_3200m_cl.restaurant_osm.{id}
+LEFT JOIN d_3200m_cl.cafe_osm        ON p.{id}  = d_3200m_cl.cafe_osm.{id}
+LEFT JOIN d_3200m_cl.museum_osm      ON p.{id}  = d_3200m_cl.museum_osm.{id} 
+LEFT JOIN d_3200m_cl.theatre_osm     ON p.{id}  = d_3200m_cl.theatre_osm.{id} 
+LEFT JOIN d_3200m_cl.cinema_osm      ON p.{id}  = d_3200m_cl.cinema_osm.{id} 
+LEFT JOIN d_3200m_cl.art_gallery_osm ON p.{id}  = d_3200m_cl.art_gallery_osm.{id} 
+LEFT JOIN d_3200m_cl.art_centre_osm  ON p.{id}  = d_3200m_cl.art_centre_osm.{id} 
+LEFT JOIN d_3200m_cl.bar_osm         ON p.{id}  = d_3200m_cl.bar_osm.{id} 
+LEFT JOIN d_3200m_cl.nightclub_osm   ON p.{id}  = d_3200m_cl.nightclub_osm.{id}
+LEFT JOIN d_3200m_cl.pub_osm         ON p.{id}  = d_3200m_cl.pub_osm.{id}  
+;
 CREATE UNIQUE INDEX IF NOT EXISTS {table}_idx ON  {table} ({id}); 
 '''.format(id = points_id.lower(),table = 'nh_inds_distance')
 curs.execute(nh_distance)
 conn.commit()
 print("Done.")
-
+  
 print("Create hard and soft threshold indicators for curated destination categories...")
 for threshold_type in ['hard','soft']:
     for nh_threshold in [400,800,1000,1600]:
@@ -289,32 +262,14 @@ for threshold_type in ['hard','soft']:
         CREATE TABLE IF NOT EXISTS nh_inds_{threshold_type}_{nh_threshold}m AS
         SELECT  
         {id},
-        threshold_{threshold_type}(activity_centres_hlc_2017     ,{nh_threshold}) AS activity_centres_hlc_2017     , 
-        threshold_{threshold_type}(convenience_osm_2018          ,{nh_threshold}) AS convenience_osm_2018          , 
-        threshold_{threshold_type}(supermarket_hlc_2017          ,{nh_threshold}) AS supermarket_hlc_2017          , 
-        threshold_{threshold_type}(supermarket_osm_2018          ,{nh_threshold}) AS supermarket_osm_2018          , 
-        threshold_{threshold_type}(pt_any_gtfs_hlc_2018          ,{nh_threshold}) AS pt_any_gtfs_hlc_2018          ,
-        threshold_{threshold_type}(pt_freq_gtfs_hlc_2018         ,{nh_threshold}) AS pt_freq_gtfs_hlc_2018         ,
-        threshold_{threshold_type}(childcare_meets_acequa_2019   ,{nh_threshold}) AS childcare_meets_acequa_2019   ,
-        threshold_{threshold_type}(primary_school_acara_2017     ,{nh_threshold}) AS primary_school_acara_2017     ,
-        threshold_{threshold_type}(secondary_school_acara_2017   ,{nh_threshold}) AS secondary_school_acara_2017   ,
-        threshold_{threshold_type}(community_pow_osm_2018        ,{nh_threshold}) AS community_pow_osm_2018        ,
-        threshold_{threshold_type}(libraries_hlc_2018            ,{nh_threshold}) AS libraries_hlc_2018            ,
-        threshold_{threshold_type}(postoffice_osm_2018           ,{nh_threshold}) AS postoffice_osm_2018           ,
-        threshold_{threshold_type}(dentist_nhsd_2017             ,{nh_threshold}) AS dentist_nhsd_2017             ,
-        threshold_{threshold_type}(pharmacy_nhsd_2017            ,{nh_threshold}) AS pharmacy_nhsd_2017            ,
-        threshold_{threshold_type}(gp_nhsd_2017                  ,{nh_threshold}) AS gp_nhsd_2017                  ,
-        threshold_{threshold_type}(food_fresh_specialty_osm_2018 ,{nh_threshold}) AS food_fresh_specialty_osm_2018 ,
-        threshold_{threshold_type}(food_fast_hlc_2017            ,{nh_threshold}) AS food_fast_hlc_2017            ,
-        threshold_{threshold_type}(food_fast_osm_2018            ,{nh_threshold}) AS food_fast_osm_2018            ,
-        threshold_{threshold_type}(food_dining_osm_2018          ,{nh_threshold}) AS food_dining_osm_2018          ,
-        threshold_{threshold_type}(culture_osm_2018              ,{nh_threshold}) AS culture_osm_2018              ,
-        threshold_{threshold_type}(alcohol_nightlife_osm_2018    ,{nh_threshold}) AS alcohol_nightlife_osm_2018    ,
-        threshold_{threshold_type}(alcohol_offlicence_osm_2018   ,{nh_threshold}) AS alcohol_offlicence_osm_2018   ,
-        threshold_{threshold_type}(alcohol_offlicence_hlc_2017_19,{nh_threshold}) AS alcohol_offlicence_hlc_2017_19,
-        threshold_{threshold_type}(alcohol_onlicence_hlc_2017_19 ,{nh_threshold}) AS alcohol_onlicence_hlc_2017_19 ,  
-        threshold_{threshold_type}(tobacco_osm_2018              ,{nh_threshold}) AS tobacco_osm_2018              ,
-        threshold_{threshold_type}(gambling_osm_2018             ,{nh_threshold}) AS gambling_osm_2018           
+        threshold_{threshold_type}(convenience_osm_2018,{nh_threshold}) AS convenience_osm_2018, 
+        threshold_{threshold_type}(supermarket_hlc_2017_osm_2018,{nh_threshold}) AS supermarket_hlc_2017_osm_2018          , 
+        threshold_{threshold_type}(community_centre_hlc_2016_osm_2018,{nh_threshold}) AS community_centre_hlc_2016_osm_2018,
+        threshold_{threshold_type}(food_fresh_specialty_osm_2018,{nh_threshold}) AS food_fresh_specialty_osm_2018 ,
+        threshold_{threshold_type}(food_fast_hlc_2017_osm_2018,{nh_threshold}) AS food_fast_hlc_2017_osm_2018,
+        threshold_{threshold_type}(food_dining_osm_2018          ,{nh_threshold}) AS food_dining_osm_2018,
+        threshold_{threshold_type}(culture_osm_2018              ,{nh_threshold}) AS culture_osm_2018,
+        threshold_{threshold_type}(alcohol_nightlife_osm_2018    ,{nh_threshold}) AS alcohol_nightlife_osm_2018    
         FROM nh_inds_distance ;
         CREATE UNIQUE INDEX IF NOT EXISTS nh_inds_{threshold_type}_{nh_threshold}m_idx ON  nh_inds_{threshold_type}_{nh_threshold}m ({id}); 
         '''.format(id = points_id.lower(),threshold_type = threshold_type, nh_threshold = nh_threshold)
@@ -325,121 +280,117 @@ print("Done.")
 print("Processing neighbourhood indicators:")
 # Define table name and abbreviation
 # This saves us having to retype these values, and allows the code to be more easily re-used
-table = ['ind_daily_living','dl']
-print(" - {table}".format(table = table[0])),
-curs.execute('''SELECT 1 WHERE to_regclass('public.{table}') IS NOT NULL;'''.format(table = table[0]))
-res = curs.fetchone()
-if res:
-    print("Table exists.")
-if res is None:
-    create_table = '''DROP TABLE IF EXISTS {table}; CREATE TABLE {table} AS SELECT {id} FROM parcel_dwellings;'''.format(table = table[0], id = points_id.lower())
-    curs.execute(create_table)
-    conn.commit()
-    for threshold_type in ['hard','soft']:
-        for nh_threshold in [400,800,1000,1600]:
-            populate_table = '''
-            -- Note that we take NULL for distance to closest in this context to mean absence of presence
-            -- Error checking at other stages of processing should confirm whether this is the case.
-            ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {abbrev}_{threshold_type}_{nh_threshold}m float;
-            UPDATE {table} t SET 
-            {abbrev}_{threshold_type}_{nh_threshold}m = COALESCE(convenience_osm_2018,0) + 
-                                                        GREATEST(COALESCE(supermarket_hlc_2017,0),COALESCE(supermarket_osm_2018,0)) + 
-                                                        COALESCE(pt_any_gtfs_hlc_2018,0)
-            FROM nh_inds_{threshold_type}_{nh_threshold}m nh
-            WHERE t.{id} = nh.{id};
-            '''.format(table = table[0], 
-                    abbrev = table[1], 
-                    id = points_id.lower(),
-                    threshold_type = threshold_type, 
-                    nh_threshold = nh_threshold)
-            curs.execute(populate_table)
-            conn.commit()
-            print("."),
-    create_index = '''CREATE UNIQUE INDEX {table}_idx ON  {table} ({id});  '''.format(table = table[0], id = points_id.lower())
-    curs.execute(create_index)
-    conn.commit()
-    print(" Done.")
+table = 'ind_daily_living'
+abbrev = 'dl'
+print(" - {}".format(table)),
+ind_list = []
+from_list = []
+for t in ['hard','soft']:
+    for d in [400,800,1000,1600]:
+        inds = '''
+          (COALESCE(nh_inds_{t}_{d}m.convenience_osm_2018,0) + 
+           COALESCE(nh_inds_{t}_{d}m.supermarket_hlc_2017_osm_2018,0) + 
+           COALESCE(threshold_{t}(array_min(d_3200m_cl.gtfs_2018_stops.distances),{d}),0)) AS {abbrev}_{t}_{d}m
+        '''.format(t=t,d=d,abbrev=abbrev)
+        ind_list  +=[inds]
+        from_list +=['LEFT JOIN nh_inds_{t}_{d}m ON p.{id} = nh_inds_{t}_{d}m.{id}'.format(t=t,d=d,id=points_id)]
+sql = '''
+DROP TABLE IF EXISTS {table};
+CREATE TABLE {table} AS
+SELECT p.{id},
+       {inds}
+FROM parcel_dwellings p
+     {from_list}
+     LEFT JOIN d_3200m_cl.gtfs_2018_stops ON p.{id} = d_3200m_cl.gtfs_2018_stops.{id};
+CREATE UNIQUE INDEX {table}_idx ON  {table} ({id});
+'''.format(inds=','.join(ind_list), 
+           from_list = '\r\n'.join(from_list),
+           id = points_id,
+           table = table)
+curs.execute(sql)
+conn.commit()
+print(" Done.")
 
-table = ['ind_local_living','ll']
-print(" - {table}".format(table = table[0])),
-curs.execute('''SELECT 1 WHERE to_regclass('public.{table}') IS NOT NULL;'''.format(table = table[0]))
-res = curs.fetchone()
-if res:
-    print("Table exists.")
-if res is None:
-    create_table = '''DROP TABLE IF EXISTS {table}; CREATE TABLE {table} AS SELECT {id} FROM parcel_dwellings;'''.format(table = table[0], id = points_id.lower())
-    curs.execute(create_table)
-    conn.commit()
-    
-    for threshold_type in ['hard','soft']:
-        for nh_threshold in [400,800,1000,1600]:
-            populate_table = '''
-            -- Note that we take NULL for distance to closest in this context to mean absence of presence
-            -- Error checking at other stages of processing should confirm whether this is the case.
-            ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {abbrev}_{threshold_type}_{nh_threshold}m float;
-            UPDATE {table} t SET 
-            {abbrev}_{threshold_type}_{nh_threshold}m = COALESCE(community_pow_osm_2018,0) + 
-                                                        COALESCE(libraries_hlc_2018,0) +
-                                                        COALESCE(childcare_meets_acequa_2019,0) +
-                                                        COALESCE(dentist_nhsd_2017,0) +
-                                                        COALESCE(gp_nhsd_2017,0) +
-                                                        COALESCE(pharmacy_nhsd_2017,0) +
-                                                        GREATEST(COALESCE(supermarket_hlc_2017,0),COALESCE(supermarket_osm_2018,0)) + 
-                                                        COALESCE(convenience_osm_2018,0) +
-                                                        COALESCE(food_fresh_specialty_osm_2018,0) +
-                                                        COALESCE(postoffice_osm_2018,0) + 
-                                                        COALESCE(pt_any_gtfs_hlc_2018,0)
-            FROM nh_inds_{threshold_type}_{nh_threshold}m nh
-            WHERE t.{id} = nh.{id};
-            '''.format(table = table[0], 
-                    abbrev = table[1], 
-                    id = points_id.lower(),
-                    threshold_type = threshold_type, 
-                    nh_threshold = nh_threshold)
-            curs.execute(populate_table)
-            conn.commit()
-            print("."),
-    create_index = '''CREATE UNIQUE INDEX {table}_idx ON  {table} ({id});  '''.format(table = table[0], id = points_id.lower())
-    curs.execute(create_index)
-    conn.commit()
-    print(" Done.")
-    
+table = 'ind_local_living'
+abbrev = 'll'
+print(" - {}".format(table)),
+ind_list = []
+from_list = []
+for t in ['soft']:
+    for d in [400,800,1000,1600]:
+        inds = '''
+            (COALESCE(nh_inds_{t}_{d}m.community_centre_hlc_2016_osm_2018,0) + 
+            COALESCE(threshold_{t}(array_min(d_3200m_cl.libraries.distances),{d}),0) +
+            COALESCE(threshold_{t}(array_min(d_3200m_cl.childcare_all_meet.distances),{d}),0) +
+            COALESCE(threshold_{t}(array_min(d_3200m_cl. nhsd_2017_dentist.distances),{d}),0) +
+            COALESCE(threshold_{t}(array_min(d_3200m_cl. nhsd_2017_gp.distances),{d}),0) +
+            COALESCE(threshold_{t}(array_min(d_3200m_cl. nhsd_2017_pharmacy.distances),{d}),0) +
+            COALESCE(nh_inds_{t}_{d}m.supermarket_hlc_2017_osm_2018,0) + 
+            COALESCE(nh_inds_{t}_{d}m.convenience_osm_2018,0) +
+            COALESCE(nh_inds_{t}_{d}m.food_fresh_specialty_osm_2018,0) +
+            COALESCE(threshold_{t}(array_min(d_3200m_cl.postoffice_osm.distances),{d}),0) + 
+            COALESCE(threshold_{t}(array_min(d_3200m_cl.gtfs_2018_stops.distances),{d}),0)) AS {abbrev}_{t}_{d}m
+        '''.format(t=t,d=d,abbrev=abbrev)
+        ind_list  +=[inds]
+        from_list +=['LEFT JOIN nh_inds_{t}_{d}m ON p.{id} = nh_inds_{t}_{d}m.{id}'.format(t=t,d=d,id=points_id)]
+sql = '''
+DROP TABLE IF EXISTS {table};
+CREATE TABLE {table} AS
+SELECT p.{id},
+       {inds}
+FROM parcel_dwellings p
+     {from_list}
+    LEFT JOIN d_3200m_cl.libraries ON p.{id} = d_3200m_cl.libraries.{id}
+    LEFT JOIN d_3200m_cl.childcare_all_meet ON p.{id} = d_3200m_cl.childcare_all_meet.{id}
+    LEFT JOIN d_3200m_cl. nhsd_2017_dentist ON p.{id} = d_3200m_cl. nhsd_2017_dentist.{id}
+    LEFT JOIN d_3200m_cl. nhsd_2017_gp ON p.{id} = d_3200m_cl. nhsd_2017_gp.{id}
+    LEFT JOIN d_3200m_cl. nhsd_2017_pharmacy ON p.{id} = d_3200m_cl. nhsd_2017_pharmacy.{id}
+    LEFT JOIN d_3200m_cl.postoffice_osm ON p.{id} = d_3200m_cl.postoffice_osm.{id} 
+    LEFT JOIN d_3200m_cl.gtfs_2018_stops ON p.{id} = d_3200m_cl.gtfs_2018_stops.{id};
+CREATE UNIQUE INDEX {table}_idx ON  {table} ({id});
+'''.format(inds=','.join(ind_list), 
+           from_list = '\r\n'.join(from_list),
+           id = points_id,
+           table = table)
+curs.execute(sql)
+conn.commit()
+print(" Done.")    
 
-table = ['ind_walkability','wa']
-print(" - {table}".format(table = table[0])),
-curs.execute('''SELECT 1 WHERE to_regclass('public.{table}') IS NOT NULL;'''.format(table = table[0]))
-res = curs.fetchone()
-if res:
-    print("Table exists.")
-if res is None:
-    create_table = '''DROP TABLE IF EXISTS {table}; CREATE TABLE {table} AS SELECT {id} FROM parcel_dwellings;'''.format(table = table[0], id = points_id.lower())
-    curs.execute(create_table)
-    conn.commit()
-    # we just calculate walkability at 1600m, so we'll set nh_threshold to that value
-    nh_threshold = 1600
-    for threshold_type in ['hard','soft']:
-        populate_table = '''
-        -- Note that we take NULL for distance to closest in this context to mean absence of presence
-        -- Error checking at other stages of processing should confirm whether this is the case.
-        ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {abbrev}_{threshold_type}_{nh_threshold}m float;
-        UPDATE {table} t SET 
-        {abbrev}_{threshold_type}_{nh_threshold}m = dl.z_dl + sc.z_sc + dd.z_dd
-        FROM (SELECT {id}, (dl_{threshold_type}_{nh_threshold}m - AVG(dl_{threshold_type}_{nh_threshold}m) OVER())/stddev_pop(dl_{threshold_type}_{nh_threshold}m) OVER() as z_dl FROM ind_daily_living) dl
-        LEFT JOIN (SELECT {id}, (sc_nh1600m - AVG(sc_nh1600m) OVER())/stddev_pop(sc_nh1600m) OVER() as z_sc FROM sc_nh1600m) sc ON sc.{id} = dl.{id}
-        LEFT JOIN (SELECT {id}, (dd_nh1600m - AVG(dd_nh1600m) OVER())/stddev_pop(dd_nh1600m) OVER() as z_dd FROM dd_nh1600m) dd ON dd.{id} = dl.{id}
-        WHERE t.{id} = dl.{id};
-        '''.format(table = table[0], 
-                   abbrev = table[1], 
-                   id = points_id.lower(),
-                   threshold_type = threshold_type, 
-                   nh_threshold = nh_threshold)
-        curs.execute(populate_table)
-        conn.commit()
-        print("."),
-    create_index = '''CREATE UNIQUE INDEX {table}_idx ON  {table} ({id});  '''.format(table = table[0], id = points_id.lower())
-    curs.execute(create_index)
-    conn.commit()
-    print(" Done.")
+table = 'ind_walkability'
+abbrev = 'wa'
+print(" - {}".format(table)),
+ind_list = []
+from_list = []
+t = 'soft'
+d = 1600
+inds = '''
+    dl_{t}.z_dl + sc.z_sc + dd.z_dd AS {abbrev}_{t}_{d}m
+    '''
+ind_list  +=[inds]
+from_query = '''
+SELECT {id}, 
+       (dl_{t}_{d}m - AVG(dl_{t}_{d}m) OVER())
+           / 
+           stddev_pop(dl_{t}_{d}m) OVER() 
+           AS z_dl FROM ind_daily_living) dl
+'''
+from_list +=[from_query]
+sql = '''
+DROP TABLE IF EXISTS {table};
+CREATE TABLE {table} AS
+SELECT p.{id},
+       {inds}
+FROM parcel_dwellings p
+LEFT JOIN (SELECT {id}, (sc_nh1600m - AVG(sc_nh1600m) OVER())/stddev_pop(sc_nh1600m) OVER() as z_sc FROM sc_nh1600m) sc ON sc.{id} = dl.{id}
+LEFT JOIN (SELECT {id}, (dd_nh1600m - AVG(dd_nh1600m) OVER())/stddev_pop(dd_nh1600m) OVER() as z_dd FROM dd_nh1600m) dd ON dd.{id} = dl.{id};
+CREATE UNIQUE INDEX {table}_idx ON  {table} ({id});
+'''.format(table = table, 
+           abbrev = abbrev, 
+           id = points_id.lower(),
+           threshold_type = t, 
+           nh_threshold = nh_threshold)
+curs.execute(sql)
+conn.commit()
 
 # calculate food indicators at both 1600 m and 3200 m 
 print(" - ind_food... "),

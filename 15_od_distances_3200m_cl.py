@@ -98,25 +98,26 @@ curs = conn.cursor()
 # less than the total number of address points used for analysis in this city
 # (ie. the count of parcel_dwellings)
 sql = '''
- SELECT dest_class,table_name,row_count
-  FROM dest_type d
-  LEFT JOIN (SELECT table_name, 
-                    (xpath('/row/cnt/text()', xml_count))[1]::text::int AS row_count
-               FROM (
-                 SELECT table_name, 
-                        table_schema, 
-                        query_to_xml(format('SELECT COUNT(*) as cnt 
-                                               FROM %I.%I', 
-                                                    table_schema, 
-                                                    table_name)
-                                            , false, true, '') as xml_count
-                 FROM information_schema.tables
-                 WHERE table_schema = 'd_3200m_cl' --<< change here for the schema you want
-               ) t
-            ) completed_tables ON d.dest_class = completed_tables.table_name
- WHERE d.cutoff_count IS NOT NULL 
-   AND d.count > 0
-   AND COALESCE(row_count,0) < (SELECT COUNT(*) FROM parcel_dwellings);
+SELECT dest_class
+ FROM dest_type d
+ LEFT JOIN (SELECT table_name, 
+                   (xpath('/row/cnt/text()', xml_count))[1]::text::int AS row_count
+              FROM (
+                SELECT table_name, 
+                       table_schema, 
+                       query_to_xml(format('SELECT COUNT(*) as cnt 
+                                              FROM %I.%I', 
+                                                   table_schema, 
+                                                   table_name)
+                                           , false, true, '') as xml_count
+                FROM information_schema.tables
+                WHERE table_schema = 'd_3200m_cl' --<< change here for the schema you want
+              ) t
+           ) completed_tables ON d.dest_class = completed_tables.table_name
+WHERE d.cutoff_count IS NOT NULL 
+  AND d.count > 0
+  AND COALESCE(row_count,0) < (SELECT COUNT(*) FROM parcel_dwellings)
+ORDER BY dest_class;
 '''
 curs.execute(sql)
 destination_list = [x[0] for x in list(curs)]
@@ -378,7 +379,7 @@ if __name__ == '__main__':
   curs = conn.cursor()  
   
   print("Create tables for all destinations listed in dest_type table... "),
-  sql = '''SELECT DISTINCT(d.dest_class) FROM dest_type d'''
+  sql = '''SELECT DISTINCT(d.dest_class) dest_class FROM dest_type d ORDER BY dest_class'''
   curs.execute(sql)
   full_destination_list = [x[0] for x in list(curs)]
   for dest_class in full_destination_list:
@@ -402,61 +403,78 @@ if __name__ == '__main__':
   print("\nDestinations to process:")
   print(destination_list)
   
-  # Parallel processing setting
-  pool = multiprocessing.Pool(processes=nWorkers)
-  # get list of hexs over which to iterate
-  sql = '''
-    SELECT DISTINCT hex FROM hex_parcels;
-      '''
-  curs.execute(sql)
-  iteration_list = np.asarray([x[0] for x in list(curs)])
-  # # Iterate process over hexs across nWorkers
-  # pool.map(ODMatrixWorkerFunction, iteration_list, chunksize=1)
-  # # The below code implements a progress counter using hex iterations
-  r = list(tqdm(pool.imap(ODMatrixWorkerFunction, iteration_list), total=len(iteration_list), unit='hex'))
-    
-  # Ensure all tables are indexed, and contain only unique ids
+  if len(destination_list) > 0:
+      # Parallel processing setting
+      pool = multiprocessing.Pool(processes=nWorkers)
+      # get list of hexs over which to iterate
+      sql = '''
+        SELECT DISTINCT hex FROM hex_parcels;
+          '''
+      curs.execute(sql)
+      iteration_list = np.asarray([x[0] for x in list(curs)])
+      # # Iterate process over hexs across nWorkers
+      # pool.map(ODMatrixWorkerFunction, iteration_list, chunksize=1)
+      # # The below code implements a progress counter using hex iterations
+      r = list(tqdm(pool.imap(ODMatrixWorkerFunction, iteration_list), total=len(iteration_list), unit='hex'))
+  else:
+    print("\nIt seems that results have already been processed for all destinations.")
+  print("\nEnsuring all tables are indexed, and contain only unique ids..."),
   for dest_class in full_destination_list:
       result_table = '{distance_schema}."{dest_class}"'.format(distance_schema = distance_schema,
                                                                dest_class = dest_class)
       sql = '''
-        CREATE UNIQUE INDEX IF NOT EXISTS {dest_class}_idx ON  {result_table} ({id})
-         );
+        CREATE UNIQUE INDEX IF NOT EXISTS {dest_class}_idx ON  {result_table} ({id});
          '''.format(result_table=result_table,
                     id=points_id,
                     dest_class=dest_class)
       curs.execute(sql)
       conn.commit()
-      
-  print("Processed destination summary\n(tables in schema {distance_schema})\n").format(distance_schema = distance_schema)
+  print("Done.")   
+  print("\nProcessed destination summary\n(tables in schema {distance_schema})\n").format(distance_schema = distance_schema)
   engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_user,
                                                                     pwd  = db_pwd,
                                                                     host = db_host,
                                                                     db   = db), 
                      use_native_hstore=False)
   sql = '''
-     SELECT dest_class,table_name,row_count
-      FROM dest_type d
-      LEFT JOIN (SELECT table_name, 
-                        (xpath('/row/cnt/text()', xml_count))[1]::text::int AS row_count
-                   FROM (
-                     SELECT table_name, 
-                            table_schema, 
-                            query_to_xml(format('SELECT COUNT(*) as cnt 
-                                                   FROM %I.%I', 
-                                                        table_schema, 
-                                                        table_name)
-                                                , false, true, '') as xml_count
-                     FROM information_schema.tables
-                     WHERE table_schema = '{distance_schema}' --<< change here for the schema you want
-                   ) t
-                ) completed_tables ON d.dest_class = completed_tables.table_name
-     WHERE d.cutoff_count IS NOT NULL 
-       AND d.count > 0
-       AND COALESCE(row_count,0) < (SELECT COUNT(*) FROM parcel_dwellings);
+     SELECT table_name, 
+          (xpath('/row/cnt/text()', xml_count))[1]::text::int AS row_count
+     FROM (
+       SELECT table_name, 
+              table_schema, 
+              query_to_xml(format('SELECT COUNT(*) as cnt 
+                                     FROM %%I.%%I', 
+                                          table_schema, 
+                                          table_name)
+                                  , false, true, '') as xml_count
+       FROM information_schema.tables
+       WHERE table_schema = '{distance_schema}' --<< change here for the schema you want
+       ORDER BY table_name
+     ) t;
     '''.format(distance_schema = distance_schema)
-  result_summary = pandas.read_sql(sql, engine, index_col=table_name)
-  print(result_summary)
+  result_summary = pandas.read_sql(sql, engine)
+  with pandas.option_context('display.max_rows', None): 
+    print(result_summary)
+  print((
+         "\nPlease consider the above summary carefully. "
+         "\n\nIf any of the above destination tables... "
+         "\n- have a row count of 0: "
+         "\n    - it implies that there are no destinations of this type "
+         "\n      accessible within this study region."
+         "\n\n"
+         "\n- have row count > 0 and less than the count of origin points:"
+         "\n    - it implies that processing is not fully complete; "
+         "\n      it is recommended to run this script again."
+         "\n\n"
+         "\n - have a row count equal to the count of origin points: "
+         "\n     - it implies that processing has successfully completed for all points."
+         "\n\n"
+         "\n   - have a row count greater than the count of origin points: "
+         "\n       - it implies that there are duplicate rows recorded; "
+         "\n         the attempt to create a unique index will have failed, "
+         "\n         and the cause of how duplicate results have been recorded "
+         "\n         must be investigated."
+         ))
   # Log completion   
   script_running_log(script, task, start, locale)
   conn.close()
