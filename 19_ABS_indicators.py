@@ -1,14 +1,7 @@
-# Script:  LiveWorkSameSA3_bySA1.py
-# Purpose: Process a network matrix csv file w/ total column
-#          NOTE: MAKE SURE THAT COLUMNS CORRESPOND TO ROWS, SUCH THAT DIAGONAL IS THE INTERSECTION OF LIVE AND WORK!!!!
-#              otherwise, results will be false.
-#          OUTPUT:
-#          [id,  diagonal as a numerator column, total as denominator column, proportion = numerator/denominator]
-#          Specifically, this is used to process ABS derived files:
-#              ** UsualResidence_by_PlaceOfWork > LiveWorkSameSA3  **
+# Script:  ABS_indicators.py
+# Purpose: Process ABS indicators (e.g. affordable housing; live work same area)
 # Author:  Carl Higgs
-# Date:    7/12/2016
-
+# Date:    2020-01-13
 
 #import packages
 import os
@@ -28,6 +21,20 @@ start = time.time()
 script = os.path.basename(sys.argv[0])
 task = 'create destination indicator tables'
 
+conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
+curs = conn.cursor()
+
+engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_user,
+                                                                 pwd  = db_pwd,
+                                                                 host = db_host,
+                                                                 db   = db))
+
+# import affordable housing indicator
+print("Affordable housing indicator... "),
+affordable_housing = pandas.read_csv('D:/ABS/data/2016/abs_liveability/housing_3040_sa1_all_20190712.csv', index_col=0)
+affordable_housing.to_sql('abs_ind_30_40', con=engine, if_exists='replace')
+print("Done.")
+
 # Specify file names - assumed to be csv files
 
 indexName = 'sa1_7digitcode_2016'
@@ -37,17 +44,9 @@ df = df.reset_index()
 df = pandas.melt(df, id_vars=['sa1_7digitcode_2016'], value_vars=[x for x in df.columns if x!='sa1_7digitcode_2016'],var_name='sa3_work',value_name='count')
 df = df.astype(np.int64)
 
-# df2 = pandas.read_csv('D:/ABS/data/abs_liveability/sa1_live_sa3_work_long_20190712/sa1_live_sa3_work_long.csv', index_col=0,skiprows )
+print("Live and work in same local area indicator... "),
 
 # Get SA1 to SA3 look up table
-conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
-curs = conn.cursor()
-
-engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_user,
-                                                                 pwd  = db_pwd,
-                                                                 host = db_host,
-                                                                 db   = db))
-
 sql = '''
 SELECT DISTINCT(sa1_7digitcode_2016),
        sa3_code_2016 AS sa3_live 
@@ -76,6 +75,7 @@ live_work['total'] = live_work.apply(lambda x: x[False]+x[True],axis=1)
 live_work['pct_live_work_local_area'] = live_work.apply(lambda x: 100*(x[True]/float(x['total'])),axis=1)
 
 live_work.to_sql('live_sa1_work_sa3', con=engine, if_exists='replace')
+print("Done.")
 # output to completion log
 script_running_log(script, task, start)
 conn.close()

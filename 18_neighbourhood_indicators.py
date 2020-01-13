@@ -185,42 +185,14 @@ SELECT
              array_min(primary_schools_gov.distances)) AS schools_primary_all_gov,           
        LEAST(array_min("P_12_Schools_gov".distances), 
              array_min(secondary_schools_gov.distances)) AS schools_secondary_all_gov,
-       LEAST(array_min(gtfs_20191008_20191205_bus_0015.distances),
-             array_min(gtfs_20191008_20191205_ferry_0015.distances),
-             array_min(gtfs_20191008_20191205_train_0015.distances),
-             array_min(gtfs_20191008_20191205_tram_0015.distances)) AS gtfs_20191008_20191205_frequent_pt_0015,
-       LEAST(array_min(gtfs_20191008_20191205_bus_0030.distances),
-             array_min(gtfs_20191008_20191205_ferry_0030.distances),
-             array_min(gtfs_20191008_20191205_train_0030.distances),
-             array_min(gtfs_20191008_20191205_tram_0030.distances)) AS gtfs_20191008_20191205_frequent_pt_0030,
-       LEAST(array_min(gtfs_20191008_20191205_bus_0045.distances),
-             array_min(gtfs_20191008_20191205_ferry_0045.distances),
-             array_min(gtfs_20191008_20191205_train_0045.distances),
-             array_min(gtfs_20191008_20191205_tram_0045.distances)) AS gtfs_20191008_20191205_frequent_pt_0045,
-       LEAST(array_min(gtfs_20191008_20191205_bus_any.distances),
-             array_min(gtfs_20191008_20191205_ferry_any.distances),
-             array_min(gtfs_20191008_20191205_train_any.distances),
-             array_min(gtfs_20191008_20191205_tram_any.distances)) AS gtfs_20191008_20191205_any_pt
+       array_min(gtfs_20191008_20191205_revised_frequent30.distances) AS gtfs_20191008_20191205_pt_0030,
+       array_min(gtfs_20191008_20191205_revised_all.distances) AS gtfs_20191008_20191205_pt_any
 FROM parcel_dwellings p
 LEFT JOIN d_3200m_cl."P_12_Schools_gov"   ON p.{id}    = d_3200m_cl."P_12_Schools_gov".{id}
 LEFT JOIN d_3200m_cl.primary_schools_gov   ON p.{id}    = d_3200m_cl.primary_schools_gov.{id}
 LEFT JOIN d_3200m_cl.secondary_schools_gov   ON p.{id}    = d_3200m_cl.secondary_schools_gov.{id}
-LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_bus_0015   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_bus_0015.{id}
-LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_ferry_0015   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_ferry_0015.{id}
-LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_train_0015   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_train_0015.{id}
-LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_tram_0015   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_tram_0015.{id}
-LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_bus_0030   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_bus_0030.{id}
-LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_ferry_0030   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_ferry_0030.{id}
-LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_train_0030   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_train_0030.{id}
-LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_tram_0030   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_tram_0030.{id}
-LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_bus_0045   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_bus_0045.{id}
-LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_ferry_0045   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_ferry_0045.{id}
-LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_train_0045   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_train_0045.{id}
-LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_tram_0045   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_tram_0045.{id}
-LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_bus_any   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_bus_any.{id}
-LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_ferry_any   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_ferry_any.{id}
-LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_train_any   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_train_any.{id}
-LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_tram_any   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_tram_any.{id}
+LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_revised_frequent30   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_revised_frequent30.{id}
+LEFT JOIN d_3200m_cl.gtfs_20191008_20191205_revised_all   ON p.{id}    = d_3200m_cl.gtfs_20191008_20191205_revised_all.{id}
 LEFT JOIN d_3200m_cl.convenience_osm   ON p.{id}    = d_3200m_cl.convenience_osm.{id}
 LEFT JOIN d_3200m_cl.newsagent_osm     ON p.{id}    = d_3200m_cl.newsagent_osm.{id}
 LEFT JOIN d_3200m_cl.petrolstation_osm ON p.{id}    = d_3200m_cl.petrolstation_osm.{id}
@@ -263,13 +235,14 @@ for threshold_type in ['hard','soft']:
         SELECT  
         {id},
         threshold_{threshold_type}(convenience_osm_2018,{nh_threshold}) AS convenience_osm_2018, 
-        threshold_{threshold_type}(supermarket_hlc_2017_osm_2018,{nh_threshold}) AS supermarket_hlc_2017_osm_2018          , 
+        threshold_{threshold_type}(supermarket_hlc_2017_osm_2018,{nh_threshold}) AS supermarket_hlc_2017_osm_2018, 
         threshold_{threshold_type}(community_centre_hlc_2016_osm_2018,{nh_threshold}) AS community_centre_hlc_2016_osm_2018,
         threshold_{threshold_type}(food_fresh_specialty_osm_2018,{nh_threshold}) AS food_fresh_specialty_osm_2018 ,
         threshold_{threshold_type}(food_fast_hlc_2017_osm_2018,{nh_threshold}) AS food_fast_hlc_2017_osm_2018,
-        threshold_{threshold_type}(food_dining_osm_2018          ,{nh_threshold}) AS food_dining_osm_2018,
-        threshold_{threshold_type}(culture_osm_2018              ,{nh_threshold}) AS culture_osm_2018,
-        threshold_{threshold_type}(alcohol_nightlife_osm_2018    ,{nh_threshold}) AS alcohol_nightlife_osm_2018    
+        threshold_{threshold_type}(food_dining_osm_2018,{nh_threshold}) AS food_dining_osm_2018,
+        threshold_{threshold_type}(culture_osm_2018,{nh_threshold}) AS culture_osm_2018,
+        threshold_{threshold_type}(gtfs_20191008_20191205_pt_any    ,{nh_threshold}) AS gtfs_20191008_20191205_pt_any,
+        threshold_{threshold_type}(gtfs_20191008_20191205_pt_0030    ,{nh_threshold}) AS gtfs_20191008_20191205_pt_0030
         FROM nh_inds_distance ;
         CREATE UNIQUE INDEX IF NOT EXISTS nh_inds_{threshold_type}_{nh_threshold}m_idx ON  nh_inds_{threshold_type}_{nh_threshold}m ({id}); 
         '''.format(id = points_id.lower(),threshold_type = threshold_type, nh_threshold = nh_threshold)
@@ -290,7 +263,7 @@ for t in ['hard','soft']:
         inds = '''
           (COALESCE(nh_inds_{t}_{d}m.convenience_osm_2018,0) + 
            COALESCE(nh_inds_{t}_{d}m.supermarket_hlc_2017_osm_2018,0) + 
-           COALESCE(threshold_{t}(array_min(d_3200m_cl.gtfs_2018_stops.distances),{d}),0)) AS {abbrev}_{t}_{d}m
+           COALESCE(nh_inds_{t}_{d}m.gtfs_20191008_20191205_pt_any,0)) AS {abbrev}_{t}_{d}m
         '''.format(t=t,d=d,abbrev=abbrev)
         ind_list  +=[inds]
         from_list +=['LEFT JOIN nh_inds_{t}_{d}m ON p.{id} = nh_inds_{t}_{d}m.{id}'.format(t=t,d=d,id=points_id)]
@@ -300,8 +273,7 @@ CREATE TABLE {table} AS
 SELECT p.{id},
        {inds}
 FROM parcel_dwellings p
-     {from_list}
-     LEFT JOIN d_3200m_cl.gtfs_2018_stops ON p.{id} = d_3200m_cl.gtfs_2018_stops.{id};
+     {from_list};
 CREATE UNIQUE INDEX {table}_idx ON  {table} ({id});
 '''.format(inds=','.join(ind_list), 
            from_list = '\r\n'.join(from_list),
@@ -329,7 +301,7 @@ for t in ['soft']:
             COALESCE(nh_inds_{t}_{d}m.convenience_osm_2018,0) +
             COALESCE(nh_inds_{t}_{d}m.food_fresh_specialty_osm_2018,0) +
             COALESCE(threshold_{t}(array_min(d_3200m_cl.postoffice_osm.distances),{d}),0) + 
-            COALESCE(threshold_{t}(array_min(d_3200m_cl.gtfs_2018_stops.distances),{d}),0)) AS {abbrev}_{t}_{d}m
+            COALESCE(nh_inds_{t}_{d}m.gtfs_20191008_20191205_pt_any,0)) AS {abbrev}_{t}_{d}m
         '''.format(t=t,d=d,abbrev=abbrev)
         ind_list  +=[inds]
         from_list +=['LEFT JOIN nh_inds_{t}_{d}m ON p.{id} = nh_inds_{t}_{d}m.{id}'.format(t=t,d=d,id=points_id)]
@@ -345,8 +317,7 @@ FROM parcel_dwellings p
     LEFT JOIN d_3200m_cl. nhsd_2017_dentist ON p.{id} = d_3200m_cl. nhsd_2017_dentist.{id}
     LEFT JOIN d_3200m_cl. nhsd_2017_gp ON p.{id} = d_3200m_cl. nhsd_2017_gp.{id}
     LEFT JOIN d_3200m_cl. nhsd_2017_pharmacy ON p.{id} = d_3200m_cl. nhsd_2017_pharmacy.{id}
-    LEFT JOIN d_3200m_cl.postoffice_osm ON p.{id} = d_3200m_cl.postoffice_osm.{id} 
-    LEFT JOIN d_3200m_cl.gtfs_2018_stops ON p.{id} = d_3200m_cl.gtfs_2018_stops.{id};
+    LEFT JOIN d_3200m_cl.postoffice_osm ON p.{id} = d_3200m_cl.postoffice_osm.{id} ;
 CREATE UNIQUE INDEX {table}_idx ON  {table} ({id});
 '''.format(inds=','.join(ind_list), 
            from_list = '\r\n'.join(from_list),
@@ -354,43 +325,7 @@ CREATE UNIQUE INDEX {table}_idx ON  {table} ({id});
            table = table)
 curs.execute(sql)
 conn.commit()
-print(" Done.")    
-
-table = 'ind_walkability'
-abbrev = 'wa'
-print(" - {}".format(table)),
-ind_list = []
-from_list = []
-t = 'soft'
-d = 1600
-inds = '''
-    dl_{t}.z_dl + sc.z_sc + dd.z_dd AS {abbrev}_{t}_{d}m
-    '''
-ind_list  +=[inds]
-from_query = '''
-SELECT {id}, 
-       (dl_{t}_{d}m - AVG(dl_{t}_{d}m) OVER())
-           / 
-           stddev_pop(dl_{t}_{d}m) OVER() 
-           AS z_dl FROM ind_daily_living) dl
-'''
-from_list +=[from_query]
-sql = '''
-DROP TABLE IF EXISTS {table};
-CREATE TABLE {table} AS
-SELECT p.{id},
-       {inds}
-FROM parcel_dwellings p
-LEFT JOIN (SELECT {id}, (sc_nh1600m - AVG(sc_nh1600m) OVER())/stddev_pop(sc_nh1600m) OVER() as z_sc FROM sc_nh1600m) sc ON sc.{id} = dl.{id}
-LEFT JOIN (SELECT {id}, (dd_nh1600m - AVG(dd_nh1600m) OVER())/stddev_pop(dd_nh1600m) OVER() as z_dd FROM dd_nh1600m) dd ON dd.{id} = dl.{id};
-CREATE UNIQUE INDEX {table}_idx ON  {table} ({id});
-'''.format(table = table, 
-           abbrev = abbrev, 
-           id = points_id.lower(),
-           threshold_type = t, 
-           nh_threshold = nh_threshold)
-curs.execute(sql)
-conn.commit()
+print(" Done.")
 
 # calculate food indicators at both 1600 m and 3200 m 
 print(" - ind_food... "),
