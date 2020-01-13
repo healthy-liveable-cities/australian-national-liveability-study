@@ -119,22 +119,76 @@ curs.execute(create_parcel_indicators)
 conn.commit()
 print(" Done.")
 
-table = 'dest_distance_m'
+## NOTE
+## We used to create a wide table containing arrays of distances to all destinations for each destination (by column)
+## However, the new d_3200m_cl contains this data as seperate tables
+## This is a more tractable approach so the code is commented out.
+## It has been retained in case this kind of table needs to be recreated.
+## In practice, the query to recreate the table from the d_3200m_cl tables will be 
+## more akin to that used for distance to closest, below
+## A sketch revision has been written, but has not been tested.
+## CH 2020-01-13
+
 sql = '''
-SELECT column_name 
-FROM information_schema.columns 
-WHERE table_name = '{table}' 
-AND column_name != '{id}';
-'''.format(id = points_id.lower(), table = table)
+SELECT DISTINCT(table_name) 
+  FROM information_schema.columns 
+ WHERE table_schema = 'd_3200m_cl' 
+ ORDER BY table_name;
+'''.format(id = points_id.lower())
 curs.execute(sql)
-destinations = ','.join(['d."{dest}" AS "dist_m_{dest}"'.format(dest = x[0]) for x in curs.fetchall()])
+dest_tables = [x[0] for x in curs.fetchall()]
+destination_array_inds = ','.join(['d_3200m_cl."{dest}".distances AS "{dest}"'.format(dest = x) for x in dest_tables])
+destination_closest_inds = ','.join(['array_min(d_3200m_cl."{dest}".distance) AS "{dest}"'.format(dest = x) for x in dest_tables])
+destination_from = '\n'.join(['LEFT JOIN d_3200m_cl."{dest}" ON p.{points_id} = d_3200m_cl."{dest}".{points_id}'.format(dest = x,points_id = points_id) for x in dest_tables])
+# print("Creating distance array measures with classification data..."),
+# dest_array_indicators = '''
+# DROP TABLE IF EXISTS dest_array_indicators;
+# CREATE TABLE dest_array_indicators AS
+# SELECT
+# {points_id}                    ,
+# p.count_objectid        ,
+# p.point_x               ,
+# p.point_y               ,
+# p.hex_id                ,
+# '{full_locale}'::text AS study_region,
+# '{locale}'::text AS locale      ,
+# p.mb_code_2016          ,
+# p.mb_category_name_2016 ,
+# p.sa1_maincode_2016     ,
+# p.sa2_name_2016         ,
+# p.sa3_name_2016         ,
+# p.sa4_name_2016         ,
+# p.gccsa_name_2016       ,
+# p.state_name_2016       ,
+# p.ssc_name_2016         ,
+# p.lga_name_2016         ,
+# p.ucl_name_2016         ,
+# p.sos_name_2016         ,
+# p.urban                 ,
+# p.irsd_score            ,
+# p.exclude               ,
+# {destination_array_inds},,
+# p.geom                   
+# FROM
+# parcel_indicators p                                                                                 
+# {destination_from};
+# CREATE UNIQUE INDEX IF NOT EXISTS dest_array_indicators_idx ON  dest_array_indicators ({points_id});
+# '''.format(points_id = points_id, 
+           # destination_array_inds = destination_array_inds,
+           # destination_from = destination_from,           
+           # full_locale = full_locale,
+           # locale = locale)
+
+# curs.execute(dest_array_indicators)
+# conn.commit()
+# print(" Done.")
 
 print("Creating distance to closest measures with classification data..."),
 dest_closest_indicators = '''
 DROP TABLE IF EXISTS dest_closest_indicators;
 CREATE TABLE dest_closest_indicators AS
 SELECT
-{id}                    ,
+{points_id}                    ,
 p.count_objectid        ,
 p.point_x               ,
 p.point_y               ,
@@ -156,72 +210,19 @@ p.sos_name_2016         ,
 p.urban                 ,
 p.irsd_score            ,
 p.exclude               ,
-{d}                     ,
+{destination_closest_inds}                     ,
 p.geom                   
 FROM
 parcel_indicators p                                                                                 
-LEFT JOIN dest_distance_m d
-USING ({id});
-CREATE UNIQUE INDEX IF NOT EXISTS ix_dest_closest_indicators ON  dest_closest_indicators ({id});
+{destination_from};
+CREATE UNIQUE INDEX IF NOT EXISTS ix_dest_closest_indicators ON  dest_closest_indicators ({points_id});
 CREATE INDEX IF NOT EXISTS gix_dest_closest_indicators ON dest_closest_indicators USING GIST (geom);
-'''.format(id = points_id, 
-           d = destinations, 
+'''.format(points_id = points_id, 
+           destination_closest_inds = destination_closest_inds, 
+           destination_from = destination_from,      
            full_locale = full_locale,
            locale = locale)
 curs.execute(dest_closest_indicators)
-conn.commit()
-print(" Done.")
-
-table = 'dest_distances_cl_3200m'
-sql = '''
-SELECT column_name 
-FROM information_schema.columns 
-WHERE table_name = '{table}' 
-AND column_name != '{id}';
-'''.format(id = points_id.lower(), table = table)
-curs.execute(sql)
-destinations = ','.join(['d."{dest}" AS "dist_m_{dest}"'.format(dest = x[0]) for x in curs.fetchall()])
-
-print("Creating distance array measures with classification data..."),
-dest_array_indicators = '''
-DROP TABLE IF EXISTS dest_array_indicators;
-CREATE TABLE dest_array_indicators AS
-SELECT
-{id}                    ,
-p.count_objectid        ,
-p.point_x               ,
-p.point_y               ,
-p.hex_id                ,
-'{full_locale}'::text AS study_region,
-'{locale}'::text AS locale      ,
-p.mb_code_2016          ,
-p.mb_category_name_2016 ,
-p.sa1_maincode_2016     ,
-p.sa2_name_2016         ,
-p.sa3_name_2016         ,
-p.sa4_name_2016         ,
-p.gccsa_name_2016       ,
-p.state_name_2016       ,
-p.ssc_name_2016         ,
-p.lga_name_2016         ,
-p.ucl_name_2016         ,
-p.sos_name_2016         ,
-p.urban                 ,
-p.irsd_score            ,
-p.exclude               ,
-{d}                     ,
-p.geom                   
-FROM
-parcel_indicators p                                                                                 
-LEFT JOIN dest_distances_cl_3200m d
-USING ({id});
-CREATE UNIQUE INDEX IF NOT EXISTS dest_array_indicators_idx ON  dest_array_indicators ({id});
-'''.format(id = points_id, 
-           d = destinations, 
-           full_locale = full_locale,
-           locale = locale)
-
-curs.execute(dest_array_indicators)
 conn.commit()
 print(" Done.")
 

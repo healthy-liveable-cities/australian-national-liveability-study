@@ -288,7 +288,7 @@ abbrev = 'll'
 print(" - {}".format(table)),
 ind_list = []
 from_list = []
-for t in ['soft']:
+for t in ['hard','soft']:
     for d in [400,800,1000,1600]:
         inds = '''
             (COALESCE(nh_inds_{t}_{d}m.community_centre_hlc_2016_osm_2018,0) + 
