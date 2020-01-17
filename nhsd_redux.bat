@@ -3,10 +3,11 @@ echo  NHSD redux: purge results, recompile, reanalyse distances for NHSD destina
 echo  **NOTE: Assumes you have the current version of destinations database, from 31 May 2019.**
 
 FOR %%A  IN (%*) DO (
-  python purge_old_nhsd_20190531.py %%A
-  python 14_recompile_destinations.py %%A
-  python 15_od_distances_3200m.py %%A
-  python 16_od_distances_closest_in_study_region.py %%A
+  python 19_ABS_indicators.py           %%A
+  python 23_collate_indicator_tables.py %%A
+  python 24_data_checking.py            %%A
+  python 27_area_indicators.py          %%A
+  python 28_policy_indicators.py        %%A
 )
 
 @pause

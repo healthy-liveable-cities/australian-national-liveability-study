@@ -197,7 +197,7 @@ SELECT p.{id},
     -- we coalesce 30:40 measures to 0, as nulls mean no one is in bottom two housing quintiles - really 0/0 implies 0% in this context
     -- noting that null is not acceptable.  This should be discussed, but is workable for now.
     -- Later, we reverse polarity of 30 40 measure
-    COALESCE(pcent_30_40,0) AS abs_30_40,
+    COALESCE(pct_30_40_housing,0) AS abs_30_40,
     COALESCE(pct_live_work_local_area,0) AS abs_live_sa1_work_sa3
 FROM parcel_dwellings p
 LEFT JOIN area_linkage a ON p.mb_code_20 = a.mb_code_2016
@@ -206,8 +206,7 @@ LEFT JOIN nh_inds_distance ON p.{id} = nh_inds_distance.{id}
 LEFT JOIN sc_nh1600m ON p.{id} = sc_nh1600m.{id}
 LEFT JOIN dd_nh1600m ON p.{id} = dd_nh1600m.{id}
 LEFT JOIN ind_os_distance ON p.{id} = ind_os_distance.{id}
-LEFT JOIN abs_ind_30_40 h ON a.sa1_7digitcode_2016 = h.sa1_7digitcode_2016::text
-LEFT JOIN live_sa1_work_sa3 l ON a.sa1_7digitcode_2016 = l.sa1_7digitcode_2016::text
+LEFT JOIN abs_indicators abs ON a.sa1_7digitcode_2016 = h.sa1_7digitcode_2016::text
 LEFT JOIN d_3200m_cl."fruit_veg_osm" ON p.{id} = d_3200m_cl."fruit_veg_osm".{id}
 LEFT JOIN d_3200m_cl."meat_seafood_osm" ON p.{id} = d_3200m_cl."meat_seafood_osm".{id}
 LEFT JOIN d_3200m_cl."supermarket_osm" ON p.{id} = d_3200m_cl."supermarket_osm".{id}

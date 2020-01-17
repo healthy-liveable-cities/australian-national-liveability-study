@@ -113,6 +113,8 @@ dfs = [affordable_housing[['pct_30_40_housing']],
        ]
 abs_indicators = dfs[0].join(dfs[1:])
 
+abs_indicators.to_sql('abs_indicators',engine, if_exists='replace')
+
 print("Done.")
 
 # output to completion log

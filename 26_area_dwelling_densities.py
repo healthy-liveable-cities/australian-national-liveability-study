@@ -28,10 +28,12 @@ engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_
                                                                  host = db_host,
                                                                  db   = db))
 
-sql = '''
+# sql = '''
 
-'''
-curs.execute(sql)
+# '''
+# curs.execute(sql)
+
+print("This script is To Do")
 
 # output to completion log
 script_running_log(script, task, start)

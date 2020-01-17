@@ -132,7 +132,7 @@ SELECT DISTINCT(table_name)
 curs.execute(sql)
 dest_tables = [x[0] for x in curs.fetchall()]
 destination_array_inds = ','.join(['d_3200m_cl."{dest}".distances AS "{dest}"'.format(dest = x) for x in dest_tables])
-destination_closest_inds = ','.join(['array_min(d_3200m_cl."{dest}".distances) AS "{dest}"'.format(dest = x) for x in dest_tables])
+destination_closest_inds = ','.join(['array_min(d_3200m_cl."{dest}".distances) AS "dist_m_{dest}"'.format(dest = x) for x in dest_tables])
 destination_from = '\n'.join(['LEFT JOIN d_3200m_cl."{dest}" ON p.{points_id} = d_3200m_cl."{dest}".{points_id}'.format(dest = x,points_id = points_id) for x in dest_tables])
 # print("Creating distance array measures with classification data..."),
 # dest_array_indicators = '''
