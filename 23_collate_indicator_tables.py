@@ -31,12 +31,6 @@ engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_
 # Restrict to indicators associated with study region (except distance to closest dest indicators)
 ind_matrix = df_inds[df_inds['locale'].str.contains('|'.join([locale,'\*']))].copy()
 
-# Get a list of destinations processed within this region for distance to closest
-# sql = '''SELECT DISTINCT(dest_name) dest_name FROM od_closest ORDER BY dest_name;'''
-sql = '''SELECT dest_name FROM dest_type ORDER BY dest_name;'''
-curs.execute(sql)
-categories = [x[0] for x in curs.fetchall()]
-
 # # get the set of distance to closest regions which match for this region
 # destinations = df_inds[df_inds['ind'].str.contains('destinations')]
 # current_categories = [x for x in categories if 'distance_m_{}'.format(x) in destinations.ind_plain.str.encode('utf8').tolist()]
@@ -51,7 +45,7 @@ ind_matrix = pandas.concat([ind_matrix,ind_soft,ind_hard], ignore_index=True).so
 ind_matrix.drop(ind_matrix[ind_matrix.tags == '_{threshold}'].index, inplace=True)
 # Restrict to indicators with a defined query
 ind_matrix = ind_matrix[pandas.notnull(ind_matrix['Query'])]
-ind_matrix.drop(ind_matrix[ind_matrix['updated?'] == 'n'].index, inplace=True)
+ind_matrix = ind_matrix[pandas.notnull(ind_matrix['updated?'])]
 
 # Make concatenated indicator and tag name (e.g. 'walk_14' + 'hard')
 # Tags could be useful later as can allow to search by name for e.g. threshold type,
@@ -66,7 +60,7 @@ ind_list = ind_matrix['indicators'].tolist()
 
 # Compile string of queries, and of unique sources to plug in SQL table creation query
 ind_queries = '\n'.join(ind_matrix['Query'] +' AS ' + ind_matrix['indicators']+',')
-ind_sources = '\n'.join(ind_matrix['Source'].unique())
+ind_sources = '\n'.join(ind_matrix['Source'].dropna().unique())
 
 print("Creating compiled set of parcel level indicators..."),   
 # Define parcel level indicator table creation query
@@ -138,7 +132,7 @@ SELECT DISTINCT(table_name)
 curs.execute(sql)
 dest_tables = [x[0] for x in curs.fetchall()]
 destination_array_inds = ','.join(['d_3200m_cl."{dest}".distances AS "{dest}"'.format(dest = x) for x in dest_tables])
-destination_closest_inds = ','.join(['array_min(d_3200m_cl."{dest}".distance) AS "{dest}"'.format(dest = x) for x in dest_tables])
+destination_closest_inds = ','.join(['array_min(d_3200m_cl."{dest}".distances) AS "{dest}"'.format(dest = x) for x in dest_tables])
 destination_from = '\n'.join(['LEFT JOIN d_3200m_cl."{dest}" ON p.{points_id} = d_3200m_cl."{dest}".{points_id}'.format(dest = x,points_id = points_id) for x in dest_tables])
 # print("Creating distance array measures with classification data..."),
 # dest_array_indicators = '''
@@ -188,7 +182,7 @@ dest_closest_indicators = '''
 DROP TABLE IF EXISTS dest_closest_indicators;
 CREATE TABLE dest_closest_indicators AS
 SELECT
-{points_id}                    ,
+p.{points_id}           ,
 p.count_objectid        ,
 p.point_x               ,
 p.point_y               ,
