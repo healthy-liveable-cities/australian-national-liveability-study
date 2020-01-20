@@ -22,6 +22,7 @@ task = 'Create area level indicator tables for {}'.format(locale)
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()
 
+
 # Restrict to indicators associated with study region (except distance to closest dest indicators)
 # the following two tables (indicators/measures, and distances to closest measures) will later be
 # appended once the first table is expanded into soft and hard threshold indicator forms
@@ -47,8 +48,9 @@ ind_hard.replace(to_replace='{threshold}', value='hard', inplace=True,regex=True
 
 ind_matrix = pandas.concat([ind_matrix,ind_soft,ind_hard], ignore_index=True).sort_values('ind')
 ind_matrix.drop(ind_matrix[ind_matrix.tags == '_{threshold}'].index, inplace=True)
-# Restrict to indicators with a defined query
-ind_matrix = ind_matrix[pandas.notnull(ind_matrix['Query'])]
+# NOTE: NO NEED TO Restrict to indicators with a defined query
+#       Since this script relies on the 'agg_alt_variable' defined below
+ind_matrix = ind_matrix[pandas.notnull(ind_matrix['Query']) |  pandas.notnull(ind_matrix['agg_alt_variable']) ]
 ind_matrix = ind_matrix[pandas.notnull(ind_matrix['updated?'])]
 
 # Make concatenated indicator and tag name (e.g. 'walk_14' + 'hard')
@@ -65,7 +67,6 @@ ind_matrix.sort_values('order', inplace=True)
 ind_matrix = ind_matrix.set_index('indicators')
 ind_matrix = ind_matrix.append(ind_destinations)
 ind_list = ind_matrix.index.values
-
 
 ind_policy = ind_matrix[ind_matrix.policy_locale.apply(lambda x: '{}'.format(x) not in ['NULL','nan'])].copy()
 ind_policy = ind_policy.loc[:,['policy_reference','policy_wording','threshold_aggregate_description','agg_alt_variable','agg_standard','agg_split_greq','units']]

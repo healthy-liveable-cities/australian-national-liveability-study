@@ -183,27 +183,69 @@ for area in analysis_regions + ['study region']:
         pkey = area_id
     else: 
         pkey = '{},study_region'.format(area_id)
+    housing_diversity = ''
+    housing_diversity_join = ''
+    if area in ['SA1', 'SA2','Suburb', 'LGA']:
+        housing_diversity = '''
+        hd.normalised_diversity_index AS housing_diversity_normalised,
+        hd.diversity AS housing_diversity_category,
+        hd.housing_type_count AS housing_diversity_count,
+        '''
+        housing_diversity_join = '''
+        LEFT JOIN abs_housing_diversity_{abbrev} hd USING ({area_id}) 
+        '''.format(abbrev = abbrev,area_id = area_id)
+        if area == 'SA1':
+            housing_diversity_join = '''
+        LEFT JOIN sa1_2016_aust USING (sa1_maincode_2016)
+        LEFT JOIN abs_housing_diversity_{abbrev}  hd
+          ON sa1_2016_aust.sa1_7digitcode_2016::bigint = hd.sa1_7digitcode_2016
+        '''.format(abbrev = abbrev,area_id = area_id)
     for standard in ['dwelling','person']:
         print("  - li_inds_{}_{}".format(abbrev,standard))
         sql = '''
         DROP TABLE IF EXISTS {abbrev}_ind_{standard};
         DROP TABLE IF EXISTS li_inds_{abbrev}_{standard};
         CREATE TABLE li_inds_{abbrev}_{standard} AS
-        SELECT 
-        {area_code},
-        {include_region}
-        locale,
-        SUM(dwelling) AS dwelling,
-        SUM(person) AS person,
-        SUM(sample_count) AS sample_count,
-        SUM(sample_count)/SUM(area_ha) AS sample_count_per_ha,
-        SUM(area_ha) AS area_ha,
-        {extract},
-        ST_Union(geom) AS geom
-        FROM area_indicators_mb_json,
-             jsonb_array_elements(indicators) ind
-        GROUP BY {area_code},study_region,locale;
-        '''.format(area_code = area_id,
+        SELECT t.*,
+               {housing_diversity}
+               g.dwelling gross_dwelling,
+               g.area gross_area,
+               g.gross_density,
+               g.urban_dwelling urban_gross_dwelling,
+               g.urban_area     urban_gross_area,
+               g. urban_gross_density,
+               g.not_urban_dwelling not_urban_gross_dwelling,
+               g.not_urban_area     not_urban_gross_area,
+               g.not_urban_gross_density,
+               n.dwelling net_dwelling,
+               n.area net_area,
+               n.net_density,
+               n.urban_dwelling urban_net_dwelling,
+               n.urban_area     urban_net_area,
+               n.urban_net_density,
+               n.not_urban_dwelling not_urban_net_dwelling,
+               n.not_urban_area     not_urban_net_area,
+               n.not_urban_net_density
+        FROM
+        (SELECT 
+         {area_id},
+         {include_region}
+         locale,
+         SUM(dwelling) AS dwelling,
+         SUM(person) AS person,
+         SUM(sample_count) AS sample_count,
+         SUM(sample_count)/SUM(area_ha) AS sample_count_per_ha,
+         SUM(area_ha) AS area_ha,
+         {extract},
+         ST_Union(geom) AS geom
+         FROM area_indicators_mb_json,
+              jsonb_array_elements(indicators) ind
+         GROUP BY {area_id},study_region,locale
+         ) t
+        LEFT JOIN abs_density_gross_{abbrev} g USING ({area_id})
+        LEFT JOIN abs_density_net_{abbrev} n USING ({area_id})
+        {housing_diversity_join};
+        '''.format(area_id = area_id,
                    abbrev = abbrev,
                    include_region = include_region,
                    extract = ','.join(['''
@@ -216,7 +258,9 @@ for area in analysis_regions + ['study region']:
                                (SUM({standard}*((ind->'{i}')->>'mean')::numeric)/SUM({standard}))::numeric
                           END) AS "{i}"
                    '''.format(i = i,standard = standard) for i in ind_list]),
-                   standard = standard
+                   standard = standard,
+                   housing_diversity = housing_diversity,
+                   housing_diversity_join = housing_diversity_join
                    )
         curs.execute(sql)
         conn.commit()
