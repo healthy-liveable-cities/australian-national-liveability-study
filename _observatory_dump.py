@@ -29,16 +29,58 @@ engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_
                                                                  host = db_host,
                                                                  db   = db))
 
-ind_matrix = pandas.read_sql_table('ind_description',engine,index_col='indicators') 
-observatory_inds = pandas.read_excel(xls, 'observatory_inds',index_col=0)
 
-ind_matrix = ind_matrix.loc[observatory_inds.index.tolist(),:]
+# Restrict to indicators associated with study region (except distance to closest dest indicators)
+# the following two tables (indicators/measures, and distances to closest measures) will later be
+# appended once the first table is expanded into soft and hard threshold indicator forms
+ind_destinations = df_destinations[(df_destinations.locale == "*") | (df_destinations.locale == locale)].copy()
+ind_destinations['destination'] = ind_destinations['destination_class'].apply(lambda x: "dist_m_{}".format(x))
+ind_destinations = ind_destinations.set_index('destination')
+ind_destinations.index.name = 'indicators'
+ind_destinations = ind_destinations.loc[:,'unit_level_description':]
 
-# Drop index for ind_description table if it exists; 
-# this causes an error when (re-)creating the ind_description table if index exists
-curs.execute('DROP INDEX IF EXISTS ix_ind_description_{}_{}_index;'.format(locale,year))
+# Indicator configuration sheet is 'df_inds', read in from config file in the config script
+# Restrict to indicators associated with study region (except distance to closest dest indicators)
+ind_matrix = df_inds[df_inds['locale'].str.contains('|'.join([locale,'\*']))].copy()
+
+# # get the set of distance to closest regions which match for this region
+# destinations = df_inds[df_inds['ind'].str.contains('destinations')]
+# current_categories = [x for x in categories if 'distance_m_{}'.format(x) in destinations.ind_plain.str.encode('utf8').tolist()]
+# ind_matrix = ind_matrix.append(destinations[destinations['ind_plain'].str.replace('distance_m_','').str.contains('|'.join(current_categories))])
+ind_matrix['order'] = ind_matrix.index
+ind_soft = ind_matrix.loc[ind_matrix.tags=='_{threshold}',:].copy()
+ind_hard = ind_matrix.loc[ind_matrix.tags=='_{threshold}',:].copy()
+ind_soft.replace(to_replace='{threshold}', value='soft', inplace=True,regex=True)
+ind_hard.replace(to_replace='{threshold}', value='hard', inplace=True,regex=True)
+
+ind_matrix = pandas.concat([ind_matrix,ind_soft,ind_hard], ignore_index=True).sort_values('ind')
+ind_matrix.drop(ind_matrix[ind_matrix.tags == '_{threshold}'].index, inplace=True)
+# Restrict to indicators with a defined query
+ind_matrix = ind_matrix[pandas.notnull(ind_matrix['Query'])]
+ind_matrix = ind_matrix[pandas.notnull(ind_matrix['updated?'])]
+
+# Make concatenated indicator and tag name (e.g. 'walk_14' + 'hard')
+# Tags could be useful later as can allow to search by name for e.g. threshold type,
+# or other keywords (policy, binary, obsolete, planned --- i don't know, whatever)
+# These tags are tacked on the end of the ind name seperated with underscores
+ind_matrix['indicators'] = ind_matrix['ind'] + ind_matrix['tags'].fillna('')
+# ind_matrix['sort_cat'] = pandas.Categorical(ind_matrix['ind'], categories=mylist, ordered=True)
+# ind_matrix.sort_values('sort_cat', inplace=True)
+# Compile list of indicators
+ind_matrix.sort_values('order', inplace=True)
+
+# Create an indicators summary table
+ind_matrix = ind_matrix.set_index('indicators')
+ind_matrix = ind_matrix.append(ind_destinations)
+ind_matrix = ind_matrix.query("observatory not in ['','NULL','NaN'] and observatory.notnull()")
+ind_matrix.sort_values('observatory', inplace=True)
+ind_list = ind_matrix.index.values
+
+# Drop index for ind_observatory table if it exists; 
+# this causes an error when (re-)creating the ind_observatory table if index exists
+curs.execute('DROP INDEX IF EXISTS ix_ind_observatory_{}_{}_index;'.format(locale,year))
 conn.commit()
-ind_matrix.to_sql(name='ind_description_{}_{}'.format(locale,year),con=engine,if_exists='replace')
+ind_matrix.to_sql(name='ind_observatory_{}_{}'.format(locale,year),con=engine,if_exists='replace')
 ind_list = ind_matrix.index.values
 
 # Distribution summaries for plotting of sample data
@@ -257,7 +299,7 @@ for area_code in areas.keys():
     CREATE TABLE li_percentiles_{area} AS
     SELECT {area_code},
            {indicators}
-    FROM li_inds_{area}
+    FROM li_inds_{area}_dwelling
     ORDER BY {area_code} ASC;
   ALTER TABLE li_percentiles_{area} ADD PRIMARY KEY ({area_code});
   '''.format(area = area,
@@ -390,19 +432,19 @@ for area_code in areas.keys():
     conn.commit()
     print("Done.")
 
-# need to add in a geometry column to ind_description to allow for importing of this table as a layer in geoserver
+# need to add in a geometry column to ind_observatory to allow for importing of this table as a layer in geoserver
 # If it doesn't already exists
 # So, check if it already exists
-curs.execute("SELECT column_name FROM information_schema.columns WHERE table_name='ind_description_{}_{}' and column_name='geom';".format(locale,year))
+curs.execute("SELECT column_name FROM information_schema.columns WHERE table_name='ind_observatory_{}_{}' and column_name='geom';".format(locale,year))
 null_geom_check = curs.fetchall()
 if len(null_geom_check)==0:
   # if geom doesn't exist, created it
-  curs.execute("SELECT AddGeometryColumn ('public','ind_description_{}_{}','geom',4326,'POINT',2);".format(locale,year))
+  curs.execute("SELECT AddGeometryColumn ('public','ind_observatory_{}_{}','geom',4326,'POINT',2);".format(locale,year))
   conn.commit()
 
 
 
-map_tables = ["boundaries_sos","boundaries_sa1","boundaries_ssc","boundaries_lga","li_map_region","li_map_sa1","li_map_ssc","li_map_lga","ind_description","boundaries_region","boundaries_sa1","boundaries_ssc","boundaries_lga"]
+map_tables = ["boundaries_sos","boundaries_sa1","boundaries_ssc","boundaries_lga","li_map_region","li_map_sa1","li_map_ssc","li_map_lga","ind_observatory","boundaries_region","boundaries_sa1","boundaries_ssc","boundaries_lga"]
 
 output_tables = ' '.join([' -t "{x}_{locale}_{year}"'.format(x = x,locale = locale,year = year) for x in map_tables])
 output_tables_gpkg = ' '.join(['"{x}_{locale}_{year}"'.format(x = x,locale = locale,year = year) for x in map_tables])
