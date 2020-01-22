@@ -74,15 +74,43 @@ ind_matrix = ind_matrix.set_index('indicators')
 ind_matrix = ind_matrix.append(ind_destinations)
 ind_matrix = ind_matrix.query("observatory not in ['','NULL','NaN'] and observatory.notnull()")
 ind_matrix.sort_values('observatory', inplace=True)
-ind_list = ind_matrix.index.values
+# ind_list = ind_matrix.index.values
 
+# ind_list = ind_matrix.index.values
+
+# Manually define the actual Observatory indicators --- need to pick between hard and soft versions
+# later could parameterise this but not for now (2020-01-22)
+ind_list = ['dist_m_activity_centres',
+            'walk_20_soft',
+            'walk_19',
+            'walk_18',
+            'walk_22',
+            'dist_m_gtfs_20191008_20191205_revised_all',
+            'trans_02_hard',
+            'trans_07_hard',
+            'os_public_01_hard',
+            'os_public_02_hard',
+            'os_public_18',
+            'hous_01',
+            'hous_03',
+            'food_11',
+            'food_23_hard',
+            'food_25',
+            'food_26',
+            'alc_01',
+            'alc_02',
+            'dist_m_alcohol_offlicence',
+            'dist_m_alcohol_onlicence',
+            'uli',
+            'si_mix']
+
+ind_matrix = ind_matrix.query('indicators.isin(@ind_list)')
 # Drop index for ind_observatory table if it exists; 
 # this causes an error when (re-)creating the ind_observatory table if index exists
 curs.execute('DROP INDEX IF EXISTS ix_ind_observatory_{}_{}_index;'.format(locale,year))
 conn.commit()
 ind_matrix.to_sql(name='ind_observatory_{}_{}'.format(locale,year),con=engine,if_exists='replace')
 ind_list = ind_matrix.index.values
-
 # Distribution summaries for plotting of sample data
 ind_avg = ',\n'.join("AVG(" + ind_matrix['agg_scale'].apply(lambda x: '100.0*' if x == 100 else '1.0*') + '"' + ind_list+ '"' + " ) AS " +  '"' + ind_list+ '"')
 
@@ -317,7 +345,7 @@ for area_code in areas.keys():
                       'study_region':'''area.study_region'''
                       }      
 
-    area_tables = {'sa1_maincode_2016' :'''(SELECT a.sa1_maincode_2016, a.sample_count, a.person, a.dwelling, a.geom, string_agg(DISTINCT(l.ssc_name_2016),', ') AS suburb, string_agg(DISTINCT(l.lga_name_2016),', ') AS lga FROM li_inds_sa1_dwelling a LEFT JOIN mb_dwellings l USING (sa1_maincode_2016) GROUP BY a.sa1_maincode_2016,a.sample_count, a.person, a.dwelling,a.geom)''',
+    area_tables = {'sa1_maincode_2016' :'''(SELECT a.sa1_maincode_2016, a.sample_count, a.person, a.dwelling, a.geom, string_agg(DISTINCT(l.ssc_name_2016),', ') AS suburb, string_agg(DISTINCT(l.lga_name_2016),', ') AS lga FROM li_inds_sa1_dwelling a LEFT JOIN area_linkage l USING (sa1_maincode_2016) GROUP BY a.sa1_maincode_2016,a.sample_count, a.person, a.dwelling,a.geom)''',
                    'ssc_name_2016':'''(SELECT a.ssc_name_2016, a.sample_count, a.person, a.dwelling, a.geom, string_agg(DISTINCT(lga_name_2016),', ') AS lga FROM li_inds_ssc_dwelling a LEFT JOIN area_linkage l USING (ssc_name_2016) GROUP BY a.ssc_name_2016,a.sample_count, a.person, a.dwelling,a.geom)''',
                    'lga_name_2016':'''(SELECT a.lga_name_2016, a.sample_count, a.person, a.dwelling, a.geom, string_agg(DISTINCT(ssc_name_2016),', ') AS suburb FROM li_inds_lga_dwelling a LEFT JOIN area_linkage l USING (lga_name_2016) GROUP BY a.lga_name_2016,a.sample_count, a.person, a.dwelling,a.geom)''',
                    'sos_name_2016': 'study_region_all_sos',
