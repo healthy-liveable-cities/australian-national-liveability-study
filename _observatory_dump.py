@@ -188,6 +188,7 @@ for area_code in areas.keys():
     print("  {}".format(area.upper()))
   
   print("    - aggregate indicator table li_inds_{}... ".format(area)),
+  ### NOTE: We use dwelling weighted average for Observatory (and other) purposes; this is an unweighted table
   createTable = '''
   DROP TABLE IF EXISTS li_inds_{area} ; 
   CREATE TABLE li_inds_{area} AS
@@ -207,9 +208,6 @@ for area_code in areas.keys():
   curs.execute(createTable)
   conn.commit()
   print("Done.")
-  
-  
-  ### Note: for now, we are just doing the continuous scale indicators with averages; later I'll implement a second pass to evaluate the threshold cutoffs.
   
   print("    - sd summary table li_sd_{}... ".format(area)),
   createTable = '''
@@ -320,8 +318,8 @@ for area_code in areas.keys():
                       }      
 
     area_tables = {'sa1_maincode_2016' :'''(SELECT a.sa1_maincode_2016, a.sample_count, a.person, a.dwelling, a.geom, string_agg(DISTINCT(l.ssc_name_2016),', ') AS suburb, string_agg(DISTINCT(l.lga_name_2016),', ') AS lga FROM li_inds_sa1_dwelling a LEFT JOIN mb_dwellings l USING (sa1_maincode_2016) GROUP BY a.sa1_maincode_2016,a.sample_count, a.person, a.dwelling,a.geom)''',
-                   'ssc_name_2016':'''(SELECT a.ssc_name_2016, a.sample_count, a.person, a.dwelling, a.geom, string_agg(DISTINCT(lga_name_2016),', ') AS lga FROM li_inds_ssc_dwelling a LEFT JOIN mb_dwellings l USING (ssc_name_2016) GROUP BY a.ssc_name_2016,a.sample_count, a.person, a.dwelling,a.geom)''',
-                   'lga_name_2016':'''(SELECT a.lga_name_2016, a.sample_count, a.person, a.dwelling, a.geom, string_agg(DISTINCT(ssc_name_2016),', ') AS suburb FROM li_inds_lga_dwelling a LEFT JOIN mb_dwellings l USING (lga_name_2016) GROUP BY a.lga_name_2016,a.sample_count, a.person, a.dwelling,a.geom)''',
+                   'ssc_name_2016':'''(SELECT a.ssc_name_2016, a.sample_count, a.person, a.dwelling, a.geom, string_agg(DISTINCT(lga_name_2016),', ') AS lga FROM li_inds_ssc_dwelling a LEFT JOIN area_linkage l USING (ssc_name_2016) GROUP BY a.ssc_name_2016,a.sample_count, a.person, a.dwelling,a.geom)''',
+                   'lga_name_2016':'''(SELECT a.lga_name_2016, a.sample_count, a.person, a.dwelling, a.geom, string_agg(DISTINCT(ssc_name_2016),', ') AS suburb FROM li_inds_lga_dwelling a LEFT JOIN area_linkage l USING (lga_name_2016) GROUP BY a.lga_name_2016,a.sample_count, a.person, a.dwelling,a.geom)''',
                    'sos_name_2016': 'study_region_all_sos',
                    'study_region': ''' (SELECT study_region,locale, ST_Union(geom) AS geom FROM area_indicators_mb_json GROUP BY study_region,locale) '''}   
                   
