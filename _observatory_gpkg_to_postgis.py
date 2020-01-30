@@ -3,6 +3,15 @@
 # Author:  Carl Higgs 
 # Date:    20 July 2018
 
+# Need to first:
+# CREATE DATABASE observatory;
+# CREATE EXTENSION postgis;
+
+# Afterwords need to:
+# pg_dump -U postgres -h localhost -W   observatory > observatory.sql
+
+# and some time refactor this code to do the above!
+
 import os
 import sys
 import time
@@ -36,3 +45,4 @@ for filename in os.listdir(map_features_outpath):
         continue
     else:
         continue
+
