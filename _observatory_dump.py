@@ -342,14 +342,48 @@ for area_code in areas.keys():
                       'ssc_name_2016':''' '-'::varchar AS sa1 ,\n area.ssc_name_2016 AS suburb,\n area.lga AS lga , area.sample_count, area.dwelling, area.person \n''',
                       'lga_name_2016':''' '-'::varchar AS sa1 ,\n '-'::varchar AS suburb ,\n area.lga_name_2016  AS lga ,area.sample_count, area.dwelling, area.person \n''',
                       'sos_name_2016':''' '-'::varchar AS sa1 ,\n '-'::varchar AS suburb ,\n '-'  AS lga , area.sos_name_2016 AS sos \n''',
-                      'study_region':'''area.study_region'''
+                      'study_region':'''area.study_region,'-'::varchar AS sa1 ,\n '-'::varchar AS suburb, area.sample_count, area.dwelling, area.person \n'''
                       }      
 
-    area_tables = {'sa1_maincode_2016' :'''(SELECT a.sa1_maincode_2016, a.sample_count, a.person, a.dwelling, a.geom, string_agg(DISTINCT(l.ssc_name_2016),', ') AS suburb, string_agg(DISTINCT(l.lga_name_2016),', ') AS lga FROM li_inds_sa1_dwelling a LEFT JOIN area_linkage l USING (sa1_maincode_2016) GROUP BY a.sa1_maincode_2016,a.sample_count, a.person, a.dwelling,a.geom)''',
-                   'ssc_name_2016':'''(SELECT a.ssc_name_2016, a.sample_count, a.person, a.dwelling, a.geom, string_agg(DISTINCT(lga_name_2016),', ') AS lga FROM li_inds_ssc_dwelling a LEFT JOIN area_linkage l USING (ssc_name_2016) GROUP BY a.ssc_name_2016,a.sample_count, a.person, a.dwelling,a.geom)''',
-                   'lga_name_2016':'''(SELECT a.lga_name_2016, a.sample_count, a.person, a.dwelling, a.geom, string_agg(DISTINCT(ssc_name_2016),', ') AS suburb FROM li_inds_lga_dwelling a LEFT JOIN area_linkage l USING (lga_name_2016) GROUP BY a.lga_name_2016,a.sample_count, a.person, a.dwelling,a.geom)''',
-                   'sos_name_2016': 'study_region_all_sos',
-                   'study_region': ''' (SELECT study_region,locale, ST_Union(geom) AS geom FROM area_indicators_mb_json GROUP BY study_region,locale) '''}   
+    area_tables = {'sa1_maincode_2016' :'''
+       (SELECT a.sa1_maincode_2016, 
+               a.sample_count, 
+               a.person, 
+               a.dwelling, 
+               a.geom, 
+               string_agg(DISTINCT(l.ssc_name_2016),', ') AS suburb, 
+               string_agg(DISTINCT(l.lga_name_2016),', ') AS lga 
+       FROM li_inds_sa1_dwelling a 
+       LEFT JOIN area_linkage l USING (sa1_maincode_2016) 
+       GROUP BY a.sa1_maincode_2016,a.sample_count, a.person, a.dwelling,a.geom)''',
+       'ssc_name_2016':'''
+       (SELECT a.ssc_name_2016, 
+               a.sample_count, 
+               a.person, 
+               a.dwelling, 
+               a.geom, 
+               string_agg(DISTINCT(lga_name_2016),', ') AS lga 
+       FROM li_inds_ssc_dwelling a 
+       LEFT JOIN area_linkage l USING (ssc_name_2016) 
+       GROUP BY a.ssc_name_2016,a.sample_count, a.person, a.dwelling,a.geom)''',
+        'lga_name_2016':'''
+       (SELECT a.lga_name_2016, 
+               a.sample_count, 
+               a.person, 
+               a.dwelling, 
+               a.geom, 
+               string_agg(DISTINCT(ssc_name_2016),', ') AS suburb 
+       FROM li_inds_lga_dwelling a 
+       LEFT JOIN area_linkage l USING (lga_name_2016) 
+       GROUP BY a.lga_name_2016,a.sample_count, a.person, a.dwelling,a.geom)''',
+       'sos_name_2016': 'study_region_all_sos',
+       'study_region':'''
+       (SELECT study_region, 
+               sample_count, 
+               person, 
+               dwelling, 
+               geom
+               FROM li_inds_region_dwelling)'''}   
                   
     area_code_tables = {'sa1_maincode_2016' :'''LEFT JOIN sa1_2016_aust AS area_code ON area.sa1_maincode_2016 = area_code.sa1_maincode_2016''',
                         'ssc_name_2016':     '''LEFT JOIN ssc_2016_aust AS area_code ON area.ssc_name_2016 = area_code.ssc_name_2016''',
