@@ -155,6 +155,11 @@ def ot_pt_process(hex):
             These allow posthoc querying for PT indicators by mode, distance and headway
             Within 800m, and for closest
   '''
+  engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_user,
+                                                                      pwd  = db_pwd,
+                                                                      host = db_host,
+                                                                      db   = db), 
+                       use_native_hstore=False)
   # make sure Network Analyst licence is 'checked out'
   arcpy.CheckOutExtension('Network')
  
@@ -189,114 +194,48 @@ def ot_pt_process(hex):
                hex_id = hex_id,   
                hex = hex)
     already_processed = int(engine.execute(sql).fetchone()[0])
-    if already_processed == origin_point_count:
-        continue
-    remaining_to_process = origin_point_count - already_processed
-    dest_within_dist_hex_count = int(arcpy.GetCount_management(dest_within_dist_hex).getOutput(0))
-    if dest_within_dist_hex_count == 0: 
-        place = 'zero dest within analysis distance of hex, solve later'
-    # Add origins
-    if remaining_to_process < origin_point_count:
-        sql = '''SELECT p.{points_id} 
-                 FROM {sample_point_feature} p 
-                 LEFT JOIN {result_table} r ON p.{points_id} = r.{points_id}
-                 WHERE {hex_id} = {hex}
-                   AND r.{points_id} IS NULL;
-              '''.format(hex_id = hex_id,
-                         result_table = result_table,
-                         sample_point_feature = sample_point_feature,
-                         points_id = points_id.lower(), 
-                         hex = hex)
-        remaining_points = pandas.read_sql(sql,engine)
-        remaining_points = remaining_points[points_id].astype(str).values
-        sql = '''
-          {hex_id} = {hex} AND {points_id} IN ('{points}')
-          '''.format(hex_id = hex_id,
-                     hex = hex,
-                     points_id = points_id,
-                     points = "','".join(remaining_points))
-        origin_subset = arcpy.SelectLayerByAttribute_management("sample_point_feature_layer", 
-                                                                where_clause = sql)
-        add_locations(outNALayer,originsLayerName,origin_subset,points_id)
-    else:
-        add_locations(outNALayer,originsLayerName,origin_selection,points_id)    
-    # Add destinations
-    add_locations(outNALayer,destinationsLayerName,dest_within_dist_hex,pt_id)
-    
-    # Process: Solve
-    result = arcpy.Solve_na(outNALayer, terminate_on_solve_error = "CONTINUE")
-    if result[1] == u'false':
-        place = 'OD results processed, but no results recorded in 800m; solve later'
-    else:
-        place = 'results were returned, now processing...'
-        # Extract lines layer, export to SQL database
-        outputLines = arcpy.da.SearchCursor(ODLinesSubLayer, fields)        
-        # new pandas approach to od counts
-        data = [x for x in outputLines]
-        df = pandas.DataFrame(data = data, columns = ['od','distance'])
-        df.distance = df.distance.astype('int')
-        df[[points_id,'fid']] = df['od'].str.split(' - ',expand=True)
-        df['fid'] = df['fid'].astype(int)
-        df = df[['gnaf_pid','fid','distance']].groupby('gnaf_pid').apply(lambda x: x[['fid','distance']].to_json(orient='records'))
-        df = df.reset_index()
-        df.columns = [points_id,'attributes']
-        place = 'df:\r\n{}'.format(df)
-        df.to_sql('{}'.format(result_table),con = engine, index = False, if_exists='append')
-    # Solve final closest analysis for points with no destination in 800m
-    sql = '''SELECT p.{points_id} 
-                    FROM {sample_point_feature} p 
-                    LEFT JOIN {result_table} r ON p.{points_id} = r.{points_id}
-                    WHERE {hex_id} = {hex}
-                      AND r.{points_id} IS NULL;
-                 '''.format(result_table = result_table,
-                            sample_point_feature = sample_point_feature,
-                            hex_id = hex_id, 
-                            points_id = points_id.lower(), 
-                            hex = hex)
-    remaining_points = pandas.read_sql(sql,engine)
-    remaining_points = remaining_points[points_id].astype(str).values
-    if len(remaining_points) > 0:
-        sql = '''
-          {hex_id} = {hex} AND {points_id} IN ('{points}')
-          '''.format(hex = hex,
-                     hex_id = hex_id,   
-                     points_id = points_id,
-                     points = "','".join(remaining_points))
-        origin_subset = arcpy.SelectLayerByAttribute_management("sample_point_feature_layer", 
-                                                                where_clause = sql)     
-        add_locations(cl_outNALayer,cl_originsLayerName,origin_subset,points_id)            
-        add_locations(cl_outNALayer,cl_destinationsLayerName,"destination_points_layer",pt_id)
-        # Process: Solve
-        result = arcpy.Solve_na(cl_outNALayer, terminate_on_solve_error = "CONTINUE")
-        if result[1] == u'false':
-            alert = (
-                     "\t{dest_class}\tHex {hex:5} No solution for {n} points"
-                     ).format(hex = hex,
-                              dest_class = dest_class,
-                              n = len(remaining_points))
-            print(alert)
-            place = 'OD results processed, but no results recorded'
+    if already_processed < origin_point_count:
+        remaining_to_process = origin_point_count - already_processed
+        dest_within_dist_hex_count = int(arcpy.GetCount_management(dest_within_dist_hex).getOutput(0))
+        if dest_within_dist_hex_count == 0: 
+            place = 'zero dest within analysis distance of hex, solve later'
+        # Add origins
+        if remaining_to_process < origin_point_count:
+            sql = '''SELECT p.{points_id} 
+                     FROM {sample_point_feature} p 
+                     LEFT JOIN {result_table} r ON p.{points_id} = r.{points_id}
+                     WHERE {hex_id} = {hex}
+                       AND r.{points_id} IS NULL;
+                  '''.format(hex_id = hex_id,
+                             result_table = result_table,
+                             sample_point_feature = sample_point_feature,
+                             points_id = points_id.lower(), 
+                             hex = hex)
+            remaining_points = pandas.read_sql(sql,engine)
+            remaining_points = remaining_points[points_id].astype(str).values
             sql = '''
-             INSERT INTO {result_table} ({points_id},distances)  
-             SELECT p.{points_id},
-                    '{curlyo}{curlyc}'::int[]
-               FROM {sample_point_feature} p
-               LEFT JOIN {result_table} r ON p.{points_id} = r.{points_id}
-              WHERE {hex_id} = {hex}
-                AND r.{points_id} IS NULL
-                 ON CONFLICT DO NOTHING;
-             '''.format(result_table = result_table,
-                        sample_point_feature = sample_point_feature,
-                        points_id = points_id,
-                        hex_id = hex_id,   
-                        curlyo = '{',
-                        curlyc = '}',                     
-                        hex = hex)
-              # print(null_dest_insert)                           
-            engine.execute(sql)
+              {hex_id} = {hex} AND {points_id} IN ('{points}')
+              '''.format(hex_id = hex_id,
+                         hex = hex,
+                         points_id = points_id,
+                         points = "','".join(remaining_points))
+            origin_subset = arcpy.SelectLayerByAttribute_management("sample_point_feature_layer", 
+                                                                    where_clause = sql)
+            add_locations(outNALayer,originsLayerName,origin_subset,points_id)
         else:
-            place = 'OD results processed; results to be recorded'
-            outputLines = arcpy.da.SearchCursor(cl_ODLinesSubLayer, fields)   
+            add_locations(outNALayer,originsLayerName,origin_selection,points_id)    
+        # Add destinations
+        add_locations(outNALayer,destinationsLayerName,dest_within_dist_hex,pt_id)
+        
+        # Process: Solve
+        result = arcpy.Solve_na(outNALayer, terminate_on_solve_error = "CONTINUE")
+        if result[1] == u'false':
+            place = 'OD results processed, but no results recorded in 800m; solve later'
+        else:
+            place = 'results were returned, now processing...'
+            # Extract lines layer, export to SQL database
+            outputLines = arcpy.da.SearchCursor(ODLinesSubLayer, fields)        
+            # new pandas approach to od counts
             data = [x for x in outputLines]
             df = pandas.DataFrame(data = data, columns = ['od','distance'])
             df.distance = df.distance.astype('int')
@@ -306,12 +245,77 @@ def ot_pt_process(hex):
             df = df.reset_index()
             df.columns = [points_id,'attributes']
             place = 'df:\r\n{}'.format(df)
-            df.to_sql('{}'.format(result_table),con = engine, index = False, if_exists='append')     
+            df.to_sql('{}'.format(result_table),con = engine, index = False, if_exists='append')
+        # Solve final closest analysis for points with no destination in 800m
+        sql = '''SELECT p.{points_id} 
+                        FROM {sample_point_feature} p 
+                        LEFT JOIN {result_table} r ON p.{points_id} = r.{points_id}
+                        WHERE {hex_id} = {hex}
+                          AND r.{points_id} IS NULL;
+                     '''.format(result_table = result_table,
+                                sample_point_feature = sample_point_feature,
+                                hex_id = hex_id, 
+                                points_id = points_id.lower(), 
+                                hex = hex)
+        remaining_points = pandas.read_sql(sql,engine)
+        remaining_points = remaining_points[points_id].astype(str).values
+        if len(remaining_points) > 0:
+            sql = '''
+              {hex_id} = {hex} AND {points_id} IN ('{points}')
+              '''.format(hex = hex,
+                         hex_id = hex_id,   
+                         points_id = points_id,
+                         points = "','".join(remaining_points))
+            origin_subset = arcpy.SelectLayerByAttribute_management("sample_point_feature_layer", 
+                                                                    where_clause = sql)     
+            add_locations(cl_outNALayer,cl_originsLayerName,origin_subset,points_id)            
+            add_locations(cl_outNALayer,cl_destinationsLayerName,"destination_points_layer",pt_id)
+            # Process: Solve
+            result = arcpy.Solve_na(cl_outNALayer, terminate_on_solve_error = "CONTINUE")
+            if result[1] == u'false':
+                alert = (
+                         "\t{dest_class}\tHex {hex:5} No solution for {n} points"
+                         ).format(hex = hex,
+                                  dest_class = dest_class,
+                                  n = len(remaining_points))
+                print(alert)
+                place = 'OD results processed, but no results recorded'
+                sql = '''
+                 INSERT INTO {result_table} ({points_id},distances)  
+                 SELECT p.{points_id},
+                        '{curlyo}{curlyc}'::int[]
+                   FROM {sample_point_feature} p
+                   LEFT JOIN {result_table} r ON p.{points_id} = r.{points_id}
+                  WHERE {hex_id} = {hex}
+                    AND r.{points_id} IS NULL
+                     ON CONFLICT DO NOTHING;
+                 '''.format(result_table = result_table,
+                            sample_point_feature = sample_point_feature,
+                            points_id = points_id,
+                            hex_id = hex_id,   
+                            curlyo = '{',
+                            curlyc = '}',                     
+                            hex = hex)
+                  # print(null_dest_insert)                           
+                engine.execute(sql)
+            else:
+                place = 'OD results processed; results to be recorded'
+                outputLines = arcpy.da.SearchCursor(cl_ODLinesSubLayer, fields)   
+                data = [x for x in outputLines]
+                df = pandas.DataFrame(data = data, columns = ['od','distance'])
+                df.distance = df.distance.astype('int')
+                df[[points_id,'fid']] = df['od'].str.split(' - ',expand=True)
+                df['fid'] = df['fid'].astype(int)
+                df = df[['gnaf_pid','fid','distance']].groupby('gnaf_pid').apply(lambda x: x[['fid','distance']].to_json(orient='records'))
+                df = df.reset_index()
+                df.columns = [points_id,'attributes']
+                place = 'df:\r\n{}'.format(df)
+                df.to_sql('{}'.format(result_table),con = engine, index = False, if_exists='append')     
   except:
       print('''Error: {}\nhex: {}\nDestination: {}\nPlace: {}\nSQL: {}'''.format( sys.exc_info(),hex,dest_class,place,sql))  
   finally:
       arcpy.CheckInExtension('Network')
-      conn.close()
+      engine.dispose()
     
 # MAIN PROCESS
 if __name__ == '__main__':
@@ -346,8 +350,6 @@ if __name__ == '__main__':
   # pool.map(ODMatrixWorkerFunction, iteration_list, chunksize=1)
   # # The below code implements a progress counter using hex iterations
   r = list(tqdm(pool.imap(ot_pt_process, iteration_list), total=len(iteration_list), unit='hex'))
-  else:
-    print("\nIt seems that results have already been processed for all public transport stops.")
   print("\nEnsuring all tables are indexed, and contain only unique ids..."),
   for dest_class in full_destination_list:
       sql = '''
