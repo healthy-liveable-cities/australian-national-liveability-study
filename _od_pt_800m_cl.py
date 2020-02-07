@@ -274,9 +274,8 @@ def ot_pt_process(hex):
             result = arcpy.Solve_na(cl_outNALayer, terminate_on_solve_error = "CONTINUE")
             if result[1] == u'false':
                 alert = (
-                         "\t{dest_class}\tHex {hex:5} No solution for {n} points"
+                         "\tHex {hex:5} No solution for {n} points"
                          ).format(hex = hex,
-                                  dest_class = dest_class,
                                   n = len(remaining_points))
                 print(alert)
                 place = 'OD results processed, but no results recorded'
@@ -312,7 +311,7 @@ def ot_pt_process(hex):
                 place = 'df:\r\n{}'.format(df)
                 df.to_sql('{}'.format(result_table),con = engine, index = False, if_exists='append')     
   except:
-      print('''Error: {}\nhex: {}\nDestination: {}\nPlace: {}\nSQL: {}'''.format( sys.exc_info(),hex,dest_class,place,sql))  
+      print('''Error: {}\nhex: {}\nDestination: {}\nPlace: {}\nSQL: {}'''.format( sys.exc_info(),hex,'PT',place,sql))  
   finally:
       arcpy.CheckInExtension('Network')
       engine.dispose()
@@ -351,19 +350,18 @@ if __name__ == '__main__':
   # # The below code implements a progress counter using hex iterations
   r = list(tqdm(pool.imap(ot_pt_process, iteration_list), total=len(iteration_list), unit='hex'))
   print("\nEnsuring all tables are indexed, and contain only unique ids..."),
-  for dest_class in full_destination_list:
-      sql = '''
-        CREATE UNIQUE INDEX IF NOT EXISTS {result_table}_idx ON  {result_table} ({points_id});
-        CREATE INDEX IF NOT EXISTS {pt_points}_mode_idx ON  {pt_points} (mode);
-        CREATE INDEX IF NOT EXISTS {pt_points}_headway_idx ON  {pt_points} (headway);
-        CREATE INDEX IF NOT EXISTS {pt_points}_distance_idx ON  {pt_points} (distance);
-        CREATE INDEX IF NOT EXISTS {result_table}_{pt_id} ON {result_table} ((attributes->'{pt_id}'));
-        CREATE INDEX IF NOT EXISTS {result_table}_distance ON od_aos_jsonb ((attributes->'distance'));
-        '''.format(result_table=result_table,
-                   pt_points=pt_points,
-                   points_id=points_id,
-                   pt_id = pt_id)
-      engine.execute(sql)
+  sql = '''
+    CREATE UNIQUE INDEX IF NOT EXISTS {result_table}_idx ON  {result_table} ({points_id});
+    CREATE INDEX IF NOT EXISTS {pt_points}_mode_idx ON  {pt_points} (mode);
+    CREATE INDEX IF NOT EXISTS {pt_points}_headway_idx ON  {pt_points} (headway);
+    CREATE INDEX IF NOT EXISTS {pt_points}_distance_idx ON  {pt_points} (distance);
+    CREATE INDEX IF NOT EXISTS {result_table}_{pt_id} ON {result_table} ((attributes->'{pt_id}'));
+    CREATE INDEX IF NOT EXISTS {result_table}_distance ON od_aos_jsonb ((attributes->'distance'));
+    '''.format(result_table=result_table,
+               pt_points=pt_points,
+               points_id=points_id,
+               pt_id = pt_id)
+  engine.execute(sql)
   print("Done.")   
   print("\nProcessed results summary:")
   sql = '''
