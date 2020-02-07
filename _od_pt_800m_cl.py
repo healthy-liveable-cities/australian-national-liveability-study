@@ -280,9 +280,9 @@ def ot_pt_process(hex):
                 print(alert)
                 place = 'OD results processed, but no results recorded'
                 sql = '''
-                 INSERT INTO {result_table} ({points_id},distances)  
+                 INSERT INTO {result_table} ({points_id},attributes)  
                  SELECT p.{points_id},
-                        '{curlyo}{curlyc}'::int[]
+                        '{curlyo}{curlyc}'::jsonb
                    FROM {sample_point_feature} p
                    LEFT JOIN {result_table} r ON p.{points_id} = r.{points_id}
                   WHERE {hex_id} = {hex}
