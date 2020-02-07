@@ -59,7 +59,7 @@ responsible = df_studyregion['responsible']
 if len(sys.argv) >= 2:
   locale = '{studyregion}'.format(studyregion = sys.argv[1])
 else:
-  locale = 'testing'
+  locale = 'albury_wodonga'
 if __name__ == '__main__':
   print("\nProcessing script {} for locale {}...\n".format(sys.argv[0],locale))
 
