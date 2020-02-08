@@ -126,7 +126,8 @@ if pid !='MainProcess':
   # Define fields and features
   fields = ['Name', 'Total_Length']
   arcpy.MakeFeatureLayer_management (sample_point_feature, "sample_point_feature_layer")
-  arcpy.MakeFeatureLayer_management (pt_points, "destination_points_layer")       
+  arcpy.MakeFeatureLayer_management (pt_points, "selection_destination_points")     
+  arcpy.MakeFeatureLayer_management (pt_points, "all_destination_points")     
   arcpy.MakeFeatureLayer_management(hex_feature, "hex_layer")   
   # cl_sql = '''('{points_id}','{curlyo}{distance}{curlyc}'::int[])'''
   sqlChunkify = 500
@@ -178,7 +179,7 @@ def ot_pt_process(hex):
     sql = '''OBJECTID = {hex}'''.format(hex=hex)
     hex_selection = arcpy.SelectLayerByAttribute_management("hex_layer", where_clause = sql)
     place = 'before destination in hex selection'
-    dest_within_dist_hex = arcpy.SelectLayerByLocation_management("destination_points_layer", 
+    dest_within_dist_hex = arcpy.SelectLayerByLocation_management("selection_destination_points", 
                                                          'WITHIN_A_DISTANCE',
                                                          hex_selection,
                                                          800)
@@ -268,8 +269,8 @@ def ot_pt_process(hex):
                          points = "','".join(remaining_points))
             origin_subset = arcpy.SelectLayerByAttribute_management("sample_point_feature_layer", 
                                                                     where_clause = sql)     
-            add_locations(cl_outNALayer,cl_originsLayerName,origin_subset,points_id)            
-            add_locations(cl_outNALayer,cl_destinationsLayerName,"destination_points_layer",pt_id)
+            add_locations(cl_outNALayer,cl_originsLayerName,origin_subset,points_id)       
+            add_locations(cl_outNALayer,cl_destinationsLayerName,"all_destination_points",pt_id)
             # Process: Solve
             result = arcpy.Solve_na(cl_outNALayer, terminate_on_solve_error = "CONTINUE")
             if result[1] == u'false':
@@ -354,7 +355,6 @@ if __name__ == '__main__':
     CREATE UNIQUE INDEX IF NOT EXISTS {result_table}_idx ON  {result_table} ({points_id});
     CREATE INDEX IF NOT EXISTS {pt_points}_mode_idx ON  {pt_points} (mode);
     CREATE INDEX IF NOT EXISTS {pt_points}_headway_idx ON  {pt_points} (headway);
-    CREATE INDEX IF NOT EXISTS {pt_points}_distance_idx ON  {pt_points} (distance);
     CREATE INDEX IF NOT EXISTS {result_table}_{pt_id} ON {result_table} ((attributes->'{pt_id}'));
     CREATE INDEX IF NOT EXISTS {result_table}_distance ON od_aos_jsonb ((attributes->'distance'));
     '''.format(result_table=result_table,
@@ -366,7 +366,7 @@ if __name__ == '__main__':
   print("\nProcessed results summary:")
   sql = '''
      SELECT 
-     (SELECT COUNT(*) FROM {result_table}) AS processed
+     (SELECT COUNT(*) FROM {result_table}) AS processed,
      (SELECT COUNT(*) FROM {sample_point_feature}) AS all
     '''.format(result_table = result_table,sample_point_feature=sample_point_feature)
   result_summary = pandas.read_sql(sql, engine)
@@ -391,4 +391,4 @@ if __name__ == '__main__':
          ))
   # Log completion   
   script_running_log(script, task, start, locale)
-  conn.close()
+  engine.dispose()
