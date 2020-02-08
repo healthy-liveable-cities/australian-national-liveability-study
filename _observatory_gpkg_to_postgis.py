@@ -8,7 +8,7 @@
 # CREATE EXTENSION postgis;
 
 # Afterwords need to:
-# pg_dump -U postgres -h localhost -W   observatory > observatory.sql
+# pg_dump -U postgres -h localhost -W   observatory > D:/ntnl_li_2018_template/data/observatory/observatory.sql
 
 # and some time refactor this code to do the above!
 
