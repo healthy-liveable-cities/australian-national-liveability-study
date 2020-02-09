@@ -46,7 +46,7 @@ hex_feature = hex_grid
 ## specify "destinations"
 if pt_points in ['','NULL','NaN']:
     sys.exit('Public transport for this analysis has not been defined; see the config parameter "gtfs_all_stops_headway"')
-# pt_id =  'fid'
+pt_id_orig =  'fid'
 # Note: arcpy renames this ot OBJECTID, so unfortunately, we must too
 pt_id =  'OBJECTID'
 
@@ -355,7 +355,7 @@ if __name__ == '__main__':
     CREATE UNIQUE INDEX IF NOT EXISTS {result_table}_idx ON  {result_table} ({points_id});
     CREATE INDEX IF NOT EXISTS {pt_points}_mode_idx ON  {pt_points} (mode);
     CREATE INDEX IF NOT EXISTS {pt_points}_headway_idx ON  {pt_points} (headway);
-    CREATE INDEX IF NOT EXISTS {result_table}_{pt_id} ON {result_table} ((attributes->'{pt_id}'));
+    CREATE INDEX IF NOT EXISTS {result_table}_{pt_id} ON {result_table} ((attributes->'{pt_id_orig}'));
     CREATE INDEX IF NOT EXISTS {result_table}_distance ON od_aos_jsonb ((attributes->'distance'));
     '''.format(result_table=result_table,
                pt_points=pt_points,
