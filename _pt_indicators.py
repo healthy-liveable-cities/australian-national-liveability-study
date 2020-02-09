@@ -3,7 +3,6 @@
 # Authors: Carl Higgs
 # Date: 2020-02-08
 
-import arcpy, arcinfo
 import os
 import time
 import sys
@@ -51,29 +50,64 @@ if not engine.has_table('{}_oid'.format(pt_points)):
     print(command)
     sp.call(command, shell=True)
 
+## PROOF OF CONCEPT
+# sql = '''
+# DROP TABLE IF EXISTS test_freq_pt_20200209;
+# CREATE TABLE test_freq_pt_20200209 AS
+# SELECT DISTINCT ON (gnaf_pid)
+       # gnaf_pid,
+       # distance,
+       # mode,
+       # headway,
+       # p.geom
+# FROM 
+# parcel_dwellings p
+# LEFT JOIN
+# (SELECT gnaf_pid,
+        # (obj->>'fid')::int AS fid,
+        # (obj->>'distance')::int AS distance
+# FROM od_pt_800m_cl,
+    # jsonb_array_elements(attributes) obj
+# WHERE attributes!='{}'::jsonb) o USING(gnaf_pid)
+# LEFT JOIN gtfs_20191008_20191205_all_headway_oid pt ON o.fid = pt.objectid
+# WHERE pt.headway <= 20
+  # AND o.distance <=400
+# ORDER BY gnaf_pid, distance;
+# '''
+
+# engine.execute(sql)
 
 sql = '''
-DROP TABLE IF EXISTS test_freq_pt_20200209;
-CREATE TABLE test_freq_pt_20200209 AS
-SELECT DISTINCT ON (gnaf_pid)
-       gnaf_pid,
-       distance,
-       mode,
-       headway,
-       p.geom
+DROP TABLE IF EXISTS ind_pt_2019;
+CREATE TABLE ind_pt_2019 AS
+SELECT parcel_dwellings.gnaf_pid,
+       (filtered.distance IS NOT NULL)::int AS pt_regular_20mins_in_400m,
+       filtered.distance,
+       filtered.headway,
+       filtered.mode,
+       parcel_dwellings.geom
 FROM 
-parcel_dwellings p
+parcel_dwellings
 LEFT JOIN
-(SELECT gnaf_pid,
-        (obj->>'fid')::int AS fid,
-        (obj->>'distance')::int AS distance
-FROM od_pt_800m_cl,
-    jsonb_array_elements(attributes) obj
-WHERE attributes!='{}'::jsonb) o USING(gnaf_pid)
-LEFT JOIN gtfs_20191008_20191205_all_headway_oid pt ON o.fid = pt.objectid
-WHERE pt.headway <= 20
-  AND o.distance <=400
-ORDER BY gnaf_pid, distance;
+(SELECT DISTINCT ON (gnaf_pid)
+       p.gnaf_pid,
+       o.distance,
+       pt.mode,
+       pt.headway
+  FROM 
+  parcel_dwellings p
+  LEFT JOIN
+  (SELECT gnaf_pid,
+             (obj->>'fid')::int AS fid,
+             (obj->>'distance')::int AS distance
+     FROM od_pt_800m_cl,
+         jsonb_array_elements(attributes) obj
+     WHERE attributes!='{}'::jsonb) o ON p.gnaf_pid = o.gnaf_pid
+  LEFT JOIN gtfs_20191008_20191205_all_headway_oid pt ON o.fid = pt.objectid
+  WHERE pt.headway <= 20
+    AND o.distance <=400
+  ORDER BY gnaf_pid, distance) filtered 
+ON parcel_dwellings.gnaf_pid = filtered.gnaf_pid;
 '''
 
 engine.execute(sql)
