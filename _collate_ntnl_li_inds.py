@@ -16,7 +16,7 @@ script = os.path.basename(sys.argv[0])
 task = 'create destination indicator tables'
 
 # Connect to postgresql database     
-db = 'li_australia_2018'
+db = 'li_australia_2019'
 year = 2018
 ntnl_li_dir = os.path.join(folderPath,'study_region','ntnl_li_inds')
 print("This script assumes the database {db} has been created!\n".format(db = db))
@@ -58,7 +58,7 @@ if res:
     processed_locales = [x[0] for x in curs.fetchall()]
 else:
     print("Create empty tables for parcel indicators... ")
-    command = 'psql li_australia_2018 < ntnl_li_inds_schema.sql'
+    command = 'psql {db} < ntnl_li_inds_schema.sql'.format(db = db)
     sp.call(command, shell=True,cwd=ntnl_li_dir)   
     processed_locales = []
     print("Done.\n")
@@ -71,7 +71,7 @@ for locale in sorted(study_regions, key=str.lower):
     print((" - {:"+str(locale_field_length)+"}: previously processed").format(locale))
   elif os.path.isfile(os.path.join(ntnl_li_dir,sql)):
     print((" - {:"+str(locale_field_length)+"}: processing now... ").format(locale)),
-    command = 'pg_restore -a -Fc -d li_australia_2018 < {}'.format(sql)
+    command = 'pg_restore -a -Fc -d {db} < {sql}'.format(db = db, sql = sql)
     sp.call(command, shell=True,cwd=ntnl_li_dir)   
     print("Done!")
   else:

@@ -16,7 +16,7 @@ from _project_setup import *
 # simple timer for log file
 start = time.time()
 script = os.path.basename(sys.argv[0])
-task = 'Create liveability score cards'
+task = 'Export liveability indicator region estimates'
 
 date = datetime.today().strftime('%Y%m%d')
 
@@ -108,7 +108,7 @@ if locale=='australia':
     print("Looping over study regions and importing data if available and not previously processed...")
     locale_field_length = 7 + len(max(study_regions,key=len))
     for locale in sorted(study_regions, key=str.lower):
-      sql = 'li_inds_{}_{}_20200212_Fc.sql'.format(locale,year)
+      sql = 'li_inds_{}_{}_{}_Fc.sql'.format(locale,year,date)
       if locale in processed_locales:
         print((" - {:"+str(locale_field_length)+"}: previously processed").format(locale))
       elif os.path.isfile(os.path.join(exports_dir,sql)):
