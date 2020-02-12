@@ -20,7 +20,7 @@ from _project_setup import *
 
 out_dir = os.path.join(folderPath,'study_region','ntnl_li_inds')
 if not os.path.exists(out_dir):
-        os.makedirs(out_
+        os.makedirs(out_dir)
 os.environ['PGPASSWORD'] = db_pwd
 
 # simple timer for log file
