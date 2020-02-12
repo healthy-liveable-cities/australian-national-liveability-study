@@ -109,3 +109,63 @@ ON parcel_dwellings.gnaf_pid = filtered_25.gnaf_pid;
 '''
 
 engine.execute(sql)
+
+# # Create PT measures (distances, which can later be considered with regard to thresholds)
+# # In addition to public open space (pos), also includes sport areas and blue space
+# table = ['ind_pt_2019_distances_800m_cl','pt']
+# print(" - {table}".format(table = table[0])),
+
+# sql = '''
+# CREATE TABLE IF NOT EXISTS {table} AS SELECT {id} FROM parcel_dwellings;
+# '''.format(table = table[0], id = points_id.lower())
+# curs.execute(sql)
+# conn.commit()
+
+# # Create PT measures if not existing
+# datasets = ['gtfs_20191008_20191205_all_headway_oid','']
+# pt_of_interest = [["pt_any"         ,"pt.headway IS NOT NULL"],
+                  # ["pt_bus"         ,"pt.mode ='bus'"],
+                  # ["pt_tram"        ,"pt.mode ='tram'"],
+                  # ["pt_train"       ,"pt.mode ='train'"],
+                  # ["pt_ferry"       ,"pt.mode ='ferry'"],
+                  # ["pt_h20min"      ,"pt.headway <=20"],
+                  # ["pt_h25min"      ,"pt.headway <=25"],
+                  # ["pt_h30min"      ,"pt.headway <=30"],
+                  # ["pt_bus_h30min"  ,"pt.mode = 'bus' AND pt.headway <=30"],
+                  # ["pt_train_h15min","pt.mode = 'train' AND pt.headway <=15"]]
+# for pt in pt_of_interest:
+    # measure = '{}_d_800m_cl'.format(pt[0])
+    # where = pt[1]
+    # sql = '''
+    # SELECT column_name 
+    # FROM information_schema.columns 
+    # WHERE table_name='{table}' and column_name='{column}';
+    # '''.format(table = table[0],column = measure)
+    # curs.execute(sql)
+    # res = curs.fetchone()
+    # if not res:   
+        # add_and_update_measure = '''
+        # DROP INDEX IF EXISTS {table}_idx;
+        # ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {measure} int[];
+        # UPDATE {table} t 
+        # SET {measure} = pt_filtered.distances
+        # FROM parcel_dwellings orig
+        # LEFT JOIN 
+        # (SELECT p.{id}, 
+                # array_agg(distance) AS distances
+           # FROM parcel_dwellings p
+           # LEFT JOIN
+              # (SELECT gnaf_pid,
+                         # (obj->>'fid')::int AS fid,
+                         # (obj->>'distance')::int AS distance
+                 # FROM od_pt_800m_cl,
+                     # jsonb_array_elements(attributes) obj
+                 # WHERE attributes!='{}'::jsonb) o ON p.gnaf_pid = o.gnaf_pid
+           # LEFT JOIN {data} pt ON o.fid = pt.objectid
+           # WHERE pt.headway <= 25
+           # GROUP BY p{id}) pt_filtered ON orig.{id} = pt_filtered.{id}
+            # WHERE t.{id} = orig.{id};
+        # '''.format(id = points_id, table = table[0], data = data,measure = measure,where = where)
+        # curs.execute(add_and_update_measure)
+        # conn.commit()
+    # print("."),
