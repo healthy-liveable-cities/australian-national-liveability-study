@@ -19,7 +19,7 @@ script = os.path.basename(sys.argv[0])
 task = 'Export liveability indicator region estimates'
 
 date = datetime.today().strftime('%Y%m%d')
-
+date = '20200212'
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()  
 
@@ -50,8 +50,8 @@ if locale!='australia':
 
 # Create table schema definition using Albury Wodonga:
 if locale=='albury_wodonga':
-    out_file = 'score_cards_schema.sql'.format(db)
-    print("Creating sql dump to: {}".format(os.path.join(out_dir,out_file))),
+    schema = 'li_inds_schema_{}_{}_{}.sql'.format(locale,year,date)
+    print("Creating sql dump to: {}".format(os.path.join(out_dir,schema))),
     command = (
                'pg_dump -U {db_user} -h localhost --schema-only '
                '-t "li_inds_lga_dwelling" -t "li_inds_lga_person" -t "li_inds_mb_dwelling" '
@@ -60,12 +60,13 @@ if locale=='albury_wodonga':
                '-t "li_inds_sa2_person" -t "li_inds_sa3_dwelling" -t "li_inds_sa3_person" '
                '-t "li_inds_sa4_dwelling" -t "li_inds_sa4_person" -t "li_inds_sos_dwelling" '
                '-t "li_inds_sos_person" -t "li_inds_ssc_dwelling" -t "li_inds_ssc_person" '
-               '{db} > {out_file}'
-               ).format(db = db,db_user = db_user,out_file=out_file)    
+               '{db} > {schema}'
+               ).format(db = db,db_user = db_user,schema=schema)    
     sp.call(command, shell=True,cwd=out_dir)   
     print("Done.")
 
 if locale=='australia':
+    schema = 'li_inds_schema_{}.sql'.format(date)
     # Connect to postgresql database     
     db = 'li_australia_2018'
     year = 2018
@@ -97,7 +98,8 @@ if locale=='australia':
     conn.commit()
 
     print("Create empty tables for parcel indicators... ")
-    command = 'psql li_australia_2018 < score_cards_schema.sql'
+    command = 'psql li_australia_2018 < {}'.format(schema)
+    print(command)
     sp.call(command, shell=True,cwd=exports_dir)   
 
     # curs.execute('''SELECT study_region FROM li_inds_region_dwelling;''')
@@ -108,7 +110,7 @@ if locale=='australia':
     print("Looping over study regions and importing data if available and not previously processed...")
     locale_field_length = 7 + len(max(study_regions,key=len))
     for locale in sorted(study_regions, key=str.lower):
-      sql = 'li_inds_{}_{}_{}_Fc.sql'.format(locale,year,date)
+      sql = 'li_{}_{}_{}_Fc.sql'.format(locale,year,date)
       if locale in processed_locales:
         print((" - {:"+str(locale_field_length)+"}: previously processed").format(locale))
       elif os.path.isfile(os.path.join(exports_dir,sql)):

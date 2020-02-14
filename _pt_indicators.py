@@ -51,121 +51,133 @@ if not engine.has_table('{}_oid'.format(pt_points)):
     sp.call(command, shell=True)
 
 # Calculate PT indicators
-sql = '''
-DROP TABLE IF EXISTS ind_pt_2019;
-CREATE TABLE ind_pt_2019 AS
--- in the final table, we select those results 
--- closer than 400m
-SELECT parcel_dwellings.gnaf_pid,
-       (filtered_20.distance <= 400)::int AS pt_regular_20mins_in_400m,
-       (filtered_25.distance <= 400)::int AS pt_regular_25mins_in_400m,
-       parcel_dwellings.geom
-FROM 
-parcel_dwellings
-LEFT JOIN
--- in the inner table we select the shortest distance
--- to a transport stop with average service frequency (headway)
--- of 20 mins or less
-(SELECT DISTINCT ON (gnaf_pid)
-       p.gnaf_pid,
-       o.distance,
-       pt.mode,
-       pt.headway
-  FROM 
-  parcel_dwellings p
-  LEFT JOIN
-  (SELECT gnaf_pid,
-             (obj->>'fid')::int AS fid,
-             (obj->>'distance')::int AS distance
-     FROM od_pt_800m_cl,
-         jsonb_array_elements(attributes) obj
-     WHERE attributes!='{}'::jsonb) o ON p.gnaf_pid = o.gnaf_pid
-  LEFT JOIN gtfs_20191008_20191205_all_headway_oid pt ON o.fid = pt.objectid
-  WHERE pt.headway <= 20
-  ORDER BY gnaf_pid, distance) filtered_20
-ON parcel_dwellings.gnaf_pid = filtered_20.gnaf_pid
-LEFT JOIN
--- in the inner table we select the shortest distance
--- to a transport stop with average service frequency (headway)
--- of 20 mins or less
-(SELECT DISTINCT ON (gnaf_pid)
-       p.gnaf_pid,
-       o.distance,
-       pt.mode,
-       pt.headway
-  FROM 
-  parcel_dwellings p
-  LEFT JOIN
-  (SELECT gnaf_pid,
-             (obj->>'fid')::int AS fid,
-             (obj->>'distance')::int AS distance
-     FROM od_pt_800m_cl,
-         jsonb_array_elements(attributes) obj
-     WHERE attributes!='{}'::jsonb) o ON p.gnaf_pid = o.gnaf_pid
-  LEFT JOIN gtfs_20191008_20191205_all_headway_oid pt ON o.fid = pt.objectid
-  WHERE pt.headway <= 25
-  ORDER BY gnaf_pid, distance) filtered_25
-ON parcel_dwellings.gnaf_pid = filtered_25.gnaf_pid;
-'''
-
-engine.execute(sql)
-
-# # Create PT measures (distances, which can later be considered with regard to thresholds)
-# # In addition to public open space (pos), also includes sport areas and blue space
-# table = ['ind_pt_2019_distances_800m_cl','pt']
-# print(" - {table}".format(table = table[0])),
-
 # sql = '''
-# CREATE TABLE IF NOT EXISTS {table} AS SELECT {id} FROM parcel_dwellings;
-# '''.format(table = table[0], id = points_id.lower())
-# curs.execute(sql)
-# conn.commit()
+# DROP TABLE IF EXISTS ind_pt_2019;
+# CREATE TABLE ind_pt_2019 AS
+# -- in the final table, we select those results 
+# -- closer than 400m
+# SELECT parcel_dwellings.gnaf_pid,
+       # (filtered_20.distance <= 400)::int AS pt_regular_20mins_in_400m,
+       # (filtered_25.distance <= 400)::int AS pt_regular_25mins_in_400m,
+       # parcel_dwellings.geom
+# FROM 
+# parcel_dwellings
+# LEFT JOIN
+# -- in the inner table we select the shortest distance
+# -- to a transport stop with average service frequency (headway)
+# -- of 20 mins or less
+# (SELECT DISTINCT ON (gnaf_pid)
+       # p.gnaf_pid,
+       # o.distance,
+       # pt.mode,
+       # pt.headway
+  # FROM 
+  # parcel_dwellings p
+  # LEFT JOIN
+  # (SELECT gnaf_pid,
+             # (obj->>'fid')::int AS fid,
+             # (obj->>'distance')::int AS distance
+     # FROM od_pt_800m_cl,
+         # jsonb_array_elements(attributes) obj
+     # WHERE attributes!='{}'::jsonb) o ON p.gnaf_pid = o.gnaf_pid
+  # LEFT JOIN gtfs_20191008_20191205_all_headway_oid pt ON o.fid = pt.objectid
+  # WHERE pt.headway <= 20
+  # ORDER BY gnaf_pid, distance) filtered_20
+# ON parcel_dwellings.gnaf_pid = filtered_20.gnaf_pid
+# LEFT JOIN
+# -- in the inner table we select the shortest distance
+# -- to a transport stop with average service frequency (headway)
+# -- of 20 mins or less
+# (SELECT DISTINCT ON (gnaf_pid)
+       # p.gnaf_pid,
+       # o.distance,
+       # pt.mode,
+       # pt.headway
+  # FROM 
+  # parcel_dwellings p
+  # LEFT JOIN
+  # (SELECT gnaf_pid,
+             # (obj->>'fid')::int AS fid,
+             # (obj->>'distance')::int AS distance
+     # FROM od_pt_800m_cl,
+         # jsonb_array_elements(attributes) obj
+     # WHERE attributes!='{}'::jsonb) o ON p.gnaf_pid = o.gnaf_pid
+  # LEFT JOIN gtfs_20191008_20191205_all_headway_oid pt ON o.fid = pt.objectid
+  # WHERE pt.headway <= 25
+  # ORDER BY gnaf_pid, distance) filtered_25
+# ON parcel_dwellings.gnaf_pid = filtered_25.gnaf_pid;
+# '''
 
-# # Create PT measures if not existing
-# datasets = ['gtfs_20191008_20191205_all_headway_oid','']
-# pt_of_interest = [["pt_any"         ,"pt.headway IS NOT NULL"],
-                  # ["pt_bus"         ,"pt.mode ='bus'"],
-                  # ["pt_tram"        ,"pt.mode ='tram'"],
-                  # ["pt_train"       ,"pt.mode ='train'"],
-                  # ["pt_ferry"       ,"pt.mode ='ferry'"],
-                  # ["pt_h20min"      ,"pt.headway <=20"],
-                  # ["pt_h25min"      ,"pt.headway <=25"],
-                  # ["pt_h30min"      ,"pt.headway <=30"],
-                  # ["pt_bus_h30min"  ,"pt.mode = 'bus' AND pt.headway <=30"],
-                  # ["pt_train_h15min","pt.mode = 'train' AND pt.headway <=15"]]
-# for pt in pt_of_interest:
-    # measure = '{}_d_800m_cl'.format(pt[0])
-    # where = pt[1]
-    # sql = '''
-    # SELECT column_name 
-    # FROM information_schema.columns 
-    # WHERE table_name='{table}' and column_name='{column}';
-    # '''.format(table = table[0],column = measure)
-    # curs.execute(sql)
-    # res = curs.fetchone()
-    # if not res:   
-        # add_and_update_measure = '''
-        # DROP INDEX IF EXISTS {table}_idx;
-        # ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {measure} int[];
-        # UPDATE {table} t 
-        # SET {measure} = pt_filtered.distances
-        # FROM parcel_dwellings orig
-        # LEFT JOIN 
-        # (SELECT p.{id}, 
-                # array_agg(distance) AS distances
-           # FROM parcel_dwellings p
-           # LEFT JOIN
-              # (SELECT gnaf_pid,
-                         # (obj->>'fid')::int AS fid,
-                         # (obj->>'distance')::int AS distance
-                 # FROM od_pt_800m_cl,
-                     # jsonb_array_elements(attributes) obj
-                 # WHERE attributes!='{}'::jsonb) o ON p.gnaf_pid = o.gnaf_pid
-           # LEFT JOIN {data} pt ON o.fid = pt.objectid
-           # WHERE pt.headway <= 25
-           # GROUP BY p{id}) pt_filtered ON orig.{id} = pt_filtered.{id}
-            # WHERE t.{id} = orig.{id};
-        # '''.format(id = points_id, table = table[0], data = data,measure = measure,where = where)
-        # curs.execute(add_and_update_measure)
-        # conn.commit()
-    # print("."),
+# engine.execute(sql)
+
+
+## Sketch 2 
+# This creates binary indicators, however, in first instance, we want min distance
+# so we can later take average distances given headway / mode
+#
+# SELECT
+# gnaf_pid,
+# COALESCE(MAX((distance <= 400 AND headway <= 25)::int),0) pt_h25min
+# FROM parcel_dwellings p
+# LEFT JOIN
+    # (SELECT gnaf_pid,
+            # (obj->>'fid')::int AS fid,
+            # (obj->>'distance')::int AS distance,
+            # headway,
+            # mode
+    # FROM od_pt_800m_cl,
+        # jsonb_array_elements(attributes) obj
+    # LEFT JOIN gtfs_20191008_20191205_all_headway_oid pt ON (obj->>'fid')::int = pt.objectid
+    # WHERE attributes!='{}'::jsonb
+    # ) o USING (gnaf_pid)
+# GROUP BY gnaf_pid
+# ;
+
+# Create PT measures (distance, which can later be considered with regard to thresholds)
+table = ['ind_pt_2019_distance_800m_cl','pt']
+print(" - {table}".format(table = table[0])),
+
+sql = '''
+CREATE TABLE IF NOT EXISTS {table} AS SELECT {id} FROM parcel_dwellings;
+'''.format(table = table[0], id = points_id.lower())
+curs.execute(sql)
+conn.commit()
+
+# Create PT measures if not existing
+datasets = ['gtfs_20191008_20191205_all_headway_oid','']
+pt_of_interest = {"pt_any"        :"headway IS NOT NULL",
+                 "pt_mode_bus"         :"mode ='bus'",
+                 "pt_mode_tram"        :"mode ='tram'",
+                 "pt_mode_train"       :"mode ='train'",
+                 "pt_mode_ferry"       :"mode ='ferry'",
+                 "pt_h60min"      :"headway <=60",
+                 "pt_h30min"      :"headway <=30",
+                 "pt_h25min"      :"headway <=25",
+                 "pt_h20min"      :"headway <=20",
+                 "pt_h10min"      :"headway <=10",
+                 "pt_mode_bus_h30min"  :"mode = 'bus' AND headway <=30",
+                 "pt_mode_train_h15min":"mode = 'train' AND headway <=15"}
+queries = ',\n'.join(['MIN(CASE WHEN {} THEN distance END) {}'.format(q[1],q[0]) for q in list(sorted(pt_of_interest.items()))])
+sql = '''
+CREATE TABLE IF NOT EXISTS {table} AS
+SELECT
+{points_id},
+{queries}
+FROM parcel_dwellings p
+LEFT JOIN
+    (SELECT {points_id},
+            (obj->>'fid')::int AS fid,
+            (obj->>'distance')::int AS distance,
+            headway,
+            mode
+    FROM od_pt_800m_cl,
+        jsonb_array_elements(attributes) obj
+    LEFT JOIN {data} pt ON (obj->>'fid')::int = pt.objectid
+    WHERE attributes!='{}'::jsonb
+    ) o USING ({points_id})
+GROUP BY {points_id}
+'''.format({points_id} = points_id, 
+           table = table[0],
+           data = data)
+engine.execute(sql)
+engine.dispose()
