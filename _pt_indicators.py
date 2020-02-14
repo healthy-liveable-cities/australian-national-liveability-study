@@ -135,16 +135,10 @@ if not engine.has_table('{}_oid'.format(pt_points)):
 
 # Create PT measures (distance, which can later be considered with regard to thresholds)
 table = ['ind_pt_2019_distance_800m_cl','pt']
-print(" - {table}".format(table = table[0])),
-
-sql = '''
-CREATE TABLE IF NOT EXISTS {table} AS SELECT {id} FROM parcel_dwellings;
-'''.format(table = table[0], id = points_id.lower())
-curs.execute(sql)
-conn.commit()
+print(" - {table}".format(table = table[0]))
 
 # Create PT measures if not existing
-datasets = ['gtfs_20191008_20191205_all_headway_oid','']
+datasets = ['gtfs_20191008_20191205_all_headway_oid']
 pt_of_interest = {"pt_any"        :"headway IS NOT NULL",
                  "pt_mode_bus"         :"mode ='bus'",
                  "pt_mode_tram"        :"mode ='tram'",
@@ -158,26 +152,34 @@ pt_of_interest = {"pt_any"        :"headway IS NOT NULL",
                  "pt_mode_bus_h30min"  :"mode = 'bus' AND headway <=30",
                  "pt_mode_train_h15min":"mode = 'train' AND headway <=15"}
 queries = ',\n'.join(['MIN(CASE WHEN {} THEN distance END) {}'.format(q[1],q[0]) for q in list(sorted(pt_of_interest.items()))])
-sql = '''
-CREATE TABLE IF NOT EXISTS {table} AS
-SELECT
-{points_id},
-{queries}
-FROM parcel_dwellings p
-LEFT JOIN
-    (SELECT {points_id},
-            (obj->>'fid')::int AS fid,
-            (obj->>'distance')::int AS distance,
-            headway,
-            mode
-    FROM od_pt_800m_cl,
-        jsonb_array_elements(attributes) obj
-    LEFT JOIN {data} pt ON (obj->>'fid')::int = pt.objectid
-    WHERE attributes!='{}'::jsonb
-    ) o USING ({points_id})
-GROUP BY {points_id}
-'''.format({points_id} = points_id, 
-           table = table[0],
-           data = data)
-engine.execute(sql)
+
+for data in datasets:
+    print("    - {data}".format(data=data))
+    sql = '''
+    CREATE TABLE IF NOT EXISTS {table} AS
+    SELECT
+    {points_id},
+    {queries}
+    FROM parcel_dwellings p
+    LEFT JOIN
+        (SELECT {points_id},
+                (obj->>'fid')::int AS fid,
+                (obj->>'distance')::int AS distance,
+                headway,
+                mode
+        FROM od_pt_800m_cl,
+            jsonb_array_elements(attributes) obj
+        LEFT JOIN {data} pt ON (obj->>'fid')::int = pt.objectid
+        WHERE attributes!='{curly_o}{curly_c}'::jsonb
+        ) o USING ({points_id})
+    GROUP BY {points_id};
+    CREATE UNIQUE INDEX {table}_idx ON {table} ({points_id});
+    '''.format(points_id = points_id, 
+               table = table[0],
+               queries = queries,
+               curly_o = '{',
+               curly_c = '}',
+               data = data)
+    engine.execute(sql)
+
 engine.dispose()
