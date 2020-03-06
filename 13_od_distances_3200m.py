@@ -400,7 +400,7 @@ if __name__ == '__main__':
   pool = multiprocessing.Pool(processes=nWorkers)
   # get list of polygons over which to iterate
   sql = '''
-    SELECT {polygon_id} 
+    SELECT DISTINCT({polygon_id}) 
       FROM {polygon_feature};
       '''.format(polygon_id=polygon_id,
                  polygon_feature=polygon_feature)

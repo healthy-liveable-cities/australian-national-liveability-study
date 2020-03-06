@@ -14,6 +14,9 @@
 import arcpy
 import time
 import psycopg2
+import numpy as np
+from sqlalchemy import create_engine
+from sqlalchemy.types import BigInteger
 
 from script_running_log import script_running_log
 
@@ -28,6 +31,17 @@ script = os.path.basename(sys.argv[0])
 # Compile restricted gdb of destination features
 task = 'Recompile destinations from {} to study region gdb as combined feature {}'.format(dest_gdb,os.path.join(gdb,outCombinedFeature))
 print("Commencing task: {} at {}".format(task,time.strftime("%Y%m%d-%H%M%S")))
+
+engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_user,
+                                                                      pwd  = db_pwd,
+                                                                      host = db_host,
+                                                                      db   = db), 
+                       use_native_hstore=False)
+
+# get bounding box of buffered study region for clipping using ogr2ogr on import
+sql = '''SELECT ST_Extent(geom) FROM {};'''.format(buffered_study_region)
+urban_region = engine.execute(sql).fetchone()
+urban_region = [float(x) for x in urban_region[0][4:-1].replace(',',' ').split(' ')] 
 
 # check that all destination names are unique; if not we'll have problems:
 if df_destinations.destination.is_unique is not True:
@@ -47,12 +61,13 @@ command = (
         ' ogr2ogr -overwrite -progress -f "PostgreSQL" ' 
         ' PG:"host={host} port=5432 dbname={db}'
         ' user={user} password = {pwd}" '
-        ' {gdb} '
+        ' {gdb} -clipsrc {bbox}'
         ' -lco geometry_name="geom"'.format(host = db_host,
                                      db = db,
                                      user = db_user,
                                      pwd = db_pwd,
-                                     gdb = src_destinations) 
+                                     gdb = src_destinations,
+                                     bbox =  '{} {} {} {}'.format(*urban_region))  
         )
 print(command)
 sp.call(command, shell=True)
@@ -62,7 +77,7 @@ print("Done (although, if it didn't work you can use the printed command above t
 # connect to the PostgreSQL server
 conn = psycopg2.connect(dbname=db, user=db_user, password=db_pwd)
 curs = conn.cursor()
-
+ 
 # Create empty combined destination table
 create_dest_type_table = '''
   DROP TABLE IF EXISTS dest_type;
@@ -75,8 +90,7 @@ create_dest_type_table = '''
    cutoff_closest integer,
    cutoff_count integer);
    '''
-curs.execute(create_dest_type_table)
-conn.commit()
+engine.execute(create_dest_type_table)
 
 create_study_destinations_table = '''
   DROP TABLE IF EXISTS study_destinations;
@@ -89,8 +103,7 @@ create_study_destinations_table = '''
   CREATE INDEX study_destinations_dest_name_idx ON study_destinations (dest_name);
   CREATE INDEX study_destinations_geom_geom_idx ON study_destinations USING GIST (geom);
 '''
-curs.execute(create_study_destinations_table)
-conn.commit()
+engine.execute(create_study_destinations_table)
 
 print("\nImporting destinations...")
 print("\n{dest:50} {dest_count}".format(dest = "Destination",dest_count = "Import count"))
@@ -106,16 +119,15 @@ for dest in destination_list:
        USING {buffered_study_region} b
        WHERE NOT ST_Intersects(d.geom,b.geom);
     '''.format(dest = dest,buffered_study_region = buffered_study_region)
-    curs.execute(limit_extent)
-    conn.commit()
+    engine.execute(limit_extent)
     # count destinations matching this class already processed within the study region
-    curs.execute('''SELECT count(*) FROM study_destinations WHERE dest_class = '{dest_class}';'''.format(dest = dest, dest_class = dest_fields['destination_class']))
-    existing_dest_count = int(list(curs)[0][0])         
+    sql = '''SELECT count(*) FROM study_destinations WHERE dest_class = '{dest_class}';'''.format(dest = dest, dest_class = dest_fields['destination_class'])
+    existing_dest_count = int(engine.execute(sql).fetchone()[0])
     # count destinations from this source within the study region
-    curs.execute('''SELECT count(*) FROM {dest};'''.format(dest = dest))
-    dest_count = int(list(curs)[0][0])     
+    sql = '''SELECT count(*) FROM {dest};'''.format(dest = dest)
+    dest_count = int(engine.execute(sql).fetchone()[0])
     if dest_count==0:
-        curs.execute('''DROP TABLE {dest}'''.format(dest = dest))
+        engine.execute('''DROP TABLE {dest}'''.format(dest = dest))
     elif dest_count > 0:
         # make sure all geom are point
         enforce_point = '''
@@ -123,11 +135,10 @@ for dest in destination_list:
              SET geom = ST_Centroid(geom)
            WHERE ST_GeometryType(geom) != 'ST_Point';
         '''.format(dest = dest)
-        curs.execute(enforce_point)
-        conn.commit()
+        engine.execute(enforce_point)
         
         # get primary key, this would ideally be 'objectid', but we can't assume
-        get_primary_key_field = '''
+        sql = '''
           SELECT a.attname
           FROM   pg_index i
           JOIN   pg_attribute a ON a.attrelid = i.indrelid
@@ -135,8 +146,7 @@ for dest in destination_list:
           WHERE  i.indrelid = '{dest}'::regclass
           AND    i.indisprimary;
         '''.format(dest = dest)
-        curs.execute(get_primary_key_field)
-        dest_pkey = list(curs)[0][0]
+        dest_pkey = engine.execute(sql).fetchone()[0]   
         
         # it is possible that dest_class is not unique hence, the dest_oid will not be unique
         # unless we ensure it reflects a cumulative running index over previous and current dests
@@ -145,11 +155,10 @@ for dest in destination_list:
           INSERT INTO study_destinations (dest_oid,orig_id,dest_class,dest_name,geom)
           SELECT '{dest_class},' || {existing_dest_count} + ROW_NUMBER() OVER (ORDER BY {dest_pkey}), d.{dest_pkey},'{dest_class}', '{dest}', d.geom FROM {dest} d;
         '''.format(dest_class = dest_fields['destination_class'],
-                   existing_dest_count = existing_dest_count,
+                   existing_dest_count = int(existing_dest_count),
                    dest_pkey = dest_pkey,
                    dest = dest)
-        curs.execute(combine_destinations)
-        conn.commit()
+        engine.execute(combine_destinations)
         
         summarise_dest_type = '''
         INSERT INTO dest_type (dest_class,dest_name,dest_name_full,domain,count,cutoff_closest,cutoff_count)
@@ -167,8 +176,10 @@ for dest in destination_list:
                    dest_count     = dest_count,
                    cutoff_closest = dest_fields['cutoff_closest'],
                    cutoff_count   = dest_fields['cutoff_count'])
-        curs.execute(summarise_dest_type)
-        conn.commit()
+        engine.execute(summarise_dest_type)
+        # Drop the source table
+        sql = '''DROP TABLE IF EXISTS {}'''.format(dest)
+        engine.execute(sql)
         # print destination name and tally which have been imported
         print("{dest:50} {dest_count:=10d}".format(dest = dest,dest_count = dest_count))
         
@@ -183,12 +194,11 @@ for dest in destination_list:
                dest = dest,
                osm_prefix = osm_prefix,
                dest_condition = dest_condition)
-    curs.execute(combine__point_destinations)
-    conn.commit()        
+    engine.execute(combine__point_destinations)     
     
     # get point dest count in order to set correct auto-increment start value for polygon dest OIDs
-    curs.execute('''SELECT count(*) FROM study_destinations WHERE dest_name = '{dest}';'''.format(dest = dest))
-    dest_count = int(list(curs)[0][0])       
+    sql = '''SELECT count(*) FROM study_destinations WHERE dest_name = '{dest}';'''.format(dest = dest)
+    dest_count = int(engine.execute(sql).fetchone()[0])
     
     combine_poly_destinations = '''
       INSERT INTO study_destinations (dest_oid,orig_id, dest_class,dest_name,geom)
@@ -200,11 +210,10 @@ for dest in destination_list:
                dest = dest,
                osm_prefix = osm_prefix,
                dest_condition = dest_condition)
-    curs.execute(combine_poly_destinations)
-    conn.commit()      
+    engine.execute(combine_poly_destinations)    
     
-    curs.execute('''SELECT count(*) FROM study_destinations WHERE dest_name = '{dest}';'''.format(dest = dest))
-    dest_count = int(list(curs)[0][0])  
+    slq = '''SELECT count(*) FROM study_destinations WHERE dest_name = '{dest}';'''.format(dest = dest)
+    dest_count = int(engine.execute(sql).fetchone()[0])
     
     if dest_count > 0:
       summarise_dest_type = '''
@@ -223,30 +232,23 @@ for dest in destination_list:
                  dest_count     = dest_count,
                  cutoff_closest = dest_fields['cutoff_closest'],
                  cutoff_count   = dest_fields['cutoff_count'])
-      curs.execute(summarise_dest_type)
-      conn.commit()
+      engine.execute(summarise_dest_type)
       # print destination name and tally which have been imported
       print("\n{dest:50} {dest_count:=10d}".format(dest=dest,dest_count=dest_count))
       print("({dest_condition})".format(dest_condition=dest_condition))
+      
   else:
     print("No data appears to be stored for destination {}.".format(dest))
 
 # Copy study region destination table from PostgreSQL db to ArcGIS gdb
 print("Copy study destinations to ArcGIS gdb... "),
-curs.execute(grant_query)
-conn.commit()
+engine.execute(grant_query)
 arcpy.env.workspace = db_sde_path
 arcpy.env.overwriteOutput = True 
-arcpy.CopyFeatures_management('public.study_destinations', os.path.join(gdb_path,'study_destinations')) 
+arcpy.CopyFeatures_management('hl_perth_2019.public.study_destinations', os.path.join(gdb_path,'study_destinations')) 
 print("Done.")
-
-
-# When destinations are imported for study region, we don't want to retain all of these; now, purgefor dest in purge_dest_list:
-for table in purge_table_list:
-   sql = "DROP TABLE IF EXISTS {}".format(table)
-   curs.execute(sql)
-   conn.commit()
 
 # output to completion log    
 script_running_log(script, task, start, locale)
 conn.close()
+engine.dispose()

@@ -58,27 +58,46 @@ progress_table    = "progress_od_closest"
 
 sqlChunkify = 500
   
-# initiate postgresql connection
+
+if pid !='MainProcess':
+  # Make OD cost matrix layer
+  result_object = arcpy.MakeODCostMatrixLayer_na(in_network_dataset = in_network_dataset, 
+                                                 out_network_analysis_layer = "ODmatrix", 
+                                                 impedance_attribute = "Length", 
+                                                 default_cutoff = 3200,
+                                                 UTurn_policy = "ALLOW_UTURNS", 
+                                                 hierarchy = "NO_HIERARCHY", 
+                                                 output_path_shape = "NO_LINES")                                 
+  outNALayer = result_object.getOutput(0)
+  
+  #Get the names of all the sublayers within the service area layer.
+  subLayerNames = arcpy.na.GetNAClassNames(outNALayer)
+  #Store the layer names that we will use later
+  originsLayerName = subLayerNames["Origins"]
+  destinationsLayerName = subLayerNames["Destinations"]
+  linesLayerName = subLayerNames["ODLines"]
+  
+  # you may have to do this later in the script - but try now....
+  ODLinesSubLayer = arcpy.mapping.ListLayers(outNALayer, linesLayerName)[0]
+  fields = ['Name', 'Total_Length']
+  arcpy.MakeFeatureLayer_management (sample_point_feature, "sample_point_feature_layer")
+  arcpy.MakeFeatureLayer_management (outCombinedFeature, "destination_points_layer")       
+  arcpy.MakeFeatureLayer_management(polygon_feature, "polygon_layer") 
+  
+# initial postgresql connection
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()  
 
 # define reduced set of destinations and cutoffs (ie. only those with cutoffs defined)
-sql = '''
-    SELECT dest_class,
-           cutoff_closest 
-      FROM dest_type 
-     WHERE cutoff_closest IS NOT NULL
-       AND count > 0
-       AND dest_class IN ('{}');
-       '''.format("','".join(ad_hoc_destinations))
-curs.execute(sql)
-destination_list = list(curs)
+curs.execute("SELECT DISTINCT(dest_class) FROM dest_type WHERE cutoff_count IS NOT NULL AND count > 0;")
+destination_list = [x[0] for x in list(curs)]
 
 # tally expected parcel-destination class result set  
 curs.execute("SELECT COUNT(*) FROM {sample_point_feature};".format(sample_point_feature = sample_point_feature))
 sample_point_count = list(curs)[0][0]
 completion_goal = sample_point_count * len(destination_list)
-conn.close()
+conn.close()  
+  
 # get pid name
 pid = multiprocessing.current_process().name
 
@@ -108,45 +127,59 @@ def ODMatrixWorkerFunction(polygon):
     if len(list(curs)) > 0:
       exclude_points = '''AND {points_id} NOT IN ('{exclude}')'''.format(points_id = points_id,
                                                                   exclude = ','.join([x[0] for x in list(curs)]))
-    # select origin points 
-    arcpy.MakeFeatureLayer_management (sample_point_feature, "sample_point_feature_layer")
-    origin_selection = arcpy.SelectLayerByAttribute_management("sample_point_feature_layer", 
-                          where_clause = '{polygon_id} = {polygon} {exclude_points}'.format(polygon_id = polygon_id,
-                                                                                               polygon = polygon,
-                                                                                     exclude_points= exclude_points))
+    place = "origin selection"  
+    # select origin points    
+    sql = '''{polygon_id} = {polygon} {exclude_points}'''.format(polygon_id = polygon_id,
+                                                                 polygon = polygon,
+                                                                 exclude_points= exclude_points)
+    origin_selection = arcpy.SelectLayerByAttribute_management("sample_point_feature_layer", where_clause = sql)
     origin_point_count = int(arcpy.GetCount_management(origin_selection).getOutput(0))
-    # Skip polygones with zero adresses
+    # Skip polygons with zero adresses
     if origin_point_count == 0:
-        writeLog(polygon,0,'NULL',"no valid origin points",(time.time()-polygonStartTime)/60)
         return(2)
-    
-    # make destination feature layer
-    arcpy.MakeFeatureLayer_management (outCombinedFeature, "destination_points_layer")        
-    
-    # fetch list of successfully processed destinations for this polygon, if any
-    curs.execute("SELECT dest_class FROM {} WHERE polygon = {}".format(progress_table,polygon))
-    completed_dest = [x[0] for x in list(curs)]
-    remaining_dest_list = [x for x in destination_list if x[0] not in completed_dest]
+    place = 'before polygon selection'
+    sql = '''{polygon_id} = {polygon}'''.format(polygon_id=polygon_id,polygon=polygon)
+    polygon_selection = arcpy.SelectLayerByAttribute_management("polygon_layer", where_clause = sql)
+    place = 'before destination in polygon selection'
+    dest_in_polygon = arcpy.SelectLayerByLocation_management("destination_points_layer", 'WITHIN_A_DISTANCE',polygon_selection,3200)
+    for dest_class in destination_list:
+        destStartTime = time.time()
+        result_table = '{distance_schema}."{dest_class}"'.format(distance_schema = distance_schema,
+                                                                 dest_class = dest_class)
+        # fetch count of successfully processed results for this destination in this polygon
+        sql = '''
+          SELECT COUNT({result_table}.*)
+            FROM {result_table}
+        LEFT JOIN {sample_point_feature} p USING ({points_id})
+           WHERE p.{polygon_id} = {polygon};
+        '''.format(result_table = result_table, 
+                   sample_point_feature = sample_point_feature,
+                   points_id = points_id,
+                   polygon_id = polygon_id,   
+                   polygon = polygon,
+                   dest_class=dest_class)
+        curs.execute(sql)
+        already_processed = list(curs)[0][0]
     
     # Make OD cost matrix layer
-    result_object = arcpy.MakeODCostMatrixLayer_na(in_network_dataset = in_network_dataset, 
+    cl_result_object = arcpy.MakeODCostMatrixLayer_na(in_network_dataset = in_network_dataset, 
                                                    out_network_analysis_layer = "ODmatrix", 
                                                    impedance_attribute = "Length", 
                                                    default_number_destinations_to_find = 1,
                                                    UTurn_policy = "ALLOW_UTURNS", 
                                                    hierarchy = "NO_HIERARCHY", 
                                                    output_path_shape = "NO_LINES")
-    outNALayer = result_object.getOutput(0)
+    cl_outNALayer = cl_result_object.getOutput(0)
     
     #Get the names of all the sublayers within the service area layer.
-    subLayerNames = arcpy.na.GetNAClassNames(outNALayer)
+    cl_subLayerNames = arcpy.na.GetNAClassNames(cl_outNALayer)
     #Store the layer names that we will use later
-    originsLayerName = subLayerNames["Origins"]
-    destinationsLayerName = subLayerNames["Destinations"]
-    linesLayerName = subLayerNames["ODLines"]
+    cl_originsLayerName = cl_subLayerNames["Origins"]
+    cl_destinationsLayerName = cl_subLayerNames["Destinations"]
+    cl_linesLayerName = cl_subLayerNames["ODLines"]
     
     # you may have to do this later in the script - but try now....
-    ODLinesSubLayer = arcpy.mapping.ListLayers(outNALayer, linesLayerName)[0]
+    cl_ODLinesSubLayer = arcpy.mapping.ListLayers(cl_outNALayer, cl_linesLayerName)[0]
     fields = ['Name', 'Total_Length']
     
     for destination_points in remaining_dest_list:
@@ -225,7 +258,7 @@ def ODMatrixWorkerFunction(polygon):
           ON CONFLICT ({points_id}) 
           DO UPDATE 
           SET distances  = array_append_if_gr(o.distances,EXCLUDED.distance),
-          WHERE o.distance = '{}'::int[];/
+          WHERE o.distance = '{}'::int[];
           '''.format(result_table=result_table, 
                       values = ','.join(chunkedLines),
                       points_id = points_id)

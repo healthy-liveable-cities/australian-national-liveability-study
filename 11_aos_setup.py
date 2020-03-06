@@ -466,16 +466,6 @@ ALTER TABLE aos_nodes ADD COLUMN aos_entryid varchar;
 UPDATE aos_nodes SET aos_entryid = aos_id::text || ',' || node::text; 
 ''',
 '''
--- Create table of points within 20m of lines (should be your road network) 
--- Distinct is used to avoid redundant duplication of points where they are within 20m of multiple roads 
-DROP TABLE IF EXISTS aos_nodes_20m_line;
-CREATE TABLE aos_nodes_20m_line AS 
-SELECT DISTINCT n.* 
-FROM aos_nodes n, 
-     edges l
-WHERE ST_DWithin(n.geom ,l.geom,20);
-'''.format(osm_prefix = osm_prefix),
-'''
 -- Create table of points within 30m of lines (should be your road network) 
 -- Distinct is used to avoid redundant duplication of points where they are within 20m of multiple roads 
 DROP TABLE IF EXISTS aos_nodes_30m_line;
@@ -484,16 +474,6 @@ SELECT DISTINCT n.*
 FROM aos_nodes n, 
      edges l
 WHERE ST_DWithin(n.geom ,l.geom,30);
-'''.format(osm_prefix = osm_prefix),
-'''
--- Create table of points within 50m of lines (should be your road network) 
--- Distinct is used to avoid redundant duplication of points where they are within 20m of multiple roads 
-DROP TABLE IF EXISTS aos_nodes_50m_line;
-CREATE TABLE aos_nodes_50m_line AS 
-SELECT DISTINCT n.* 
-FROM aos_nodes n, 
-     edges l
-WHERE ST_DWithin(n.geom ,l.geom,50);
 '''.format(osm_prefix = osm_prefix),
 '''
 -- Create subset data for public_open_space_areas
