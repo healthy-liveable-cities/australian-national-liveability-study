@@ -63,7 +63,6 @@ commentDB = '''
   COMMENT ON DATABASE {} IS '{}';
   '''.format(db,dbComment)
 
-
 createUser = '''
   DO
   $do$
@@ -78,7 +77,6 @@ createUser = '''
   END
   $do$;
   '''.format(db_user, db_pwd)  
-
 
 createUser_ArcSDE = '''
   DO
