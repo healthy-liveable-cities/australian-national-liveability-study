@@ -134,15 +134,14 @@ CREATE OR REPLACE FUNCTION threshold_soft(in int, in int, out double precision)
 engine.execute(sql)
 print('Done.')
 
+print('Creating schemas...')
 for schema in schemas:
-    print('Creating schema {}... '.format(schema)),
+    print('   - {}'.format(schema))
     sql = '''
     CREATE SCHEMA IF NOT EXISTS {};
     '''.format(schema)
     engine.execute(sql)
-
-print('Done.')
-
+    
 # ensure required permissions are granted
 engine.execute(grant_query)
 

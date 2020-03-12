@@ -90,10 +90,23 @@ for t in tables:
         engine.execute(sql)
         sql = '''ALTER INDEX IF EXISTS {}_fid_seq RENAME TO {}_fid_seq'''.format(t[0],t[1])
         engine.execute(sql)
-        
-# get bounding box of buffered study region for clipping external data using ogr2ogr on import
 
-boundaries_schema='boundaries'
+# organise imported tables in appropriate schemas
+sql = '''
+ALTER TABLE IF EXISTS clean_intersections_12m                  SET SCHEMA network    ;
+ALTER TABLE IF EXISTS edges                                    SET SCHEMA network    ;
+ALTER TABLE IF EXISTS footprints                               SET SCHEMA boundaries ;
+ALTER TABLE IF EXISTS nodes                                    SET SCHEMA network    ;
+ALTER TABLE IF EXISTS osm_20190902_line                        SET SCHEMA osm        ;
+ALTER TABLE IF EXISTS osm_20190902_point                       SET SCHEMA osm        ;
+ALTER TABLE IF EXISTS osm_20190902_polygon                     SET SCHEMA osm        ;
+ALTER TABLE IF EXISTS osm_20190902_roads                       SET SCHEMA osm        ;
+ALTER TABLE IF EXISTS study_region_hex_3200m_diag              SET SCHEMA boundaries ;
+ALTER TABLE IF EXISTS study_region_hex_3200m_diag_3200m_buffer SET SCHEMA boundaries ;
+'''
+engine.execute(sql)
+ 
+# process boundaries to be used throughout project
 for geo in geo_imports.index.values:
   data = geo_imports.loc[geo,'data']
   if os.path.splitext(data)[1]=='.gpkg':
@@ -107,12 +120,13 @@ for geo in geo_imports.index.values:
           transform =   ' -s_srs "EPSG:{epsg}" -t_srs "EPSG:{srid}" '.format(epsg=epsg,srid=srid)
       else:
           transform = ''
+      # get bounding box of buffered study region for clipping external data using ogr2ogr on import
       urban_region = engine.execute(sql).fetchone()
       urban_region = [float(x) for x in urban_region[0][4:-1].replace(',',' ').split(' ')]
       bbox =  '{} {} {} {}'.format(*urban_region)
       command = (
                ' ogr2ogr -overwrite -progress -f "PostgreSQL" '
-              ' PG:"host={db_host} port=5432 dbname={db} active_schema={boundaries_schema}'
+              ' PG:"host={db_host} port=5432 dbname={db} active_schema={boundary_schema}'
               ' user={db_user} password = {db_pwd}" '
               ' "{data}"  -clipsrc {bbox}'
               ' -lco geometry_name="geom"'
@@ -130,7 +144,7 @@ print("Done.")
 
 print("Initiate area linkage table based on smallest region in region list (first entry: {})... )".format(geographies[0])),
 print('''(note that a warning "Did not recognize type 'geometry' of column 'geom'" may appear; this is fine.)''')
-sql = 'SELECT * FROM {} WHERE geom IS NOT NULL'.format(df_regions.loc[geographies[0],'table'])
+sql = 'SELECT * FROM {}.{} WHERE geom IS NOT NULL'.format(boundary_schema,df_regions.loc[geographies[0],'table'])
 area_linkage = pandas.read_sql(sql,con=engine,index_col=df_regions.loc[geographies[0],'id']).reset_index()
 
 # drop the geom column
@@ -193,10 +207,11 @@ UPDATE area_linkage a
                 END, 
        area_ha = ST_Area(g.geom)/10000.0,
        geom = g.geom
-  FROM {table} g
+  FROM {boundary_schema}.{table} g
  WHERE a.{id} = g.{id};
  CREATE INDEX gix_area_linkage ON area_linkage USING GIST (geom);
-'''.format(table = df_regions.loc[geographies[0],'table'],
+'''.format(boundary_schema = boundary_schema,
+           table = df_regions.loc[geographies[0],'table'],
            id    = df_regions.loc[geographies[0],'id'])
 curs.execute(sql)
 conn.commit()
@@ -276,6 +291,9 @@ features = ['{}'.format(study_region),
 # and then manually copied to each regions' GDB using ArcCatalog.  
 
 print("Exporting to GPKG as intermediary step in case of automated copy failure; can then manually copy to the study region gdb")
+# note assumptions which must be met that 
+#  1. ogr2ogr will locate tables in different schemas
+#  2. tables in different schemas have unique names within overall database
 features = ['area_linkage',
             '{}'.format(study_region),
             '{}'.format(buffered_study_region),

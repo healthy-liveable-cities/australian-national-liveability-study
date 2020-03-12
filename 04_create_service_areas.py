@@ -16,16 +16,12 @@ from script_running_log import script_running_log
 # Import custom variables for National Liveability indicator process
 from _project_setup import *
 
-
 # simple timer for log file
 start = time.time()
 script = os.path.basename(sys.argv[0])
 task = 'create service areas ({}) for locations in {} based on road network'.format(', '.join([str(x) for x in service_areas]),full_locale)
 print("Commencing task: {} at {}".format(task,time.strftime("%Y%m%d-%H%M%S")))
 
-# point_schema where output tables will be stored
-point_schema = ind_point_point_schema
-  
 # ArcGIS environment settings
 arcpy.env.workspace = gdb_path  
 
