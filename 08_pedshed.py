@@ -20,6 +20,9 @@ from _project_setup import *
 start = time.time()
 script = os.path.basename(sys.argv[0])
 
+# schema where point indicator output tables will be stored
+schema = ind_point_schema
+
 # ArcGIS environment settings
 arcpy.env.workspace = gdb_path  
 

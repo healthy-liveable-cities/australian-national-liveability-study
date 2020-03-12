@@ -18,6 +18,9 @@ start = time.time()
 script = os.path.basename(sys.argv[0])
 task = 'calculate social infrastructure mix score for {}'.format(locale)
 
+# schema where point indicator output tables will be stored
+schema = ind_point_schema
+
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()
  

@@ -24,6 +24,8 @@ script = os.path.basename(sys.argv[0])
 task = 'OD matrix - distance from parcel to closest POS of any size'
 
 # INPUT PARAMETERS
+# schema where point indicator output tables will be stored
+schema = ind_point_schema
 
 # ArcGIS environment settings
 arcpy.env.workspace = gdb_path  

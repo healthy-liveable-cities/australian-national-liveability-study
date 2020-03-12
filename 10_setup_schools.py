@@ -30,6 +30,9 @@ start = time.time()
 script = os.path.basename(sys.argv[0])
 task = 'Prepare school data'
 
+# schema where point indicator output tables will be stored
+schema = ind_point_schema
+
 # connect to the PostgreSQL server and ensure privileges are granted for all public tables
 conn = psycopg2.connect(dbname=db, user=db_user, password=db_pwd)
 curs = conn.cursor()  

@@ -29,6 +29,9 @@ engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_
 
 # Indicator configuration sheet is 'df_inds', read in from config file in the config script
 
+# schema where point indicator output tables will be stored
+schema = ind_point_schema
+
 # Restrict to indicators associated with study region (except distance to closest dest indicators)
 # the following two tables (indicators/measures, and distances to closest measures) will later be
 # appended once the first table is expanded into soft and hard threshold indicator forms

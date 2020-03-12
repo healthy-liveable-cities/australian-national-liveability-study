@@ -16,6 +16,9 @@ from script_running_log import script_running_log
 # Import custom variables for National Liveability indicator process
 from _project_setup import *
 
+# schema where point indicator output tables will be stored
+schema = ind_point_schema
+
 # simple timer for log file
 start = time.time()
 script = os.path.basename(sys.argv[0])

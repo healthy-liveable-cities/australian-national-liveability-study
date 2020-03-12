@@ -22,6 +22,9 @@ task = 'Create area level indicator tables for {}'.format(locale)
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()
 
+# schema where point indicator output tables will be stored
+schema = ind_point_schema
+
 # Indicator configuration sheet is 'df_inds', read in from config file in the config script
 # Restrict to indicators associated with study region (except distance to closest dest indicators)
 # the following two tables (indicators/measures, and distances to closest measures) will later be

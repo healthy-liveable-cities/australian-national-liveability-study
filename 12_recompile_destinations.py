@@ -27,7 +27,9 @@ from _project_setup import *
 start = time.time()
 script = os.path.basename(sys.argv[0])
 
-# OUTPUT PROCESS
+# Destinations schema
+schema = destinations_schema
+
 # Compile restricted gdb of destination features
 task = 'Recompile destinations from {} to study region gdb as combined feature {}'.format(dest_gdb,os.path.join(gdb,outCombinedFeature))
 print("Commencing task: {} at {}".format(task,time.strftime("%Y%m%d-%H%M%S")))

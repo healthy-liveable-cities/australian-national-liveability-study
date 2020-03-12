@@ -19,6 +19,9 @@ task = 'Import OSM'
 conn = psycopg2.connect(dbname=db, user=db_user, password=db_pwd)
 curs = conn.cursor()  
 
+# schema where point indicator output tables will be stored
+schema = ind_point_schema
+
 # import buffered study region OSM excerpt to pgsql, 
 print("Copying OSM excerpt to pgsql..."),
 command = 'osm2pgsql -U {user} -l -d {db} {osm} --hstore --style {style} --prefix {prefix}'.format(user = db_user, 

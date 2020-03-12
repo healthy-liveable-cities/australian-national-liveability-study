@@ -125,12 +125,14 @@ osm2pgsql_style = os.path.join(folderPath,df_parameters.loc['osm2pgsql_style']['
 osm_source = df_studyregion.loc[locale]['osm_source']
 osm_prefix = df_studyregion.loc[locale]['osm_prefix']
 
-schemas = ['public',destinations_schema,distance_schema,ind_point_schema]
+area_schemas = ['ind_{}'.format(x) for x in df_regions.query("purpose.str.contains('analysis')").abbreviation.values]+['ind_region']
+schemas = ['public',boundary_schema,network_schema,destinations_schema,os_schema,point_schema,distance_schema,validation_schema,processing_schema]+area_schemas
+
 grant_query = ''
 for user in [db_user, arc_sde_user]:
-    grant_query = grant_query + '''
-        GRANT postgres TO {user};
-        '''.format(user=user)
+    # grant_query = grant_query + '''
+        # GRANT postgres TO {user};
+        # '''.format(user=user)
     for schema in schemas:
         grant_query = grant_query + '''
         GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA {schema} TO {user};
@@ -160,6 +162,9 @@ in_network_dataset = os.path.join('{}'.format(network_source_feature_dataset),
                                 '{}_ND'.format(network_source_feature_dataset))
 # network dataset, with full path
 in_network_dataset_path = os.path.join(gdb_path,in_network_dataset)
+
+service_areas =  [int(x) for x in service_areas.split(',')]
+service_areas = sorted(set(service_areas +[distance]))
 
 # Island exceptions are defined using ABS constructs in the project configuration file.
 # They identify contexts where null indicator values are expected to be legitimate due to true network isolation, 

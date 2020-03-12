@@ -52,29 +52,6 @@ conn = psycopg2.connect(dbname=db, user=db_user, password=db_pwd)
 curs = conn.cursor()
 
 print("\nImport region data... "),
-for geo in geo_imports.index.values:
-  data = geo_imports.loc[geo,'data']
-  if os.path.splitext(data)[1]=='.gpkg':
-      from_epsg = int(geo_imports.loc[geo,'epsg'])
-      command = (
-              ' ogr2ogr -overwrite -progress -f "PostgreSQL" '
-              ' -s_srs "EPSG:{from_epsg}" -t_srs "EPSG:{to_epsg}" ' 
-              ' PG:"host={host} port=5432 dbname={db}'
-              ' user={user} password = {pwd}" '
-              ' "{gpkg}" '
-              ' -lco geometry_name="geom"'.format(host = db_host,
-                                           db = db,
-                                           user = db_user,
-                                           pwd = db_pwd,
-                                           from_epsg = from_epsg,
-                                           to_epsg = srid,
-                                           gpkg = data) 
-              )
-      print(command)
-      sp.call(command, shell=True,cwd=os.path.dirname(os.path.join(folderPath)))
-
-print("Done.")
-
 print("Import pre-processed data for the Highlife study... "),
 tables = [['clean_intersections_12m'],
           ['edges'],
@@ -110,27 +87,51 @@ sp.call(command, shell=True,cwd=os.path.dirname(preprocessed_data))
 for t in tables:
     if len(t) == 2:
         sql = '''ALTER TABLE IF EXISTS {} RENAME TO {}'''.format(t[0],t[1])
-        curs.execute(sql)
-        conn.commit()
+        engine.execute(sql)
         sql = '''ALTER INDEX IF EXISTS {}_fid_seq RENAME TO {}_fid_seq'''.format(t[0],t[1])
-        curs.execute(sql)
-        conn.commit()
+        engine.execute(sql)
+        
+# get bounding box of buffered study region for clipping external data using ogr2ogr on import
 
-print("Remove from region tables records whose geometries do not intersect buffered study region bounds ... ")
-for area in df_regions.table.dropna().values:
-    print(" - {}".format(area))
-    curs.execute('''
-    DELETE FROM  {area} a 
-          USING {buffered_study_region} b 
-      WHERE NOT ST_Intersects(a.geom,b.geom) 
-             OR a.geom IS NULL;
-    '''.format(area = area,
-               buffered_study_region = buffered_study_region))
-    conn.commit()
+boundaries_schema='boundaries'
+for geo in geo_imports.index.values:
+  data = geo_imports.loc[geo,'data']
+  if os.path.splitext(data)[1]=='.gpkg':
+      epsg = int(geo_imports.loc[geo,'epsg'])
+      sql = '''SELECT ST_Extent(ST_Transform(geom,{epsg})) 
+                 FROM {buffered_study_region};
+            '''.format(epsg = epsg,
+                       buffered_study_region=buffered_study_region)
+      # transform data if not in project spatial reference
+      if epsg!=srid:
+          transform =   ' -s_srs "EPSG:{epsg}" -t_srs "EPSG:{srid}" '.format(epsg=epsg,srid=srid)
+      else:
+          transform = ''
+      urban_region = engine.execute(sql).fetchone()
+      urban_region = [float(x) for x in urban_region[0][4:-1].replace(',',' ').split(' ')]
+      bbox =  '{} {} {} {}'.format(*urban_region)
+      command = (
+               ' ogr2ogr -overwrite -progress -f "PostgreSQL" '
+              ' PG:"host={db_host} port=5432 dbname={db} active_schema={boundaries_schema}'
+              ' user={db_user} password = {db_pwd}" '
+              ' "{data}"  -clipsrc {bbox}'
+              ' -lco geometry_name="geom"'
+              ' {transform}'
+              ).format(db=db,
+                       db_host=db_host,
+                       db_user=db_user,
+                       db_pwd=db_pwd,
+                       data=data,
+                       bbox=bbox,
+                       transform=transform)
+      print(command)
+      sp.call(command, shell=True,cwd=os.path.dirname(os.path.join(folderPath)))
+print("Done.")
 
 print("Initiate area linkage table based on smallest region in region list (first entry: {})... )".format(geographies[0])),
 print('''(note that a warning "Did not recognize type 'geometry' of column 'geom'" may appear; this is fine.)''')
-area_linkage = pandas.read_sql_table(df_regions.loc[geographies[0],'table'],con=engine,index_col=df_regions.loc[geographies[0],'id']).reset_index()
+sql = 'SELECT * FROM {} WHERE geom IS NOT NULL'.format(df_regions.loc[geographies[0],'table'])
+area_linkage = pandas.read_sql(sql,con=engine,index_col=df_regions.loc[geographies[0],'id']).reset_index()
 
 # drop the geom column
 area_linkage = area_linkage.loc[:,[x for x in area_linkage.columns if x not in ['geom']]]
@@ -176,10 +177,14 @@ print("\nRecreate area linkage table geometries and GIST index... "),
 sql = '''
 ---- commented out dwelling exclusion; this is arguably excessive for the linkage table
 -- DELETE FROM area_linkage WHERE dwelling = 0;
-ALTER TABLE area_linkage ADD COLUMN urban text;
-ALTER TABLE area_linkage ADD COLUMN study_region boolean;
-ALTER TABLE area_linkage ADD COLUMN area_ha double precision;
-ALTER TABLE area_linkage ADD COLUMN geom geometry;
+ALTER TABLE area_linkage ADD COLUMN IF NOT EXISTS urban text;
+ALTER TABLE area_linkage ADD COLUMN IF NOT EXISTS study_region boolean;
+ALTER TABLE area_linkage ADD COLUMN IF NOT EXISTS area_ha double precision;
+ALTER TABLE area_linkage ADD COLUMN IF NOT EXISTS geom geometry;
+'''
+curs.execute(sql)
+conn.commit()
+sql = '''
 UPDATE area_linkage a 
    SET urban = CASE                                                       
                    WHEN sos_name_2016 IN ('Major Urban','Other Urban')  
@@ -190,10 +195,21 @@ UPDATE area_linkage a
        geom = g.geom
   FROM {table} g
  WHERE a.{id} = g.{id};
+ CREATE INDEX gix_area_linkage ON area_linkage USING GIST (geom);
+'''.format(table = df_regions.loc[geographies[0],'table'],
+           id    = df_regions.loc[geographies[0],'id'])
+curs.execute(sql)
+conn.commit()
+
+sql = '''
 UPDATE area_linkage a 
    SET study_region = ST_CoveredBy(a.geom,s.geom)
   FROM study_region s;
-CREATE INDEX gix_area_linkage ON area_linkage USING GIST (geom);
+  '''
+curs.execute(sql) 
+conn.commit()
+
+sql ='''
 DROP TABLE IF EXISTS mb_dwellings;
 CREATE TABLE mb_dwellings AS 
       SELECT *
@@ -242,15 +258,15 @@ features = ['{}'.format(study_region),
             '{}'.format(buffered_study_region),
             sample_point_feature,
             'mb_dwellings']
-for feature in features:
-    print(feature)
-    try:
-        if arcpy.Exists('public.{}'.format(feature)):
-            arcpy.CopyFeatures_management('public.{}'.format(feature), os.path.join(gdb_path,feature))
-        else:
-            print("It seems that the feature doesn't exist...")
-    except:
-       print("... that didn't work ...")
+# for feature in features:
+    # print(feature)
+    # try:
+        # if arcpy.Exists('public.{}'.format(feature)):
+            # arcpy.CopyFeatures_management('public.{}'.format(feature), os.path.join(gdb_path,feature))
+        # else:
+            # print("It seems that the feature doesn't exist...")
+    # except:
+       # print("... that didn't work ...")
 
 ## NOTE:
 # The scripts copying of resources from Postgis using the arcpy spatial database engine (SDE) connection
@@ -283,6 +299,17 @@ command = (
 )                              
 sp.call(command, shell=True)
 print("Done.")
+
+for feature in features:
+   print(feature)
+   try:
+       if arcpy.Exists('public.{}'.format(feature)):
+           arcpy.CopyFeatures_management('{}/{}'.format(processing_gpkg,feature), os.path.join(gdb_path,feature))
+       else:
+           print("It seems that the feature doesn't exist...")
+   except:
+      print("... that didn't work ...")
+
 # output to completion log					
 script_running_log(script, task, start, locale)
-conn.close()
+engine.dispose()

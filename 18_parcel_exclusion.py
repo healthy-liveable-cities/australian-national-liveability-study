@@ -19,6 +19,9 @@ start = time.time()
 script = os.path.basename(sys.argv[0])
 task = "Create list of excluded parcels"
 
+# schema where point indicator output tables will be stored
+schema = ind_point_schema
+
 
 # INPUT PARAMETERS
 # output tables

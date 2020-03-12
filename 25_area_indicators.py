@@ -19,6 +19,9 @@ start = time.time()
 script = os.path.basename(sys.argv[0])
 task = 'Create area level indicator tables for {}'.format(locale)
 
+# schema where point indicator output tables will be stored
+schema = ind_point_schema
+
 # Connect to postgresql database     
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()

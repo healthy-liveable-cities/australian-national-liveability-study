@@ -147,19 +147,6 @@ create_parcel_sos = '''
 curs.execute(create_parcel_sos)
 conn.commit()
  
-
-print("Creating summary table  (if not exists) of parcel id and local neighbourhood area... "),
-createTable_nh1600m = '''
-  -- DROP TABLE IF EXISTS nh1600m;
-  CREATE TABLE IF NOT EXISTS nh1600m AS
-    SELECT {0}, area_sqm, area_sqm/1000000 AS area_sqkm, area_sqm/10000 AS area_ha FROM 
-      (SELECT {0}, ST_AREA(geom) AS area_sqm FROM {1}) AS t;
-  ALTER TABLE nh1600m ADD PRIMARY KEY ({0});
-  '''.format(points_id.lower(),"sausagebuffer_{}".format(distance))
-curs.execute(createTable_nh1600m)
-conn.commit()  
-print("Done.")
-
 # output to completion log    
 script_running_log(script, task, start, locale)
 

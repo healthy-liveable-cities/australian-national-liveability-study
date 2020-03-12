@@ -22,6 +22,9 @@ task = 'create destination indicator tables'
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()
 
+# schema where point indicator output tables will be stored
+schema = ind_point_schema
+
 engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_user,
                                                                  pwd  = db_pwd,
                                                                  host = db_host,

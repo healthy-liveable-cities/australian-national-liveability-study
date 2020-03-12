@@ -12,6 +12,9 @@ from sqlalchemy import create_engine
 
 date_time = time.strftime("%Y%m%d-%H%M")
 
+# schema where point indicator output tables are stored
+schema = ind_point_schema
+
 # Load settings from _project_configuration.xlsx
 xls = pandas.ExcelFile(os.path.join(sys.path[0],'_project_configuration.xlsx'))
 df_about = pandas.read_excel(xls, 'about')
