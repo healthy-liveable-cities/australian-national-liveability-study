@@ -53,6 +53,21 @@ curs = conn.cursor()
 
 print("\nImport region data... "),
 print("Import pre-processed data for the Highlife study... "),
+# first, drop tables if they exist, as otherwise this won't work
+# organise imported tables in appropriate schemas
+sql = '''
+DROP TABLE IF EXISTS network.clean_intersections_12m       ;
+DROP TABLE IF EXISTS network.edges                         ;
+DROP TABLE IF EXISTS boundaries.footprints                 ;
+DROP TABLE IF EXISTS network.nodes                         ;
+DROP TABLE IF EXISTS osm.osm_20190902_line                 ;
+DROP TABLE IF EXISTS osm.osm_20190902_point                ;
+DROP TABLE IF EXISTS osm.osm_20190902_polygon              ;
+DROP TABLE IF EXISTS osm.osm_20190902_roads                ;
+DROP TABLE IF EXISTS boundaries.study_region_hex_3200m_diag;
+DROP TABLE IF EXISTS boundaries.study_region_hex_3200m_diag_3200m_buffer;
+'''
+engine.execute(sql)
 tables = [['clean_intersections_12m'],
           ['edges'],
           ['nodes'],
@@ -132,6 +147,7 @@ for geo in geo_imports.index.values:
               ' -lco geometry_name="geom"'
               ' {transform}'
               ).format(db=db,
+                       boundary_schema=boundary_schema,
                        db_host=db_host,
                        db_user=db_user,
                        db_pwd=db_pwd,
@@ -269,10 +285,10 @@ else:
 arcpy.env.workspace = db_sde_path
 arcpy.env.overwriteOutput = True
 
-features = ['{}'.format(study_region),
-            '{}'.format(buffered_study_region),
-            sample_point_feature,
-            'mb_dwellings']
+# features = ['{}'.format(study_region),
+            # '{}'.format(buffered_study_region),
+            # sample_point_feature,
+            # 'mb_dwellings']
 # for feature in features:
     # print(feature)
     # try:
@@ -294,39 +310,39 @@ print("Exporting to GPKG as intermediary step in case of automated copy failure;
 # note assumptions which must be met that 
 #  1. ogr2ogr will locate tables in different schemas
 #  2. tables in different schemas have unique names within overall database
-features = ['area_linkage',
-            '{}'.format(study_region),
-            '{}'.format(buffered_study_region),
-            sample_point_feature,
-            'footprints',
-            'edges',
-            'nodes',
-            'mb_dwellings']
+features = [['public','area_linkage'],
+            ['public',study_region],
+            ['public',buffered_study_region],
+            ['public',sample_point_feature],
+            [boundary_schema,'footprints'],
+            ['public','mb_dwellings']]
 processing_gpkg = os.path.join(folderPath,'study_region',locale,'{}_processing.gpkg'.format(locale))
-command = (
-        ' ogr2ogr -overwrite -f GPKG  '
-        ' {gpkg} ' 
-        ' PG:"host={host} port=5432 dbname={db} user={user} password = {pwd}" '
-        ' {tables} '.format(gpkg = processing_gpkg,
-                              host = db_host,
-                              db = db,
-                              user = db_user,
-                              pwd = db_pwd,
-                              tables = ' '.join(features)
-                              )
-)                              
-sp.call(command, shell=True)
+for t in features:
+    schema = t[0]
+    table = t[1]
+    command = (
+            ' ogr2ogr -overwrite -f GPKG  '
+            ' {gpkg} ' 
+            ' PG:"host={host} port=5432 dbname={db} user={user} password = {pwd} active_schema={schema}" '
+            ' {table} '.format(gpkg = processing_gpkg,
+                                schema = schema,
+                                host = db_host,
+                                db = db,
+                                user = db_user,
+                                pwd = db_pwd,
+                                table = table
+                                )
+    )                              
+    sp.call(command, shell=True)
 print("Done.")
 
-for feature in features:
+for f in features:
+   feature = f[1]
    print(feature)
    try:
-       if arcpy.Exists('public.{}'.format(feature)):
-           arcpy.CopyFeatures_management('{}/{}'.format(processing_gpkg,feature), os.path.join(gdb_path,feature))
-       else:
-           print("It seems that the feature doesn't exist...")
+       arcpy.CopyFeatures_management('{}/{}'.format(processing_gpkg,feature), os.path.join(gdb_path,feature))
    except:
-      print("... that didn't work ...")
+      print("  - failed")
 
 # output to completion log					
 script_running_log(script, task, start, locale)

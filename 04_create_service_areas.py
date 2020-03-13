@@ -62,7 +62,7 @@ print("Processing service areas...")
 for distance in service_areas:
     print("    - {}m... ".format(distance)),
     table = "nh{}m".format(distance)
-    if engine.has_table(table, point_schema=point_schema):
+    if engine.has_table(table, schema=point_schema):
         print("Aleady exists; skipping.")
     else:
         createTable_sausageBuffer = '''
