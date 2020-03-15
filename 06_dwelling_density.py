@@ -30,19 +30,18 @@ script = os.path.basename(sys.argv[0])
 task = 'calculate dwelling density (dwellings per hectare)'
 
 # schema where point indicator output tables will be stored
-schema = ind_point_schema
+schema = point_schema
 
 meshblock_table = "area_linkage"
 buffer_table = "nh{}m".format(distance)
 dd_table = 'dd_{}'.format(buffer_table)
 
 createTable_dd = '''
-  --DROP TABLE IF EXISTS {schema}.{table};
+  DROP TABLE IF EXISTS {schema}.{table};
   CREATE TABLE IF NOT EXISTS {schema}.{table}
   ({id} {type} PRIMARY KEY,
    dwellings integer,
    area_ha double precision,
-   mb_area_ha double precision,
    dd_nh1600m double precision
   ); 
   '''.format(schema = schema,
@@ -51,7 +50,7 @@ createTable_dd = '''
              type = points_id_type)
   
 query_A = '''
-INSERT INTO {schema}.{table} ({id},dwellings,area_ha,mb_area_ha,dd_nh1600m)
+INSERT INTO {schema}.{table} ({id},dwellings,area_ha,dd_nh1600m)
 (SELECT s.{id},  
         sum(dwelling) AS dwellings,
         s.area_ha,

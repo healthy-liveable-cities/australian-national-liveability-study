@@ -52,7 +52,7 @@ conn = psycopg2.connect(dbname=db, user=db_user, password=db_pwd)
 curs = conn.cursor()
 
 # Create area tables
-print("  - Analysis region tables... "),
+print("  - Analysis region tables... ")
 for area in analysis_regions:
     area_id = df_regions.loc[area,'id']
     abbrev = df_regions.loc[area,'abbreviation']
@@ -128,7 +128,7 @@ UPDATE {sample_point_feature} set mb_code_2016 = t.mb_code_2016
 FROM (SELECT p.{points_id}, 
              m.mb_code_2016
       FROM {sample_point_feature} AS p 
-      INNER JOIN mb_2016_aust AS m
+      INNER JOIN area_linkage AS m
        ON (ST_Intersects(p.geom, m.geom) 
          AND NOT ST_Touches(p.geom, m.geom) )) t;
 '''.format(sample_point_feature = sample_point_feature, points_id = points_id)

@@ -22,6 +22,8 @@ script = os.path.basename(sys.argv[0])
 task = 'create service areas ({}) for locations in {} based on road network'.format(', '.join([str(x) for x in service_areas]),full_locale)
 print("Commencing task: {} at {}".format(task,time.strftime("%Y%m%d-%H%M%S")))
 
+schema=point_schema
+
 # ArcGIS environment settings
 arcpy.env.workspace = gdb_path  
 
@@ -198,7 +200,7 @@ for distance in service_areas:
 
 arcpy.Delete_management("points")
 arcpy.CheckInExtension('Network')
-engine.dispose()
+
 conn.close()
  
 try:
@@ -207,6 +209,29 @@ try:
 except: 
     print("FRIENDLY REMINDER!!! Remember to delete temp gdbs to save space!")
     print("(there may be lock files preventing automatic deletion.)")
+
+
+# Create combined service areas table
+areas_sql = []
+from_sql = []
+for distance in service_areas:
+    table = 'nh{}m'.format(distance)
+    areas_sql = areas_sql+['''{schema}.{table}.area_ha AS {table}_ha'''.format(schema=schema,table=table)]
+    from_sql = from_sql+['''LEFT JOIN {schema}.{table} ON p.{points_id} = {schema}.{table}.{points_id}'''.format(schema=schema,table=table,sample_point_feature=sample_point_feature,points_id=points_id)]
+
+sql = '''
+CREATE TABLE IF NOT EXISTS {schema}.service_areas AS
+SELECT p.{points_id},
+       {areas_sql}
+FROM {sample_point_feature} p
+{from_sql}
+'''.format(schema = schema,
+           points_id=points_id,
+           sample_point_feature=sample_point_feature,
+           areas_sql=',\n'.join(areas_sql),
+           from_sql=' \n'.join(from_sql))
+engine.execute(sql)
+engine.dispose()
 
 # output to completion log    
 script_running_log(script, task, start, locale)

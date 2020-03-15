@@ -26,9 +26,9 @@ task = "Calculate StreetConnectivity (3 plus leg intersections per  km2)"
 # INPUT PARAMETERS
 
 # schema where point indicator output tables will be stored
-schema = ind_point_schema
+schema = point_schema
 
-intersections_table = "clean_intersections_12m"
+intersections_table = "network.clean_intersections_12m"
 nh_area = "nh{}m".format(distance)
 
 table = "sc_nh{}m".format(distance)
@@ -50,6 +50,7 @@ sql = '''
    sc_nh1600m double precision NOT NULL 
   ); 
   '''.format(table = table,
+             schema=schema,
              id = points_id.lower(),
              type = points_id_type)
 curs.execute(sql)
@@ -59,11 +60,12 @@ print("Fetch list of processed parcels, if any... "),
 # Checks id numbers from sausage buffers against
 antijoin = '''
    SELECT {id}::text
-   FROM {nh_area} nh 
+   FROM {schema}.{nh_area} nh 
    WHERE NOT EXISTS
-   (SELECT 1 FROM {sc_table} sc 
+   (SELECT 1 FROM {schema}.{sc_table} sc 
     WHERE sc.{id} = nh.{id});
 '''.format(id = points_id.lower(),
+           schema=schema,
            nh_area  = nh_area,
            sc_table = table)
 curs.execute(antijoin)
@@ -77,9 +79,10 @@ INSERT INTO {schema}.{table} ({id},intersection_count,area_sqkm,sc_nh1600m)
         area_sqkm, 
         COALESCE(COUNT(c.*),0)/area_sqkm AS sc_nh1600mm
 FROM {schema}.{nh_area} a 
-LEFT JOIN {intersections} c ON ST_Intersects(b.geom, c.geom)
+LEFT JOIN {intersections} c ON ST_Intersects(a.geom, c.geom)
 WHERE a.{id} IN 
 '''.format(table = table,
+           schema=schema,
            id = points_id.lower(),
            nh_area = nh_area,
            intersections = intersections_table)
