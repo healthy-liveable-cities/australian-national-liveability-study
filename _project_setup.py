@@ -126,7 +126,7 @@ osm_source = df_studyregion.loc[locale]['osm_source']
 osm_prefix = df_studyregion.loc[locale]['osm_prefix']
 
 area_schemas = ['ind_{}'.format(x) for x in df_regions.query("purpose.str.contains('analysis')").abbreviation.values]+['ind_region']
-schemas = ['public',boundary_schema,network_schema,osm_schema,destinations_schema,open_space_schema,point_schema,distance_schema,validation_schema,processing_schema]+area_schemas
+schemas = ['public',boundary_schema,network_schema,osm_schema,destinations_schema,open_space_schema,school_schema,point_schema,distance_schema,validation_schema,processing_schema]+area_schemas
 
 users = [db_user, arc_sde_user]
 def grant_schema_query(user,schema):
