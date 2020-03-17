@@ -22,21 +22,25 @@ task = 'Create area level indicator tables for {}'.format(locale)
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()
 
-# schema where point indicator output tables will be stored
-schema = ind_point_schema
 
-# Indicator configuration sheet is 'df_inds', read in from config file in the config script
 # Restrict to indicators associated with study region (except distance to closest dest indicators)
 # the following two tables (indicators/measures, and distances to closest measures) will later be
 # appended once the first table is expanded into soft and hard threshold indicator forms
-ind_matrix = df_inds[df_inds['locale'].str.contains('|'.join([locale,'\*']))].copy()
 ind_destinations = df_destinations[(df_destinations.locale == "*") | (df_destinations.locale == locale)].copy()
-ind_destinations['destination'] = ind_destinations['destination'].apply(lambda x: "dist_m_{}".format(x))
+ind_destinations['destination'] = ind_destinations['destination_class'].apply(lambda x: "dist_m_{}".format(x))
 ind_destinations = ind_destinations.set_index('destination')
 ind_destinations.index.name = 'indicators'
 ind_destinations = ind_destinations.loc[:,'unit_level_description':]
 
-ind_matrix['order'] = list(ind_matrix.index)
+# Indicator configuration sheet is 'df_inds', read in from config file in the config script
+# Restrict to indicators associated with study region (except distance to closest dest indicators)
+ind_matrix = df_inds[df_inds['locale'].str.contains('|'.join([locale,'\*']))].copy()
+
+# # get the set of distance to closest regions which match for this region
+# destinations = df_inds[df_inds['ind'].str.contains('destinations')]
+# current_categories = [x for x in categories if 'distance_m_{}'.format(x) in destinations.ind_plain.str.encode('utf8').tolist()]
+# ind_matrix = ind_matrix.append(destinations[destinations['ind_plain'].str.replace('distance_m_','').str.contains('|'.join(current_categories))])
+ind_matrix['order'] = ind_matrix.index
 ind_soft = ind_matrix.loc[ind_matrix.tags=='_{threshold}',:].copy()
 ind_hard = ind_matrix.loc[ind_matrix.tags=='_{threshold}',:].copy()
 ind_soft.replace(to_replace='{threshold}', value='soft', inplace=True,regex=True)
@@ -44,16 +48,18 @@ ind_hard.replace(to_replace='{threshold}', value='hard', inplace=True,regex=True
 
 ind_matrix = pandas.concat([ind_matrix,ind_soft,ind_hard], ignore_index=True).sort_values('ind')
 ind_matrix.drop(ind_matrix[ind_matrix.tags == '_{threshold}'].index, inplace=True)
-# Restrict to indicators with a defined query, or is the 'ULI' or 'SI Mix' indicator
-ind_matrix = ind_matrix[pandas.notnull(ind_matrix['Query']) | ind_matrix.unit_level_description.isin(['Urban Liveability Index','Social infrastructure mix score (/15)'])]
-ind_matrix.drop(ind_matrix[ind_matrix['updated?'] == 'n'].index, inplace=True)
+# NOTE: NO NEED TO Restrict to indicators with a defined query
+#       Since this script relies on the 'agg_alt_variable' defined below
+ind_matrix = ind_matrix[pandas.notnull(ind_matrix['Query']) |  pandas.notnull(ind_matrix['agg_alt_variable']) ]
+ind_matrix = ind_matrix[pandas.notnull(ind_matrix['updated?'])]
 
 # Make concatenated indicator and tag name (e.g. 'walk_14' + 'hard')
 # Tags could be useful later as can allow to search by name for e.g. threshold type,
 # or other keywords (policy, binary, obsolete, planned --- i don't know, whatever)
 # These tags are tacked on the end of the ind name seperated with underscores
 ind_matrix['indicators'] = ind_matrix['ind'] + ind_matrix['tags'].fillna('')
-
+# ind_matrix['sort_cat'] = pandas.Categorical(ind_matrix['ind'], categories=mylist, ordered=True)
+# ind_matrix.sort_values('sort_cat', inplace=True)
 # Compile list of indicators
 ind_matrix.sort_values('order', inplace=True)
 
@@ -61,7 +67,6 @@ ind_matrix.sort_values('order', inplace=True)
 ind_matrix = ind_matrix.set_index('indicators')
 ind_matrix = ind_matrix.append(ind_destinations)
 ind_list = ind_matrix.index.values
-
 
 ind_policy = ind_matrix[ind_matrix.policy_locale.apply(lambda x: '{}'.format(x) not in ['NULL','nan'])].copy()
 ind_policy = ind_policy.loc[:,['policy_reference','policy_wording','threshold_aggregate_description','agg_alt_variable','agg_standard','agg_split_greq','units']]

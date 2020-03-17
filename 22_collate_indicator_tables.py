@@ -22,64 +22,14 @@ task = 'create destination indicator tables'
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()
 
-# schema where point indicator output tables will be stored
-schema = ind_point_schema
-
 engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_user,
                                                                  pwd  = db_pwd,
                                                                  host = db_host,
                                                                  db   = db))
-# Calculate urban walkability index
-print("Creating urban walkability index."),   
-table = ['ind_walkability','wa']
-create_table = '''
-DROP TABLE IF EXISTS {table}; 
-CREATE TABLE {table} AS 
-SELECT p.{id} 
-  FROM sample_point_feature p 
-WHERE NOT EXISTS (SELECT 1 
-                    FROM excluded_parcels e
-                   WHERE p.{id} = e.{id})
-;
-'''.format(table = table[0], id = points_id.lower())
-curs.execute(create_table)
-conn.commit()
-# we just calculate walkability at 1600m, so we'll set nh_threshold to that value
-nh_threshold = 1600
-for threshold_type in ['hard','soft']:
-    populate_table = '''
-    -- Note that we take NULL for distance to closest in this context to mean areaence of presence
-    -- Error checking at other stages of processing should confirm whether this is the case.
-    ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {abbrev}_{threshold_type}_{nh_threshold}m float;
-    UPDATE {table} t SET 
-    {abbrev}_{threshold_type}_{nh_threshold}m = dl.z_dl + sc.z_sc + dd.z_dd
-    FROM (SELECT {id}, (dl_{threshold_type}_{nh_threshold}m - AVG(dl_{threshold_type}_{nh_threshold}m) OVER())/stddev_pop(dl_{threshold_type}_{nh_threshold}m) OVER() as z_dl FROM ind_daily_living) dl
-    LEFT JOIN (SELECT {id}, (sc_nh1600m - AVG(sc_nh1600m) OVER())/stddev_pop(sc_nh1600m) OVER() as z_sc FROM sc_nh1600m) sc ON sc.{id} = dl.{id}
-    LEFT JOIN (SELECT {id}, (dd_nh1600m - AVG(dd_nh1600m) OVER())/stddev_pop(dd_nh1600m) OVER() as z_dd FROM dd_nh1600m) dd ON dd.{id} = dl.{id}
-    WHERE t.{id} = dl.{id};
-    '''.format(table = table[0], 
-               abbrev = table[1], 
-               id = points_id.lower(),
-               threshold_type = threshold_type, 
-               nh_threshold = nh_threshold)
-    curs.execute(populate_table)
-    conn.commit()
-    print("."),
-create_index = '''CREATE UNIQUE INDEX {table}_idx ON  {table} ({id});  '''.format(table = table[0], id = points_id.lower())
-curs.execute(create_index)
-conn.commit()
-print(" Done.")
-
 
 # Indicator configuration sheet is 'df_inds', read in from config file in the config script
 # Restrict to indicators associated with study region (except distance to closest dest indicators)
 ind_matrix = df_inds[df_inds['locale'].str.contains('|'.join([locale,'\*']))].copy()
-
-# Get a list of destinations processed within this region for distance to closest
-# sql = '''SELECT DISTINCT(dest_name) dest_name FROM od_closest ORDER BY dest_name;'''
-sql = '''SELECT dest_name FROM dest_type ORDER BY dest_name;'''
-curs.execute(sql)
-categories = [x[0] for x in curs.fetchall()]
 
 # # get the set of distance to closest regions which match for this region
 # destinations = df_inds[df_inds['ind'].str.contains('destinations')]
@@ -95,7 +45,7 @@ ind_matrix = pandas.concat([ind_matrix,ind_soft,ind_hard], ignore_index=True).so
 ind_matrix.drop(ind_matrix[ind_matrix.tags == '_{threshold}'].index, inplace=True)
 # Restrict to indicators with a defined query
 ind_matrix = ind_matrix[pandas.notnull(ind_matrix['Query'])]
-ind_matrix.drop(ind_matrix[ind_matrix['updated?'] == 'n'].index, inplace=True)
+ind_matrix = ind_matrix[pandas.notnull(ind_matrix['updated?'])]
 
 # Make concatenated indicator and tag name (e.g. 'walk_14' + 'hard')
 # Tags could be useful later as can allow to search by name for e.g. threshold type,
@@ -110,7 +60,7 @@ ind_list = ind_matrix['indicators'].tolist()
 
 # Compile string of queries, and of unique sources to plug in SQL table creation query
 ind_queries = '\n'.join(ind_matrix['Query'] +' AS ' + ind_matrix['indicators']+',')
-ind_sources = '\n'.join(ind_matrix['Source'].unique())
+ind_sources = '\n'.join(ind_matrix['Source'].dropna().unique())
 
 print("Creating compiled set of parcel level indicators..."),   
 # Define parcel level indicator table creation query
@@ -144,7 +94,7 @@ e.exclude                 ,
 {indicators}            
 p.geom                   
 FROM
-sample_point_feature p                                                                                 
+parcel_dwellings p                                                                                 
 LEFT JOIN area_linkage area ON p.mb_code_20 = area.mb_code_2016
 LEFT JOIN (SELECT {id}, string_agg(indicator,',') AS exclude FROM excluded_parcels GROUP BY {id}) e 
     ON p.{id} = e.{id}
@@ -163,22 +113,76 @@ curs.execute(create_parcel_indicators)
 conn.commit()
 print(" Done.")
 
-table = 'dest_distance_m'
+## NOTE
+## We used to create a wide table containing arrays of distances to all destinations for each destination (by column)
+## However, the new d_3200m_cl contains this data as seperate tables
+## This is a more tractable approach so the code is commented out.
+## It has been retained in case this kind of table needs to be recreated.
+## In practice, the query to recreate the table from the d_3200m_cl tables will be 
+## more akin to that used for distance to closest, below
+## A sketch revision has been written, but has not been tested.
+## CH 2020-01-13
+
 sql = '''
-SELECT column_name 
-FROM information_schema.columns 
-WHERE table_name = '{table}' 
-AND column_name != '{id}';
-'''.format(id = points_id.lower(), table = table)
+SELECT DISTINCT(table_name) 
+  FROM information_schema.columns 
+ WHERE table_schema = 'd_3200m_cl' 
+ ORDER BY table_name;
+'''.format(id = points_id.lower())
 curs.execute(sql)
-destinations = ','.join(['d."{dest}" AS "dist_m_{dest}"'.format(dest = x[0]) for x in curs.fetchall()])
+dest_tables = [x[0] for x in curs.fetchall()]
+destination_array_inds = ','.join(['d_3200m_cl."{dest}".distances AS "{dest}"'.format(dest = x) for x in dest_tables])
+destination_closest_inds = ','.join(['array_min(d_3200m_cl."{dest}".distances) AS "dist_m_{dest}"'.format(dest = x) for x in dest_tables])
+destination_from = '\n'.join(['LEFT JOIN d_3200m_cl."{dest}" ON p.{points_id} = d_3200m_cl."{dest}".{points_id}'.format(dest = x,points_id = points_id) for x in dest_tables])
+# print("Creating distance array measures with classification data..."),
+# dest_array_indicators = '''
+# DROP TABLE IF EXISTS dest_array_indicators;
+# CREATE TABLE dest_array_indicators AS
+# SELECT
+# {points_id}                    ,
+# p.count_objectid        ,
+# p.point_x               ,
+# p.point_y               ,
+# p.hex_id                ,
+# '{full_locale}'::text AS study_region,
+# '{locale}'::text AS locale      ,
+# p.mb_code_2016          ,
+# p.mb_category_name_2016 ,
+# p.sa1_maincode_2016     ,
+# p.sa2_name_2016         ,
+# p.sa3_name_2016         ,
+# p.sa4_name_2016         ,
+# p.gccsa_name_2016       ,
+# p.state_name_2016       ,
+# p.ssc_name_2016         ,
+# p.lga_name_2016         ,
+# p.ucl_name_2016         ,
+# p.sos_name_2016         ,
+# p.urban                 ,
+# p.irsd_score            ,
+# p.exclude               ,
+# {destination_array_inds},,
+# p.geom                   
+# FROM
+# parcel_indicators p                                                                                 
+# {destination_from};
+# CREATE UNIQUE INDEX IF NOT EXISTS dest_array_indicators_idx ON  dest_array_indicators ({points_id});
+# '''.format(points_id = points_id, 
+           # destination_array_inds = destination_array_inds,
+           # destination_from = destination_from,           
+           # full_locale = full_locale,
+           # locale = locale)
+
+# curs.execute(dest_array_indicators)
+# conn.commit()
+# print(" Done.")
 
 print("Creating distance to closest measures with classification data..."),
 dest_closest_indicators = '''
 DROP TABLE IF EXISTS dest_closest_indicators;
 CREATE TABLE dest_closest_indicators AS
 SELECT
-{id}                    ,
+p.{points_id}           ,
 p.count_objectid        ,
 p.point_x               ,
 p.point_y               ,
@@ -200,72 +204,19 @@ p.sos_name_2016         ,
 p.urban                 ,
 p.irsd_score            ,
 p.exclude               ,
-{d}                     ,
+{destination_closest_inds}                     ,
 p.geom                   
 FROM
 parcel_indicators p                                                                                 
-LEFT JOIN dest_distance_m d
-USING ({id});
-CREATE UNIQUE INDEX IF NOT EXISTS ix_dest_closest_indicators ON  dest_closest_indicators ({id});
+{destination_from};
+CREATE UNIQUE INDEX IF NOT EXISTS ix_dest_closest_indicators ON  dest_closest_indicators ({points_id});
 CREATE INDEX IF NOT EXISTS gix_dest_closest_indicators ON dest_closest_indicators USING GIST (geom);
-'''.format(id = points_id, 
-           d = destinations, 
+'''.format(points_id = points_id, 
+           destination_closest_inds = destination_closest_inds, 
+           destination_from = destination_from,      
            full_locale = full_locale,
            locale = locale)
 curs.execute(dest_closest_indicators)
-conn.commit()
-print(" Done.")
-
-table = 'dest_distances_cl_3200m'
-sql = '''
-SELECT column_name 
-FROM information_schema.columns 
-WHERE table_name = '{table}' 
-AND column_name != '{id}';
-'''.format(id = points_id.lower(), table = table)
-curs.execute(sql)
-destinations = ','.join(['d."{dest}" AS "dist_m_{dest}"'.format(dest = x[0]) for x in curs.fetchall()])
-
-print("Creating distance array measures with classification data..."),
-dest_array_indicators = '''
-DROP TABLE IF EXISTS dest_array_indicators;
-CREATE TABLE dest_array_indicators AS
-SELECT
-{id}                    ,
-p.count_objectid        ,
-p.point_x               ,
-p.point_y               ,
-p.hex_id                ,
-'{full_locale}'::text AS study_region,
-'{locale}'::text AS locale      ,
-p.mb_code_2016          ,
-p.mb_category_name_2016 ,
-p.sa1_maincode_2016     ,
-p.sa2_name_2016         ,
-p.sa3_name_2016         ,
-p.sa4_name_2016         ,
-p.gccsa_name_2016       ,
-p.state_name_2016       ,
-p.ssc_name_2016         ,
-p.lga_name_2016         ,
-p.ucl_name_2016         ,
-p.sos_name_2016         ,
-p.urban                 ,
-p.irsd_score            ,
-p.exclude               ,
-{d}                     ,
-p.geom                   
-FROM
-parcel_indicators p                                                                                 
-LEFT JOIN dest_distances_cl_3200m d
-USING ({id});
-CREATE UNIQUE INDEX IF NOT EXISTS dest_array_indicators_idx ON  dest_array_indicators ({id});
-'''.format(id = points_id, 
-           d = destinations, 
-           full_locale = full_locale,
-           locale = locale)
-
-curs.execute(dest_array_indicators)
 conn.commit()
 print(" Done.")
 

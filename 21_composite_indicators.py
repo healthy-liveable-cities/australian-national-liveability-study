@@ -1,28 +1,118 @@
-# Script:  19_urban_liveability_index.py
-# Purpose: Create parcel indicators for national liveability project
+# Purpose: Create composite indicators
+#          Note that daily and local living measures are calculated
+#          in the 'neighbourhood indicators' script.
+#          This is so they can be considered when running the script to 
+#          identify exclusions.
 # Author:  Carl Higgs 
-# Date:    20180910
-
-#  Postgresql MPI implementation steps for i indicators across j parcels
-#  De Muro P., Mazziotta M., Pareto A. (2011), "Composite Indices of Development and Poverty: An Application to MDGs", Social Indicators Research, Volume 104, Number 1, pp. 1-18.
-#  Vidoli, F., Fusco, E. Compind: Composite Indicators Functions, Version 1.1.2, 2016 
-#  Adapted for postgresql by Carl Higgs, 4/4/2017
+# Date:    2020-01-13
 
 import time
 import psycopg2 
 from sqlalchemy import create_engine
+
 from script_running_log import script_running_log
 
 # Import custom variables for National Liveability indicator process
 from _project_setup import *
 
-# schema where point indicator output tables will be stored
-schema = ind_point_schema
-
 # simple timer for log file
 start = time.time()
 script = os.path.basename(sys.argv[0])
-task = 'calculate urban liveability index (ULI) for {}'.format(locale)
+task = 'Calculate composite indicators'
+
+conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
+curs = conn.cursor()  
+
+engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_user,
+                                                                 pwd  = db_pwd,
+                                                                 host = db_host,
+                                                                 db   = db))
+# Calculate urban walkability index
+print("Creating urban walkability index... "),   
+table = ['ind_walkability','wa']
+sql = '''
+DROP TABLE IF EXISTS {table}; 
+CREATE TABLE {table} AS 
+SELECT p.{id},
+       dl.z_dl,
+       sc.z_sc,
+       dd.z_dd,
+    dl.z_dl + sc.z_sc + dd.z_dd AS walkability_index 
+  FROM parcel_dwellings p 
+    LEFT JOIN (SELECT {id}, 
+                (dl_soft_1600m - AVG(dl_soft_1600m) 
+                    OVER())
+                    /stddev_pop(dl_soft_1600m) OVER() as z_dl 
+              FROM ind_daily_living) dl  ON dl.{id} = p.{id}
+    LEFT JOIN (SELECT {id}, (sc_nh1600m - AVG(sc_nh1600m) OVER())
+                  /stddev_pop(sc_nh1600m) OVER() as z_sc 
+               FROM sc_nh1600m) sc ON sc.{id} = p.{id}
+    LEFT JOIN (SELECT {id}, (dd_nh1600m - AVG(dd_nh1600m) OVER())
+                 /stddev_pop(dd_nh1600m) OVER() as z_dd 
+               FROM dd_nh1600m) dd ON dd.{id} = p.{id}
+WHERE NOT EXISTS (SELECT 1 
+                    FROM excluded_parcels e
+                   WHERE p.{id} = e.{id});
+CREATE UNIQUE INDEX {table}_idx ON  {table} ({id});
+'''.format(table = table[0], 
+           abbrev = table[1], 
+           id = points_id)
+curs.execute(sql)
+conn.commit()
+print(" Done.")
+
+
+# Social Infrastructure Mix
+table = 'ind_si_mix'
+abbrev = 'si'
+print("Creating Social Infrastructure Mix score... "),   
+
+sql = '''
+DROP TABLE IF EXISTS {table};
+CREATE TABLE IF NOT EXISTS {table} AS
+SELECT p.{id},
+    (COALESCE(threshold_soft(nh_inds_distance.community_centre_hlc_2016_osm_2018, 1000),0) +
+    COALESCE(threshold_soft(LEAST(array_min("museum_osm".distances),array_min("art_gallery_osm".distances)), 3200),0) +
+    COALESCE(threshold_soft(LEAST(array_min("cinema_osm".distances),array_min("theatre_osm".distances)), 3200),0) +
+    COALESCE(threshold_soft(array_min("libraries".distances), 1000),0) +
+    COALESCE(threshold_soft(array_min("childcare_oshc_meet".distances), 1600),0) +
+    COALESCE(threshold_soft(array_min("childcare_all_meet".distances), 800),0)  +
+    COALESCE(threshold_soft(nh_inds_distance.schools_primary_all_gov, 1600),0) +
+    COALESCE(threshold_soft(nh_inds_distance.schools_secondary_all_gov, 1600),0) +
+    COALESCE(threshold_soft(array_min("nhsd_2017_aged_care_residential".distances), 1000),0) +
+    COALESCE(threshold_soft(array_min("nhsd_2017_pharmacy".distances), 1000),0) +
+    COALESCE(threshold_soft(array_min("nhsd_2017_mc_family_health".distances), 1000),0) +
+    COALESCE(threshold_soft(array_min("nhsd_2017_other_community_health_care".distances), 1000),0) +
+    COALESCE(threshold_soft(array_min("nhsd_2017_dentist".distances), 1000),0) +
+    COALESCE(threshold_soft(array_min("nhsd_2017_gp".distances), 1000),0) +
+    COALESCE(threshold_soft(array_min("public_swimming_pool_osm".distances), 1200),0) +
+    COALESCE(threshold_soft(ind_os_distance.sport_distance_m, 1000),0)) AS si_mix
+    FROM parcel_dwellings p
+    LEFT JOIN nh_inds_distance ON p.{id} = nh_inds_distance.{id}
+    LEFT JOIN d_3200m_cl."museum_osm" ON p.{id} = d_3200m_cl."museum_osm".{id}
+    LEFT JOIN d_3200m_cl."art_gallery_osm" ON p.{id} = d_3200m_cl."art_gallery_osm".{id}
+    LEFT JOIN d_3200m_cl."cinema_osm" ON p.{id} = d_3200m_cl."cinema_osm".{id}
+    LEFT JOIN d_3200m_cl."theatre_osm" ON p.{id} = d_3200m_cl."theatre_osm".{id}
+    LEFT JOIN d_3200m_cl."libraries" ON p.{id} = d_3200m_cl."libraries".{id}
+    LEFT JOIN d_3200m_cl."childcare_oshc_meet" ON p.{id} = d_3200m_cl."childcare_oshc_meet".{id}
+    LEFT JOIN d_3200m_cl."childcare_all_meet" ON p.{id} = d_3200m_cl."childcare_all_meet".{id}
+    LEFT JOIN d_3200m_cl."nhsd_2017_aged_care_residential" ON p.{id} = d_3200m_cl."nhsd_2017_aged_care_residential".{id}
+    LEFT JOIN d_3200m_cl."nhsd_2017_pharmacy" ON p.{id} = d_3200m_cl."nhsd_2017_pharmacy".{id}
+    LEFT JOIN d_3200m_cl."nhsd_2017_mc_family_health" ON p.{id} = d_3200m_cl."nhsd_2017_mc_family_health".{id}
+    LEFT JOIN d_3200m_cl."nhsd_2017_other_community_health_care" ON p.{id} = d_3200m_cl."nhsd_2017_other_community_health_care".{id}
+    LEFT JOIN d_3200m_cl."nhsd_2017_dentist" ON p.{id} = d_3200m_cl."nhsd_2017_dentist".{id}
+    LEFT JOIN d_3200m_cl."nhsd_2017_gp" ON p.{id} = d_3200m_cl."nhsd_2017_gp".{id}
+    LEFT JOIN d_3200m_cl."public_swimming_pool_osm" ON p.{id} = d_3200m_cl."public_swimming_pool_osm".{id}
+    LEFT JOIN ind_os_distance ON p.{id} = ind_os_distance.{id};
+    CREATE UNIQUE INDEX IF NOT EXISTS {table}_idx ON  {table} ({id});
+'''.format(id = points_id,
+           table = table)
+curs.execute(sql)
+conn.commit()
+print(" Done.")
+
+
+# The Urban Liveability Index
 
 
 # Read in indicator description matrix
@@ -39,16 +129,8 @@ for ind in ['dwelling_density','street_connectivity','walkability','pt_freq_400m
 ind_matrix = ind_matrix[ind_matrix['ind']=='uli']
 uli_locations = ind_matrix[ind_matrix['ind']=='uli']['locale'].iloc[0].encode('utf')
 if locale not in uli_locations and uli_locations != '*':
-  print("This location ('{locale}') is not marked for calculation of the Urban Liveability Index; check the _project_configuration file.".format(locale = locale))
+  print("This location ('{locale}') is not marked for calculation of the Urban Liveability Index; check the indicator_setup file.".format(locale = locale))
   sys.exit()
-
-conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
-curs = conn.cursor()  
-
-engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_user,
-                                                                 pwd  = db_pwd,
-                                                                 host = db_host,
-                                                                 db   = db))
 
 # Define function to shape if variable is outlying  
 createFunction = '''
@@ -79,61 +161,75 @@ curs.execute(createFunction)
 conn.commit()
 print("Created custom function.")
 
-# import affordable housing indicator
-affordable_housing = pandas.read_csv('D:/ABS/data/2016/abs_liveability/housing_3040_sa1_all_20190712.csv', index_col=0)
-affordable_housing.to_sql('abs_ind_30_40', con=engine, if_exists='replace')
 
 # collate indicators for national liveability index
 
 sql = '''
 DROP TABLE IF EXISTS uli_inds ; 
-CREATE TABLE uli_inds AS
+CREATE TABLE IF NOT EXISTS uli_inds AS
 SELECT p.{id},
-        COALESCE(p.{street_connectivity},0) AS sc_nh1600m,
-        COALESCE(p.{dwelling_density},0) AS dd_nh1600m,
-        (COALESCE(threshold_soft("dist_m_community_centre_osm"                  , 1000),0) +
-         COALESCE(threshold_soft(LEAST(d."dist_m_museum_osm",d."dist_m_art_gallery_osm"), 3200),0) +
-         COALESCE(threshold_soft(LEAST(d."dist_m_cinema_osm",d."dist_m_theatre_osm"), 3200),0) +
-         COALESCE(threshold_soft(d."dist_m_libraries_2018"                        , 1000),0))/4.0 AS community_culture_leisure ,
-        (COALESCE(threshold_soft(d."dist_m_childcare_oshc_meet_2019"              , 1600),0) +
-         COALESCE(threshold_soft(d."dist_m_childcare_all_meet_2019"               , 800),0))/2.0 AS early_years,
-        (COALESCE(threshold_soft(d."dist_m_P_12_Schools_gov_2018"                 , 1600),0) +
-         COALESCE(threshold_soft(d."dist_m_secondary_schools2018"                 , 1600),0))/2.0 AS education ,
-        (COALESCE(threshold_soft(d."dist_m_nhsd_2017_aged_care_residential"       , 1000),0) +
-         COALESCE(threshold_soft(d."dist_m_nhsd_2017_pharmacy"                    , 1000),0) +
-         COALESCE(threshold_soft(d."dist_m_nhsd_2017_mc_family_health"            , 1000),0) +
-         COALESCE(threshold_soft(d."dist_m_nhsd_2017_dentist"                     , 1000),0) +
-         COALESCE(threshold_soft(d."dist_m_nhsd_2017_gp"                          , 1000),0))/5.0 AS health_services ,
-        (COALESCE(threshold_soft(d."dist_m_swimming_pool_osm"                     , 1200),0) +
-         COALESCE(threshold_soft(o."sport_distance_m"                             , 1000),0))/2.0 AS sport_rec,
-        (COALESCE(threshold_soft(d."dist_m_fruit_veg_osm"                         , 1000),0) +
-         COALESCE(threshold_soft(d."dist_m_meat_seafood_osm"                      , 3200),0) +
-         COALESCE(threshold_soft(d."dist_m_supermarket_osm"                       , 1000),0))/3.0 AS food,    
-        (COALESCE(threshold_soft(d."dist_m_convenience_osm"                       , 1000),0) +
-         COALESCE(threshold_soft(d."dist_m_newsagent_osm"                         , 3200),0) +
-         COALESCE(threshold_soft(d."dist_m_petrolstation_osm"                     , 1000),0))/3.0 AS convenience,         
-        COALESCE({pt_freq_400m},0) AS pt_regular_400m,
-        COALESCE({pos_large_400m},0) AS pos_large_400m,
-        -- we coalesce 30:40 measures to 0, as nulls mean no one is in bottom two housing quintiles - really 0/0 implies 0% in this context
-        -- noting that null is not acceptable.  This should be discussed, but is workable for now.
-        -- Later, we reverse polarity of 30 40 measure
-        COALESCE(pcent_30_40,0) AS abs_30_40,
-        COALESCE(pct_live_work_local_area,0) AS abs_live_sa1_work_sa3
-FROM parcel_indicators p
-LEFT JOIN area_linkage a USING (mb_code_2016)
-LEFT JOIN dest_closest_indicators d USING ({id})
-LEFT JOIN ind_os_distance o USING ({id})
-LEFT JOIN abs_ind_30_40 h ON a.sa1_7digitcode_2016 = h.sa1_7digitcode_2016::text
-LEFT JOIN live_sa1_work_sa3 l ON a.sa1_7digitcode_2016 = l.sa1_7digitcode_2016::text
-WHERE p.exclude IS NULL;
-ALTER TABLE uli_inds ADD PRIMARY KEY ({id});
-  '''.format(id = points_id, 
-             street_connectivity = uli['street_connectivity'],
-             dwelling_density    = uli['dwelling_density'],
-             supermarket_1km     = uli['supermarket_1km'],
-             pt_freq_400m        = uli['pt_freq_400m'],
-             pos_large_400m      = uli['pos_large_400m'])
-
+    COALESCE(sc_nh1600m,0) AS sc_nh1600m,
+    COALESCE(dd_nh1600m,0) AS dd_nh1600m,
+   (COALESCE(threshold_soft(nh_inds_distance.community_centre_hlc_2016_osm_2018, 1000),0) +
+    COALESCE(threshold_soft(LEAST(array_min("museum_osm".distances),array_min("art_gallery_osm".distances)), 3200),0) +
+    COALESCE(threshold_soft(LEAST(array_min("cinema_osm".distances),array_min("theatre_osm".distances)), 3200),0) +
+    COALESCE(threshold_soft(array_min("libraries".distances), 1000),0))/4.0 AS community_culture_leisure ,
+   (COALESCE(threshold_soft(array_min("childcare_oshc_meet".distances), 1600),0) +
+    COALESCE(threshold_soft(array_min("childcare_all_meet".distances), 800),0))/2.0 AS early_years,
+   (COALESCE(threshold_soft(nh_inds_distance.schools_primary_all_gov, 1600),0) +
+    COALESCE(threshold_soft(nh_inds_distance.schools_secondary_all_gov, 1600),0))/2.0 AS education ,
+   (COALESCE(threshold_soft(array_min("nhsd_2017_aged_care_residential".distances), 1000),0) +
+    COALESCE(threshold_soft(array_min("nhsd_2017_pharmacy".distances), 1000),0) +
+    COALESCE(threshold_soft(array_min("nhsd_2017_mc_family_health".distances), 1000),0) +
+    COALESCE(threshold_soft(array_min("nhsd_2017_other_community_health_care".distances), 1000),0) +
+    COALESCE(threshold_soft(array_min("nhsd_2017_dentist".distances), 1000),0) +
+    COALESCE(threshold_soft(array_min("nhsd_2017_gp".distances), 1000),0))/6.0 AS health_services ,
+   (COALESCE(threshold_soft(array_min("public_swimming_pool_osm".distances), 1200),0) +
+    COALESCE(threshold_soft(ind_os_distance.sport_distance_m, 1000),0))/2.0 AS sport_rec,
+   (COALESCE(threshold_soft(array_min("fruit_veg_osm".distances), 1000),0) +
+    COALESCE(threshold_soft(array_min("meat_seafood_osm".distances), 3200),0) +
+    COALESCE(threshold_soft(array_min("supermarket_osm".distances), 1000),0))/3.0 AS food,    
+   (COALESCE(threshold_soft(array_min("convenience_osm".distances), 1000),0) +
+    COALESCE(threshold_soft(array_min("newsagent_osm".distances), 3200),0) +
+    COALESCE(threshold_soft(array_min("petrolstation_osm".distances), 1000),0))/3.0 AS convenience,         
+    COALESCE(threshold_soft(gtfs_20191008_20191205_pt_0030,400),0) AS pt_regular_400m,
+    COALESCE(threshold_soft(ind_os_distance.pos_15k_sqm_distance_m,400),0) AS pos_large_400m,
+    -- we coalesce 30:40 measures to 0, as nulls mean no one is in bottom two housing quintiles - really 0/0 implies 0% in this context
+    -- noting that null is not acceptable.  This should be discussed, but is workable for now.
+    -- Later, we reverse polarity of 30 40 measure
+    COALESCE(pct_30_40_housing,0) AS abs_30_40,
+    COALESCE(pct_live_work_local_area,0) AS abs_live_sa1_work_sa3
+FROM parcel_dwellings p
+LEFT JOIN area_linkage a ON p.mb_code_20 = a.mb_code_2016
+LEFT JOIN (SELECT DISTINCT({id}) FROM excluded_parcels) e ON p.{id} = e.{id}
+LEFT JOIN nh_inds_distance ON p.{id} = nh_inds_distance.{id}
+LEFT JOIN sc_nh1600m ON p.{id} = sc_nh1600m.{id}
+LEFT JOIN dd_nh1600m ON p.{id} = dd_nh1600m.{id}
+LEFT JOIN ind_os_distance ON p.{id} = ind_os_distance.{id}
+LEFT JOIN abs_indicators abs ON a.sa1_7digitcode_2016 = h.sa1_7digitcode_2016::text
+LEFT JOIN d_3200m_cl."fruit_veg_osm" ON p.{id} = d_3200m_cl."fruit_veg_osm".{id}
+LEFT JOIN d_3200m_cl."meat_seafood_osm" ON p.{id} = d_3200m_cl."meat_seafood_osm".{id}
+LEFT JOIN d_3200m_cl."supermarket_osm" ON p.{id} = d_3200m_cl."supermarket_osm".{id}
+LEFT JOIN d_3200m_cl."convenience_osm" ON p.{id} = d_3200m_cl."convenience_osm".{id}
+LEFT JOIN d_3200m_cl."newsagent_osm" ON p.{id} = d_3200m_cl."newsagent_osm".{id}
+LEFT JOIN d_3200m_cl."petrolstation_osm" ON p.{id} = d_3200m_cl."petrolstation_osm".{id}
+LEFT JOIN d_3200m_cl."museum_osm" ON p.{id} = d_3200m_cl."museum_osm".{id}
+LEFT JOIN d_3200m_cl."art_gallery_osm" ON p.{id} = d_3200m_cl."art_gallery_osm".{id}
+LEFT JOIN d_3200m_cl."cinema_osm" ON p.{id} = d_3200m_cl."cinema_osm".{id}
+LEFT JOIN d_3200m_cl."theatre_osm" ON p.{id} = d_3200m_cl."theatre_osm".{id}
+LEFT JOIN d_3200m_cl."libraries" ON p.{id} = d_3200m_cl."libraries".{id}
+LEFT JOIN d_3200m_cl."childcare_oshc_meet" ON p.{id} = d_3200m_cl."childcare_oshc_meet".{id}
+LEFT JOIN d_3200m_cl."childcare_all_meet" ON p.{id} = d_3200m_cl."childcare_all_meet".{id}
+LEFT JOIN d_3200m_cl."nhsd_2017_aged_care_residential" ON p.{id} = d_3200m_cl."nhsd_2017_aged_care_residential".{id}
+LEFT JOIN d_3200m_cl."nhsd_2017_pharmacy" ON p.{id} = d_3200m_cl."nhsd_2017_pharmacy".{id}
+LEFT JOIN d_3200m_cl."nhsd_2017_mc_family_health" ON p.{id} = d_3200m_cl."nhsd_2017_mc_family_health".{id}
+LEFT JOIN d_3200m_cl."nhsd_2017_other_community_health_care" ON p.{id} = d_3200m_cl."nhsd_2017_other_community_health_care".{id}
+LEFT JOIN d_3200m_cl."nhsd_2017_dentist" ON p.{id} = d_3200m_cl."nhsd_2017_dentist".{id}
+LEFT JOIN d_3200m_cl."nhsd_2017_gp" ON p.{id} = d_3200m_cl."nhsd_2017_gp".{id}
+LEFT JOIN d_3200m_cl."public_swimming_pool_osm" ON p.{id} = d_3200m_cl."public_swimming_pool_osm".{id}
+WHERE e.{id} IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS ix_uli_inds ON  uli_inds ({id});
+'''.format(id = points_id)
 curs.execute(sql)
 conn.commit()
 print("Created liveability indicator table uli_inds.")
@@ -252,21 +348,5 @@ curs.execute(sql)
 conn.commit()
 print("Created table 'uli', containing parcel level urban liveability index estimates, along with its required summary ingredients (mean, sd, coefficient of variation).")
 
-
-sql  = '''
--- Add a ULI column if it doesn't already exist to the parcel indicators table
--- and update it with the ULI values for those parcels
-ALTER TABLE parcel_indicators ADD COLUMN IF NOT EXISTS uli double precision;
-UPDATE parcel_indicators p
-   SET uli = u.uli
-  FROM uli u
- WHERE p.{id} = u.{id};
-'''.format(id = points_id)
-
-curs.execute(sql)
-conn.commit()
-print("Replaced table 'parcel_indicators' with a new version, containing the ULI")
-
 # output to completion log    
 script_running_log(script, task, start)
-  

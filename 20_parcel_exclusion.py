@@ -19,9 +19,6 @@ start = time.time()
 script = os.path.basename(sys.argv[0])
 task = "Create list of excluded parcels"
 
-# schema where point indicator output tables will be stored
-schema = ind_point_schema
-
 
 # INPUT PARAMETERS
 # output tables
@@ -37,7 +34,7 @@ createTable_exclusions     = '''
   '''.format(id = points_id.lower())
 
 insert = "INSERT INTO excluded_parcels SELECT a.{id},a.geom, ".format(id = points_id.lower())
-table = "\nFROM sample_point_feature AS a \nLEFT JOIN "
+table = "\nFROM parcel_dwellings AS a \nLEFT JOIN "
 match = " AS b \nON a.{id} = b.{id}  \nWHERE ".format(id = points_id.lower())
 null = " IS NULL ON CONFLICT ({id},indicator) DO NOTHING ".format(id = points_id.lower())
 
@@ -46,7 +43,7 @@ null = " IS NULL ON CONFLICT ({id},indicator) DO NOTHING ".format(id = points_id
 # not connectivity errors.  
 if island_exception not in ['','None']:
   print("\nIsland exception has been defined: {}".format(island_exception))
-  island_exception = " a.gnaf_pid NOT IN (SELECT gnaf_pid FROM sample_point_feature p LEFT JOIN area_linkage s ON p.mb_code_20 = s.mb_code_2016 WHERE s.{island_exception}) AND ".format(island_exception=island_exception)
+  island_exception = " a.gnaf_pid NOT IN (SELECT gnaf_pid FROM parcel_dwellings p LEFT JOIN area_linkage s ON p.mb_code_20 = s.mb_code_2016 WHERE s.{island_exception}) AND ".format(island_exception=island_exception)
   island_reviewed = True
 if island_exception =='':
   print("No island exceptions have been noted, but no note has been made in configuration file to indicator this region's network islands have been reviewed.\n If there are no exceptions for this study region, please enter 'None' in the project configuration file or have someone else do this for you.")
@@ -86,7 +83,7 @@ DROP TABLE IF EXISTS excluded_summary_parcels;
 CREATE TABLE excluded_summary_parcels AS
 SELECT gnaf_pid,
        geom
-FROM sample_point_feature
+FROM parcel_dwellings
 WHERE gnaf_pid IN (SELECT DISTINCT(gnaf_pid) gnaf_pid FROM excluded_parcels);
 
 -- Mesh block summary
@@ -102,7 +99,7 @@ SELECT
   a.person               ,
   a.area_ha              ,
   a.geom
-FROM sample_point_feature p
+FROM parcel_dwellings p
 LEFT JOIN area_linkage a on p.mb_code_20 = a.mb_code_2016
 LEFT JOIN excluded_summary_parcels b on p.gnaf_pid = b.gnaf_pid
 GROUP BY a.mb_code_2016,
@@ -125,7 +122,7 @@ SELECT
   SUM(a.person) AS person,
   SUM(a.area_ha),
   s.geom
-FROM sample_point_feature p
+FROM parcel_dwellings p
 LEFT JOIN area_linkage a on p.mb_code_20 = a.mb_code_2016
 LEFT JOIN excluded_summary_parcels b on p.gnaf_pid = b.gnaf_pid
 LEFT JOIN sa1_2016_aust s USING (sa1_maincode_2016)
