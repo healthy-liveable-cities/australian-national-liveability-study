@@ -59,7 +59,10 @@ pt_points = pt_points.query("in_gdb == True")
 if pt_points.size ==0:
     sys.exit('Public transport for this analysis does not appear to be located in the destination geodatabase; please ensure it has been correctly specified and imported')
 
-pt_id =  'dest_oid'
+pt_id_orig =  'dest_oid'
+# Note: arcpy appears to recreate this as OBJECTID, so unfortunately, we must too
+pt_id =  'OBJECTID'
+
 
 pt_fields = [pt_id,'mode','headway']
 
@@ -103,11 +106,7 @@ if pid !='MainProcess':
   fields = ['Name', 'Total_Length']
   arcpy.MakeFeatureLayer_management (sample_point_feature, "sample_point_feature_layer")
   [arcpy.MakeFeatureLayer_management (p, p) for p in pt_points.destination]
-  # arcpy.MakeFeatureLayer_management (pt_points, "selection_destination_points")     
-  # arcpy.MakeFeatureLayer_management (pt_points, "all_destination_points")     
   arcpy.MakeFeatureLayer_management(polygon_feature, "polygon_layer")   
-  # cl_sql = '''('{points_id}','{curlyo}{distance}{curlyc}'::int[])'''
-  sqlChunkify = 500
 
 def add_locations(network,sub_layer,in_table,field):
     arcpy.AddLocations_na(in_network_analysis_layer = network, 
@@ -155,7 +154,6 @@ def od_pt_process(polygon_dest_tuple):
     if origin_point_count == 0:
         return(2)
     place = 'before polygon selection'
-    sql = '''OBJECTID = {polygon}'''.format(polygon=polygon)
     polygon_selection = arcpy.SelectLayerByAttribute_management("polygon_layer", where_clause = sql)
     place = 'before destination in polygon selection'
     dest_within_dist_polygon = arcpy.SelectLayerByLocation_management(p, 
@@ -165,10 +163,11 @@ def od_pt_process(polygon_dest_tuple):
     # fetch count of successfully processed results for this destination in this polygon
     sql = '''
       SELECT COUNT(*)
-        FROM {result_table}
+        FROM {schema}.{result_table}
     LEFT JOIN {sample_point_feature} p USING ({points_id})
        WHERE p.{polygon_id} = {polygon};
     '''.format(result_table = result_table, 
+               schema=schema,
                sample_point_feature = sample_point_feature,
                points_id = points_id,
                polygon_id = polygon_id,   
@@ -183,11 +182,12 @@ def od_pt_process(polygon_dest_tuple):
         if remaining_to_process < origin_point_count:
             sql = '''SELECT p.{points_id} 
                      FROM {sample_point_feature} p 
-                     LEFT JOIN {result_table} r ON p.{points_id} = r.{points_id}
+                     LEFT JOIN {schema}.{result_table} r ON p.{points_id} = r.{points_id}
                      WHERE {polygon_id} = {polygon}
                        AND r.{points_id} IS NULL;
                   '''.format(polygon_id = polygon_id,
                              result_table = result_table,
+                             schema=schema,
                              sample_point_feature = sample_point_feature,
                              points_id = points_id.lower(), 
                              polygon = polygon)
@@ -224,20 +224,21 @@ def od_pt_process(polygon_dest_tuple):
             data = [x for x in outputLines]
             df = pandas.DataFrame(data = data, columns = ['od','distance'])
             df.distance = df.distance.astype('int')
-            df[[points_id,pt_id]] = df['od'].str.split(' - ',expand=True)
-            df[pt_id] = df[pt_id].astype(int)
-            df = df[[points_id,pt_id,'distance']].groupby(points_id).apply(lambda x: x[[pt_id,'distance']].to_json(orient='records'))
+            df[[points_id,pt_id_orig]] = df['od'].str.split(' - ',expand=True)
+            df[pt_id_orig] = df[pt_id_orig].astype(int)
+            df = df[[points_id,pt_id_orig,'distance']].groupby(points_id).apply(lambda x: x[[pt_id_orig,'distance']].to_json(orient='records'))
             df = df.reset_index()
             df.columns = [points_id,'attributes']
             place = 'df:\r\n{}'.format(df)
-            df.to_sql('{}'.format(result_table),con = engine, index = False, if_exists='append')
+            df.to_sql('{}'.format(result_table),con = engine, schema=schema, index = False, if_exists='append')
         # Solve final closest analysis for points with no destination in 800m
         sql = '''SELECT p.{points_id} 
                         FROM {sample_point_feature} p 
-                        LEFT JOIN {result_table} r ON p.{points_id} = r.{points_id}
+                        LEFT JOIN {schema}.{result_table} r ON p.{points_id} = r.{points_id}
                         WHERE {polygon_id} = {polygon}
                           AND r.{points_id} IS NULL;
                      '''.format(result_table = result_table,
+                                schema=schema,
                                 sample_point_feature = sample_point_feature,
                                 polygon_id = polygon_id, 
                                 points_id = points_id.lower(), 
@@ -271,15 +272,16 @@ def od_pt_process(polygon_dest_tuple):
                 print(alert)
                 place = 'OD results processed, but no results recorded'
                 sql = '''
-                 INSERT INTO {result_table} ({points_id},attributes)  
+                 INSERT INTO {schema}.{result_table} ({points_id},attributes)  
                  SELECT p.{points_id},
                         '{curlyo}{curlyc}'::jsonb
                    FROM {sample_point_feature} p
-                   LEFT JOIN {result_table} r ON p.{points_id} = r.{points_id}
+                   LEFT JOIN {schema}.{result_table} r ON p.{points_id} = r.{points_id}
                   WHERE {polygon_id} = {polygon}
                     AND r.{points_id} IS NULL
                      ON CONFLICT DO NOTHING;
                  '''.format(result_table = result_table,
+                            schema=schema,
                             sample_point_feature = sample_point_feature,
                             points_id = points_id,
                             polygon_id = polygon_id,   
@@ -294,13 +296,13 @@ def od_pt_process(polygon_dest_tuple):
                 data = [x for x in outputLines]
                 df = pandas.DataFrame(data = data, columns = ['od','distance'])
                 df.distance = df.distance.astype('int')
-                df[[points_id,pt_id]] = df['od'].str.split(' - ',expand=True)
-                df[pt_id] = df[pt_id].astype(int)
-                df = df[[points_id,pt_id,'distance']].groupby(points_id).apply(lambda x: x[[pt_id,'distance']].to_json(orient='records'))
+                df[[points_id,pt_id_orig]] = df['od'].str.split(' - ',expand=True)
+                df[pt_id_orig] = df[pt_id_orig].astype(int)
+                df = df[[points_id,pt_id_orig,'distance']].groupby(points_id).apply(lambda x: x[[pt_id_orig,'distance']].to_json(orient='records'))
                 df = df.reset_index()
                 df.columns = [points_id,'attributes']
                 place = 'df:\r\n{}'.format(df)
-                df.to_sql('{}'.format(result_table),con = engine, index = False, if_exists='append')     
+                df.to_sql('{}'.format(result_table),con = engine, schema=schema, index = False, if_exists='append')     
   except:
       print('''Error: {}\npolygon: {}\nDestination: {}\nPlace: {}\nSQL: {}'''.format( sys.exc_info(),polygon,'PT',place,sql))  
   finally:
@@ -320,11 +322,12 @@ if __name__ == '__main__':
         if not engine.has_table(result_table):
             print("  - create result table '{}'... ".format(result_table)),
             sql = '''
-              CREATE TABLE IF NOT EXISTS {result_table}
+              CREATE TABLE IF NOT EXISTS {schema}.{result_table}
               ({points_id} {points_id_type} NOT NULL ,
                attributes jsonb
                );
                '''.format(result_table=result_table,
+                          schema=schema,
                           points_id=points_id,
                           points_id_type=points_id_type,
                           pt_id = pt_id)
@@ -335,7 +338,7 @@ if __name__ == '__main__':
         # Select polygons remaining to be processed
         sql = '''SELECT DISTINCT {polygon_id} FROM poly_points; '''.format(polygon_id=polygon_id)
         polygons = pandas.read_sql(sql, engine)
-        iteration_list = [[i,p] for i in polygons[polygon_id].values]
+        iteration_list = [[int(i),p] for i in polygons[polygon_id].values]
         # Parallel processing setting
         pool = multiprocessing.Pool(processes=nWorkers)
         # # Iterate process over polygons across nWorkers
@@ -343,25 +346,27 @@ if __name__ == '__main__':
         r = list(tqdm(pool.imap(od_pt_process, iteration_list), total=len(iteration_list), unit='polygon'))
         print("\n  - ensuring all tables are indexed, and contain only unique ids..."),
         sql = '''
-          CREATE UNIQUE INDEX IF NOT EXISTS {result_table}_idx ON  {result_table} ({points_id});
-          CREATE INDEX IF NOT EXISTS {pt_points}_mode_idx ON  {pt_points} (mode);
-          CREATE INDEX IF NOT EXISTS {pt_points}_headway_idx ON  {pt_points} (headway);
-          CREATE INDEX IF NOT EXISTS {result_table}_{pt_id} ON {result_table} ((attributes->'{pt_id}'));
-          CREATE INDEX IF NOT EXISTS {result_table}_distance ON od_aos_jsonb ((attributes->'distance'));
-          -- removing incorrect index, created earlier (refers to 'objectid' instead of pt_id; due to arcpy mixup)
+          CREATE UNIQUE INDEX IF NOT EXISTS {result_table}_idx ON  {schema}.{result_table} ({points_id});
+          CREATE INDEX IF NOT EXISTS {p}_mode_idx ON  destinations.{p} (mode);
+          CREATE INDEX IF NOT EXISTS {p}_headway_idx ON  destinations.{p} (headway);
+          CREATE INDEX IF NOT EXISTS {result_table}_{pt_id_orig} ON {schema}.{result_table} ((attributes->'{pt_id_orig}'));
+          CREATE INDEX IF NOT EXISTS {result_table}_distance ON {schema}.{result_table} ((attributes->'distance'));
+          -- removing incorrect index, created earlier (refers to 'objectid' instead of 'fid'; due to arcpy mixup)
           DROP INDEX IF EXISTS {result_table}_{pt_id};
           '''.format(result_table=result_table,
-                     pt_points=pt_points,
+                     p=p,
                      points_id=points_id,
-                     pt_id = pt_id)
+                     schema=schema,
+                     pt_id = pt_id,
+                     pt_id_orig=pt_id_orig)
         engine.execute(sql)
         print("Done.")   
         print("  - Processed results summary:")
         sql = '''
            SELECT 
-           (SELECT COUNT(*) FROM {result_table}) AS processed,
+           (SELECT COUNT(*) FROM {schema}.{result_table}) AS processed,
            (SELECT COUNT(*) FROM {sample_point_feature}) AS all
-          '''.format(result_table = result_table,sample_point_feature=sample_point_feature)
+          '''.format(result_table = result_table,schema=schema,sample_point_feature=sample_point_feature)
         result_summary = pandas.read_sql(sql, engine)
         with pandas.option_context('display.max_rows', None): 
           print(result_summary)

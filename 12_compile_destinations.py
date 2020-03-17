@@ -235,9 +235,6 @@ for row in df.itertuples():
 print("Done.")
 engine.execute('''CLUSTER destination_catalog USING destination_catalog_pkey;''')
   
-# Copy study region destination table from PostgreSQL db to ArcGIS gdb
-print("Copy study destinations to ArcGIS gdb... "),
-
 # output to completion log    
 script_running_log(script, task, start, locale)
 engine.dispose()
