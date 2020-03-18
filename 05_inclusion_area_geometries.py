@@ -65,10 +65,8 @@ for area in analysis_regions:
     else: 
         additional_fields = ''
     sql = '''  
-      -- remove previous legacy table -- now redundant
-      -- DROP TABLE IF EXISTS area_{abbrev};
-      -- DROP TABLE IF EXISTS area_{abbrev}_included;
-      CREATE TABLE IF NOT EXISTS area_{abbrev}_included AS
+      -- DROP TABLE IF EXISTS {boundary_schema}.area_{abbrev}_included;
+      CREATE TABLE IF NOT EXISTS {boundary_schema}.area_{abbrev}_included AS
       SELECT {area_id}, 
              {additional_fields}
              SUM(dwelling) AS dwellings,
@@ -82,10 +80,11 @@ for area in analysis_regions:
         AND study_region IS TRUE
       GROUP BY {area_id}
       ORDER BY {area_id} ASC;
-      CREATE INDEX IF NOT EXISTS id_area_{abbrev}_included ON area_{abbrev}_included ({area_id});
-      CREATE INDEX IF NOT EXISTS gix_area_{abbrev}_included ON area_{abbrev}_included USING GIST (geom);
+      CREATE INDEX IF NOT EXISTS id_area_{abbrev}_included ON {boundary_schema}.area_{abbrev}_included ({area_id});
+      CREATE INDEX IF NOT EXISTS gix_area_{abbrev}_included ON {boundary_schema}.area_{abbrev}_included USING GIST (geom);
       '''.format(area_id = area_id,
                  abbrev = abbrev,
+                 boundary_schema=boundary_schema,
                  additional_fields = additional_fields)
     curs.execute(sql)
     conn.commit()   
@@ -93,8 +92,8 @@ for area in analysis_regions:
 
 print("  - SOS region tables")
 create_study_region_tables = '''
-  -- DROP TABLE IF EXISTS study_region_all_sos;
-  CREATE TABLE IF NOT EXISTS study_region_all_sos AS 
+  -- DROP TABLE IF EXISTS {boundary_schema}.study_region_all_sos;
+  CREATE TABLE IF NOT EXISTS {boundary_schema}.study_region_all_sos AS 
   SELECT sos_name_2016, 
          SUM(dwelling) AS dwelling,
          SUM(person) AS person,
@@ -103,11 +102,11 @@ create_study_region_tables = '''
     FROM area_linkage
     WHERE study_region IS TRUE
     GROUP BY sos_name_2016;
-  CREATE UNIQUE INDEX IF NOT EXISTS ix_study_region_all_sos ON study_region_all_sos (sos_name_2016);
-  CREATE INDEX IF NOT EXISTS gix_study_region_all_sos ON study_region_all_sos USING GIST (geom);
+  CREATE UNIQUE INDEX IF NOT EXISTS ix_study_region_all_sos ON {boundary_schema}.study_region_all_sos (sos_name_2016);
+  CREATE INDEX IF NOT EXISTS gix_study_region_all_sos ON {boundary_schema}.study_region_all_sos USING GIST (geom);
   
-  -- DROP TABLE IF EXISTS study_region_urban;
-  CREATE TABLE IF NOT EXISTS study_region_urban AS 
+  -- DROP TABLE IF EXISTS {boundary_schema}.study_region_urban;
+  CREATE TABLE IF NOT EXISTS {boundary_schema}.study_region_urban AS 
   SELECT urban, 
          SUM(dwelling) AS dwelling,
          SUM(person) AS person,
@@ -116,9 +115,9 @@ create_study_region_tables = '''
     FROM area_linkage
     WHERE study_region IS TRUE
     GROUP BY urban;
-  CREATE UNIQUE INDEX IF NOT EXISTS ix_study_region_urban ON study_region_urban (urban);
-  CREATE INDEX IF NOT EXISTS gix_study_region_urban ON study_region_urban USING GIST (geom);
-'''.format(region = region.lower(), year = year)
+  CREATE UNIQUE INDEX IF NOT EXISTS ix_study_region_urban ON {boundary_schema}.study_region_urban (urban);
+  CREATE INDEX IF NOT EXISTS gix_study_region_urban ON {boundary_schema}.study_region_urban USING GIST (geom);
+'''.format(region = region.lower(), year = year,boundary_schema=boundary_schema)
 curs.execute(create_study_region_tables)
 conn.commit()
 

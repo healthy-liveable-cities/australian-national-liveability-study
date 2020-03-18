@@ -44,14 +44,13 @@ for area in analysis_regions:
   query = '''
   DROP TABLE IF EXISTS {abbrev}_dest_counts;
   CREATE TABLE IF NOT EXISTS {abbrev}_dest_counts AS
-  SELECT a.{area_id}, dest_class, count(d.geom) AS count
+  SELECT a.{area_id}, destination, count(d.geom) AS count
   FROM area_linkage a
   LEFT JOIN 
        study_destinations d ON st_contains(a.geom,d.geom)
-  GROUP BY a.{area_id},dest_class
-  ORDER BY a.{area_id},dest_class;  
+  GROUP BY a.{area_id},destination
+  ORDER BY a.{area_id},destination;  
   '''.format(abbrev = abbrev,
-             area_table = 'area_{}_included'.format(abbrev),
              area_id = area_id)
   # print(query)
   curs.execute(query)

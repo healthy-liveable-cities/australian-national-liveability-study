@@ -234,7 +234,24 @@ for row in df.itertuples():
             arcpy.CopyFeatures_management('{}/{}'.format(processing_gpkg,destination), os.path.join(gdb_path,destinations_schema,destination))
 print("Done.")
 engine.execute('''CLUSTER destination_catalog USING destination_catalog_pkey;''')
-  
+
+sql = '''SELECT destination FROM destination_catalog WHERE count > 0'''
+destinations = [d[0] for d in engine.execute(sql).fetchall()]
+destination_union = 'UNION'.join(['''
+(SELECT dest_oid, '{d}' destination, geom FROM destinations.{d}) t
+'''.format(d=destinations[0])] + ['''
+(SELECT dest_oid, '{d}' destination, geom FROM destinations.{d})
+'''.format(d=d) for d in destinations[1:]])
+sql = '''
+DROP TABLE IF EXISTS destinations.study_destinations;
+CREATE TABLE destinations.study_destinations AS
+SELECT * FROM {destination_union};
+CREATE INDEX IF NOT EXISTS study_destinations_idx ON destinations.study_destinations (destination,dest_oid);
+CREATE INDEX IF NOT EXISTS study_destinations_gix ON destinations.study_destinations USING GIST (geom);
+CLUSTER destinations.study_destinations USING study_destinations_idx;
+'''.format(destination_union=destination_union)
+engine.execute(sql)
+
 # output to completion log    
 script_running_log(script, task, start, locale)
 engine.dispose()
