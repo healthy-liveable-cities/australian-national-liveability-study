@@ -260,7 +260,7 @@ def od_pt_process(polygon_dest_tuple):
             origin_subset = arcpy.SelectLayerByAttribute_management("sample_point_feature_layer", 
                                                                     where_clause = sql)     
             add_locations(cl_outNALayer,cl_originsLayerName,origin_subset,points_id)       
-            arcpy.SelectLayerByAttribute_management(p, "CLEAR_SELECTION")
+            arcpy.MakeFeatureLayer_management(p,p)
             add_locations(cl_outNALayer,cl_destinationsLayerName,p,pt_id)
             # Process: Solve
             result = arcpy.Solve_na(cl_outNALayer, terminate_on_solve_error = "CONTINUE")

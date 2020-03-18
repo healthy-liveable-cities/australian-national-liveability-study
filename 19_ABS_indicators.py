@@ -27,7 +27,8 @@ curs = conn.cursor()
 engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_user,
                                                                  pwd  = db_pwd,
                                                                  host = db_host,
-                                                                 db   = db))
+                                                                 db   = db), 
+                       use_native_hstore=False)
 
 area_codes  = pandas.read_sql('SELECT DISTINCT(sa1_7digitcode_2016)::int FROM area_linkage',engine)
 
@@ -36,7 +37,7 @@ area_codes  = pandas.read_sql('SELECT DISTINCT(sa1_7digitcode_2016)::int FROM ar
 print("Affordable housing indicator... "),
 affordable_housing = pandas.read_csv('../data/ABS/derived/abs_2016_sa1_housing_3040_20190712.csv', index_col=0)
 affordable_housing = affordable_housing.loc[area_codes['sa1_7digitcode_2016']]
-affordable_housing.to_sql('abs_ind_30_40', con=engine, if_exists='replace')
+affordable_housing.to_sql('abs_ind_30_40', con=engine, schema = 'ind_sa1', if_exists='replace')
 print("Done.")
 
 # import mode of transport to work data
@@ -49,7 +50,7 @@ for mode in modes[:-1]:
   # percentage of employed persons travelling to work using this mode
   mtwp['pct_{}'.format(mode)] = 100*mtwp[mode]/mtwp['total_employed_travelling']
 
-mtwp.to_sql('abs_mode_of_transport_to_work', con=engine, if_exists='replace')
+mtwp.to_sql('abs_mode_of_transport_to_work', schema='ind_sa1', con=engine, if_exists='replace')
 print("Done.")
 
 # import proportion renting indicator
@@ -58,7 +59,7 @@ pct_renting = pandas.read_csv('../data/ABS/derived/abs_au_2016_tenure_type_by_sa
 pct_renting = pct_renting.loc[area_codes['sa1_7digitcode_2016']]
 pct_renting['valid_total'] = pct_renting['Total'] - pct_renting['Not stated'] - pct_renting['Not applicable']
 pct_renting['pct_renting'] = 100*pct_renting['Rented']/pct_renting['valid_total']
-pct_renting.to_sql('abs_pct_renting', con=engine, if_exists='replace')
+pct_renting.to_sql('abs_pct_renting', con=engine, schema='ind_sa1', if_exists='replace')
 print("Done.")
 
 
@@ -73,7 +74,7 @@ df = df.astype(np.int64)
 sql = '''
 SELECT DISTINCT(sa1_7digitcode_2016),
        sa3_code_2016 AS sa3_live 
-  FROM sa1_2016_aust 
+  FROM boundaries.sa1_2016_aust 
 GROUP BY sa1_7digitcode_2016, 
          sa3_live 
 ORDER BY sa1_7digitcode_2016;
@@ -101,7 +102,7 @@ live_work = live_work.astype(np.int64)
 live_work['total'] = live_work.apply(lambda x: x[False]+x[True],axis=1)
 live_work['pct_live_work_local_area'] = live_work.apply(lambda x: 100*(x[True]/float(x['total'])),axis=1)
 
-live_work.to_sql('live_sa1_work_sa3', con=engine, if_exists='replace')
+live_work.to_sql('live_sa1_work_sa3', con=engine, schema='ind_sa1',if_exists='replace')
 print("Done.")
 
 
@@ -113,7 +114,7 @@ dfs = [affordable_housing[['pct_30_40_housing']],
        ]
 abs_indicators = dfs[0].join(dfs[1:])
 
-abs_indicators.to_sql('abs_indicators',engine, if_exists='replace')
+abs_indicators.to_sql('abs_indicators',engine, schema='ind_sa1',if_exists='replace')
 
 print("Done.")
 
@@ -128,8 +129,8 @@ for area in analysis_regions + ['study region']:
       include_region = 'study_region,'
       query = '''    
         -- Gross density indicator, using all Mesh Blocks as denominator
-        DROP TABLE IF EXISTS abs_density_gross_{abbrev};
-        CREATE TABLE abs_density_gross_{abbrev} AS
+        DROP TABLE IF EXISTS ind_{abbrev}.abs_density_gross_{abbrev};
+        CREATE TABLE ind_{abbrev}.abs_density_gross_{abbrev} AS
         SELECT overall.{area_id},
                dwelling,
                area,
@@ -160,11 +161,11 @@ for area in analysis_regions + ['study region']:
         FROM area_linkage
         WHERE urban = 'not urban' 
         GROUP BY {area_id}) AS not_urban ON overall.{area_id} = not_urban.{area_id};
-        CREATE INDEX abs_density_gross_{abbrev}_ix ON abs_density_gross_{abbrev} ({area_id});
+        CREATE INDEX abs_density_gross_{abbrev}_ix ON ind_{abbrev}.abs_density_gross_{abbrev} ({area_id});
         
         -- Net density indicator, using residential Mesh Blocks as denominator
-        DROP TABLE IF EXISTS abs_density_net_{abbrev};
-        CREATE TABLE abs_density_net_{abbrev}  AS
+        DROP TABLE IF EXISTS ind_{abbrev}.abs_density_net_{abbrev};
+        CREATE TABLE ind_{abbrev}.abs_density_net_{abbrev}  AS
         SELECT overall.{area_id},
                dwelling,
                area,
@@ -198,7 +199,7 @@ for area in analysis_regions + ['study region']:
         WHERE mb_category_name_2016 = 'Residential'
           AND urban = 'not urban' 
         GROUP BY {area_id}) AS not_urban ON overall.{area_id} = not_urban.{area_id}; 
-        CREATE INDEX abs_density_net_{abbrev}_ix ON abs_density_net_{abbrev} ({area_id});
+        CREATE INDEX abs_density_net_{abbrev}_ix ON ind_{abbrev}.abs_density_net_{abbrev} ({area_id});
       '''.format(abbrev = abbrev,
                  area_id = area_id)
   else:  
@@ -207,8 +208,8 @@ for area in analysis_regions + ['study region']:
       include_region = 'study_region,'
       query = '''    
         -- Gross density indicator, using all Mesh Blocks as denominator
-        DROP TABLE IF EXISTS abs_density_gross_{abbrev};
-        CREATE TABLE abs_density_gross_{abbrev} AS
+        DROP TABLE IF EXISTS ind_{abbrev}.abs_density_gross_{abbrev};
+        CREATE TABLE ind_{abbrev}.abs_density_gross_{abbrev} AS
         SELECT overall.{area_id},
                dwelling,
                area,
@@ -242,11 +243,11 @@ for area in analysis_regions + ['study region']:
         WHERE urban = 'not urban' 
           AND area_linkage.{area_id} = 't'
         GROUP BY {area_id}) AS not_urban ON overall.{area_id} = not_urban.{area_id};
-        CREATE INDEX abs_density_gross_{abbrev}_ix ON abs_density_gross_{abbrev} ({area_id});
+        CREATE INDEX abs_density_gross_{abbrev}_ix ON ind_{abbrev}.abs_density_gross_{abbrev} ({area_id});
         
         -- Net density indicator, using residential Mesh Blocks as denominator
-        DROP TABLE IF EXISTS abs_density_net_{abbrev};
-        CREATE TABLE abs_density_net_{abbrev}  AS
+        DROP TABLE IF EXISTS ind_{abbrev}.abs_density_net_{abbrev};
+        CREATE TABLE ind_{abbrev}.abs_density_net_{abbrev}  AS
         SELECT overall.{area_id},
                dwelling,
                area,
@@ -283,7 +284,7 @@ for area in analysis_regions + ['study region']:
           AND urban = 'not urban'
           AND area_linkage.{area_id} = 't' 
         GROUP BY {area_id}) AS not_urban ON overall.{area_id} = not_urban.{area_id}; 
-        CREATE INDEX abs_density_net_{abbrev}_ix ON abs_density_net_{abbrev} ({area_id});
+        CREATE INDEX abs_density_net_{abbrev}_ix ON ind_{abbrev}.abs_density_net_{abbrev} ({area_id});
       '''.format(abbrev = abbrev,
                  area_id = area_id,
                  study_region = full_locale)
@@ -304,7 +305,7 @@ for area in ['SA1', 'SA2','Suburb', 'LGA']:
   path = '../data/ABS/derived/housing_diversity/housing_diversity_gini_index/'
   file = '2020-01-16 - Australian housing diversity by {abbrev} 2016.csv'.format(abbrev = abbrev.upper())
   diversity = pandas.read_csv('{path}{file}'.format(file = file,path = path), index_col=0)
-  diversity.to_sql('abs_housing_diversity_{abbrev}'.format(abbrev=abbrev),engine,if_exists='replace')
+  diversity.to_sql('abs_housing_diversity_{abbrev}'.format(abbrev=abbrev),engine,if_exists='replace',schema='ind_{}'.format(abbrev))
   print("Done.")
 
 # output to completion log
