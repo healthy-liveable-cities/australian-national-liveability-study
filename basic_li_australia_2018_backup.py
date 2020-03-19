@@ -31,7 +31,8 @@ db = 'li_australia_2018'
 out_dir = 'D:/ntnl_li_2018_template/data/study_region/'
 file = 'basic_li_australia_2018_Fc_{}.sql'.format(date)
 
-command = 'pg_dump -U {db_user} -h localhost  -Fc '
+command = (
+   'pg_dump -U {db_user} -h localhost  -Fc '
    ' -t "abs_2016_irsd" '
    ' -t "ind_score_card" '
    ' -t "li_inds_lga_dwelling" '
