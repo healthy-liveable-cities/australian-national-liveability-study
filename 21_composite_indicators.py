@@ -27,36 +27,50 @@ engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_
                                                                  pwd  = db_pwd,
                                                                  host = db_host,
                                                                  db   = db))
+
+schema='ind_point'
+points = sample_point_feature
+
 # Calculate urban walkability index
+
+# Note that for Highlife purposes, the calculation of the Walkability does not make sense 
+# (ie. it is a relative measure for all other sample points in the city; 
+# so where these are an arbitrary number of other building entry points, it just doesn't make sense
+
+# Instead, we will link each with the closest Walkability calculated for national project and record distance of match
+
+
 print("Creating urban walkability index... "),   
 table = ['ind_walkability','wa']
 sql = '''
-DROP TABLE IF EXISTS {table}; 
-CREATE TABLE {table} AS 
-SELECT p.{id},
+DROP TABLE IF EXISTS {schema}.{table}; 
+CREATE TABLE {schema}.{table} AS 
+SELECT p.{points_id},
        dl.z_dl,
        sc.z_sc,
        dd.z_dd,
     dl.z_dl + sc.z_sc + dd.z_dd AS walkability_index 
-  FROM parcel_dwellings p 
-    LEFT JOIN (SELECT {id}, 
+  FROM {points} p 
+    LEFT JOIN (SELECT {points_id}, 
                 (dl_soft_1600m - AVG(dl_soft_1600m) 
                     OVER())
                     /stddev_pop(dl_soft_1600m) OVER() as z_dl 
-              FROM ind_daily_living) dl  ON dl.{id} = p.{id}
-    LEFT JOIN (SELECT {id}, (sc_nh1600m - AVG(sc_nh1600m) OVER())
+              FROM {schema}.ind_daily_living) dl  ON dl.{points_id} = p.{points_id}
+    LEFT JOIN (SELECT {points_id}, (sc_nh1600m - AVG(sc_nh1600m) OVER())
                   /stddev_pop(sc_nh1600m) OVER() as z_sc 
-               FROM sc_nh1600m) sc ON sc.{id} = p.{id}
-    LEFT JOIN (SELECT {id}, (dd_nh1600m - AVG(dd_nh1600m) OVER())
+               FROM {schema}.sc_nh1600m) sc ON sc.{points_id} = p.{points_id}
+    LEFT JOIN (SELECT {points_id}, (dd_nh1600m - AVG(dd_nh1600m) OVER())
                  /stddev_pop(dd_nh1600m) OVER() as z_dd 
-               FROM dd_nh1600m) dd ON dd.{id} = p.{id}
+               FROM {schema}.dd_nh1600m) dd ON dd.{points_id} = p.{points_id}
 WHERE NOT EXISTS (SELECT 1 
-                    FROM excluded_parcels e
-                   WHERE p.{id} = e.{id});
-CREATE UNIQUE INDEX {table}_idx ON  {table} ({id});
+                    FROM {schema}.excluded_parcels e
+                   WHERE p.{points_id} = e.{points_id});
+CREATE UNIQUE INDEX {table}_idx ON  {schema}.{table} ({points_id});
 '''.format(table = table[0], 
+           schema=schema,
            abbrev = table[1], 
-           id = points_id)
+           points=points,
+           points_id = points_id)
 curs.execute(sql)
 conn.commit()
 print(" Done.")
@@ -68,15 +82,15 @@ abbrev = 'si'
 print("Creating Social Infrastructure Mix score... "),   
 
 sql = '''
-DROP TABLE IF EXISTS {table};
-CREATE TABLE IF NOT EXISTS {table} AS
-SELECT p.{id},
+DROP TABLE IF EXISTS {schema}.{table};
+CREATE TABLE IF NOT EXISTS {schema}.{table} AS
+SELECT p.{points_id},
     (COALESCE(threshold_soft(nh_inds_distance.community_centre_hlc_2016_osm_2018, 1000),0) +
     COALESCE(threshold_soft(LEAST(array_min("museum_osm".distances),array_min("art_gallery_osm".distances)), 3200),0) +
     COALESCE(threshold_soft(LEAST(array_min("cinema_osm".distances),array_min("theatre_osm".distances)), 3200),0) +
-    COALESCE(threshold_soft(array_min("libraries".distances), 1000),0) +
-    COALESCE(threshold_soft(array_min("childcare_oshc_meet".distances), 1600),0) +
-    COALESCE(threshold_soft(array_min("childcare_all_meet".distances), 800),0)  +
+    COALESCE(threshold_soft(array_min("libraries_2018".distances), 1000),0) +
+    COALESCE(threshold_soft(array_min("childcare_oshc_meet_2019".distances), 1600),0) +
+    COALESCE(threshold_soft(array_min("childcare_all_meet_2019".distances), 800),0)  +
     COALESCE(threshold_soft(nh_inds_distance.schools_primary_all_gov, 1600),0) +
     COALESCE(threshold_soft(nh_inds_distance.schools_secondary_all_gov, 1600),0) +
     COALESCE(threshold_soft(array_min("nhsd_2017_aged_care_residential".distances), 1000),0) +
@@ -87,25 +101,27 @@ SELECT p.{id},
     COALESCE(threshold_soft(array_min("nhsd_2017_gp".distances), 1000),0) +
     COALESCE(threshold_soft(array_min("public_swimming_pool_osm".distances), 1200),0) +
     COALESCE(threshold_soft(ind_os_distance.sport_distance_m, 1000),0)) AS si_mix
-    FROM parcel_dwellings p
-    LEFT JOIN nh_inds_distance ON p.{id} = nh_inds_distance.{id}
-    LEFT JOIN d_3200m_cl."museum_osm" ON p.{id} = d_3200m_cl."museum_osm".{id}
-    LEFT JOIN d_3200m_cl."art_gallery_osm" ON p.{id} = d_3200m_cl."art_gallery_osm".{id}
-    LEFT JOIN d_3200m_cl."cinema_osm" ON p.{id} = d_3200m_cl."cinema_osm".{id}
-    LEFT JOIN d_3200m_cl."theatre_osm" ON p.{id} = d_3200m_cl."theatre_osm".{id}
-    LEFT JOIN d_3200m_cl."libraries" ON p.{id} = d_3200m_cl."libraries".{id}
-    LEFT JOIN d_3200m_cl."childcare_oshc_meet" ON p.{id} = d_3200m_cl."childcare_oshc_meet".{id}
-    LEFT JOIN d_3200m_cl."childcare_all_meet" ON p.{id} = d_3200m_cl."childcare_all_meet".{id}
-    LEFT JOIN d_3200m_cl."nhsd_2017_aged_care_residential" ON p.{id} = d_3200m_cl."nhsd_2017_aged_care_residential".{id}
-    LEFT JOIN d_3200m_cl."nhsd_2017_pharmacy" ON p.{id} = d_3200m_cl."nhsd_2017_pharmacy".{id}
-    LEFT JOIN d_3200m_cl."nhsd_2017_mc_family_health" ON p.{id} = d_3200m_cl."nhsd_2017_mc_family_health".{id}
-    LEFT JOIN d_3200m_cl."nhsd_2017_other_community_health_care" ON p.{id} = d_3200m_cl."nhsd_2017_other_community_health_care".{id}
-    LEFT JOIN d_3200m_cl."nhsd_2017_dentist" ON p.{id} = d_3200m_cl."nhsd_2017_dentist".{id}
-    LEFT JOIN d_3200m_cl."nhsd_2017_gp" ON p.{id} = d_3200m_cl."nhsd_2017_gp".{id}
-    LEFT JOIN d_3200m_cl."public_swimming_pool_osm" ON p.{id} = d_3200m_cl."public_swimming_pool_osm".{id}
-    LEFT JOIN ind_os_distance ON p.{id} = ind_os_distance.{id};
-    CREATE UNIQUE INDEX IF NOT EXISTS {table}_idx ON  {table} ({id});
-'''.format(id = points_id,
+    FROM {points} p
+    LEFT JOIN {schema}.nh_inds_distance ON p.{points_id} = {schema}.nh_inds_distance.{points_id}
+    LEFT JOIN d_3200m_cl."museum_osm" ON p.{points_id} = d_3200m_cl."museum_osm".{points_id}
+    LEFT JOIN d_3200m_cl."art_gallery_osm" ON p.{points_id} = d_3200m_cl."art_gallery_osm".{points_id}
+    LEFT JOIN d_3200m_cl."cinema_osm" ON p.{points_id} = d_3200m_cl."cinema_osm".{points_id}
+    LEFT JOIN d_3200m_cl."theatre_osm" ON p.{points_id} = d_3200m_cl."theatre_osm".{points_id}
+    LEFT JOIN d_3200m_cl."libraries_2018" ON p.{points_id} = d_3200m_cl."libraries_2018".{points_id}
+    LEFT JOIN d_3200m_cl."childcare_oshc_meet_2019" ON p.{points_id} = d_3200m_cl."childcare_oshc_meet_2019".{points_id}
+    LEFT JOIN d_3200m_cl."childcare_all_meet_2019" ON p.{points_id} = d_3200m_cl."childcare_all_meet_2019".{points_id}
+    LEFT JOIN d_3200m_cl."nhsd_2017_aged_care_residential" ON p.{points_id} = d_3200m_cl."nhsd_2017_aged_care_residential".{points_id}
+    LEFT JOIN d_3200m_cl."nhsd_2017_pharmacy" ON p.{points_id} = d_3200m_cl."nhsd_2017_pharmacy".{points_id}
+    LEFT JOIN d_3200m_cl."nhsd_2017_mc_family_health" ON p.{points_id} = d_3200m_cl."nhsd_2017_mc_family_health".{points_id}
+    LEFT JOIN d_3200m_cl."nhsd_2017_other_community_health_care" ON p.{points_id} = d_3200m_cl."nhsd_2017_other_community_health_care".{points_id}
+    LEFT JOIN d_3200m_cl."nhsd_2017_dentist" ON p.{points_id} = d_3200m_cl."nhsd_2017_dentist".{points_id}
+    LEFT JOIN d_3200m_cl."nhsd_2017_gp" ON p.{points_id} = d_3200m_cl."nhsd_2017_gp".{points_id}
+    LEFT JOIN d_3200m_cl."public_swimming_pool_osm" ON p.{points_id} = d_3200m_cl."public_swimming_pool_osm".{points_id}
+    LEFT JOIN {schema}.ind_os_distance ON p.{points_id} = {schema}.ind_os_distance.{points_id};
+    CREATE UNIQUE INDEX IF NOT EXISTS {table}_idx ON  {schema}.{table} ({points_id});
+'''.format(points_id = points_id,
+           points=points,
+           schema=schema,
            table = table)
 curs.execute(sql)
 conn.commit()
@@ -114,6 +130,12 @@ print(" Done.")
 
 # The Urban Liveability Index
 
+# Note that for Highlife purposes, the calculation of the ULI does not make sense 
+# (ie. it is a relative measure for all other sample points in the city; 
+# so where these are an arbitrary number of other building entry points, it just doesn't make sense.
+# We would ultimately expect little variation.
+
+# Instead, we will link each with the closest ULI calculated for national project and record distance of match
 
 # Read in indicator description matrix
 ind_matrix = df_inds
@@ -165,17 +187,17 @@ print("Created custom function.")
 # collate indicators for national liveability index
 
 sql = '''
-DROP TABLE IF EXISTS uli_inds ; 
-CREATE TABLE IF NOT EXISTS uli_inds AS
-SELECT p.{id},
+DROP TABLE IF EXISTS {schema}.uli_inds ; 
+CREATE TABLE IF NOT EXISTS {schema}.uli_inds AS
+SELECT p.{points_id},
     COALESCE(sc_nh1600m,0) AS sc_nh1600m,
     COALESCE(dd_nh1600m,0) AS dd_nh1600m,
    (COALESCE(threshold_soft(nh_inds_distance.community_centre_hlc_2016_osm_2018, 1000),0) +
     COALESCE(threshold_soft(LEAST(array_min("museum_osm".distances),array_min("art_gallery_osm".distances)), 3200),0) +
     COALESCE(threshold_soft(LEAST(array_min("cinema_osm".distances),array_min("theatre_osm".distances)), 3200),0) +
-    COALESCE(threshold_soft(array_min("libraries".distances), 1000),0))/4.0 AS community_culture_leisure ,
-   (COALESCE(threshold_soft(array_min("childcare_oshc_meet".distances), 1600),0) +
-    COALESCE(threshold_soft(array_min("childcare_all_meet".distances), 800),0))/2.0 AS early_years,
+    COALESCE(threshold_soft(array_min("libraries_2018".distances), 1000),0))/4.0 AS community_culture_leisure ,
+   (COALESCE(threshold_soft(array_min("childcare_oshc_meet_2019".distances), 1600),0) +
+    COALESCE(threshold_soft(array_min("childcare_all_meet_2019".distances), 800),0))/2.0 AS early_years,
    (COALESCE(threshold_soft(nh_inds_distance.schools_primary_all_gov, 1600),0) +
     COALESCE(threshold_soft(nh_inds_distance.schools_secondary_all_gov, 1600),0))/2.0 AS education ,
    (COALESCE(threshold_soft(array_min("nhsd_2017_aged_care_residential".distances), 1000),0) +
@@ -192,53 +214,53 @@ SELECT p.{id},
    (COALESCE(threshold_soft(array_min("convenience_osm".distances), 1000),0) +
     COALESCE(threshold_soft(array_min("newsagent_osm".distances), 3200),0) +
     COALESCE(threshold_soft(array_min("petrolstation_osm".distances), 1000),0))/3.0 AS convenience,         
-    COALESCE(threshold_soft(gtfs_20191008_20191205_pt_0030,400),0) AS pt_regular_400m,
+    COALESCE(threshold_soft(nh_inds_distance.gtfs_20191008_20191205_pt_0025,400),0) AS pt_regular_400m,
     COALESCE(threshold_soft(ind_os_distance.pos_15k_sqm_distance_m,400),0) AS pos_large_400m,
     -- we coalesce 30:40 measures to 0, as nulls mean no one is in bottom two housing quintiles - really 0/0 implies 0% in this context
     -- noting that null is not acceptable.  This should be discussed, but is workable for now.
     -- Later, we reverse polarity of 30 40 measure
     COALESCE(pct_30_40_housing,0) AS abs_30_40,
     COALESCE(pct_live_work_local_area,0) AS abs_live_sa1_work_sa3
-FROM parcel_dwellings p
-LEFT JOIN area_linkage a ON p.mb_code_20 = a.mb_code_2016
-LEFT JOIN (SELECT DISTINCT({id}) FROM excluded_parcels) e ON p.{id} = e.{id}
-LEFT JOIN nh_inds_distance ON p.{id} = nh_inds_distance.{id}
-LEFT JOIN sc_nh1600m ON p.{id} = sc_nh1600m.{id}
-LEFT JOIN dd_nh1600m ON p.{id} = dd_nh1600m.{id}
-LEFT JOIN ind_os_distance ON p.{id} = ind_os_distance.{id}
-LEFT JOIN abs_indicators abs ON a.sa1_7digitcode_2016 = h.sa1_7digitcode_2016::text
-LEFT JOIN d_3200m_cl."fruit_veg_osm" ON p.{id} = d_3200m_cl."fruit_veg_osm".{id}
-LEFT JOIN d_3200m_cl."meat_seafood_osm" ON p.{id} = d_3200m_cl."meat_seafood_osm".{id}
-LEFT JOIN d_3200m_cl."supermarket_osm" ON p.{id} = d_3200m_cl."supermarket_osm".{id}
-LEFT JOIN d_3200m_cl."convenience_osm" ON p.{id} = d_3200m_cl."convenience_osm".{id}
-LEFT JOIN d_3200m_cl."newsagent_osm" ON p.{id} = d_3200m_cl."newsagent_osm".{id}
-LEFT JOIN d_3200m_cl."petrolstation_osm" ON p.{id} = d_3200m_cl."petrolstation_osm".{id}
-LEFT JOIN d_3200m_cl."museum_osm" ON p.{id} = d_3200m_cl."museum_osm".{id}
-LEFT JOIN d_3200m_cl."art_gallery_osm" ON p.{id} = d_3200m_cl."art_gallery_osm".{id}
-LEFT JOIN d_3200m_cl."cinema_osm" ON p.{id} = d_3200m_cl."cinema_osm".{id}
-LEFT JOIN d_3200m_cl."theatre_osm" ON p.{id} = d_3200m_cl."theatre_osm".{id}
-LEFT JOIN d_3200m_cl."libraries" ON p.{id} = d_3200m_cl."libraries".{id}
-LEFT JOIN d_3200m_cl."childcare_oshc_meet" ON p.{id} = d_3200m_cl."childcare_oshc_meet".{id}
-LEFT JOIN d_3200m_cl."childcare_all_meet" ON p.{id} = d_3200m_cl."childcare_all_meet".{id}
-LEFT JOIN d_3200m_cl."nhsd_2017_aged_care_residential" ON p.{id} = d_3200m_cl."nhsd_2017_aged_care_residential".{id}
-LEFT JOIN d_3200m_cl."nhsd_2017_pharmacy" ON p.{id} = d_3200m_cl."nhsd_2017_pharmacy".{id}
-LEFT JOIN d_3200m_cl."nhsd_2017_mc_family_health" ON p.{id} = d_3200m_cl."nhsd_2017_mc_family_health".{id}
-LEFT JOIN d_3200m_cl."nhsd_2017_other_community_health_care" ON p.{id} = d_3200m_cl."nhsd_2017_other_community_health_care".{id}
-LEFT JOIN d_3200m_cl."nhsd_2017_dentist" ON p.{id} = d_3200m_cl."nhsd_2017_dentist".{id}
-LEFT JOIN d_3200m_cl."nhsd_2017_gp" ON p.{id} = d_3200m_cl."nhsd_2017_gp".{id}
-LEFT JOIN d_3200m_cl."public_swimming_pool_osm" ON p.{id} = d_3200m_cl."public_swimming_pool_osm".{id}
-WHERE e.{id} IS NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS ix_uli_inds ON  uli_inds ({id});
-'''.format(id = points_id)
+FROM {points} p
+LEFT JOIN area_linkage a ON p.mb_code_2016 = a.mb_code_2016
+LEFT JOIN (SELECT DISTINCT({points_id}) FROM {schema}.excluded_parcels) e ON p.{points_id} = e.{points_id}
+LEFT JOIN {schema}.nh_inds_distance ON p.{points_id} = {schema}.nh_inds_distance.{points_id}
+LEFT JOIN {schema}.sc_nh1600m ON p.{points_id} = {schema}.sc_nh1600m.{points_id}
+LEFT JOIN {schema}.dd_nh1600m ON p.{points_id} = {schema}.dd_nh1600m.{points_id}
+LEFT JOIN {schema}.ind_os_distance ON p.{points_id} = {schema}.ind_os_distance.{points_id}
+LEFT JOIN ind_sa1.abs_indicators abs ON a.sa1_7digitcode_2016 = abs.sa1_7digitcode_2016::text
+LEFT JOIN d_3200m_cl."fruit_veg_osm" ON p.{points_id} = d_3200m_cl."fruit_veg_osm".{points_id}
+LEFT JOIN d_3200m_cl."meat_seafood_osm" ON p.{points_id} = d_3200m_cl."meat_seafood_osm".{points_id}
+LEFT JOIN d_3200m_cl."supermarket_osm" ON p.{points_id} = d_3200m_cl."supermarket_osm".{points_id}
+LEFT JOIN d_3200m_cl."convenience_osm" ON p.{points_id} = d_3200m_cl."convenience_osm".{points_id}
+LEFT JOIN d_3200m_cl."newsagent_osm" ON p.{points_id} = d_3200m_cl."newsagent_osm".{points_id}
+LEFT JOIN d_3200m_cl."petrolstation_osm" ON p.{points_id} = d_3200m_cl."petrolstation_osm".{points_id}
+LEFT JOIN d_3200m_cl."museum_osm" ON p.{points_id} = d_3200m_cl."museum_osm".{points_id}
+LEFT JOIN d_3200m_cl."art_gallery_osm" ON p.{points_id} = d_3200m_cl."art_gallery_osm".{points_id}
+LEFT JOIN d_3200m_cl."cinema_osm" ON p.{points_id} = d_3200m_cl."cinema_osm".{points_id}
+LEFT JOIN d_3200m_cl."theatre_osm" ON p.{points_id} = d_3200m_cl."theatre_osm".{points_id}
+LEFT JOIN d_3200m_cl."libraries_2018" ON p.{points_id} = d_3200m_cl."libraries_2018".{points_id}
+LEFT JOIN d_3200m_cl."childcare_oshc_meet_2019" ON p.{points_id} = d_3200m_cl."childcare_oshc_meet_2019".{points_id}
+LEFT JOIN d_3200m_cl."childcare_all_meet_2019" ON p.{points_id} = d_3200m_cl."childcare_all_meet_2019".{points_id}
+LEFT JOIN d_3200m_cl."nhsd_2017_aged_care_residential" ON p.{points_id} = d_3200m_cl."nhsd_2017_aged_care_residential".{points_id}
+LEFT JOIN d_3200m_cl."nhsd_2017_pharmacy" ON p.{points_id} = d_3200m_cl."nhsd_2017_pharmacy".{points_id}
+LEFT JOIN d_3200m_cl."nhsd_2017_mc_family_health" ON p.{points_id} = d_3200m_cl."nhsd_2017_mc_family_health".{points_id}
+LEFT JOIN d_3200m_cl."nhsd_2017_other_community_health_care" ON p.{points_id} = d_3200m_cl."nhsd_2017_other_community_health_care".{points_id}
+LEFT JOIN d_3200m_cl."nhsd_2017_dentist" ON p.{points_id} = d_3200m_cl."nhsd_2017_dentist".{points_id}
+LEFT JOIN d_3200m_cl."nhsd_2017_gp" ON p.{points_id} = d_3200m_cl."nhsd_2017_gp".{points_id}
+LEFT JOIN d_3200m_cl."public_swimming_pool_osm" ON p.{points_id} = d_3200m_cl."public_swimming_pool_osm".{points_id}
+WHERE e.{points_id} IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS ix_uli_inds ON  {schema}.uli_inds ({points_id});
+'''.format(points_id = points_id,points=points,schema=schema)
 curs.execute(sql)
 conn.commit()
 print("Created liveability indicator table uli_inds.")
 
 # The below uses our custom clean function, drawing on (indicator, min, max, mean, sd)
 sql = '''
-DROP TABLE IF EXISTS uli_inds_clean ; 
-CREATE TABLE uli_inds_clean AS
-SELECT i.{id},
+DROP TABLE IF EXISTS {schema}.uli_inds_clean ; 
+CREATE TABLE {schema}.uli_inds_clean AS
+SELECT i.{points_id},
        clean(i.sc_nh1600m               , s.sc_nh1600m[1]               , s.sc_nh1600m[2]                , s.sc_nh1600m[3]               , s.sc_nh1600m[4]               ) AS sc_nh1600m               ,
        clean(i.dd_nh1600m               , s.dd_nh1600m[1]               , s.dd_nh1600m[2]                , s.dd_nh1600m[3]               , s.dd_nh1600m[4]               ) AS dd_nh1600m               ,
        clean(i.community_culture_leisure, s.community_culture_leisure[1], s.community_culture_leisure[2] , s.community_culture_leisure[3], s.community_culture_leisure[4]) AS community_culture_leisure,
@@ -252,7 +274,7 @@ SELECT i.{id},
        clean(i.pos_large_400m           , s.pos_large_400m[1]           , s.pos_large_400m[2]            , s.pos_large_400m[3]           , s.pos_large_400m[4]           ) AS pos_large_400m           , 
        clean(i.abs_30_40                , s.abs_30_40[1]                , s.abs_30_40[2]                 , s.abs_30_40[3]                , s.abs_30_40[4]                ) AS abs_30_40                , 
        clean(i.abs_live_sa1_work_sa3    , s.abs_live_sa1_work_sa3[1]    , s.abs_live_sa1_work_sa3[2]     , s.abs_live_sa1_work_sa3[3]    , s.abs_live_sa1_work_sa3[4]    ) AS abs_live_sa1_work_sa3     
-FROM uli_inds i,
+FROM {schema}.uli_inds i,
 (SELECT ARRAY[MIN(sc_nh1600m               ),MAX(sc_nh1600m               ),AVG(sc_nh1600m               ),STDDEV(sc_nh1600m               )] AS sc_nh1600m               ,
         ARRAY[MIN(dd_nh1600m               ),MAX(dd_nh1600m               ),AVG(dd_nh1600m               ),STDDEV(dd_nh1600m               )] AS dd_nh1600m               ,
         ARRAY[MIN(community_culture_leisure),MAX(community_culture_leisure),AVG(community_culture_leisure),STDDEV(community_culture_leisure)] AS community_culture_leisure,
@@ -266,9 +288,9 @@ FROM uli_inds i,
         ARRAY[MIN(pos_large_400m           ),MAX(pos_large_400m           ),AVG(pos_large_400m           ),STDDEV(pos_large_400m           )] AS pos_large_400m           ,
         ARRAY[MIN(abs_30_40                ),MAX(abs_30_40                ),AVG(abs_30_40                ),STDDEV(abs_30_40                )] AS abs_30_40                ,
         ARRAY[MIN(abs_live_sa1_work_sa3    ),MAX(abs_live_sa1_work_sa3    ),AVG(abs_live_sa1_work_sa3    ),STDDEV(abs_live_sa1_work_sa3    )] AS abs_live_sa1_work_sa3    
- FROM uli_inds) s;
-ALTER TABLE uli_inds_clean ADD PRIMARY KEY ({id});
-  '''.format(id = points_id)
+ FROM {schema}.uli_inds) s;
+ALTER TABLE {schema}.uli_inds_clean ADD PRIMARY KEY ({points_id});
+  '''.format(points_id = points_id,schema=schema)
 curs.execute(sql)
 conn.commit()
 print("Created table 'uli_inds_clean'")
@@ -276,9 +298,9 @@ print("Created table 'uli_inds_clean'")
 
 sql = '''
 -- Note that in this normalisation stage, indicator polarity is adjusted for: ABS 30:40 measure has values substracted from 100, whilst positive indicators have them added.
-DROP TABLE IF EXISTS uli_inds_norm ; 
-CREATE TABLE uli_inds_norm AS    
-SELECT c.{id},
+DROP TABLE IF EXISTS {schema}.uli_inds_norm ; 
+CREATE TABLE {schema}.uli_inds_norm AS    
+SELECT c.{points_id},
        100 + 10 * (c.sc_nh1600m               - s.sc_nh1600m[1]               ) / s.sc_nh1600m[2]                ::double precision AS sc_nh1600m               ,
        100 + 10 * (c.dd_nh1600m               - s.dd_nh1600m[1]               ) / s.dd_nh1600m[2]                ::double precision AS dd_nh1600m               ,
        100 + 10 * (c.community_culture_leisure- s.community_culture_leisure[1]) / s.community_culture_leisure[2] ::double precision AS community_culture_leisure,
@@ -292,23 +314,23 @@ SELECT c.{id},
        100 + 10 * (c.pos_large_400m           - s.pos_large_400m[1]           ) / s.pos_large_400m[2]            ::double precision AS pos_large_400m           ,
        100 - 10 * (c.abs_30_40                - s.abs_30_40[1]                ) / s.abs_30_40[2]                 ::double precision AS abs_30_40                ,
        100 + 10 * (c.abs_live_sa1_work_sa3    - s.abs_live_sa1_work_sa3[1]    ) / s.abs_live_sa1_work_sa3[2]     ::double precision AS abs_live_sa1_work_sa3    
-FROM uli_inds_clean c,
-(SELECT ARRAY[AVG(sc_nh1600m               ),STDDEV(sc_nh1600m               )] AS sc_nh1600m               ,
-        ARRAY[AVG(dd_nh1600m               ),STDDEV(dd_nh1600m               )] AS dd_nh1600m               ,
-        ARRAY[AVG(community_culture_leisure),STDDEV(community_culture_leisure)] AS community_culture_leisure,
-        ARRAY[AVG(early_years              ),STDDEV(early_years              )] AS early_years              ,
-        ARRAY[AVG(education                ),STDDEV(education                )] AS education                ,
-        ARRAY[AVG(health_services          ),STDDEV(health_services          )] AS health_services          ,
-        ARRAY[AVG(sport_rec                ),STDDEV(sport_rec                )] AS sport_rec                ,
-        ARRAY[AVG(food                     ),STDDEV(food                     )] AS food                     ,
-        ARRAY[AVG(convenience              ),STDDEV(convenience              )] AS convenience              ,
-        ARRAY[AVG(pt_regular_400m          ),STDDEV(pt_regular_400m          )] AS pt_regular_400m          ,
-        ARRAY[AVG(pos_large_400m           ),STDDEV(pos_large_400m           )] AS pos_large_400m           ,
-        ARRAY[AVG(abs_30_40                ),STDDEV(abs_30_40                )] AS abs_30_40                ,
-        ARRAY[AVG(abs_live_sa1_work_sa3    ),STDDEV(abs_live_sa1_work_sa3    )] AS abs_live_sa1_work_sa3    
- FROM uli_inds_clean) s;
-ALTER TABLE uli_inds_norm ADD PRIMARY KEY ({id});
-'''.format(id = points_id)
+FROM {schema}.uli_inds_clean c,
+(SELECT ARRAY[AVG(sc_nh1600m               ),CASE WHEN STDDEV(sc_nh1600m                ) = 0 THEN 1 ELSE  STDDEV(sc_nh1600m                ) END] AS sc_nh1600m               ,
+        ARRAY[AVG(dd_nh1600m               ),CASE WHEN STDDEV(dd_nh1600m                ) = 0 THEN 1 ELSE  STDDEV(dd_nh1600m                ) END] AS dd_nh1600m               ,
+        ARRAY[AVG(community_culture_leisure),CASE WHEN STDDEV(community_culture_leisure ) = 0 THEN 1 ELSE  STDDEV(community_culture_leisure ) END] AS community_culture_leisure,
+        ARRAY[AVG(early_years              ),CASE WHEN STDDEV(early_years               ) = 0 THEN 1 ELSE  STDDEV(early_years               ) END] AS early_years              ,
+        ARRAY[AVG(education                ),CASE WHEN STDDEV(education                 ) = 0 THEN 1 ELSE  STDDEV(education                 ) END] AS education                ,
+        ARRAY[AVG(health_services          ),CASE WHEN STDDEV(health_services           ) = 0 THEN 1 ELSE  STDDEV(health_services           ) END] AS health_services          ,
+        ARRAY[AVG(sport_rec                ),CASE WHEN STDDEV(sport_rec                 ) = 0 THEN 1 ELSE  STDDEV(sport_rec                 ) END] AS sport_rec                ,
+        ARRAY[AVG(food                     ),CASE WHEN STDDEV(food                      ) = 0 THEN 1 ELSE  STDDEV(food                      ) END] AS food                     ,
+        ARRAY[AVG(convenience              ),CASE WHEN STDDEV(convenience               ) = 0 THEN 1 ELSE  STDDEV(convenience               ) END] AS convenience              ,
+        ARRAY[AVG(pt_regular_400m          ),CASE WHEN STDDEV(pt_regular_400m           ) = 0 THEN 1 ELSE  STDDEV(pt_regular_400m           ) END] AS pt_regular_400m          ,
+        ARRAY[AVG(pos_large_400m           ),CASE WHEN STDDEV(pos_large_400m            ) = 0 THEN 1 ELSE  STDDEV(pos_large_400m            ) END] AS pos_large_400m           ,
+        ARRAY[AVG(abs_30_40                ),CASE WHEN STDDEV(abs_30_40                 ) = 0 THEN 1 ELSE  STDDEV(abs_30_40                 ) END] AS abs_30_40                ,
+        ARRAY[AVG(abs_live_sa1_work_sa3    ),CASE WHEN STDDEV(abs_live_sa1_work_sa3     ) = 0 THEN 1 ELSE  STDDEV(abs_live_sa1_work_sa3     ) END] AS abs_live_sa1_work_sa3    
+ FROM {schema}.uli_inds_clean) s;
+ALTER TABLE {schema}.uli_inds_norm ADD PRIMARY KEY ({points_id});
+'''.format(points_id = points_id,points=points,schema=schema)
 
 curs.execute(sql)
 conn.commit()
@@ -317,14 +339,14 @@ print("Created table 'uli_inds_norm', a table of MPI-normalised indicators.")
 sql = ''' 
 -- 2. Create ULI
 -- rowmean*(1-(rowsd(z_j)/rowmean(z_j))^2) AS mpi_est_j
-DROP TABLE IF EXISTS uli ; 
-CREATE TABLE uli AS
-SELECT {id}, 
+DROP TABLE IF EXISTS {schema}.uli ; 
+CREATE TABLE {schema}.uli AS
+SELECT {points_id}, 
        AVG(val) AS mean, 
        stddev_pop(val) AS sd, 
        stddev_pop(val)/AVG(val) AS cv, 
        AVG(val)-(stddev_pop(val)^2)/AVG(val) AS uli 
-FROM (SELECT {id}, 
+FROM (SELECT {points_id}, 
              unnest(array[sc_nh1600m               ,
                           dd_nh1600m               ,
                           community_culture_leisure,
@@ -339,10 +361,10 @@ FROM (SELECT {id},
                           abs_30_40                ,
                           abs_live_sa1_work_sa3    
                           ]) as val 
-      FROM uli_inds_norm ) alias
-GROUP BY {id};
-ALTER TABLE uli ADD PRIMARY KEY ({id});
-'''.format(id = points_id)
+      FROM {schema}.uli_inds_norm ) alias
+GROUP BY {points_id};
+ALTER TABLE {schema}.uli ADD PRIMARY KEY ({points_id});
+'''.format(points_id = points_id,points=points,schema=schema)
 
 curs.execute(sql)
 conn.commit()

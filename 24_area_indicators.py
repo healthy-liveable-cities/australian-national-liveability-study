@@ -8,6 +8,8 @@ import sys
 import time
 import psycopg2 
 import subprocess as sp     # for executing external commands (e.g. pgsql2shp)
+from sqlalchemy import create_engine
+from sqlalchemy.types import BigInteger
 
 from script_running_log import script_running_log
 
@@ -22,6 +24,12 @@ task = 'Create area level indicator tables for {}'.format(locale)
 # Connect to postgresql database     
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()
+
+engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_user,
+                                                                      pwd  = db_pwd,
+                                                                      host = db_host,
+                                                                      db   = db), 
+                       use_native_hstore=False)
 
 # Indicator configuration sheet is 'df_inds', read in from config file in the config script
 
@@ -70,16 +78,18 @@ ind_matrix = ind_matrix.append(ind_destinations)
 ind_list = ind_matrix.index.values
 
 indicator_tuples =  list(zip(ind_matrix.index,ind_matrix.agg_scale,ind_matrix.aggregate_description))
-print("Creating Mesh Block level indicator table 'area_indicators_mb_json' (JSON nested summary statistics for each indicator at Mesh Block level)... "),
+
+
+print("Creating area indicator tables... "),
 sql = '''
-DROP TABLE IF EXISTS area_indicators_mb_json;
-CREATE TABLE area_indicators_mb_json AS
-SELECT a.mb_code_2016          ,
-       a.mb_category_name_2016 ,
-       t.study_region,
-       t.locale,
-       a.dwelling              ,
-       a.person                ,
+DROP TABLE IF EXISTS area_indicators_block;
+CREATE TABLE area_indicators_block AS
+SELECT p.blockid               ,
+       p.blockname             ,
+       p.wave                  ,
+       t.study_region          ,
+       t.locale                ,
+       p.mb_code_2016          ,
        a.sa1_maincode_2016     ,
        a.sa2_name_2016         ,
        a.sa3_name_2016         ,
@@ -92,27 +102,12 @@ SELECT a.mb_code_2016          ,
        a.sos_name_2016         ,
        a.urban                 ,
        a.irsd_score            ,
-       a.area_ha               ,
-       jsonb_agg(
-          to_jsonb(
-              (SELECT i FROM
-                  (SELECT
-                      {indicators}
-                  ) i))) AS indicators                ,
-       sample_count                                   ,
-       sample_count / a.area_ha AS sample_count_per_ha,
-       a.geom                 
-FROM area_linkage a 
-LEFT JOIN (
-    SELECT p.mb_code_2016,
-           string_agg(DISTINCT(p.study_region),',')::varchar study_region,
-           string_agg(DISTINCT(p.locale),',')::varchar locale,
-           COUNT(p.*) AS sample_count       ,
-          {jsonb_inds}
-    FROM parcel_indicators p
-    LEFT JOIN dest_closest_indicators USING(gnaf_pid)
-    WHERE p.exclude IS NULL
-    GROUP BY p.mb_code_2016) t USING (mb_code_2016)
+       ST_Area(f.geom)*0.0001 area_ha
+       ST_Union(f.geom)
+FROM parcel_indicators p
+LEFT JOIN dest_closest_indicators USING(gnaf_pid)
+WHERE p.exclude IS NULL
+GROUP BY p.mb_code_2016) t USING (mb_code_2016)
 WHERE a.irsd_score IS NOT NULL
   AND a.dwelling > 0
   AND a.urban = 'urban'

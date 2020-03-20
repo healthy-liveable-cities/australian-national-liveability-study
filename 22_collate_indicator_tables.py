@@ -25,7 +25,10 @@ curs = conn.cursor()
 engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_user,
                                                                  pwd  = db_pwd,
                                                                  host = db_host,
-                                                                 db   = db))
+                                                                 db   = db), 
+                       use_native_hstore=False)
+
+schema = point_schema
 
 # Indicator configuration sheet is 'df_inds', read in from config file in the config script
 # Restrict to indicators associated with study region (except distance to closest dest indicators)
@@ -66,14 +69,13 @@ print("Creating compiled set of parcel level indicators..."),
 # Define parcel level indicator table creation query
 # Note that we modify inds slightly later when aggregated to reflect cutoffs etc
 create_parcel_indicators = '''
-DROP TABLE IF EXISTS parcel_indicators;
-CREATE TABLE parcel_indicators AS
+DROP TABLE IF EXISTS {schema}.parcel_indicators;
+CREATE TABLE {schema}.parcel_indicators AS
 SELECT
-p.{id}                    ,
-p.count_objectid          ,
-p.point_x                 ,
-p.point_y                 ,
-p.hex_id                  ,
+p.{points_id}              ,
+p.{polygon_id}            ,
+p.blockid                 , -- Highlife specific entry 
+p.buildname              , -- Highlife specific entry 
 '{full_locale}'::text AS study_region,
 '{locale}'::text AS locale      ,
 area.mb_code_2016         ,
@@ -94,16 +96,19 @@ e.exclude                 ,
 {indicators}            
 p.geom                   
 FROM
-parcel_dwellings p                                                                                 
-LEFT JOIN area_linkage area ON p.mb_code_20 = area.mb_code_2016
-LEFT JOIN (SELECT {id}, string_agg(indicator,',') AS exclude FROM excluded_parcels GROUP BY {id}) e 
-    ON p.{id} = e.{id}
+{sample_point_feature} p                                                                                 
+LEFT JOIN area_linkage area ON p.mb_code_2016 = area.mb_code_2016
+LEFT JOIN (SELECT {points_id}, string_agg(indicator,',') AS exclude FROM ind_point.excluded_parcels GROUP BY {points_id}) e 
+    ON p.{points_id} = e.{points_id}
 {sources};
-CREATE UNIQUE INDEX IF NOT EXISTS ix_parcel_indicators ON  parcel_indicators ({id});
-CREATE INDEX IF NOT EXISTS gix_parcel_indicators ON parcel_indicators USING GIST (geom);
-'''.format(id = points_id, 
+CREATE UNIQUE INDEX IF NOT EXISTS ix_parcel_indicators ON  {schema}.parcel_indicators ({points_id});
+CREATE INDEX IF NOT EXISTS gix_parcel_indicators ON {schema}.parcel_indicators USING GIST (geom);
+'''.format(points_id = points_id,
+           polygon_id=polygon_id,
+           schema=schema,
+           sample_point_feature=sample_point_feature,
            indicators = ind_queries, 
-           sources = ind_sources, 
+           sources = ind_sources.format(points_id=points_id), 
            full_locale = full_locale,
            locale = locale)
 
@@ -128,65 +133,22 @@ SELECT DISTINCT(table_name)
   FROM information_schema.columns 
  WHERE table_schema = 'd_3200m_cl' 
  ORDER BY table_name;
-'''.format(id = points_id.lower())
+'''
 curs.execute(sql)
 dest_tables = [x[0] for x in curs.fetchall()]
 destination_array_inds = ','.join(['d_3200m_cl."{dest}".distances AS "{dest}"'.format(dest = x) for x in dest_tables])
 destination_closest_inds = ','.join(['array_min(d_3200m_cl."{dest}".distances) AS "dist_m_{dest}"'.format(dest = x) for x in dest_tables])
 destination_from = '\n'.join(['LEFT JOIN d_3200m_cl."{dest}" ON p.{points_id} = d_3200m_cl."{dest}".{points_id}'.format(dest = x,points_id = points_id) for x in dest_tables])
-# print("Creating distance array measures with classification data..."),
-# dest_array_indicators = '''
-# DROP TABLE IF EXISTS dest_array_indicators;
-# CREATE TABLE dest_array_indicators AS
-# SELECT
-# {points_id}                    ,
-# p.count_objectid        ,
-# p.point_x               ,
-# p.point_y               ,
-# p.hex_id                ,
-# '{full_locale}'::text AS study_region,
-# '{locale}'::text AS locale      ,
-# p.mb_code_2016          ,
-# p.mb_category_name_2016 ,
-# p.sa1_maincode_2016     ,
-# p.sa2_name_2016         ,
-# p.sa3_name_2016         ,
-# p.sa4_name_2016         ,
-# p.gccsa_name_2016       ,
-# p.state_name_2016       ,
-# p.ssc_name_2016         ,
-# p.lga_name_2016         ,
-# p.ucl_name_2016         ,
-# p.sos_name_2016         ,
-# p.urban                 ,
-# p.irsd_score            ,
-# p.exclude               ,
-# {destination_array_inds},,
-# p.geom                   
-# FROM
-# parcel_indicators p                                                                                 
-# {destination_from};
-# CREATE UNIQUE INDEX IF NOT EXISTS dest_array_indicators_idx ON  dest_array_indicators ({points_id});
-# '''.format(points_id = points_id, 
-           # destination_array_inds = destination_array_inds,
-           # destination_from = destination_from,           
-           # full_locale = full_locale,
-           # locale = locale)
-
-# curs.execute(dest_array_indicators)
-# conn.commit()
-# print(" Done.")
 
 print("Creating distance to closest measures with classification data..."),
 dest_closest_indicators = '''
-DROP TABLE IF EXISTS dest_closest_indicators;
-CREATE TABLE dest_closest_indicators AS
+DROP TABLE IF EXISTS {schema}.dest_closest_indicators;
+CREATE TABLE {schema}.dest_closest_indicators AS
 SELECT
 p.{points_id}           ,
-p.count_objectid        ,
-p.point_x               ,
-p.point_y               ,
-p.hex_id                ,
+p.{polygon_id}                ,
+p.blockid               , -- Highlife specific entry 
+p.buildname              , -- Highlife specific entry 
 '{full_locale}'::text AS study_region,
 '{locale}'::text AS locale      ,
 p.mb_code_2016          ,
@@ -207,11 +169,13 @@ p.exclude               ,
 {destination_closest_inds}                     ,
 p.geom                   
 FROM
-parcel_indicators p                                                                                 
+{schema}.parcel_indicators p                                                                                 
 {destination_from};
-CREATE UNIQUE INDEX IF NOT EXISTS ix_dest_closest_indicators ON  dest_closest_indicators ({points_id});
-CREATE INDEX IF NOT EXISTS gix_dest_closest_indicators ON dest_closest_indicators USING GIST (geom);
+CREATE UNIQUE INDEX IF NOT EXISTS ix_dest_closest_indicators ON  {schema}.dest_closest_indicators ({points_id});
+CREATE INDEX IF NOT EXISTS gix_dest_closest_indicators ON {schema}.dest_closest_indicators USING GIST (geom);
 '''.format(points_id = points_id, 
+           polygon_id=polygon_id,
+           schema=schema,
            destination_closest_inds = destination_closest_inds, 
            destination_from = destination_from,      
            full_locale = full_locale,
@@ -220,25 +184,27 @@ curs.execute(dest_closest_indicators)
 conn.commit()
 print(" Done.")
 
-sql = '''
-DROP TABLE IF EXISTS exclusion_summary;
-CREATE TABLE exclusion_summary AS
-SELECT '{}'::text AS locale,
-       COALESCE(exclude,'Included (not excluded)') AS "Exclusions",
-       count(*) 
-FROM parcel_indicators 
-GROUP BY exclude 
-ORDER BY count DESC;
-'''.format(locale)
-curs.execute(sql)
-conn.commit()
-df = pandas.read_sql_query('''SELECT "Exclusions",count FROM exclusion_summary''',
-                           con=engine,
-                           index_col='Exclusions')
-pandas.set_option('display.max_colwidth', -1)
-print("\n")
-print(df)
-
+try:
+    sql = '''
+    DROP TABLE IF EXISTS validation.exclusion_summary;
+    CREATE TABLE validation.exclusion_summary AS
+    SELECT '{locale}'::text AS locale,
+           COALESCE(exclude,'Included (not excluded)') AS "Exclusions",
+           count(*) 
+    FROM {schema}.parcel_indicators 
+    GROUP BY exclude 
+    ORDER BY count DESC;
+    '''.format(locale=locale,schema=schema)
+    curs.execute(sql)
+    conn.commit()
+    df = pandas.read_sql_query('''SELECT "Exclusions",count FROM validation.exclusion_summary''',
+                               con=engine,
+                               index_col='Exclusions')
+    pandas.set_option('display.max_colwidth', -1)
+    print("\n")
+    print(df)
+except:
+    print('')
 
 # Drop index for ind_description table if it exists; 
 # this causes an error when (re-)creating the ind_description table if index exists

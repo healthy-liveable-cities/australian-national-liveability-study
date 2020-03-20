@@ -35,7 +35,8 @@ curs = conn.cursor()
 engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_user,
                                                                  pwd  = db_pwd,
                                                                  host = db_host,
-                                                                 db   = db))
+                                                                 db   = db), 
+                       use_native_hstore=False)
                                                                  
 # read in indicator matrix, really just to get the full names; but first we need to expand fully
 
@@ -78,8 +79,14 @@ ind_matrix.sort_values('order', inplace=True)
 # Create an indicators summary table
 ind_matrix = ind_matrix.set_index('indicators')
 ind_matrix = ind_matrix.append(ind_destinations)
-                                                                                                                                
-df = pandas.read_sql_query('''SELECT * FROM parcel_indicators p LEFT JOIN dest_closest_indicators d ON p.gnaf_pid = d.gnaf_pid;''',con=engine)
+                            
+sql = '''
+SELECT * 
+FROM ind_point.parcel_indicators p 
+LEFT JOIN ind_point.dest_closest_indicators d 
+ON p.{points_id} = d.{points_id};
+'''.format(points_id=points_id)
+df = pandas.read_sql_query(sql,con=engine)
 new_cols = ['locale','summary_date','subset']
 summary_urban = df.query("sos_name_2016 in ['Major Urban','Other Urban']").describe(include='all').transpose()
 old_cols = summary_urban.columns
@@ -93,7 +100,7 @@ summary_not_urban  = df.query("sos_name_2016 not in ['Major Urban','Other Urban'
 summary_not_urban ['locale'] = locale
 summary_not_urban ['summary_date'] = datetime.datetime.now().isoformat()
 summary_not_urban ['subset'] = 'Not urban'
-summary_not_urban = summary_not_urban[new_order]
+summary_not_urban = summary_not_urban[[x for x in new_order if x in summary_not_urban]]
 
 full_summary = summary_urban.append(summary_not_urban)
 full_summary.columns = [x.replace('%','_pct') for x in full_summary.columns]

@@ -308,6 +308,90 @@ for area in ['SA1', 'SA2','Suburb', 'LGA']:
   diversity.to_sql('abs_housing_diversity_{abbrev}'.format(abbrev=abbrev),engine,if_exists='replace',schema='ind_{}'.format(abbrev))
   print("Done.")
 
+print("Creating ABS IRSD 2011 and 2016 indicators at SA1 and SA2 levels")
+
+# Compile a list of dataframes to support look ups across years
+df = {}
+# retrieve area linkage table 
+area_linkage_fields = {'sa1':['sa1_maincode_2016','sa1_7digitcode_2016'], 'sa2':['sa2_name_2016']}
+# read in ABS 2011 to 2016 correspondence tables for SA1 and SA2
+irsd_tables = {'sa1':{'linkage':['sa1_maincode_2016','sa1_7digitcode_2016'],
+                      'correspondence':{'data':'../data/ABS/downloads/cg_sa1_2011_sa1_2016.xls',
+                                        'sheet_name':'Table 3','skiprows':[0,1,2,3,4,5,6],
+                                        'skipfooter':3,
+                                        'cols':[1,2,3],
+                                        'fields':['sa1_7digitcode_2011','sa1_maincode_2016','sa1_7digitcode_2016'],
+                                        'idx':'sa1_maincode_2016'},
+                      'irsd':{'2011':{'data':'../data/ABS/downloads/irsd/2011/2033.0.55.001 sa1 indexes.xls',
+                                      'sheet_name':'Table 2',
+                                      'skiprows':[0,1,2,3,4,5],
+                                      'skipfooter':3,
+                                      'cols':[0,2,4,5,6],
+                                      'idx':'sa1_7digitcode_2011'},
+                              '2016':{'data':'../data/ABS/downloads/irsd/2016/2033055001 - sa1 indexes.xls' ,'sheet_name':'Table 2','skiprows':[0,1,2,3,4,5],'skipfooter':2,'cols':[0,3,5,6,7],'idx':'sa1_7digitcode_2016'}}},
+               'sa2':{'linkage':['sa2_name_2016'],
+                      'correspondence':{'data':'../data/ABS/downloads/cg_sa2_2011_sa2_2016.xls',
+                                        'sheet_name':'Table 3',
+                                        'skiprows':[0,1,2,3,4,5,6],
+                                        'skipfooter':3,
+                                        'cols':[1,3],
+                                        'fields':['sa2_name_2011','sa2_name_2016'],
+                                        'idx':'sa2_name_2016'},
+                   'irsd':{'2011':{'data':'../data/ABS/downloads/irsd/2011/2033.0.55.001 SA2 Indexes.xls',
+                                   'sheet_name':'Table 2',
+                                   'skiprows':[0,1,2,3,4,5],
+                                   'skipfooter':3,
+                                   'cols':[1,3,5,6,7],
+                                   'idx':'sa2_name_2011'},
+                           '2016':{'data':'../data/ABS/downloads/irsd/2016/2033055001 - sa2 indexes.xls' ,
+                                   'sheet_name':'Table 2',
+                                   'skiprows':[0,1,2,3,4,5],
+                                   'skipfooter':2,
+                                   'cols':[1,3,5,6,7],
+                                   'idx':'sa2_name_2016'}}}
+}
+
+fields = ['irsd_aust_score','irsd_aust_rank','irsd_aust_decile','irsd_aust_pctile']
+for area in irsd_tables:
+    sql = '''
+    SELECT DISTINCT ON ({}) 
+           {}
+    FROM area_linkage
+    '''.format(irsd_tables[area]['linkage'][0],','.join(irsd_tables[area]['linkage']))
+    # print(sql)
+    area_linkage = pandas.read_sql(sql,engine)
+    print(area)
+    xls = pandas.ExcelFile(irsd_tables[area]['correspondence']['data'])
+    df[area] = pandas.read_excel(xls, 
+                                 irsd_tables[area]['correspondence']['sheet_name'], 
+                                 header=None,
+                                 skiprows=irsd_tables[area]['correspondence']['skiprows'],
+                                 skipfooter=irsd_tables[area]['correspondence']['skipfooter'])[irsd_tables[area]['correspondence']['cols']]   
+    df[area].columns =   [irsd_tables[area]['correspondence']['fields']]
+    df[area][correspondence[area]['idx']] = df[area][irsd_tables[area]['correspondence']['idx']].astype('str')
+    df[area].set_index(irsd_tables[area]['correspondence']['idx'],inplace=True)
+    df[area] = df[area].loc[area_linkage[df[area].index.name]].reset_index()
+    for year in irsd_tables[area]['irsd']:
+        irsd = 'abs_irsd_{year}_{area}'.format(year=year,area=area)
+        xls = pandas.ExcelFile(irsd_tables[area]['irsd'][year]['data'])
+        df[irsd] = pandas.read_excel(xls, 
+                                     irsd_tables[area]['irsd'][year]['sheet_name'], 
+                                     header=None,
+                                     skiprows=irsd_tables[area]['irsd'][year]['skiprows'],
+                                     skipfooter=irsd_tables[area]['irsd'][year]['skipfooter'])[irsd_tables[area]['irsd'][year]['cols']]   
+        df[irsd].columns = [irsd_tables[area]['irsd'][year]['idx']]+['{}_{}_{}'.format(year,area,x) for x in fields]
+        df[irsd].set_index(irsd_tables[area]['irsd'][year]['idx'],inplace=True)
+        df[irsd] = df[irsd].loc[df[area][irsd_tables[area]['irsd'][year]['idx']]]
+        df[irsd] = df[irsd].join(df[area].set_index(irsd_tables[area]['irsd'][year]['idx'])).dropna().drop_duplicates()
+        df[irsd] = df[irsd].reset_index().set_index(irsd_tables[area]['linkage'][0])
+        # make integer if possible
+        for c in df[irsd].columns:
+            try:
+                df[irsd][c] = df[irsd][c].astype(int)
+            except:
+                continue
+        df[irsd].to_sql(irsd,engine,schema='ind_{area}'.format(area=area),if_exists='replace')
+
 # output to completion log
 script_running_log(script, task, start)
 conn.close()
