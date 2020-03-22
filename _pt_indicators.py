@@ -144,7 +144,7 @@ LEFT JOIN
 (SELECT {points_id},
         (obj->>'fid')::int AS fid,
         (obj->>'distance')::int AS distance,
-        headway,
+        CASE headway WHEN 0 THEN 0.5 ELSE headway END AS headway,
         mode
   FROM od_pt_800m_cl,
        jsonb_array_elements(attributes) obj
