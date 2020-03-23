@@ -101,7 +101,6 @@ SELECT p.blockid               ,
        a.ucl_name_2016         ,
        a.sos_name_2016         ,
        a.urban                 ,
-       a.irsd_score            ,
        ST_Area(f.geom)*0.0001 area_ha
        ST_Union(f.geom)
 FROM parcel_indicators p
