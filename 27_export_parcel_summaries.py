@@ -44,6 +44,8 @@ if locale!='australia':
                ' -t "od_aos_jsonb" '
                ' -t "edges" '
                ' -t "nodes" '
+               ' -t "ind_pt_2019_distance_800m_cl" '
+               ' -t "ind_pt_2019_headway_800m" '
                '{db} > {out_file}'
                ).format(db = db,db_user = db_user,out_file=out_file)  
     sp.call(command, shell=True,cwd=out_dir)   
@@ -63,6 +65,8 @@ if locale=='albury_wodonga':
                ' -t "od_aos_jsonb" '
                ' -t "edges" '
                ' -t "nodes" '
+               ' -t "ind_pt_2019_distance_800m_cl" '
+               ' -t "ind_pt_2019_headway_800m" '
                '{db} > {schema}'
                ).format(db = db,db_user = db_user,schema=schema)    
     sp.call(command, shell=True,cwd=out_dir)   
@@ -86,6 +90,8 @@ if locale=='australia':
     DROP TABLE IF EXISTS "od_aos_jsonb" ;
     DROP TABLE IF EXISTS "edges" ;
     DROP TABLE IF EXISTS "nodes" ;
+    DROP TABLE IF EXISTS "ind_pt_2019_distance_800m_cl" ;
+    DROP TABLE IF EXISTS "ind_pt_2019_headway_800m" ;
     '''
     curs.execute(sql)
     conn.commit()
