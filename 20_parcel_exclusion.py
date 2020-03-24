@@ -193,7 +193,7 @@ print("(check table 'network_islands' to see if any large non-main network islan
 
 # summary = pandas.read_sql_query('''
 # --Summarise length in descending order 
-# SELECT ROUND(length::numeric,0)::int AS length_metres from network_islands ORDER BY length DESC;  
+# SELECT ROUND(length::numeric,0)::int AS length_metres from validation.network_islands ORDER BY length DESC;  
 # ''',con=engine) 
 # print(summary)
 

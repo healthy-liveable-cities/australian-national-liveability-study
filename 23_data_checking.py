@@ -100,7 +100,7 @@ summary_not_urban  = df.query("sos_name_2016 not in ['Major Urban','Other Urban'
 summary_not_urban ['locale'] = locale
 summary_not_urban ['summary_date'] = datetime.datetime.now().isoformat()
 summary_not_urban ['subset'] = 'Not urban'
-summary_not_urban = summary_not_urban[[x for x in new_order if x in summary_not_urban]]
+summary_not_urban = summary_not_urban[[x for x in new_order if x in summary_not_urban.columns]]
 
 full_summary = summary_urban.append(summary_not_urban)
 full_summary.columns = [x.replace('%','_pct') for x in full_summary.columns]
