@@ -19,7 +19,7 @@ script = os.path.basename(sys.argv[0])
 task = 'Export liveability indicator region estimates'
 
 date = datetime.today().strftime('%Y%m%d')
-date = '20200212'
+# date = '20200212'
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()  
 
@@ -33,16 +33,19 @@ if locale!='australia':
     out_dir = 'D:/ntnl_li_2018_template/data/study_region/_exports'
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
-    out_file = 'li_{}_{}_{}_Fc.sql'.format(locale,year,date)
+    out_file = 'li_inds_{}_{}_{}_Fc.sql'.format(locale,year,date)
     print("Creating sql dump to: {}".format(os.path.join(out_dir,out_file))),
     command = (
                'pg_dump -U {db_user} -h localhost -Fc  '
-               '-t "li_inds_lga_dwelling" -t "li_inds_lga_person" -t "li_inds_mb_dwelling" '
-               '-t "li_inds_mb_person" -t "li_inds_region_dwelling" -t "li_inds_region_person" '
-               '-t "li_inds_sa1_dwelling" -t "li_inds_sa1_person" -t "li_inds_sa2_dwelling" '
-               '-t "li_inds_sa2_person" -t "li_inds_sa3_dwelling" -t "li_inds_sa3_person" '
-               '-t "li_inds_sa4_dwelling" -t "li_inds_sa4_person" -t "li_inds_sos_dwelling" '
-               '-t "li_inds_sos_person" -t "li_inds_ssc_dwelling" -t "li_inds_ssc_person" '
+               '-t "li_inds_lga_dwelling"     -t "li_inds_lga_person"    -t "li_inds_lga_policy"    '
+               '-t "li_inds_mb_dwelling"      -t "li_inds_mb_person"     -t "li_inds_mb_policy"     '
+               '-t "li_inds_region_dwelling"  -t "li_inds_region_person" -t "li_inds_region_policy" '
+               '-t "li_inds_sa1_dwelling"     -t "li_inds_sa1_person"    -t "li_inds_sa1_policy"    '
+               '-t "li_inds_sa2_dwelling"     -t "li_inds_sa2_person"    -t "li_inds_sa2_policy"    '
+               '-t "li_inds_sa3_dwelling"     -t "li_inds_sa3_person"    -t "li_inds_sa3_policy"    '
+               '-t "li_inds_sa4_dwelling"     -t "li_inds_sa4_person"    -t "li_inds_sa4_policy"    '
+               '-t "li_inds_sos_dwelling"     -t "li_inds_sos_person"    -t "li_inds_sos_policy"    '
+               '-t "li_inds_ssc_dwelling"     -t "li_inds_ssc_person"    -t "li_inds_ssc_policy"    '
                '{db} > {out_file}'
                ).format(db = db,db_user = db_user,out_file=out_file)  
     sp.call(command, shell=True,cwd=out_dir)   
@@ -50,16 +53,19 @@ if locale!='australia':
 
 # Create table schema definition using Albury Wodonga:
 if locale=='albury_wodonga':
-    schema = 'li_inds_schema_{}_{}_{}.sql'.format(locale,year,date)
+    schema = 'li_inds_schema_{}.sql'.format(date)
     print("Creating sql dump to: {}".format(os.path.join(out_dir,schema))),
     command = (
                'pg_dump -U {db_user} -h localhost --schema-only '
-               '-t "li_inds_lga_dwelling" -t "li_inds_lga_person" -t "li_inds_mb_dwelling" '
-               '-t "li_inds_mb_person" -t "li_inds_region_dwelling" -t "li_inds_region_person" '
-               '-t "li_inds_sa1_dwelling" -t "li_inds_sa1_person" -t "li_inds_sa2_dwelling" '
-               '-t "li_inds_sa2_person" -t "li_inds_sa3_dwelling" -t "li_inds_sa3_person" '
-               '-t "li_inds_sa4_dwelling" -t "li_inds_sa4_person" -t "li_inds_sos_dwelling" '
-               '-t "li_inds_sos_person" -t "li_inds_ssc_dwelling" -t "li_inds_ssc_person" '
+               '-t "li_inds_lga_dwelling"     -t "li_inds_lga_person"    -t "li_inds_lga_policy"    '
+               '-t "li_inds_mb_dwelling"      -t "li_inds_mb_person"     -t "li_inds_mb_policy"     '
+               '-t "li_inds_region_dwelling"  -t "li_inds_region_person" -t "li_inds_region_policy" '
+               '-t "li_inds_sa1_dwelling"     -t "li_inds_sa1_person"    -t "li_inds_sa1_policy"    '
+               '-t "li_inds_sa2_dwelling"     -t "li_inds_sa2_person"    -t "li_inds_sa2_policy"    '
+               '-t "li_inds_sa3_dwelling"     -t "li_inds_sa3_person"    -t "li_inds_sa3_policy"    '
+               '-t "li_inds_sa4_dwelling"     -t "li_inds_sa4_person"    -t "li_inds_sa4_policy"    '
+               '-t "li_inds_sos_dwelling"     -t "li_inds_sos_person"    -t "li_inds_sos_policy"    '
+               '-t "li_inds_ssc_dwelling"     -t "li_inds_ssc_person"    -t "li_inds_ssc_policy"    '
                '{db} > {schema}'
                ).format(db = db,db_user = db_user,schema=schema)    
     sp.call(command, shell=True,cwd=out_dir)   
@@ -93,6 +99,15 @@ if locale=='australia':
     DROP TABLE IF EXISTS li_inds_sos_person      ;
     DROP TABLE IF EXISTS li_inds_ssc_dwelling    ;
     DROP TABLE IF EXISTS li_inds_ssc_person      ;
+    DROP TABLE IF EXISTS li_inds_lga_policy      ;
+    DROP TABLE IF EXISTS li_inds_mb_policy       ;
+    DROP TABLE IF EXISTS li_inds_region_policy   ;
+    DROP TABLE IF EXISTS li_inds_sa1_policy      ;
+    DROP TABLE IF EXISTS li_inds_sa2_policy      ;
+    DROP TABLE IF EXISTS li_inds_sa3_policy      ;
+    DROP TABLE IF EXISTS li_inds_sa4_policy      ;
+    DROP TABLE IF EXISTS li_inds_sos_policy      ;
+    DROP TABLE IF EXISTS li_inds_ssc_policy      ;
     '''
     curs.execute(sql)
     conn.commit()
@@ -110,7 +125,7 @@ if locale=='australia':
     print("Looping over study regions and importing data if available and not previously processed...")
     locale_field_length = 7 + len(max(study_regions,key=len))
     for locale in sorted(study_regions, key=str.lower):
-      sql = 'li_{}_{}_{}_Fc.sql'.format(locale,year,date)
+      sql = 'li_inds_{}_{}_{}_Fc.sql'.format(locale,year,date)
       if locale in processed_locales:
         print((" - {:"+str(locale_field_length)+"}: previously processed").format(locale))
       elif os.path.isfile(os.path.join(exports_dir,sql)):
@@ -120,7 +135,6 @@ if locale=='australia':
         print("Done!")
       else:
         print((" - {:"+str(locale_field_length)+"}: data apparently not available ").format(locale))
-
 
 print("All done!")
 # output to completion log    

@@ -53,7 +53,7 @@ if locale!='australia':
 
 # Create table schema definition using Albury Wodonga:
 if locale=='albury_wodonga':
-    schema = 'li_inds_schema_{}_{}_{}.sql'.format(locale,year,date)
+    schema = 'li_parcel_schema_{}.sql'.format(date)
     print("Creating sql dump to: {}".format(os.path.join(out_dir,schema))),
     command = (
                'pg_dump -U {db_user} -h localhost --schema-only '
@@ -73,7 +73,7 @@ if locale=='albury_wodonga':
     print("Done.")
 
 if locale=='australia':
-    schema = 'li_inds_schema_{}.sql'.format(date)
+    schema = 'li_parcel_schema_{}.sql'.format(date)
     # Connect to postgresql database     
     db = 'li_australia_2018'
     year = 2018
@@ -109,7 +109,7 @@ if locale=='australia':
     print("Looping over study regions and importing data if available and not previously processed...")
     locale_field_length = 7 + len(max(study_regions,key=len))
     for locale in sorted(study_regions, key=str.lower):
-      sql = 'li_{}_{}_{}_Fc.sql'.format(locale,year,date)
+      sql = 'li_parcel_{}_{}_{}_Fc.sql'.format(locale,year,date)
       if locale in processed_locales:
         print((" - {:"+str(locale_field_length)+"}: previously processed").format(locale))
       elif os.path.isfile(os.path.join(exports_dir,sql)):
