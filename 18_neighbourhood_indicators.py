@@ -66,85 +66,6 @@ for area in analysis_regions:
   engine.execute(query)
   print("Done.")
 
-print('Creating or replacing threshold functions ... '),
-create_threshold_functions = '''
--- Function for returning counts of values in an array less than a threshold distance
--- e.g. an array of distances in m to destinations, evaluated against a threshold of 800m
--- SELECT gnaf_pid, count_in_threshold(distances,1600) FROM sport_3200m;
--- is equivalent to 
--- SELECT gnaf_pid, count(distances) 
---   FROM (SELECT gnaf_pid,unnest(array_agg) distances FROM sport_3200m) t 
--- WHERE distance < 1600 GROUP BY gnaf_pid;
-CREATE OR REPLACE FUNCTION count_in_threshold(distances int[],threshold int) returns bigint as $$
-    SELECT COUNT(*) 
-    FROM unnest(distances) dt(b)
-    WHERE b < threshold
-$$ language sql;
-
--- return minimum value of an integer array (specifically here, used for distance to closest within 3200m)
-CREATE OR REPLACE FUNCTION array_min(integers int[]) returns int as $$
-    SELECT min(integers) 
-    FROM unnest(integers) integers
-$$ language sql;
-
--- append value to array if > some threshold (default, 3200)
-CREATE OR REPLACE FUNCTION array_append_if_gr(distances int[],distance int,threshold int default 3200) returns int[] as $$
-BEGIN
--- function to append an integer to an array of integers if it is larger than some given threshold 
--- (ie. add in distance to closest to 3200m distances array if the distance to closest value is > 3200m
--- Example applied usage:
--- SELECT gnaf_pid, 
-        -- array_append_if_gr(dests.alcohol_offlicence,cl.alcohol_offlicence) AS array,
-        -- cl.alcohol_offlicence AS distance
--- FROM dest_distances_3200m dests 
--- LEFT JOIN dest_distance_m cl
--- USING (gnaf_pid) 
--- WHERE cl.alcohol_offlicence > 3200;
-IF ((distance <= threshold) OR (distance IS NULL)) 
-    THEN RETURN distances;
-ELSE 
-    RETURN array_append(distances,distance);
-END IF;
-END;
-$$
-LANGUAGE plpgsql;  
-
--- a binary threshold indicator  (e.g. of access given distance and threshold)
-CREATE OR REPLACE FUNCTION threshold_hard(distance int, threshold int, out int) 
-    RETURNS NULL ON NULL INPUT
-    AS $$ SELECT (distance < threshold)::int $$
-    LANGUAGE SQL;
-
--- a soft threshold indicator (e.g. of access given distance and threshold)
-CREATE OR REPLACE FUNCTION threshold_soft(distance int, threshold int) returns float AS 
-$$
-BEGIN
-  -- We check to see if the value we are exponentiation is more or less than 100; if so,
-  -- if so the result will be more or less either 1 or 0, respectively. 
-  -- If the value we are exponentiating is much > abs(700) then we risk overflow/underflow error
-  -- due to the value exceeding the numerical limits of postgresql
-  -- If the value we are exponentiating is based on a positive distance, then we know it is invalid!
-  -- For reference, a 10km distance with 400m threshold yields a check value of -120, 
-  -- the exponent of which is 1.30418087839363e+052 and 1 - 1/(1+exp(-120)) is basically 1 - 1 = 0
-  -- Using a check value of -100, the point at which zero is returned with a threshold of 400 
-  -- is for distance of 3339km
-  IF (distance < 0) 
-      THEN RETURN NULL;
-  ELSIF (-5*(distance-threshold)/(threshold::float) < -100) 
-    THEN RETURN 0;
-  ELSE 
-    RETURN 1 - 1/(1+exp(-5*(distance-threshold)/(threshold::float)));
-  END IF;
-END;
-$$
-LANGUAGE plpgsql
-RETURNS NULL ON NULL INPUT;  
-  '''
-curs.execute(create_threshold_functions)
-conn.commit()
-print('Done.')
-
-
 # Get a list of all potential destinations for distance to closest 
 # (some may not be present in region, will be null, so we can refer to them in later queries)
 # destination names
@@ -158,7 +79,7 @@ array_category_types = '"{}" int[]'.format('" int[], "'.join(categories))
 print("Create nh_inds_distance (curated distance to closest table for re-use by other indicators)... "),
 table = 'nh_inds_distance'
 sql = '''
--- DROP TABLE IF EXISTS {schema}.{table};
+DROP TABLE IF EXISTS {schema}.{table};
 CREATE TABLE IF NOT EXISTS {schema}.{table} AS
 SELECT 
        p.{points_id},
@@ -193,7 +114,7 @@ SELECT
        LEAST(array_min("p_12_schools_gov_2018".distances), 
              array_min(secondary_schools_gov_2018.distances)) AS schools_secondary_all_gov,
        ind_pt_d_800m_cl_headway_day_2019_oct8_dec5_0700_1900.pt_any AS gtfs_20191008_20191205_pt_any,
-       ind_pt_d_800m_cl_headway_day_2019_oct8_dec5_0700_1900.pt_h25min AS gtfs_20191008_20191205_pt_0025
+       ind_pt_d_800m_cl_headway_day_2019_oct8_dec5_0700_1900.pt_h20min AS gtfs_20191008_20191205_pt_0020
 FROM {sample_point_feature} p
 LEFT JOIN d_3200m_cl."p_12_schools_gov_2018"   ON p.{points_id}    = d_3200m_cl."p_12_schools_gov_2018".{points_id}
 LEFT JOIN d_3200m_cl.primary_schools_gov_2018  ON p.{points_id}    = d_3200m_cl.primary_schools_gov_2018.{points_id}
@@ -249,7 +170,7 @@ for threshold_type in ['hard','soft']:
         threshold_{threshold_type}(food_dining_osm_2018,{nh_threshold}) AS food_dining_osm_2018,
         threshold_{threshold_type}(culture_osm_2018,{nh_threshold}) AS culture_osm_2018,
         threshold_{threshold_type}(gtfs_20191008_20191205_pt_any    ,{nh_threshold}) AS gtfs_20191008_20191205_pt_any,
-        threshold_{threshold_type}(gtfs_20191008_20191205_pt_0025    ,{nh_threshold}) AS gtfs_20191008_20191205_pt_0025
+        threshold_{threshold_type}(gtfs_20191008_20191205_pt_0020    ,{nh_threshold}) AS gtfs_20191008_20191205_pt_0020
         FROM {schema}.nh_inds_distance ;
         CREATE UNIQUE INDEX IF NOT EXISTS nh_inds_{threshold_type}_{nh_threshold}m_idx ON  {schema}.nh_inds_{threshold_type}_{nh_threshold}m ({points_id}); 
         '''.format(points_id = points_id,schema = schema, threshold_type = threshold_type, nh_threshold = nh_threshold)
@@ -414,6 +335,7 @@ table = ['ind_os_distances_3200m','os']
 print(" - {schema}.{table}".format(table = table[0],schema=schema)),
 
 sql = '''
+DROP TABLE IF EXISTS {schema}.{table};
 CREATE TABLE IF NOT EXISTS {schema}.{table} AS SELECT {points_id} FROM {sample_point_feature};
 '''.format(table = table[0], sample_point_feature=sample_point_feature,schema=schema,points_id = points_id)
 engine.execute(sql)
@@ -605,7 +527,7 @@ sp.call(command, shell=True)
 
 print("Create Open space areas - ACARA / NAPLAN linkage table for school queries... "),
 sql = '''
---DROP TABLE IF EXISTS schools.aos_acara_naplan;
+DROP TABLE IF EXISTS schools.aos_acara_naplan;
 CREATE TABLE IF NOT EXISTS schools.aos_acara_naplan AS 
 SELECT  DISTINCT ON (aos_id,acara_school_id)
        aos_id,  
@@ -700,6 +622,7 @@ print("Done.")
 for nh_distance in [800,1600]:
     print(" Get NAPLAN average of all schools within {}m of address... ".format(nh_distance)),
     sql = '''
+    DROP TABLE IF EXISTS {schema}.ind_school_naplan_avg_{nh_distance}m;
     CREATE TABLE IF NOT EXISTS {schema}.ind_school_naplan_avg_{nh_distance}m AS
     SELECT p.{points_id},  
         COUNT(acara_school_id) AS school_count_{nh_distance}m, 
@@ -734,6 +657,7 @@ for nh_distance in [800,1600]:
 
 print(" Get average NAPLAN score across grades and categories for closest school within 3200m of address... "),
 sql = '''
+DROP TABLE IF EXISTS {schema}.ind_school_naplan_cl_3200m;
 CREATE TABLE IF NOT EXISTS {schema}.ind_school_naplan_cl_3200m AS
 SELECT p.{points_id},  
        max(naplan."sum"/nullif(naplan.non_null_count::float,0)) AS closest_school_naplan_average,

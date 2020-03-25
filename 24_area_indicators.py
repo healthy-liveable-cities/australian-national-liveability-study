@@ -116,8 +116,8 @@ SELECT f.blockid               ,
        {indicators}             ,
        ST_Union(f.geom) geom
 FROM boundaries.footprints f 
-LEFT JOIN ind_point.parcel_indicators p USING (buildlingno)
-LEFT JOIN ind_point.dest_closest_indicators USING({points_id})
+LEFT JOIN ind_point.parcel_indicators p ON f.{polygon_id} = p.{polygon_id}
+LEFT JOIN ind_point.dest_closest_indicators d ON p.{points_id} = d.{points_id}
 WHERE p.exclude IS NULL
 GROUP BY  f.blockid          ,  
           f.blockname        ,  
@@ -139,9 +139,10 @@ GROUP BY  f.blockid          ,
        p.irsd_score               
 ORDER BY f.blockid, f.wave    
 ;
-CREATE UNIQUE INDEX IF NOT EXISTS area_indicators_block_idx ON  area_indicators_block (blockid);
+CREATE INDEX IF NOT EXISTS area_indicators_block_idx ON  area_indicators_block (blockid);
 CREATE INDEX IF NOT EXISTS area_indicators_block_gix ON area_indicators_block USING GIST (geom);
 '''.format(points_id = points_id,
+           polygon_id = polygon_id,
            indicators = indicator_summary_sql(indicator_tuples))
 # print(sql)
 curs.execute(sql)

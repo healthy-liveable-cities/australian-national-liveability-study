@@ -140,9 +140,9 @@ print(" Done.")
 # Read in indicator description matrix
 ind_matrix = df_inds
 uli = {}
-for ind in ['dwelling_density','street_connectivity','walkability','pt_freq_400m','pos_large_400m','supermarket_1km']:
+for ind in ['dwelling_density','street_connectivity','walkability','pt_regular_400m','pos_large_400m','supermarket_1km']:
   suffix = ''
-  if ind in ['walkability','pt_freq_400m','pos_large_400m','supermarket_1km']:
+  if ind in ['walkability','pt_regular_400m','pos_large_400m','supermarket_1km']:
     suffix = '_soft'
   uli[ind] = '{}{}'.format(ind_matrix.loc[ind_matrix['ind_plain']==ind,'ind'].values[0].encode('utf8'),suffix)
 
@@ -214,7 +214,7 @@ SELECT p.{points_id},
    (COALESCE(threshold_soft(array_min("convenience_osm".distances), 1000),0) +
     COALESCE(threshold_soft(array_min("newsagent_osm".distances), 3200),0) +
     COALESCE(threshold_soft(array_min("petrolstation_osm".distances), 1000),0))/3.0 AS convenience,         
-    COALESCE(threshold_soft(nh_inds_distance.gtfs_20191008_20191205_pt_0025,400),0) AS pt_regular_400m,
+    COALESCE(threshold_soft(nh_inds_distance.gtfs_20191008_20191205_pt_0020,400),0) AS pt_regular_400m,
     COALESCE(threshold_soft(ind_os_distance.pos_15k_sqm_distance_m,400),0) AS pos_large_400m,
     -- we coalesce 30:40 measures to 0, as nulls mean no one is in bottom two housing quintiles - really 0/0 implies 0% in this context
     -- noting that null is not acceptable.  This should be discussed, but is workable for now.
