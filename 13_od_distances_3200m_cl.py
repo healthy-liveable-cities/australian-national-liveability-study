@@ -288,7 +288,7 @@ def ODMatrixWorkerFunction(polygon):
                         FROM {sample_point_feature} p 
                         LEFT JOIN {result_table} r ON p.{points_id} = r.{points_id}
                         WHERE {polygon_id} = {polygon}
-                          AND r.{points_id} IS NULL;
+                          AND r.{points_id} IS NULL OR r.{points_id} = '{}';
                      '''.format(result_table = result_table,
                                 sample_point_feature = sample_point_feature,
                                 polygon_id = polygon_id, 
@@ -320,25 +320,25 @@ def ODMatrixWorkerFunction(polygon):
                                   n = len(remaining_points))
                 print(alert)
                 place = 'OD results processed, but no results recorded'
-                sql = '''
-                 INSERT INTO {result_table} ({points_id},distances)  
-                 SELECT p.{points_id},
-                        '{curlyo}{curlyc}'::int[]
-                   FROM {sample_point_feature} p
-                   LEFT JOIN {result_table} r ON p.{points_id} = r.{points_id}
-                  WHERE {polygon_id} = {polygon}
-                    AND r.{points_id} IS NULL
-                     ON CONFLICT DO NOTHING;
-                 '''.format(result_table = result_table,
-                            sample_point_feature = sample_point_feature,
-                            points_id = points_id,
-                            polygon_id = polygon_id,   
-                            curlyo = '{',
-                            curlyc = '}',                     
-                            polygon = polygon)
-                  # print(null_dest_insert)                           
-                curs.execute(sql)
-                conn.commit()
+                # sql = '''
+                 # INSERT INTO {result_table} ({points_id},distances)  
+                 # SELECT p.{points_id},
+                        # '{curlyo}{curlyc}'::int[]
+                   # FROM {sample_point_feature} p
+                   # LEFT JOIN {result_table} r ON p.{points_id} = r.{points_id}
+                  # WHERE {polygon_id} = {polygon}
+                    # AND r.{points_id} IS NULL
+                     # ON CONFLICT DO NOTHING;
+                 # '''.format(result_table = result_table,
+                            # sample_point_feature = sample_point_feature,
+                            # points_id = points_id,
+                            # polygon_id = polygon_id,   
+                            # curlyo = '{',
+                            # curlyc = '}',                     
+                            # polygon = polygon)
+                  # # print(null_dest_insert)                           
+                # curs.execute(sql)
+                # conn.commit()
             else:
                 place = 'OD results processed; results to be recorded'
                 outputLines = arcpy.da.SearchCursor(cl_ODLinesSubLayer, fields)
@@ -398,7 +398,11 @@ if __name__ == '__main__':
                     points_id_type=points_id_type)
       curs.execute(sql)
       conn.commit()
-      
+      sql = '''
+        DELETE FROM {result_table} WHERE distances='{}';
+        '''
+      curs.execute(sql)
+      conn.commit()
   print("\nDone.")
   
   print("\nPreviously processed destinations:")

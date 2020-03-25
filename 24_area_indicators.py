@@ -136,7 +136,8 @@ GROUP BY  f.blockid          ,
           p.ucl_name_2016    ,  
           p.sos_name_2016    ,  
           p.urban            ,
-       p.irsd_score                 
+       p.irsd_score               
+ORDER BY f.blockid, f.wave    
 ;
 CREATE UNIQUE INDEX IF NOT EXISTS area_indicators_block_idx ON  area_indicators_block (blockid);
 CREATE INDEX IF NOT EXISTS area_indicators_block_gix ON area_indicators_block USING GIST (geom);

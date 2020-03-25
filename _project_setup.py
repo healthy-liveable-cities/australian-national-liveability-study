@@ -258,7 +258,7 @@ def indicator_summary_sql(indicator_tuples):
     if not hasattr(indicator_tuples,"__iter__"):
         raise ValueError("The provided data is not in the expected form; ie. a tuple of ['indicator','scale','description']")
     summary_queries = []
-    for ind in indicator_tuples:
+    for ind in [i for i in indicator_tuples if i[1] !='NULL']:
         sql = '''
         {scale}*AVG("{ind}") AS "{ind}"
         '''.format(ind = ind[0],scale = ind[1])
