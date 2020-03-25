@@ -264,7 +264,7 @@ def od_destination_process(polygon_dest_tuple):
             origin_subset = arcpy.SelectLayerByAttribute_management("sample_point_feature_layer", 
                                                                     where_clause = sql)     
             add_locations(cl_outNALayer,cl_originsLayerName,origin_subset,points_id)       
-            arcpy.SelectLayerByAttribute_management(destination, "CLEAR_SELECTION")
+            arcpy.SelectLayerByAttribute_management(destination, "NEW_SELECTION")
             add_locations(cl_outNALayer,cl_destinationsLayerName,destination,dest_id)
             # Process: Solve
             result = arcpy.Solve_na(cl_outNALayer, terminate_on_solve_error = "CONTINUE")
@@ -333,11 +333,13 @@ if __name__ == '__main__':
           ({points_id} {points_id_type} NOT NULL ,
            attributes jsonb
            );
+          DELETE FROM {schema}.{result_table} WHERE attributes='{curly_braces}';
            '''.format(result_table=result_table,
                       schema=schema,
                       points_id=points_id,
                       points_id_type=points_id_type,
-                      dest_id = dest_id)
+                      dest_id = dest_id,
+                      curly_braces = '{}')
         engine.execute(sql)      
         print("\nDone.")
     else: 

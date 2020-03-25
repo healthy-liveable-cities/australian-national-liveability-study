@@ -288,7 +288,7 @@ def ODMatrixWorkerFunction(polygon):
                         FROM {sample_point_feature} p 
                         LEFT JOIN {result_table} r ON p.{points_id} = r.{points_id}
                         WHERE {polygon_id} = {polygon}
-                          AND r.{points_id} IS NULL OR r.{points_id} = '{}';
+                          AND r.{points_id} IS NULL;
                      '''.format(result_table = result_table,
                                 sample_point_feature = sample_point_feature,
                                 polygon_id = polygon_id, 
@@ -308,8 +308,9 @@ def ODMatrixWorkerFunction(polygon):
                          points = points)
             origin_subset = arcpy.SelectLayerByAttribute_management("sample_point_feature_layer", 
                                                                     where_clause = sql)     
+            destination_selection = arcpy.SelectLayerByAttribute_management("destination_points_layer", "NEW_SELECTION")                                                                        
             add_locations(cl_outNALayer,cl_originsLayerName,origin_subset,points_id)
-            add_locations(cl_outNALayer,cl_destinationsLayerName,"destination_points_layer",destination_id)
+            add_locations(cl_outNALayer,cl_destinationsLayerName,destination_selection,destination_id)
             # Process: Solve
             result = arcpy.Solve_na(cl_outNALayer, terminate_on_solve_error = "CONTINUE")
             if result[1] == u'false':
@@ -320,25 +321,25 @@ def ODMatrixWorkerFunction(polygon):
                                   n = len(remaining_points))
                 print(alert)
                 place = 'OD results processed, but no results recorded'
-                # sql = '''
-                 # INSERT INTO {result_table} ({points_id},distances)  
-                 # SELECT p.{points_id},
-                        # '{curlyo}{curlyc}'::int[]
-                   # FROM {sample_point_feature} p
-                   # LEFT JOIN {result_table} r ON p.{points_id} = r.{points_id}
-                  # WHERE {polygon_id} = {polygon}
-                    # AND r.{points_id} IS NULL
-                     # ON CONFLICT DO NOTHING;
-                 # '''.format(result_table = result_table,
-                            # sample_point_feature = sample_point_feature,
-                            # points_id = points_id,
-                            # polygon_id = polygon_id,   
-                            # curlyo = '{',
-                            # curlyc = '}',                     
-                            # polygon = polygon)
-                  # # print(null_dest_insert)                           
-                # curs.execute(sql)
-                # conn.commit()
+                sql = '''
+                 INSERT INTO {result_table} ({points_id},distances)  
+                 SELECT p.{points_id},
+                        '{curlyo}{curlyc}'::int[]
+                   FROM {sample_point_feature} p
+                   LEFT JOIN {result_table} r ON p.{points_id} = r.{points_id}
+                  WHERE {polygon_id} = {polygon}
+                    AND r.{points_id} IS NULL
+                     ON CONFLICT DO NOTHING;
+                 '''.format(result_table = result_table,
+                            sample_point_feature = sample_point_feature,
+                            points_id = points_id,
+                            polygon_id = polygon_id,   
+                            curlyo = '{',
+                            curlyc = '}',                     
+                            polygon = polygon)
+                  # print(null_dest_insert)                           
+                curs.execute(sql)
+                conn.commit()
             else:
                 place = 'OD results processed; results to be recorded'
                 outputLines = arcpy.da.SearchCursor(cl_ODLinesSubLayer, fields)
@@ -393,16 +394,14 @@ if __name__ == '__main__':
         ({points_id} {points_id_type} NOT NULL ,
          distances int[] NOT NULL
          );
+        DELETE FROM {result_table} WHERE distances='{curly_braces}';
          '''.format(result_table=result_table,
                     points_id=points_id,
-                    points_id_type=points_id_type)
+                    points_id_type=points_id_type,
+                    curly_braces = '{}')
       curs.execute(sql)
       conn.commit()
-      sql = '''
-        DELETE FROM {result_table} WHERE distances='{}';
-        '''
-      curs.execute(sql)
-      conn.commit()
+      
   print("\nDone.")
   
   print("\nPreviously processed destinations:")
