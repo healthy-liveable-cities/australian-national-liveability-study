@@ -73,6 +73,8 @@ if locale=='albury_wodonga':
     print("Done.")
 
 if locale=='australia':
+    if len(sys.argv) >= 3:
+        date = sys.argv[2]
     schema = 'li_parcel_schema_{}.sql'.format(date)
     # Connect to postgresql database     
     db = 'li_australia_2018'
