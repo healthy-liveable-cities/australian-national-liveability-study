@@ -72,27 +72,29 @@ create_parcel_indicators = '''
 DROP TABLE IF EXISTS {schema}.parcel_indicators;
 CREATE TABLE {schema}.parcel_indicators AS
 SELECT
-p.{points_id}              ,
-p.{polygon_id}            ,
-p.blockid                 , -- Highlife specific entry 
-p.buildname              , -- Highlife specific entry 
+p.{points_id}                        ,
+p.{polygon_id}                       ,
+p.buildname                          , -- Highlife specific entry 
+p.blockid                            , -- Highlife specific entry 
+p.blockname                          , -- Highlife specific entry 
+p.wave                               , -- Highlife specific entry 
 '{full_locale}'::text AS study_region,
-'{locale}'::text AS locale      ,
-area.mb_code_2016         ,
-area.mb_category_name_2016,
-area.sa1_maincode_2016    ,
-area.sa2_name_2016        ,
-area.sa3_name_2016        ,
-area.sa4_name_2016        ,
-area.gccsa_name_2016      ,
-area.state_name_2016      ,
-area.ssc_name_2016        ,
-area.lga_name_2016        ,
-area.ucl_name_2016        ,
-area.sos_name_2016        ,
-area.urban                ,
-area.irsd_score           ,
-e.exclude                 ,
+'{locale}'::text AS locale           ,
+area.mb_code_2016                    ,
+area.mb_category_name_2016           ,
+area.sa1_maincode_2016               ,
+area.sa2_name_2016                   ,
+area.sa3_name_2016                   ,
+area.sa4_name_2016                   ,
+area.gccsa_name_2016                 ,
+area.state_name_2016                 ,
+area.ssc_name_2016                   ,
+area.lga_name_2016                   ,
+area.ucl_name_2016                   ,
+area.sos_name_2016                   ,
+area.urban                           ,
+area.irsd_score                      ,
+e.exclude                            ,
 {indicators}            
 p.geom                   
 FROM
@@ -145,32 +147,35 @@ dest_closest_indicators = '''
 DROP TABLE IF EXISTS {schema}.dest_closest_indicators;
 CREATE TABLE {schema}.dest_closest_indicators AS
 SELECT
-p.{points_id}           ,
-p.{polygon_id}                ,
-p.blockid               , -- Highlife specific entry 
-p.buildname              , -- Highlife specific entry 
+p.{points_id}                        ,
+p.{polygon_id}                       ,
+p.buildname                          ,
+p.blockid                            ,  
+p.blockname                          ,
 '{full_locale}'::text AS study_region,
-'{locale}'::text AS locale      ,
-p.mb_code_2016          ,
-p.mb_category_name_2016 ,
-p.sa1_maincode_2016     ,
-p.sa2_name_2016         ,
-p.sa3_name_2016         ,
-p.sa4_name_2016         ,
-p.gccsa_name_2016       ,
-p.state_name_2016       ,
-p.ssc_name_2016         ,
-p.lga_name_2016         ,
-p.ucl_name_2016         ,
-p.sos_name_2016         ,
-p.urban                 ,
-p.irsd_score            ,
-p.exclude               ,
-{destination_closest_inds}                     ,
+'{locale}'::text AS locale           ,
+p.mb_code_2016                       ,
+p.mb_category_name_2016              ,
+p.sa1_maincode_2016                  ,
+p.sa2_name_2016                      ,
+p.sa3_name_2016                      ,
+p.sa4_name_2016                      ,
+p.gccsa_name_2016                    ,
+p.state_name_2016                    ,
+p.ssc_name_2016                      ,
+p.lga_name_2016                      ,
+p.ucl_name_2016                      ,
+p.sos_name_2016                      ,
+p.urban                              ,
+p.irsd_score                         ,
+p.exclude                            ,
+{destination_closest_inds}           ,
 p.geom                   
 FROM
 {schema}.parcel_indicators p                                                                                 
-{destination_from};
+{destination_from}
+ORDER BY p.{points_id}
+;
 CREATE UNIQUE INDEX IF NOT EXISTS ix_dest_closest_indicators ON  {schema}.dest_closest_indicators ({points_id});
 CREATE INDEX IF NOT EXISTS gix_dest_closest_indicators ON {schema}.dest_closest_indicators USING GIST (geom);
 '''.format(points_id = points_id, 

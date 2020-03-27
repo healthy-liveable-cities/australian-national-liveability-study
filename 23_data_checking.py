@@ -87,27 +87,18 @@ LEFT JOIN ind_point.dest_closest_indicators d
 ON p.{points_id} = d.{points_id};
 '''.format(points_id=points_id)
 df = pandas.read_sql_query(sql,con=engine)
-new_cols = ['locale','summary_date','subset']
-summary_urban = df.query("sos_name_2016 in ['Major Urban','Other Urban']").describe(include='all').transpose()
-old_cols = summary_urban.columns
+new_cols = ['locale','summary_date']
+summary_overall = df.describe(include='all').transpose()
+old_cols = summary_overall.columns
 new_order = new_cols+list(old_cols)
-summary_urban['locale'] = locale
-summary_urban['summary_date'] = datetime.datetime.now().isoformat()
-summary_urban['subset'] = 'Urban'
-summary_urban = summary_urban[new_order]
-
-summary_not_urban  = df.query("sos_name_2016 not in ['Major Urban','Other Urban']").describe(include='all').transpose()
-summary_not_urban ['locale'] = locale
-summary_not_urban ['summary_date'] = datetime.datetime.now().isoformat()
-summary_not_urban ['subset'] = 'Not urban'
-summary_not_urban = summary_not_urban[[x for x in new_order if x in summary_not_urban.columns]]
-
-full_summary = summary_urban.append(summary_not_urban)
-full_summary.columns = [x.replace('%','_pct') for x in full_summary.columns]
+summary_overall['locale'] = locale
+summary_overall['summary_date'] = datetime.datetime.now().isoformat()
+summary_overall.columns = [x.replace('%','_pct') for x in summary_overall.columns]
 new_order =  [x.replace('%','_pct') for x in new_order]
-full_summary = full_summary.join(ind_matrix['unit_level_description'], how='left')
-full_summary = full_summary[['unit_level_description']+new_order]
-full_summary.to_sql('ind_summary',engine, if_exists='replace')
+summary_overall = summary_overall.join(ind_matrix['unit_level_description'], how='left')
+summary_overall = summary_overall[['unit_level_description']+new_order]
+summary_overall = summary_overall.sort_index()
+summary_overall.drop_duplicates().to_sql('ind_summary',engine, if_exists='replace')
 
 # output to completion log    
 script_running_log(script, task, start, locale)

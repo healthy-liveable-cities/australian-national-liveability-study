@@ -1,7 +1,5 @@
-# Script:  19_area_indicators.py
 # Purpose: Create area level indicator tables
 # Author:  Carl Higgs 
-# Date:    20 July 2018
 
 import os
 import sys
@@ -90,7 +88,8 @@ ind_list = ind_matrix.index.values
 indicator_tuples =  list(zip(ind_matrix.index,ind_matrix.agg_scale,ind_matrix.aggregate_description))
 
 
-print("Creating area indicator tables... "),
+print("Creating area indicator tables... ")
+print("  - block...")
 sql = '''
 DROP TABLE IF EXISTS area_indicators_block;
 CREATE TABLE area_indicators_block AS
@@ -116,7 +115,7 @@ SELECT f.blockid               ,
        {indicators}             ,
        ST_Union(f.geom) geom
 FROM boundaries.footprints f 
-LEFT JOIN ind_point.parcel_indicators p ON f.{polygon_id} = p.{polygon_id}
+LEFT JOIN ind_point.parcel_indicators p ON f.blockid = p.blockid AND f.wave = p.wave
 LEFT JOIN ind_point.dest_closest_indicators d ON p.{points_id} = d.{points_id}
 WHERE p.exclude IS NULL
 GROUP BY  f.blockid          ,  
@@ -142,12 +141,67 @@ ORDER BY f.blockid, f.wave
 CREATE INDEX IF NOT EXISTS area_indicators_block_idx ON  area_indicators_block (blockid);
 CREATE INDEX IF NOT EXISTS area_indicators_block_gix ON area_indicators_block USING GIST (geom);
 '''.format(points_id = points_id,
-           polygon_id = polygon_id,
            indicators = indicator_summary_sql(indicator_tuples))
 # print(sql)
 curs.execute(sql)
 conn.commit()
-print("Done.")
+
+print("  - building...")
+sql = '''
+DROP TABLE IF EXISTS area_indicators_building;
+CREATE TABLE area_indicators_building AS
+SELECT f.buildlingno          ,
+       f.buildname             ,
+       f.wave                  ,
+       p.study_region          ,
+       p.locale                ,
+       p.mb_code_2016          ,
+       p.sa1_maincode_2016     ,
+       p.sa2_name_2016         ,
+       p.sa3_name_2016         ,
+       p.sa4_name_2016         ,
+       p.gccsa_name_2016       ,
+       p.state_name_2016       ,
+       p.ssc_name_2016         ,
+       p.lga_name_2016         ,
+       p.ucl_name_2016         ,
+       p.sos_name_2016         ,
+       p.urban                 ,
+       p.irsd_score            ,
+       ST_Area(ST_Union(f.geom))*0.0001 area_ha,
+       {indicators}             ,
+       ST_Union(f.geom) geom
+FROM boundaries.footprints f 
+LEFT JOIN ind_point.parcel_indicators p ON f.buildlingno = p.buildlingno AND f.wave = p.wave
+LEFT JOIN ind_point.dest_closest_indicators d ON p.{points_id} = d.{points_id}
+WHERE p.exclude IS NULL
+GROUP BY  f.buildlingno      ,
+          f.buildname        ,
+          f.wave             ,  
+          p.study_region     ,  
+          p.locale           ,  
+          p.mb_code_2016     ,  
+          p.sa1_maincode_2016,  
+          p.sa2_name_2016    ,  
+          p.sa3_name_2016    ,  
+          p.sa4_name_2016    ,  
+          p.gccsa_name_2016  ,  
+          p.state_name_2016  ,  
+          p.ssc_name_2016    ,  
+          p.lga_name_2016    ,  
+          p.ucl_name_2016    ,  
+          p.sos_name_2016    ,  
+          p.urban            ,
+       p.irsd_score               
+ORDER BY f.buildlingno, f.wave    
+;
+CREATE INDEX IF NOT EXISTS area_indicators_block_idx ON  area_indicators_block (blockid);
+CREATE INDEX IF NOT EXISTS area_indicators_block_gix ON area_indicators_block USING GIST (geom);
+'''.format(points_id = points_id,
+           indicators = indicator_summary_sql(indicator_tuples))
+# print(sql)
+curs.execute(sql)
+conn.commit()
 
 # output to completion log    
 script_running_log(script, task, start, locale)
