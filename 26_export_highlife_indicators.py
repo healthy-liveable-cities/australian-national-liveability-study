@@ -8,6 +8,14 @@
 # psql -U postgres -c "CREATE DATABASE highlife_perth_2019;"
 # psql -U postgres -d highlife_perth_2019 -c "CREATE EXTENSION POSTGIS; CREATE EXTENSION hstore; CREATE SCHEMA ind_point; CREATE SCHEMA d_3200m_cl;"
 # pg_restore -U postgres -d highlife_perth_2019 < ../data/highlife_analysis_perth_20200327.sql
+#
+# psql -U postgres -c "CREATE DATABASE highlife_melbourne_2019;"
+# psql -U postgres -d highlife_melbourne_2019 -c "CREATE EXTENSION POSTGIS; CREATE EXTENSION hstore; CREATE SCHEMA ind_point; CREATE SCHEMA d_3200m_cl;"
+# pg_restore -U postgres -d highlife_melbourne_2019 < ../data/highlife_analysis_melbourne_20200327.sql
+#
+# psql -U postgres -c "CREATE DATABASE highlife_sydney_2019;"
+# psql -U postgres -d highlife_sydney_2019 -c "CREATE EXTENSION POSTGIS; CREATE EXTENSION hstore; CREATE SCHEMA ind_point; CREATE SCHEMA d_3200m_cl;"
+# pg_restore -U postgres -d highlife_sydney_2019 < ../data/highlife_analysis_sydney_20200327.sql
 
 import time
 import psycopg2 
