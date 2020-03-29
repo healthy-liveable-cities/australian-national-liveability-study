@@ -169,20 +169,6 @@ if island_reviewed is True:
 network_islands = '''
 --Create a geometry table for network island clusters 
 DROP TABLE IF EXISTS validation.network_islands; 
-CREATE TABLE validation.network_islands AS 
-SELECT ST_Length(geom) AS length,  
-       geom 
-FROM (SELECT ST_SetSRID( 
-           ST_CollectionHomogenize( 
-             unnest(  
-               ST_ClusterIntersecting( 
-                 geom 
-               ) 
-             ) 
-           ), 
-           7845 
-         ) AS geom FROM network.edges) t; 
-         
 '''
 curs.execute(network_islands)
 conn.commit()
