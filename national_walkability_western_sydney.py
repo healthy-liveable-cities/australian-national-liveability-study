@@ -74,4 +74,4 @@ print("Done.")
 summary = pandas.read_sql_query('''SELECT * FROM wa_1600m_ntnl_{subset_location}'''.format(subset_location = subset_location),con=engine)
 print(summary)
 
-# COPY (SELECT *,RANK () OVER (ORDER BY avg_wa_sco_1600m_national_2018_dwelling DESC) AS ntnl_wa_dwelling_rank, RANK () OVER (ORDER BY avg_wa_sco_1600m_national_2018_person DESC) AS ntnl_wa_person_rank FROM wa_1600m_ntnl_region UNION wa_1600m_ntnl_western_sydney) TO 'D:/ntnl_wa_20200401.csv' CSV DELIMITER ',' HEADER;
+# COPY (SELECT *,RANK () OVER (ORDER BY avg_wa_sco_1600m_national_2018_dwelling DESC) AS ntnl_wa_dwelling_rank, RANK () OVER (ORDER BY avg_wa_sco_1600m_national_2018_person DESC) AS ntnl_wa_person_rank FROM (SELECT * FROM wa_1600m_ntnl_region UNION SELECT * FROM wa_1600m_ntnl_western_sydney) t) TO 'D:/ntnl_wa_20200401.csv' CSV DELIMITER ',' HEADER;

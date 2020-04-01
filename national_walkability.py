@@ -113,3 +113,6 @@ for area in analysis_regions + ['study_region']:
 
 # Note: you can check out an individual Mesh Block's contribution to larger area's result using SQL code like:
 # SELECT w.* FROM area_linkage LEFT JOIN wa_1600m_ntnl_mb w USING (mb_code_2016) WHERE sa1_maincode_2016 = '10901117227';
+
+
+# COPY (SELECT *,RANK () OVER (ORDER BY avg_wa_sco_1600m_national_2018_dwelling DESC) AS ntnl_wa_dwelling_rank, RANK () OVER (ORDER BY avg_wa_sco_1600m_national_2018_person DESC) AS ntnl_wa_person_rank FROM wa_1600m_ntnl_region) TO 'D:/ntnl_wa_20200401.csv' CSV DELIMITER ',' HEADER;
