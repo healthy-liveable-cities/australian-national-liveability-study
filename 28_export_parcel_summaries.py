@@ -94,6 +94,8 @@ if locale=='australia':
     DROP TABLE IF EXISTS "nodes" ;
     DROP TABLE IF EXISTS "ind_pt_2019_distance_800m_cl" ;
     DROP TABLE IF EXISTS "ind_pt_2019_headway_800m" ;
+    DROP INDEX IF EXISTS idx_aos_jsb;
+    DROP INDEX IF EXISTS aos_idx;
     '''
     curs.execute(sql)
     conn.commit()
@@ -116,12 +118,23 @@ if locale=='australia':
         print((" - {:"+str(locale_field_length)+"}: previously processed").format(locale))
       elif os.path.isfile(os.path.join(exports_dir,sql)):
         print((" - {:"+str(locale_field_length)+"}: processing now... ").format(locale)),
-        command = 'pg_restore -a -Fc -d li_australia_2018 < {}'.format(sql)
+        command = 'pg_restore -a -Fc -d li_australia_2018 < {}'.format(sql)        
+        # command = (
+                   # 'pg_restore -a -Fc '
+                   # ' -t "parcel_indicators" '
+                   # ' -t "dest_closest_indicators" '
+                   # ' -t "dest_array_indicators" '
+                   # ' -t "uli_inds" '
+                   # ' -t "open_space_areas" '
+                   # ' -t "od_aos_jsonb" '
+                   # ' -t "ind_pt_2019_distance_800m_cl" '
+                   # ' -t "ind_pt_2019_headway_800m" '
+                   # ' -d li_australia_2018 < {sql}'
+                   # ).format(sql=sql)    
         sp.call(command, shell=True,cwd=exports_dir)   
         print("Done!")
       else:
         print((" - {:"+str(locale_field_length)+"}: data apparently not available ").format(locale))
-
 
 print("All done!")
 # output to completion log    

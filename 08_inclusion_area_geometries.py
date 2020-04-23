@@ -122,47 +122,48 @@ create_study_region_tables = '''
 curs.execute(create_study_region_tables)
 conn.commit()
 
+if locale!='australia': 
 print("  - SOS indexed by parcel")
-create_parcel_sos = '''
-  DROP TABLE IF EXISTS parcel_sos;
-  CREATE TABLE parcel_sos AS 
-  SELECT a.{id},
-         sos_name_2016 
-  FROM parcel_dwellings a LEFT JOIN area_linkage b ON a.mb_code_20 = b.mb_code_2016;
-  CREATE UNIQUE INDEX IF NOT EXISTS parcel_sos_idx ON  parcel_sos (gnaf_pid);
-  '''.format(id = points_id)
-curs.execute(create_parcel_sos)
-conn.commit()
- 
-print("Make a summary table (if not exists) of parcel points lacking sausage buffer, grouped by section of state (the idea is, only a small proportion should be major or other urban"),
-create_no_sausage_sos_tally = '''
-  DROP TABLE IF EXISTS no_sausage_sos_tally;
-  CREATE TABLE IF NOT EXISTS no_sausage_sos_tally AS
-  SELECT a.sos_name_2016, 
-         count(b.*) AS no_sausage_count,
-         count(b.*) / (SELECT COUNT(*) FROM parcel_dwellings)::double precision AS no_sausage_prop
-  FROM area_linkage a 
-  LEFT JOIN no_sausage b ON a.mb_code_2016 = b.mb_code_20
-  GROUP BY sos_name_2016 
-  ORDER BY sos_name_2016 DESC;
-  DELETE FROM no_sausage_sos_tally WHERE no_sausage_count = 0;
-  CREATE UNIQUE INDEX IF NOT EXISTS ix_no_sausage_sos_tally ON no_sausage_sos_tally (sos_name_2016);
- '''
-curs.execute(create_no_sausage_sos_tally)
-conn.commit()
-print("Done.")
+    create_parcel_sos = '''
+      DROP TABLE IF EXISTS parcel_sos;
+      CREATE TABLE parcel_sos AS 
+      SELECT a.{id},
+             sos_name_2016 
+      FROM parcel_dwellings a LEFT JOIN area_linkage b ON a.mb_code_20 = b.mb_code_2016;
+      CREATE UNIQUE INDEX IF NOT EXISTS parcel_sos_idx ON  parcel_sos (gnaf_pid);
+      '''.format(id = points_id)
+    curs.execute(create_parcel_sos)
+    conn.commit()
 
-print("Creating summary table  (if not exists) of parcel id and local neighbourhood area... "),
-createTable_nh1600m = '''
-  DROP TABLE IF EXISTS nh1600m;
-  CREATE TABLE IF NOT EXISTS nh1600m AS
-    SELECT {0}, area_sqm, area_sqm/1000000 AS area_sqkm, area_sqm/10000 AS area_ha FROM 
-      (SELECT {0}, ST_AREA(geom) AS area_sqm FROM {1}) AS t;
-  ALTER TABLE nh1600m ADD PRIMARY KEY ({0});
-  '''.format(points_id.lower(),"sausagebuffer_{}".format(distance))
-curs.execute(createTable_nh1600m)
-conn.commit()  
-print("Done.")
+    print("Make a summary table (if not exists) of parcel points lacking sausage buffer, grouped by section of state (the idea is, only a small proportion should be major or other urban"),
+    create_no_sausage_sos_tally = '''
+      DROP TABLE IF EXISTS no_sausage_sos_tally;
+      CREATE TABLE IF NOT EXISTS no_sausage_sos_tally AS
+      SELECT a.sos_name_2016, 
+             count(b.*) AS no_sausage_count,
+             count(b.*) / (SELECT COUNT(*) FROM parcel_dwellings)::double precision AS no_sausage_prop
+      FROM area_linkage a 
+      LEFT JOIN no_sausage b ON a.mb_code_2016 = b.mb_code_20
+      GROUP BY sos_name_2016 
+      ORDER BY sos_name_2016 DESC;
+      DELETE FROM no_sausage_sos_tally WHERE no_sausage_count = 0;
+      CREATE UNIQUE INDEX IF NOT EXISTS ix_no_sausage_sos_tally ON no_sausage_sos_tally (sos_name_2016);
+     '''
+    curs.execute(create_no_sausage_sos_tally)
+    conn.commit()
+    print("Done.")
+
+    print("Creating summary table  (if not exists) of parcel id and local neighbourhood area... "),
+    createTable_nh1600m = '''
+      DROP TABLE IF EXISTS nh1600m;
+      CREATE TABLE IF NOT EXISTS nh1600m AS
+        SELECT {0}, area_sqm, area_sqm/1000000 AS area_sqkm, area_sqm/10000 AS area_ha FROM 
+          (SELECT {0}, ST_AREA(geom) AS area_sqm FROM {1}) AS t;
+      ALTER TABLE nh1600m ADD PRIMARY KEY ({0});
+      '''.format(points_id.lower(),"sausagebuffer_{}".format(distance))
+    curs.execute(createTable_nh1600m)
+    conn.commit()  
+    print("Done.")
 
 # output to completion log    
 script_running_log(script, task, start, locale)
