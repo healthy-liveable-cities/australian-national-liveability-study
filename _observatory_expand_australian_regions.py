@@ -113,7 +113,7 @@ tables = {'boundaries_lga'        :{'key':'lga_name_2016'    },
           }
 
 print("Ensure source geometries are valid and tables have spatial indices... ")
-for table in tables:
+for table in [t for t in sorted(tables.keys())]:
     table = '{}_australia_{}'.format(table,year)
     print('  - {}'.format(table))
     sql = '''
@@ -133,13 +133,15 @@ for study_region in locales:
     locale = locales[study_region]
     for table in  [t for t in sorted(tables.keys()) if t.startswith('observatory')]:
         in_table = '{}_australia_{}'.format(table,year)
-        out_table = '{}_{}_{}'.format(table,locale,year)
+        out_table = '{}_{}_{}'.format(table,locale,year).replace('observatory','li')
         key = tables[table]['key']
         print('  - '+out_table)
         # create observatory area views for study region
         sql = '''
-        {drop} DROP MATERIALIZED VIEW IF EXISTS {out_table} CASCADE;
-        CREATE MATERIALIZED VIEW  IF NOT EXISTS {out_table} AS
+        -- {drop} DROP MATERIALIZED VIEW IF EXISTS {out_table} CASCADE;
+        -- CREATE MATERIALIZED VIEW IF NOT EXISTS  {out_table} AS
+        {drop} DROP TABLE IF EXISTS {out_table};
+        CREATE TABLE IF NOT EXISTS  {out_table} AS
         SELECT * 
         FROM {in_table}
         WHERE study_region = '{study_region}';
@@ -149,19 +151,22 @@ for study_region in locales:
                    out_table = out_table,
                    in_table = in_table,
                    study_region = study_region,
-               key=key)
+                   key=key)
+        # print(sql)
         engine.execute(sql)
     for table in  [t for t in sorted(tables.keys()) if t.startswith('boundaries') and t not in ['boundaries_region','boundaries_sos']]:
         in_table = '{}_australia_{}'.format(table,year)
-        out_table = '{}_{}_{}'.format(table,locale,year)
+        out_table = '{}_{}_{}'.format(table,locale,year).replace('observatory','li')
         key = tables[table]['key']
         print('  - '+out_table)
         # create boundaries for study region
         key_table = '{}_australia_{}'.format(table.replace('boundaries','observatory_map'),year)
         alt_key = tables[table.replace('boundaries','observatory_map')]['key']
         sql = '''
-        {drop} DROP MATERIALIZED VIEW IF EXISTS {out_table} CASCADE;
-        CREATE MATERIALIZED VIEW IF NOT EXISTS  {out_table} AS
+        -- {drop} DROP MATERIALIZED VIEW IF EXISTS {out_table} CASCADE;
+        -- CREATE MATERIALIZED VIEW IF NOT EXISTS  {out_table} AS
+        {drop} DROP TABLE IF EXISTS {out_table};
+        CREATE TABLE IF NOT EXISTS  {out_table} AS
         SELECT a.* 
         FROM {in_table} a
         LEFT JOIN {key_table} k ON a.{key} = k.{alt_key}
@@ -177,15 +182,17 @@ for study_region in locales:
                    alt_key=alt_key)
         engine.execute(sql)
     for table in ['boundaries_region']:
-        out_table = '{}_{}_{}'.format(table,locale,year)
+        out_table = '{}_{}_{}'.format(table,locale,year).replace('observatory','li')
         key = tables[table]['key']
         print('  - '+out_table)
         # create region boundary as union of SA1 boundaries
         geom_table =  'boundaries_sa1_{}_{}'.format(locale,year)
         geom_key = tables['boundaries_sa1']['key']
         sql = '''
-        {drop} DROP MATERIALIZED VIEW IF EXISTS {out_table} CASCADE;
-        CREATE MATERIALIZED VIEW IF NOT EXISTS  {out_table} AS
+        -- {drop} DROP MATERIALIZED VIEW IF EXISTS {out_table} CASCADE;
+        -- CREATE MATERIALIZED VIEW IF NOT EXISTS  {out_table} AS
+        {drop} DROP TABLE IF EXISTS {out_table};
+        CREATE TABLE IF NOT EXISTS  {out_table} AS
         SELECT '{study_region}'::text study_region,
                -- The union of SA1 regions approximates the study region for the city,
                -- gaps may exist, and this deals with that
@@ -206,14 +213,15 @@ for study_region in locales:
         engine.execute(sql)
     # for table in ['boundaries_sos']:
         # in_table = '{}_australia_{}'.format(table,year)
-        # out_table = '{}_{}_{}'.format(table,locale,year)
+        # out_table = '{}_{}_{}'.format(table,locale,year).replace('observatory','li')
         # key = tables[table]['key']
         # print('  - '+out_table)
         # # Create sections of state view as intersection of SOS geom within study region
         # geom_table =  'boundaries_region_{}_{}'.format(locale,year)
         # sql = '''
-        # {drop} DROP MATERIALIZED VIEW IF EXISTS {out_table} CASCADE;
-        # CREATE MATERIALIZED VIEW IF NOT EXISTS {out_table} AS
+        # -- {drop} DROP MATERIALIZED VIEW IF EXISTS {out_table} CASCADE;
+        # -- CREATE MATERIALIZED VIEW IF NOT EXISTS  {out_table} AS
+        # {drop} DROP TABLE IF EXISTS {out_table};
         # SELECT a.sos_name_2016,
            # CASE 
                # WHEN ST_CoveredBy(a.geom, s.geom) 
@@ -234,5 +242,4 @@ for study_region in locales:
                    # study_region = study_region)
         # print(sql)
         # engine.execute(sql)
-            
             

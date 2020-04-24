@@ -439,6 +439,9 @@ map_tables = ["boundaries_sos","boundaries_sa1","boundaries_ssc","boundaries_lga
 output_tables = ' '.join([' -t "{x}_{locale}_{year}"'.format(x = x,locale = locale,year = year) for x in map_tables])
 output_tables_gpkg = ' '.join(['"{x}_{locale}_{year}"'.format(x = x,locale = locale,year = year) for x in map_tables])
 
+if locale == 'australia':
+    map_tables = map_tables+['li_map_australia_{year}'.format(year=year)]
+
 print("Output to geopackage gpkg: {path}/li_map_{db}.gpkg".format(path = map_features_outpath, db = db)),
 
 gpkg =  '{}/li_map_{}.gpkg'.format(map_features_outpath,db)
