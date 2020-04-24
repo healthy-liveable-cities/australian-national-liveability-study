@@ -22,6 +22,11 @@ task = 'Create area level indicator tables for {}'.format(locale)
 
 today = datetime.today().strftime('%Y-%m-%d')
 
+if 'nodrop' in sys.argv:
+    drop = '--'
+else:
+    drop = ''
+
 # Connect to postgresql database     
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()
@@ -133,7 +138,7 @@ areas = {'mb_code_2016':'mb',
 print("Create area tables based on unweighted sample data... ")
 for area_code in areas.keys():
   area = areas[area_code]
-  if area == 'study_region':
+  if area == 'region':
     print("  {}".format("Study region"))
   else:
     print("  {}".format(area.upper()))
@@ -141,7 +146,7 @@ for area_code in areas.keys():
   print("    - aggregate indicator table observatory_inds_{}... ".format(area)),
   ### NOTE: We use dwelling weighted average for Observatory (and other) purposes; this is an unweighted table
   createTable = '''
-  DROP TABLE IF EXISTS observatory_inds_{area} ; 
+  {drop} DROP TABLE IF EXISTS observatory_inds_{area} ; 
   CREATE TABLE  IF NOT EXISTS observatory_inds_{area} AS
   SELECT p.{area_code},
     COUNT(*) AS sample_point_count,
@@ -152,7 +157,8 @@ for area_code in areas.keys():
     GROUP BY p.{area_code}
     ORDER BY p.{area_code} ASC;
   CREATE INDEX IF NOT EXISTS observatory_inds_{area}_pkey ON observatory_inds_{area} ({area_code});
-  '''.format(area = area,
+  '''.format(drop = drop,
+             area = area,
              area_code = area_code,
              indicators = ind_avg,
              exclusion = exclusion_criteria)
@@ -163,7 +169,7 @@ for area_code in areas.keys():
   
   print("    - sd summary table observatory_sd_{}... ".format(area)),
   createTable = '''
-  DROP TABLE IF EXISTS observatory_sd_{area} ; 
+  {drop} DROP TABLE IF EXISTS observatory_sd_{area} ; 
   CREATE TABLE  IF NOT EXISTS observatory_sd_{area} AS
   SELECT p.{area_code},
     {indicators}     
@@ -173,7 +179,8 @@ for area_code in areas.keys():
     GROUP BY p.{area_code}
     ORDER BY p.{area_code} ASC;
   CREATE INDEX IF NOT EXISTS observatory_sd_{area}_pkey ON observatory_sd_{area} ({area_code});
-  '''.format(area = area,
+  '''.format(drop = drop,
+             area = area,
              area_code = area_code,
              indicators = ind_sd,
              exclusion = exclusion_criteria)
@@ -183,7 +190,7 @@ for area_code in areas.keys():
   
   print("    - range summary table observatory_range_{}... ".format(area)),
   createTable = '''
-  DROP TABLE IF EXISTS observatory_range_{area} ; 
+  {drop} DROP TABLE IF EXISTS observatory_range_{area} ; 
   CREATE TABLE  IF NOT EXISTS observatory_range_{area} AS
   SELECT p.{area_code},
     {indicators}     
@@ -193,7 +200,8 @@ for area_code in areas.keys():
     GROUP BY p.{area_code}
     ORDER BY p.{area_code} ASC;
   CREATE INDEX IF NOT EXISTS observatory_range_{area}_pkey ON observatory_range_{area} ({area_code});
-  '''.format(area = area,
+  '''.format(drop = drop,
+             area = area,
              area_code = area_code,
              indicators = ind_range,
              exclusion = exclusion_criteria)
@@ -203,7 +211,7 @@ for area_code in areas.keys():
   
   print("    - median summary table observatory_median_{}... ".format(area)),  
   createTable = '''
-  DROP TABLE IF EXISTS observatory_median_{area} ; 
+  {drop} DROP TABLE IF EXISTS observatory_median_{area} ; 
   CREATE TABLE  IF NOT EXISTS observatory_median_{area} AS
   SELECT p.{area_code},
     {indicators}     
@@ -213,7 +221,8 @@ for area_code in areas.keys():
     GROUP BY p.{area_code}
     ORDER BY p.{area_code} ASC;
   CREATE INDEX IF NOT EXISTS observatory_median_{area}_pkey ON observatory_median_{area} ({area_code});
-  '''.format(area = area,
+  '''.format(drop = drop,
+             area = area,
              area_code = area_code,
              indicators = ind_median,
              exclusion = exclusion_criteria)
@@ -223,7 +232,7 @@ for area_code in areas.keys():
   
   print("    - IQR summary table observatory_iqr_{}... ".format(area)),  
   createTable = '''
-  --DROP TABLE IF EXISTS observatory_iqr_{area} ; 
+  {drop} DROP TABLE IF EXISTS observatory_iqr_{area} ; 
   CREATE TABLE  IF NOT EXISTS observatory_iqr_{area} AS
   SELECT p.{area_code},
     {indicators}     
@@ -233,7 +242,8 @@ for area_code in areas.keys():
     GROUP BY p.{area_code}
     ORDER BY p.{area_code} ASC;
   CREATE INDEX IF NOT EXISTS observatory_iqr_{area}_pkey ON observatory_iqr_{area} ({area_code});
-  '''.format(area = area,
+  '''.format(drop = drop,
+             area = area,
              area_code = area_code,
              indicators = ind_iqr,
              exclusion = exclusion_criteria)
@@ -243,18 +253,24 @@ for area_code in areas.keys():
   
   map_ind_percentile_area = ''
   # if area != 'study_region':
+  if area == 'region':
+        sr = ''
+  else:
+        sr = 'study_region,'
   print("    - percentile summary table observatory_percentiles_{}... ".format(area)),      
   createTable = '''
-    DROP TABLE IF EXISTS observatory_percentiles_{area} ; 
+    {drop} DROP TABLE IF EXISTS observatory_percentiles_{area} ; 
     CREATE TABLE IF NOT EXISTS observatory_percentiles_{area} AS
     SELECT {area_code},
-            study_region,
+            {study_region}
            {indicators}
     FROM li_inds_{area}_dwelling
     ORDER BY {area_code} ASC;
   CREATE INDEX IF NOT EXISTS observatory_percentiles_{area}_pkey ON observatory_percentiles_{area} ({area_code});
-  '''.format(area = area,
+  '''.format(drop = drop,
+             area = area,
              area_code = area_code,
+             study_region = sr,
              indicators = ind_percentile)
   curs.execute(createTable)
   conn.commit()
@@ -350,7 +366,7 @@ for area_code in areas.keys():
     # LEFT JOIN observatory_median_{area} AS median ON area.{area_code2} = median.{area_code}
     # LEFT JOIN observatory_sd_{area} AS sd ON area.{area_code2} = raw.{area_code}
     createTable = '''
-    DROP TABLE IF EXISTS observatory_map_{area}_{locale}_{year};
+    {drop} DROP TABLE IF EXISTS observatory_map_{area}_{locale}_{year};
     CREATE TABLE IF NOT EXISTS observatory_map_{area}_{locale}_{year} AS
     SELECT {area_strings},
            {raw},
@@ -368,7 +384,8 @@ for area_code in areas.keys():
     {area_code_table};
     CREATE INDEX IF NOT EXISTS observatory_map_{area}_{locale}_{year}_pkey ON observatory_map_{area}_{locale}_{year} ({primary_key});
     CREATE INDEX IF NOT EXISTS observatory_map_{area}_{locale}_{year}_study_region ON observatory_map_{area}_{locale}_{year} (study_region);;
-    '''.format(area = area,
+    '''.format(drop = drop,
+               area = area,
                locale = locale,
                year = year,
                area_code = area_code,
@@ -390,12 +407,13 @@ for area_code in areas.keys():
     conn.commit()
     
     createTable = '''
-    DROP TABLE IF EXISTS boundaries_{area}_{locale}_{year};
+    {drop} DROP TABLE IF EXISTS boundaries_{area}_{locale}_{year};
     CREATE TABLE IF NOT EXISTS boundaries_{area}_{locale}_{year} AS
     SELECT b.{area_code},
            ST_Transform(ST_Simplify(b.geom,.1),4326) AS geom         
     FROM {boundaries};
-    '''.format(area = area,
+    '''.format(drop = drop,
+               area = area,
                locale = locale,
                year = year,
                area_code = area_code,
@@ -406,13 +424,14 @@ for area_code in areas.keys():
     print("Done.")
     
     createTable = '''
-    DROP TABLE IF EXISTS urban_sos_{area}_{locale}_{year};
+    {drop} DROP TABLE IF EXISTS urban_sos_{area}_{locale}_{year};
     CREATE TABLE IF NOT EXISTS urban_sos_{area}_{locale}_{year} AS
     SELECT urban,
            ST_Transform(ST_Simplify(geom,.1),4326) AS geom         
     FROM study_region_urban
     WHERE urban  = 'urban';
-    '''.format(area = area,
+    '''.format(drop = drop,
+               area = area,
                locale = locale,
                year = year,
                area_code = area_code,
@@ -436,11 +455,12 @@ if len(null_geom_check)==0:
 
 map_tables = ["boundaries_sos","boundaries_sa1","boundaries_ssc","boundaries_lga","observatory_map_region","observatory_map_sa1","observatory_map_ssc","observatory_map_lga","ind_observatory","boundaries_region","boundaries_sa1","boundaries_ssc","boundaries_lga"]
 
+if locale == 'australia':
+    map_tables = map_tables+['li_map_australia_{year}'.format(year=year)]
+    
 output_tables = ' '.join([' -t "{x}_{locale}_{year}"'.format(x = x,locale = locale,year = year) for x in map_tables])
 output_tables_gpkg = ' '.join(['"{x}_{locale}_{year}"'.format(x = x,locale = locale,year = year) for x in map_tables])
 
-if locale == 'australia':
-    map_tables = map_tables+['li_map_australia_{year}'.format(year=year)]
 
 print("Output to geopackage gpkg: {path}/li_map_{db}.gpkg".format(path = map_features_outpath, db = db)),
 

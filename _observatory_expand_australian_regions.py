@@ -59,6 +59,15 @@ else:
   however, to negate this effect you can add the command nodrop to the command line
   python _observatory_expand_australian_regions.py australia obs_source nodrop
   
+  Futher, if the export of this database to sql is required you can run the command with key word 'export'
+  
+  python _observatory_expand_australian_regions.py australia obs_source nodrop export
+  
+  which will output a dated sql file like auo_2020-04-24.sql (ie date in yyyy-mm-dd format)
+  
+   This file can be restored using pg_restore targetting a database created with PostGIS extension, like so:
+  pg_restore -U postgres -Fc -d obs_test < ../data/observatory/2020-04-24/auo_2020-04-24.sql
+  
   Good luck!
   '''
   sys.exit(exit_advice)
@@ -138,8 +147,6 @@ for study_region in locales:
         print('  - '+out_table)
         # create observatory area views for study region
         sql = '''
-        -- {drop} DROP MATERIALIZED VIEW IF EXISTS {out_table} CASCADE;
-        -- CREATE MATERIALIZED VIEW IF NOT EXISTS  {out_table} AS
         {drop} DROP TABLE IF EXISTS {out_table};
         CREATE TABLE IF NOT EXISTS  {out_table} AS
         SELECT * 
@@ -156,15 +163,13 @@ for study_region in locales:
         engine.execute(sql)
     for table in  [t for t in sorted(tables.keys()) if t.startswith('boundaries') and t not in ['boundaries_region','boundaries_sos']]:
         in_table = '{}_australia_{}'.format(table,year)
-        out_table = '{}_{}_{}'.format(table,locale,year).replace('observatory','li')
+        out_table = '{}_{}_{}'.format(table,locale,year)
         key = tables[table]['key']
         print('  - '+out_table)
         # create boundaries for study region
         key_table = '{}_australia_{}'.format(table.replace('boundaries','observatory_map'),year)
         alt_key = tables[table.replace('boundaries','observatory_map')]['key']
         sql = '''
-        -- {drop} DROP MATERIALIZED VIEW IF EXISTS {out_table} CASCADE;
-        -- CREATE MATERIALIZED VIEW IF NOT EXISTS  {out_table} AS
         {drop} DROP TABLE IF EXISTS {out_table};
         CREATE TABLE IF NOT EXISTS  {out_table} AS
         SELECT a.* 
@@ -180,17 +185,16 @@ for study_region in locales:
                    key=key,
                    key_table=key_table,
                    alt_key=alt_key)
+        # print(sql)
         engine.execute(sql)
     for table in ['boundaries_region']:
-        out_table = '{}_{}_{}'.format(table,locale,year).replace('observatory','li')
+        out_table = '{}_{}_{}'.format(table,locale,year)
         key = tables[table]['key']
         print('  - '+out_table)
         # create region boundary as union of SA1 boundaries
         geom_table =  'boundaries_sa1_{}_{}'.format(locale,year)
         geom_key = tables['boundaries_sa1']['key']
         sql = '''
-        -- {drop} DROP MATERIALIZED VIEW IF EXISTS {out_table} CASCADE;
-        -- CREATE MATERIALIZED VIEW IF NOT EXISTS  {out_table} AS
         {drop} DROP TABLE IF EXISTS {out_table};
         CREATE TABLE IF NOT EXISTS  {out_table} AS
         SELECT '{study_region}'::text study_region,
@@ -213,14 +217,12 @@ for study_region in locales:
         engine.execute(sql)
     # for table in ['boundaries_sos']:
         # in_table = '{}_australia_{}'.format(table,year)
-        # out_table = '{}_{}_{}'.format(table,locale,year).replace('observatory','li')
+        # out_table = '{}_{}_{}'.format(table,locale,year)
         # key = tables[table]['key']
         # print('  - '+out_table)
         # # Create sections of state view as intersection of SOS geom within study region
         # geom_table =  'boundaries_region_{}_{}'.format(locale,year)
         # sql = '''
-        # -- {drop} DROP MATERIALIZED VIEW IF EXISTS {out_table} CASCADE;
-        # -- CREATE MATERIALIZED VIEW IF NOT EXISTS  {out_table} AS
         # {drop} DROP TABLE IF EXISTS {out_table};
         # SELECT a.sos_name_2016,
            # CASE 
@@ -243,3 +245,21 @@ for study_region in locales:
         # print(sql)
         # engine.execute(sql)
             
+if 'export' in sys.argv:
+    print("\nOutput sql dump for AUO... ")
+    command = (
+               'pg_dump -Fc -Z 9 postgresql://{user}:{pwd}@{host}:5432/{db} '
+               '> '
+               '../data/observatory/{today}/auo_{today}.sql'
+               ).format(user = db_user,
+                        pwd = db_pwd,
+                        host = db_host,
+                        db = db,
+                        today=today)
+    sp.call(command, shell=True)
+    print('''
+    AUO dump exported to ../data/observatory/{today}/auo_{today}.sql
+    
+    This file can be restored using pg_restore targetting a database created with PostGIS extension, like so:
+    pg_restore -U postgres -Fc -d obs_test < ../data/observatory/2020-04-24/auo_2020-04-24.sql
+    '''.format(today=today))
