@@ -55,9 +55,18 @@ else:
   If you had run the above, then you could execute this code with:
   python _observatory_expand_australian_regions.py australia obs_source
   
+  By default, previously created materialized views are dropped if they exist (with cascade); 
+  however, to negate this effect you can add the command nodrop to the command line
+  python _observatory_expand_australian_regions.py australia obs_source nodrop
+  
   Good luck!
   '''
   sys.exit(exit_advice)
+
+if 'nodrop' in sys.argv:
+    drop = '--'
+else:
+    drop = ''
 
 engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_user,
                                                                  pwd  = db_pwd,
@@ -91,10 +100,11 @@ locales = {'Adelaide'                   :'adelaide',
            'Wollongong '                :'wollongong'}
 
 # Table stubs and key details
+# Note: boundaries_sos is not used in AUO, so commented out
 tables = {'boundaries_lga'        :{'key':'lga_name_2016'    },
           'boundaries_region'     :{'key':'study_region'     },
           'boundaries_sa1'        :{'key':'sa1_maincode_2016'},
-          'boundaries_sos'        :{'key':'sos_name_2016'    },
+          # 'boundaries_sos'        :{'key':'sos_name_2016'    },
           'boundaries_ssc'        :{'key':'ssc_name_2016'    },
           'observatory_map_lga'   :{'key':'lga'    },
           'observatory_map_region':{'key':'study_region'     },
@@ -102,13 +112,20 @@ tables = {'boundaries_lga'        :{'key':'lga_name_2016'    },
           'observatory_map_ssc'   :{'key':'suburb'    },
           }
 
-print("Ensure source tables have spatial indices")
+print("Ensure source geometries are valid and tables have spatial indices... ")
 for table in tables:
     table = '{}_australia_{}'.format(table,year)
+    print('  - {}'.format(table))
     sql = '''
-    CREATE INDEX IF NOT EXISTS {table}_gix ON {table} USING GIST (geom)
+    -- There was a self-intersection in the SOS table which caused issues forming regions;
+    -- to ensure all works fine, make sure all geoms are valid
+    UPDATE {table} 
+       SET geom = ST_Multi(ST_CollectionExtract(ST_MakeValid(geom),3))
+     WHERE ST_IsValid(geom) = false;
+    CREATE INDEX IF NOT EXISTS {table}_gix ON {table} USING GIST (geom);
     '''.format(table = table)
     engine.execute(sql)
+print("Done.")
 
 # loop over study regions to expand out tables from the concise national set
 for study_region in locales:
@@ -121,14 +138,15 @@ for study_region in locales:
         print('  - '+out_table)
         # create observatory area views for study region
         sql = '''
-        DROP MATERIALIZED VIEW IF EXISTS {out_table} CASCADE;
-        CREATE MATERIALIZED VIEW {out_table} AS
+        {drop} DROP MATERIALIZED VIEW IF EXISTS {out_table} CASCADE;
+        CREATE MATERIALIZED VIEW  IF NOT EXISTS {out_table} AS
         SELECT * 
         FROM {in_table}
         WHERE study_region = '{study_region}';
-        CREATE INDEX {out_table}_idx ON {out_table} ({key});
-        CREATE INDEX {out_table}_gix ON {out_table} USING GIST (geom);
-        '''.format(out_table = out_table,
+        CREATE INDEX IF NOT EXISTS {out_table}_idx ON {out_table} ({key});
+        CREATE INDEX IF NOT EXISTS {out_table}_gix ON {out_table} USING GIST (geom);
+        '''.format(drop = drop,
+                   out_table = out_table,
                    in_table = in_table,
                    study_region = study_region,
                key=key)
@@ -142,15 +160,16 @@ for study_region in locales:
         key_table = '{}_australia_{}'.format(table.replace('boundaries','observatory_map'),year)
         alt_key = tables[table.replace('boundaries','observatory_map')]['key']
         sql = '''
-        DROP MATERIALIZED VIEW IF EXISTS {out_table} CASCADE;
-        CREATE MATERIALIZED VIEW {out_table} AS
+        {drop} DROP MATERIALIZED VIEW IF EXISTS {out_table} CASCADE;
+        CREATE MATERIALIZED VIEW IF NOT EXISTS  {out_table} AS
         SELECT a.* 
         FROM {in_table} a
         LEFT JOIN {key_table} k ON a.{key} = k.{alt_key}
         WHERE k.study_region = '{study_region}';
-        CREATE INDEX {out_table}_idx ON {out_table} ({key});
-        CREATE INDEX {out_table}_gix ON {out_table} USING GIST (geom);
-        '''.format(out_table = out_table,
+        CREATE INDEX IF NOT EXISTS {out_table}_idx ON {out_table} ({key});
+        CREATE INDEX IF NOT EXISTS {out_table}_gix ON {out_table} USING GIST (geom);
+        '''.format(drop = drop,
+                   out_table = out_table,
                    in_table = in_table,
                    study_region = study_region,
                    key=key,
@@ -165,38 +184,55 @@ for study_region in locales:
         geom_table =  'boundaries_sa1_{}_{}'.format(locale,year)
         geom_key = tables['boundaries_sa1']['key']
         sql = '''
-        DROP MATERIALIZED VIEW IF EXISTS {out_table} CASCADE;
-        CREATE MATERIALIZED VIEW {out_table} AS
+        {drop} DROP MATERIALIZED VIEW IF EXISTS {out_table} CASCADE;
+        CREATE MATERIALIZED VIEW IF NOT EXISTS  {out_table} AS
         SELECT '{study_region}'::text study_region,
+               -- The union of SA1 regions approximates the study region for the city,
+               -- gaps may exist, and this deals with that
                ST_Union(geom) geom
-        FROM {geom_table};
-        CREATE INDEX {out_table}_gix ON {out_table} USING GIST (geom);
-        '''.format(out_table = out_table,
+        FROM (SELECT ST_SetSrid( 
+                       ST_MakePolygon (
+                          ST_ExteriorRing(
+                              (ST_Dump(
+                                 ST_Union(geom))).geom)),4326) geom
+               FROM {geom_table}) t;
+        CREATE INDEX IF NOT EXISTS {out_table}_gix ON {out_table} USING GIST (geom);
+        '''.format(drop = drop,
+                   out_table = out_table,
                    geom_table = geom_table,
                    study_region = study_region,
                    key=key,
                    alt_key=alt_key)
         engine.execute(sql)
-    for table in ['boundaries_sos']:
-        in_table = '{}_australia_{}'.format(table,year)
-        out_table = '{}_{}_{}'.format(table,locale,year)
-        key = tables[table]['key']
-        print('  - '+out_table)
-        # Create sections of state view as intersection of SOS geom within study region
-        geom_table =  'boundaries_region_{}_{}'.format(locale,year)
-        sql = '''
-        DROP MATERIALIZED VIEW IF EXISTS {out_table} CASCADE;
-        CREATE MATERIALIZED VIEW {out_table} AS
-        SELECT a.sos_name_2016,
-               ST_Intersection(a.geom,s.geom) geom
-        FROM {in_table} a,
-             {geom_table} s
-        WHERE ST_Intersects(a.geom,s.geom);
-        CREATE INDEX {out_table}_gix ON {out_table} USING GIST (geom);
-        '''.format(in_table = in_table,
-                   out_table = out_table,
-                   geom_table = geom_table,
-                   study_region = study_region)
-        engine.execute(sql)
+    # for table in ['boundaries_sos']:
+        # in_table = '{}_australia_{}'.format(table,year)
+        # out_table = '{}_{}_{}'.format(table,locale,year)
+        # key = tables[table]['key']
+        # print('  - '+out_table)
+        # # Create sections of state view as intersection of SOS geom within study region
+        # geom_table =  'boundaries_region_{}_{}'.format(locale,year)
+        # sql = '''
+        # {drop} DROP MATERIALIZED VIEW IF EXISTS {out_table} CASCADE;
+        # CREATE MATERIALIZED VIEW IF NOT EXISTS {out_table} AS
+        # SELECT a.sos_name_2016,
+           # CASE 
+               # WHEN ST_CoveredBy(a.geom, s.geom) 
+               # THEN a.geom 
+               # ELSE 
+                # ST_Multi(
+                  # ST_Intersection(a.geom,s.geom)
+                  # ) 
+               # END AS geom 
+        # FROM {in_table} a
+        # INNER JOIN {geom_table} s 
+                # ON (ST_Intersects(a.geom, s.geom) AND NOT ST_Touches(a.geom, s.geom) );
+        # CREATE INDEX IF NOT EXISTS  {out_table}_gix ON {out_table} USING GIST (geom);
+        # '''.format(drop = drop,
+                   # in_table = in_table,
+                   # out_table = out_table,
+                   # geom_table = geom_table,
+                   # study_region = study_region)
+        # print(sql)
+        # engine.execute(sql)
             
             
