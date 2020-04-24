@@ -458,13 +458,13 @@ map_tables = ["boundaries_sos","boundaries_sa1","boundaries_ssc","boundaries_lga
 if locale == 'australia':
     map_tables = map_tables+['li_map_australia_{year}'.format(year=year)]
     
-output_tables = ' '.join([' -t "{x}_{locale}_{year}"'.format(x = x,locale = locale,year = year) for x in map_tables])
-output_tables_gpkg = ' '.join(['"{x}_{locale}_{year}"'.format(x = x,locale = locale,year = year) for x in map_tables])
+output_tables = ' '.join([' -t "{x}_{locale}_{year}"'.format(x = x,locale = locale,year = year) for x in map_tables]).replace('_australia_2018_australia_2018','_australia_2018')
+output_tables_gpkg = ' '.join(['"{x}_{locale}_{year}"'.format(x = x,locale = locale,year = year) for x in map_tables]).replace('_australia_2018_australia_2018','_australia_2018')
 
 
-print("Output to geopackage gpkg: {path}/li_map_{db}.gpkg".format(path = map_features_outpath, db = db)),
+print("Output to geopackage gpkg: {path}/auo_map_{db}.gpkg".format(path = map_features_outpath, db = db)),
 
-gpkg =  '{}/li_map_{}.gpkg'.format(map_features_outpath,db)
+gpkg =  '{}/auo_map_{}.gpkg'.format(map_features_outpath,db)
 
 # delete file if exists
 if os.path.exists(gpkg):
@@ -485,9 +485,9 @@ print("Done.")
 
 print("\nOutput postgresql dump... ")
 command = (
-           'pg_dump {tables} postgresql://{user}:{pwd}@{host}:5432/{db} '
+           'pg_dump -Fc -Z 9 {tables} postgresql://{user}:{pwd}@{host}:5432/{db} '
            '> '
-           '{dir}/li_map_{db}.sql'
+           '{dir}/auo_map_{db}.sql'
            ).format(user = db_user,
                     pwd = db_pwd,
                     host = db_host,
@@ -496,10 +496,10 @@ command = (
                     tables = output_tables)
 sp.call(command, shell=True)
 print('''Done; but if it actually did not work, please run the following command:\n
-pg_dump -U postgres -h localhost -W  {tables} {db} > {dir}/li_map_{db}.sql
+pg_dump -U postgres -h localhost -W  {tables} {db} > {dir}/auo_map_{db}.sql
 '''.format(locale = locale.lower(), year = year,db = db,tables = output_tables,dir = map_features_outpath))
 
 print('''
 \nAlso, can you send the following line of text to Carl please to aid collation of study regions?
-psql obs_source < {dir}/li_map_{db}.sql postgres
+    pg_restore -U postgres -Fc -d obs_test < {dir}/auo_map_{db}.sql postgres
 '''.format(dir = map_features_outpath,db = db))
