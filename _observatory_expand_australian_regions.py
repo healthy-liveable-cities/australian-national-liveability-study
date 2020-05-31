@@ -262,9 +262,4 @@ if 'export' in sys.argv:
     
     This file can be restored using pg_restore targetting a database created with PostGIS extension, like so:
     pg_restore -U postgres -Fc -d obs_source < ../data/observatory/2020-04-24/auo_2020-04-24.sql
-    
-    If desired, the Australia-wide source tables can then be expanded for specific regions and (optionally) exported 
-    to a further dated sql dump using:
-    
-    python _observatory_expand_australian_regions.py australia obs_source export
     '''.format(today=today))

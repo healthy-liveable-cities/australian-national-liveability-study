@@ -500,6 +500,21 @@ pg_dump -U postgres -h localhost -W  {tables} {db} > {dir}/auo_map_{db}.sql
 '''.format(locale = locale.lower(), year = year,db = db,tables = output_tables,dir = map_features_outpath))
 
 print('''
-\nAlso, can you send the following line of text to Carl please to aid collation of study regions?
-    pg_restore -U postgres -Fc -d obs_test < {dir}/auo_map_{db}.sql postgres
+
+Also, can you send the following line of text to Carl please to aid collation of study regions?
+
+psql:
+    \c postgres
+    DROP DATABASE IF EXISTS obs_source;
+    CREATE DATABASE obs_source;
+    \c obs_source
+    CREATE EXTENSION postgis;
+cmd:    
+    pg_restore -U postgres -Fc -d obs_source < {dir}/auo_map_{db}.sql
+    
+If desired, the Australia-wide source tables can then be expanded for specific regions and (optionally) exported 
+to a further dated sql dump using:
+    
+cmd:
+    python _observatory_expand_australian_regions.py australia obs_source export
 '''.format(dir = map_features_outpath,db = db))
