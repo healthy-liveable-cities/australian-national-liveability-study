@@ -53,23 +53,20 @@ for var in [x for x in df_parameters.index.values]:
 study_regions = [x.encode() for x in df_studyregion.index.tolist() if x not in ['testing','australia']]
 responsible = df_studyregion['responsible']
 
-# The main directory for data
-
 # Set up locale (ie. defined at command line, or else testing)
 if len(sys.argv) >= 2:
-  locale = '{studyregion}'.format(studyregion = sys.argv[1])
+  locale = '{}'.format(sys.argv[1])
 else:
   locale = 'albury_wodonga'
 if __name__ == '__main__':
   print("\nProcessing script {} for locale {}...\n".format(sys.argv[0],locale))
 
-  
 # More study region details
 full_locale = df_studyregion.loc[locale]['full_locale']
 region = df_studyregion.loc[locale]['region']
 state  = df_studyregion.loc[locale]['state']
 
-locale_dir = os.path.join(folderPath,'study_region','{}'.format(locale.lower()))
+locale_dir = os.path.join(folderPath,'study_region',f'{locale}'.lower())
 
 # Study region boundary
 region_shape = df_studyregion.loc[locale]['region_shape']
@@ -90,24 +87,24 @@ if pandas.np.isnan(suffix):
 
 # derived study region name (no need to change!)
 study_region = 'study_region'
-db = 'li_{0}_{1}{2}'.format(locale,year,suffix).lower()
+db = f'li_{locale}_{year}{suffix}'.lower()
 
 # Study region buffer
 buffered_study_region = 'buffered_study_region'
 
 # Derived hex settings - no need to change
-hex_grid = '{0}_hex_{1}{2}_diag'.format(study_region,hex_diag,units)
-hex_grid_buffer =  '{0}_hex_{1}{2}_diag_{3}{2}_buffer'.format(study_region,hex_diag,units,hex_buffer)
+hex_grid = f'{study_region}_hex_{hex_diag}{units}_diag'
+hex_grid_buffer =  f'{study_region}_hex_{hex_diag}{units}_diag_{hex_buffer}{units}_buffer'
 hex_side = float(hex_diag)*0.5
 hex_id = 'hex_id'
 hex_feature = 'hex_parcels'
 
 # Database names -- derived from above parameters; (no need to change!)
-gdb       = '{}.gdb'.format(db)
-db_sde    = '{}.sde'.format(db)
+gdb       = f'{db}.gdb'
+db_sde    = f'{db}.sde'
 gdb_path    = os.path.join(locale_dir,gdb)
 db_sde_path = os.path.join(locale_dir,db_sde)
-dbComment = 'Liveability indicator data for {0} {1}.'.format(locale,year)
+dbComment = f'Liveability indicator data for {locale} {year}.'
 
 os.environ['PGHOST']     = db_host
 os.environ['PGPORT']     = str(db_port)
@@ -121,10 +118,23 @@ osm2pgsql_style = os.path.join(folderPath,df_parameters.loc['osm2pgsql_style']['
 osm_source = df_studyregion.loc[locale]['osm_source']
 osm_prefix = df_studyregion.loc[locale]['osm_prefix']
 
-grant_query = '''GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {0};
-                 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO {0};
-                 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {1};
-                 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO {1};'''.format(arc_sde_user,db_user)
+area_schemas = [f'ind_{x}' for x in df_regions.query("purpose.str.contains('analysis')",engine='python').abbreviation.values]+['ind_region']
+schemas = ['public',boundary_schema,network_schema,osm_schema,destinations_schema,open_space_schema,school_schema,point_schema,distance_schema,validation_schema,processing_schema]+area_schemas
+
+users = [db_user, arc_sde_user]
+def grant_schema_query(user,schema):
+    query = f'''
+        GRANT USAGE ON SCHEMA {schema} TO {user} ;
+        GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA {schema} TO {user};
+        GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA {schema} TO {user};
+        GRANT ALL ON ALL TABLES IN SCHEMA {schema} TO {user};
+        '''
+    return query
+
+grant_query = ''
+for user in [db_user, arc_sde_user]:
+    for schema in schemas:
+        grant_query = grant_query + grant_schema_query(user,schema)
 
 # Region set up
 areas_of_interest = df_regions.index.values.tolist()
@@ -159,14 +169,13 @@ network_template = os.path.join(folderPath,road_data,df_parameters.loc['network_
 
 # Intersections with 3plus ways
 clean_intersections_locale = df_studyregion.loc[locale]['clean_intersections_locale']
-# intersections = os.path.join(folderPath,'roads/GDA2020_GA_LCC_3plus_way_intersections.gdb/intersections_2018_{}_gccsa10km'.format(locale.lower()))
 
 # Derived network data variables - no need to change, assuming the above works
-network_source_feature = '{}'.format(network_source_feature_dataset)
+network_source_feature = network_source_feature_dataset
 
 # network dataset, without specifying the location (e.g. if gdb is work environment)
-in_network_dataset = os.path.join('{}'.format(network_source_feature_dataset),
-                                '{}_ND'.format(network_source_feature_dataset))
+in_network_dataset = os.path.join(network_source_feature_dataset,
+                                  f'{network_source_feature_dataset}_ND')
 # network dataset, with full path
 in_network_dataset_path = os.path.join(gdb_path,in_network_dataset)
 
@@ -219,10 +228,6 @@ outCombinedFeature = 'study_destinations'
 
 df_destinations = df_destinations.replace(pandas.np.nan, 'NULL', regex=True)
 destination_list = [x for x in df_destinations.destination.tolist()] # the destinations 
-# dest_codes = df_destinations.code.tolist()   # domain is an optional grouping category for destinations / indicators
-# dest_domains = df_destinations.domain.tolist()   # domain is an optional grouping category for destinations / indicators
-# dest_cutoffs = df_destinations.cutoff.tolist()   # cut off distance within which to evaluate presence
-# dest_counts = df_destinations.counts.tolist()   # cut off distance within which to evaluate counts
 
 df_osm_dest = df_osm_dest.replace(pandas.np.nan, 'NULL', regex=True)
 

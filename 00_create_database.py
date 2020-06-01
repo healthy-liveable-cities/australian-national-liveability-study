@@ -18,11 +18,10 @@
 ## Process successfully completed.
 ## Processing complete (Task: Create region-specific liveability indicator database, users and ArcSDE connection file); duration: 0.29 minutes
 
-import psycopg2
+from sqlalchemy import create_engine
 import time
 import getpass
 import arcpy
-from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 
 # Import custom variables for National Liveability indicator process
 from _project_setup import *
@@ -38,77 +37,74 @@ if not os.path.exists(os.path.join(folderPath,'study_region')):
 if not os.path.exists(locale_dir):
     os.makedirs(locale_dir)    
 
-# INPUT PARAMETERS
-# note: these are in general defined in and loaded from _project_setup.py
-
-# default database
 print("Please enter default PostgreSQL database details to procede with new database creation, or close terminal to abort.")
 admin_db   = input("Database: ")    
-admin_user_name = input("Username: ")
-admin_pwd = getpass.getpass("Password for user {} on database {}: ".format(admin_user_name, admin_db))
+admin_user = input("Username: ")
+admin_pwd = getpass.getpass("Password for user {} on database {}: ".format(admin_user, admin_db))
 
-# SQL queries
-createDB = '''
-  CREATE DATABASE {}
-  WITH OWNER = {} 
-  ENCODING = 'UTF8' 
-  LC_COLLATE = 'English_Australia.1252' 
-  LC_CTYPE = 'English_Australia.1252' 
-  TABLESPACE = pg_default 
-  CONNECTION LIMIT = -1
-  TEMPLATE template0;
-  '''.format(db,admin_user_name)  
+print("Connecting to default database to action queries.")
+engine = create_engine(f"postgresql://{admin_user}:{admin_pwd}@{db_host}/{admin_db}",
+                       isolation_level='AUTOCOMMIT')
+conn = engine.connect()
 
-commentDB = '''
-  COMMENT ON DATABASE {} IS '{}';
-  '''.format(db,dbComment)
+print(f'Creating database if not exists {db}... '),
+result = engine.execute(f'''SELECT 1 FROM pg_catalog.pg_database WHERE datname = '{db}' ''').fetchone()
+if result is None:
+    conn.execute(f'''
+        CREATE DATABASE {db}
+        WITH OWNER = {admin_user} 
+        ENCODING = 'UTF8' 
+        LC_COLLATE = 'English_Australia.1252' 
+        LC_CTYPE = 'English_Australia.1252' 
+        TABLESPACE = pg_default 
+        CONNECTION LIMIT = -1
+        TEMPLATE template0;
+        ''') 
+    conn.execute(f'''COMMENT ON DATABASE {db} IS '{dbComment}'; ''')
+    print('Done.')
+else:
+    print(f"Database {db} already exists...")
 
-createUser = '''
-  DO
-  $do$
-  BEGIN
-     IF NOT EXISTS (
-        SELECT   
-        FROM   pg_catalog.pg_roles
-        WHERE  rolname = '{0}') THEN
-        
-        CREATE ROLE {0} LOGIN PASSWORD '{1}';
-     END IF;
-  END
-  $do$;
-  '''.format(db_user, db_pwd)  
 
-createUser_ArcSDE = '''
-  DO
-  $do$
-  BEGIN
-     IF NOT EXISTS (
-        SELECT   
-        FROM   pg_catalog.pg_roles
-        WHERE  rolname = '{0}') THEN
-     CREATE ROLE {0} 
-     LOGIN
-     NOSUPERUSER
-     NOCREATEDB
-     NOCREATEROLE
-     INHERIT
-     NOREPLICATION
-     CONNECTION LIMIT -1
-     PASSWORD '{1}';
-     END IF;
-  END
-  $do$;
-  '''.format(arc_sde_user, db_pwd)  
-  
-create_extensions = '''
+for user in [db_user,arc_sde_user]:
+    print(f'Creating user {user}  if not exists... '),
+    conn.execute(f'''
+      DO
+      $do$
+      BEGIN
+         IF NOT EXISTS (
+            SELECT   
+            FROM   pg_catalog.pg_roles
+            WHERE  rolname = '{user}') THEN
+            CREATE ROLE {user} 
+            LOGIN
+            CONNECTION LIMIT -1 
+            PASSWORD '{db_pwd}';
+         END IF;
+      END
+      $do$;
+      ''')
+    print('Done.')
+
+conn.close()
+
+print(f"Connecting to {db}.")
+engine = create_engine(f"postgresql://{admin_user}:{admin_pwd}@{db_host}/{db}", isolation_level='AUTOCOMMIT')
+conn = engine.connect()
+
+print('Creating required extensions ... '),
+sql = '''
   CREATE EXTENSION IF NOT EXISTS postgis; 
   CREATE EXTENSION IF NOT EXISTS postgis_sfcgal;
   SELECT postgis_full_version(); 
   CREATE EXTENSION IF NOT EXISTS hstore; 
   CREATE EXTENSION IF NOT EXISTS tablefunc;
   '''
+conn.execute(sql)
+print('Done.')
 
-create_threshold_functions = '''
+print('Creating threshold functions ... '),
+sql = '''
 CREATE OR REPLACE FUNCTION threshold_hard(in int, in int, out int) 
     RETURNS NULL ON NULL INPUT
     AS $$ SELECT ($1 < $2)::int $$
@@ -119,65 +115,16 @@ CREATE OR REPLACE FUNCTION threshold_soft(in int, in int, out double precision)
     AS $$ SELECT 1 - 1/(1+exp(-5*($1-$2)/($2::float))) $$
     LANGUAGE SQL;    
   '''
-                   
-## OUTPUT PROCESS
-
-print("Connecting to default database to action queries.")
-conn = psycopg2.connect(dbname=admin_db, user=admin_user_name, password=admin_pwd)
-conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
-curs = conn.cursor()
-
-print('Creating database if not exists {}... '.format(db)),
-curs.execute("SELECT COUNT(*) = 0 FROM pg_catalog.pg_database WHERE datname = '{}'".format(db))
-not_exists_row = curs.fetchone()
-not_exists = not_exists_row[0]
-if not_exists:
-  curs.execute(createDB) 
+engine.execute(sql)
 print('Done.')
 
-print('Adding comment "{}"... '.format(dbComment)),
-curs.execute(commentDB)
-print('Done.')
-
-
-print('Creating user {}  if not exists... '.format(db_user)),
-curs.execute(createUser)
-print('Done.')
-
-print('Creating ArcSDE user {} if not exists... '.format(arc_sde_user)),
-curs.execute(createUser_ArcSDE)
-print('Done.')  
-conn.close()  
-
-print("Connecting to {}.".format(db))
-conn = psycopg2.connect(dbname=db, user=admin_user_name, password=admin_pwd)
-conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
-curs = conn.cursor()
-
-print('Creating required extensions ... '),
-curs.execute(create_extensions)
-print('Done.')
-
-print('Creating threshold functions ... '),
-curs.execute(create_threshold_functions)
-print('Done.')
-
-print('Creating distance results schema {}... '.format(distance_schema)),
-sql = '''
-CREATE SCHEMA IF NOT EXISTS {};
-GRANT postgres TO python;
-'''.format(distance_schema)
-curs.execute(sql)
-for user in ['arc_sde','python']:
-    sql = '''
-    GRANT USAGE ON SCHEMA {schema} TO {user} ;
-    GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA {schema} TO {user};
-    GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA {schema} TO {user};
-    GRANT ALL ON ALL TABLES IN SCHEMA {schema} TO {user};
-    '''.format(schema=distance_schema, user = user)
-    curs.execute(sql)
-    conn.commit()
-print('Done.')
+print('Creating schemas...')
+for schema in schemas:
+    print(f'   - {schema}')
+    engine.execute(f'''CREATE SCHEMA IF NOT EXISTS {schema};''')
+    
+# ensure required permissions are granted
+engine.execute(grant_query)
 
 if not os.path.isfile(os.path.join(locale_dir,db_sde)):
   print('Creating ArcGIS spatial database connection file ... '),
