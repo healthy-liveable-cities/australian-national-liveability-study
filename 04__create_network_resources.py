@@ -35,10 +35,7 @@ task = 'create destination indicator tables'
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd, host=db_host,port=db_port)
 curs = conn.cursor()
 
-engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_user,
-                                                                      pwd  = db_pwd,
-                                                                      host = db_host,
-                                                                      db   = db))
+engine = create_engine(f"postgresql://{db_user}:{db_pwd}@{db_host}/{db}")
 
 print("Get networks and save as graphs.")
 if osmnx_retain_all == 'False':
@@ -184,77 +181,7 @@ if res is None:
     engine.execute(grant_query)      
     print("  - Sampling points table {} created with sampling at every {} metres along the pedestrian network.".format(points,point_sampling_interval))
 else:
-    print("  - It appears that sample points table {} have already been prepared for this region.".format(points))  
-    
-    
-# # get map data
-# map_layers={}
-
-# sql = '''
-# SELECT '10km study region buffer' AS "Description",
-       # ST_Transform(geom,4326) geom 
-# FROM {}
-# '''.format(buffered_study_region)
-# map_layers['buffer'] = gpd.GeoDataFrame.from_postgis(sql, engine, geom_col='geom' )
-
-# sql = '''
-# SELECT ST_Transform(geom,4326) geom
-# FROM {table};
-# '''.format(table = points) 
-# map_layers['sampling_points'] = gpd.GeoDataFrame.from_postgis(sql, engine, geom_col='geom')
-
-# sql = '''
-# SELECT ST_Transform(geom,4326) geom
-# FROM {table};
-# '''.format(table = 'edges') 
-# map_layers['edges'] = gpd.GeoDataFrame.from_postgis(sql, engine, geom_col='geom')
-
-# xy = [float(map_layers['buffer'].centroid.y),float(map_layers['buffer'].centroid.x)]  
-# bounds = map_layers['buffer'].bounds.transpose().to_dict()[0]
-
-# # initialise map
-# m = folium.Map(location=xy, zoom_start=11,tiles=None, control_scale=True, prefer_canvas=True)
-# m.add_tile_layer(tiles='Stamen Toner',name='simple map', overlay=True,active=True)
-# # add layers (not true choropleth - for this it is just a convenient way to colour polygons)
-# buffer = folium.Choropleth(map_layers['buffer'].to_json(),
-                           # name='10km study region buffer',
-                           # fill_color=colours['qualitative'][1],
-                           # fill_opacity=0,
-                           # line_color=colours['qualitative'][1], 
-                           # highlight=False).add_to(m)
-
-# # feature = folium.Choropleth(map_layers[areas[0]['name_s']].to_json(),
-                            # # name=str.title(areas[0]['name_f']),
-                            # # fill_opacity=0,
-                            # # line_color=colours['qualitative'][0], 
-                            # # highlight=False).add_to(m)
-                            
-# # folium.features.GeoJsonTooltip(fields=['Subdistrict',population_field],
-                               # # labels=True, 
-                               # # sticky=True
-                              # # ).add_to(feature.geojson)
-                              
-# # add clustered markers for intersections
-# locations = list(zip(map_layers['sampling_points'].centroid.y, map_layers['sampling_points'].centroid.x))
-# # cluster = folium.MarkerCluster(locations=locations, icons=icons, popups=popups)
-# # m.add_child(cluster)
-
-# callback = ('function (row) {' 
-            # 'var circle = L.circle(new L.LatLng(row[0], row[1],{color: "red", radius: 20000}));'
-            # 'return circle'
-            # '};')
-# m.add_child(FastMarkerCluster(locations, 
-                              # callback=callback, 
-                              # name = 'Sample points ({}m interval)'.format(point_sampling_interval)))
-# folium.PolyLine(map_layers['edges'].loc[0,'geom'].coords[:]).add_to(m)  
-# folium.LayerControl(collapsed=True).add_to(m)
-
-# # checkout https://nbviewer.jupyter.org/gist/jtbaker/57a37a14b90feeab7c67a687c398142c?flush_cache=true
-# # save map
-# map_name = '{}_04_network.html'.format(locale)
-# m.save('{}/html/{}.html'.format(locale_maps,map_name))
-# m.save('../maps/{}'.format(map_name))
-# print("\nPlease inspect results using interactive map saved in project maps folder: {}\n".format(map_name))          
+    print("  - It appears that sample points table {} have already been prepared for this region.".format(points))   
     
 script_running_log(script, task, start)
 

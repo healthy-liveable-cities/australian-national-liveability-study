@@ -23,11 +23,7 @@ date = datetime.today().strftime('%Y%m%d')
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()  
 
-engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_user,
-                                                                 pwd  = db_pwd,
-                                                                 host = db_host,
-                                                                 db   = db))
-
+engine = create_engine(f"postgresql://{db_user}:{db_pwd}@{db_host}/{db}")
 
 if locale!='australia':
     out_dir = 'D:/ntnl_li_2018_template/data/study_region/_exports'

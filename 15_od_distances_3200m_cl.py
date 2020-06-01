@@ -170,10 +170,7 @@ def ODMatrixWorkerFunction(hex):
   try:
     conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
     curs = conn.cursor()
-    engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_user,
-                                                                      pwd  = db_pwd,
-                                                                      host = db_host,
-                                                                      db   = db), 
+    engine = create_engine(f"postgresql://{db_user}:{db_pwd}@{db_host}/{db}", 
                        use_native_hstore=False)
   except:
     print("SQL connection error")

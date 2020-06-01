@@ -39,10 +39,7 @@ script = os.path.basename(sys.argv[0])
 task = 'Create ABS and non-ABS linkage tables using 2016 data sourced from ABS'
 
 # INPUT PARAMETERS
-engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_user,
-                                                                      pwd  = db_pwd,
-                                                                      host = db_host,
-                                                                      db   = db))
+engine = create_engine(f"postgresql://{db_user}:{db_pwd}@{db_host}/{db}")
 
 # OUTPUT PROCESS
 task = '\nCreate inclusion area geometries... '

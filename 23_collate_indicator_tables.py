@@ -22,10 +22,7 @@ task = 'create destination indicator tables'
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()
 
-engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_user,
-                                                                 pwd  = db_pwd,
-                                                                 host = db_host,
-                                                                 db   = db))
+engine = create_engine(f"postgresql://{db_user}:{db_pwd}@{db_host}/{db}")
 
 # Indicator configuration sheet is 'df_inds', read in from config file in the config script
 # Restrict to indicators associated with study region (except distance to closest dest indicators)

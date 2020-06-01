@@ -40,76 +40,86 @@ start = time.time()
 script = os.path.basename(sys.argv[0])
 task = '\nCreate area linkage tables using 2016 data sourced from ABS'
 
-engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_user,
-                                                                      pwd  = db_pwd,
-                                                                      host = db_host,
-                                                                      db   = db))
+engine = create_engine(f"postgresql://{db_user}:{db_pwd}@{db_host}/{db}")
 
 print("Commencing task: {} at {}".format(task,time.strftime("%Y%m%d-%H%M%S")))
 # connect to the PostgreSQL server
 conn = psycopg2.connect(dbname=db, user=db_user, password=db_pwd)
 curs = conn.cursor()
 
-print("\nImport region data... "),
-for geo in geo_imports.index.values:
-  data = geo_imports.loc[geo,'data']
-  if os.path.splitext(data)[1]=='.gpkg':
-      from_epsg = int(geo_imports.loc[geo,'epsg'])
-      command = (
-              ' ogr2ogr -overwrite -progress -f "PostgreSQL" '
-              ' -s_srs "EPSG:{from_epsg}" -t_srs "EPSG:{to_epsg}" ' 
-              ' PG:"host={host} port=5432 dbname={db}'
-              ' user={user} password = {pwd}" '
-              ' "{gpkg}" '
-              ' -lco geometry_name="geom"'.format(host = db_host,
-                                           db = db,
-                                           user = db_user,
-                                           pwd = db_pwd,
-                                           from_epsg = from_epsg,
-                                           to_epsg = srid,
-                                           gpkg = data) 
-              )
-      print(command)
-      sp.call(command, shell=True,cwd=os.path.dirname(os.path.join(folderPath)))
-
+data,table,epsg = df_regions.query(f"table=='{region_shape}'")[['data','table','epsg']].values[0]
+if os.path.splitext(data)[1]=='.gpkg':
+  from_epsg = int(epsg)
+  command = (
+          ' ogr2ogr -overwrite -progress -f "PostgreSQL" '
+         f' -s_srs "EPSG:{from_epsg}" -t_srs "EPSG:{srid}" ' 
+         f' PG:"host={db_host} port=5432 dbname={db} active_schema={boundary_schema}'
+         f' user={db_user} password = {db_pwd}" '
+         f' "{data}" {table} '
+          ' -lco geometry_name="geom" '
+          )
+  print(command)
+  sp.call(command, shell=True,cwd=os.path.dirname(os.path.join(folderPath)))
+else:
+  sys.exit('''
+     Code currently assumes input region data is a geopackage, however yours doesn't seem to be.
+     Please code an alternate logic for your data and run again.
+     ''')
 print("Done.")
 
 print("Create study region... "),
-sql = '''
+sql = f'''
 CREATE TABLE IF NOT EXISTS study_region AS 
 SELECT ST_Union(geom) AS geom
-FROM {} 
-WHERE {}
-'''.format(region_shape,region_where_clause)
-curs.execute(sql)
-conn.commit()
+FROM {boundary_schema}.{region_shape} 
+WHERE {region_where_clause}
+'''
+engine.execute(sql)
 print("Done.")
 
 print("Create buffered study region... "),
-sql = '''
+sql = f'''
 CREATE TABLE IF NOT EXISTS buffered_study_region AS 
-SELECT ST_Buffer(geom,{}) AS geom 
+SELECT ST_Buffer(geom,{study_buffer}) AS geom 
 FROM study_region
-'''.format(study_buffer)
-curs.execute(sql)
-conn.commit()
+'''
+engine.execute(sql)
 print("Done.")
 
-print("Remove from region tables records whose geometries do not intersect buffered study region bounds ... ")
-for area in df_regions.table.dropna().values:
-    print(" - {}".format(area))
-    curs.execute('''
-    DELETE FROM  {area} a 
-          USING {buffered_study_region} b 
-      WHERE NOT ST_Intersects(a.geom,b.geom) 
-             OR a.geom IS NULL;
-    '''.format(area = area,
-               buffered_study_region = buffered_study_region))
-    conn.commit()
+print("\nImport region data within buffered study region... "),
+for geo in geo_imports.index.values:
+  data = geo_imports.loc[geo,'data']
+  if os.path.splitext(data)[1]=='.gpkg':
+      epsg = int(geo_imports.loc[geo,'epsg'])
+      sql = '''SELECT ST_Extent(ST_Transform(geom,{epsg})) 
+                 FROM {buffered_study_region};
+            '''.format(epsg = epsg,
+                       buffered_study_region=buffered_study_region)
+      # transform data if not in project spatial reference
+      if epsg!=srid:
+          transform =   ' -s_srs "EPSG:{epsg}" -t_srs "EPSG:{srid}" '.format(epsg=epsg,srid=srid)
+      else:
+          transform = ''
+      # get bounding box of buffered study region for clipping external data using ogr2ogr on import
+      urban_region = engine.execute(sql).fetchone()
+      urban_region = [float(x) for x in urban_region[0][4:-1].replace(',',' ').split(' ')]
+      bbox =  '{} {} {} {}'.format(*urban_region)
+      command = (
+               ' ogr2ogr -overwrite -progress -f "PostgreSQL" '
+              f' PG:"host={db_host} port=5432 dbname={db} active_schema={boundary_schema}'
+              f' user={db_user} password = {db_pwd}" '
+              f' "{data}"  -clipsrc {bbox}'
+              f' -lco geometry_name="geom"'
+              f' {transform}'
+              )
+      print(command)
+      sp.call(command, shell=True,cwd=os.path.dirname(os.path.join(folderPath)))
+print("Done.")
 
 print("Initiate area linkage table based on smallest region in region list (first entry: {})... )".format(geographies[0])),
 print('''(note that a warning "Did not recognize type 'geometry' of column 'geom'" may appear; this is fine.)''')
-area_linkage = pandas.read_sql_table(df_regions.loc[geographies[0],'table'],con=engine,index_col=df_regions.loc[geographies[0],'id']).reset_index()
+sql = 'SELECT * FROM {}.{} WHERE geom IS NOT NULL'.format(boundary_schema,df_regions.loc[geographies[0],'table'])
+area_linkage = pandas.read_sql(sql,con=engine,index_col=df_regions.loc[geographies[0],'id']).reset_index()
 
 # drop the geom column
 area_linkage = area_linkage.loc[:,[x for x in area_linkage.columns if x not in ['geom']]]
@@ -124,18 +134,18 @@ for csv in csv_linkage:
     print('  - {}'.format(retain))
     if len(data_list) > 1:
         dfs = [pandas.read_csv(f, 
-                                   compression='infer', 
-                                   header=0, 
-                                   sep=',', 
-                                   quotechar='"') 
+                               compression='infer', 
+                               header=0, 
+                               sep=',', 
+                               quotechar='"') 
                     for f in data_list]
         df = pandas.concat(dfs).sort_index()
     else:
         df = pandas.read_csv(data_list[0], 
-                                   compression='infer', 
-                                   header=0, 
-                                   sep=',', 
-                                   quotechar='"') 
+                             compression='infer', 
+                             header=0, 
+                             sep=',', 
+                             quotechar='"') 
     df.columns = map(str.lower, df.columns)
     df = df.loc[:,retain].reset_index()
     df[linkage_id] = df[linkage_id].astype(str) 
@@ -153,12 +163,10 @@ print("Done.")
 print("\nRecreate area linkage table geometries and GIST index... "),
 # work around since geopandas isn't necessarily installed on our computers
 sql = '''
----- commented out dwelling exclusion; this is arguably excessive for the linkage table
--- DELETE FROM area_linkage WHERE dwelling = 0;
-ALTER TABLE area_linkage ADD COLUMN urban text;
-ALTER TABLE area_linkage ADD COLUMN study_region boolean;
-ALTER TABLE area_linkage ADD COLUMN area_ha double precision;
-ALTER TABLE area_linkage ADD COLUMN geom geometry;
+ALTER TABLE area_linkage ADD COLUMN IF NOT EXISTS urban text;
+ALTER TABLE area_linkage ADD COLUMN IF NOT EXISTS study_region boolean;
+ALTER TABLE area_linkage ADD COLUMN IF NOT EXISTS area_ha double precision;
+ALTER TABLE area_linkage ADD COLUMN IF NOT EXISTS geom geometry;
 UPDATE area_linkage a 
    SET urban = CASE                                                       
                    WHEN sos_name_2016 IN ('Major Urban','Other Urban')  
@@ -167,12 +175,22 @@ UPDATE area_linkage a
                 END, 
        area_ha = ST_Area(g.geom)/10000.0,
        geom = g.geom
-  FROM {table} g
+  FROM {boundary_schema}.{table} g
  WHERE a.{id} = g.{id};
+ CREATE INDEX gix_area_linkage ON area_linkage USING GIST (geom);
+'''.format(boundary_schema = boundary_schema,
+           table = df_regions.loc[geographies[0],'table'],
+           id    = df_regions.loc[geographies[0],'id'])
+engine.execute(sql)           
+
+sql = '''
 UPDATE area_linkage a 
    SET study_region = ST_CoveredBy(a.geom,s.geom)
   FROM study_region s;
-CREATE INDEX gix_area_linkage ON area_linkage USING GIST (geom);
+  '''
+engine.execute(sql)
+
+sql = '''
 DROP TABLE IF EXISTS mb_dwellings;
 CREATE TABLE mb_dwellings AS 
       SELECT *
@@ -182,15 +200,12 @@ CREATE UNIQUE INDEX ix_mb_dwellings ON mb_dwellings (mb_code_2016);
 CREATE INDEX gix_mb_dwellings ON mb_dwellings USING GIST (geom);
 '''.format(table = df_regions.loc[geographies[0],'table'],
            id    = df_regions.loc[geographies[0],'id'])
-curs.execute(sql)
-conn.commit()
+engine.execute(sql)
 print("Done.")
   
 print("Granting privileges to python and arcgis users... "),
-curs.execute(grant_query)
-conn.commit()
+engine.execute(grant_query)
 print("Done.")           
-
 
 ## ArcGIS code (currently necessary due to legacy usage in lead up to network analysis)
 # ArcGIS environment settings
@@ -208,35 +223,31 @@ SpatialRef = arcpy.SpatialReference(SpatialRef)
 # OUTPUT PROCESS
 # Create output gdb if not already existing
 if os.path.exists(gdb_path):
-  print("Using extant file geodatabase: {}".format(gdb_path)) 
+  print(f"Using extant file geodatabase: {gdb_path}") 
 if not os.path.exists(gdb_path):
   arcpy.CreateFileGDB_management(locale_dir,gdb)
-  print("File geodatabase created: {}".format(gdb_path))
+  print(f"File geodatabase created: {gdb_path}")
 
 # copy study region, buffered study region and mb_dwellings to arcgis
 arcpy.env.workspace = db_sde_path
 arcpy.env.overwriteOutput = True
 
-arcpy.CopyFeatures_management('public.{}'.format(study_region), os.path.join(gdb_path,study_region))
-arcpy.CopyFeatures_management('public.{}'.format(buffered_study_region), os.path.join(gdb_path,buffered_study_region))
-arcpy.CopyFeatures_management('public.mb_dwellings', os.path.join(gdb_path,'mb_dwellings'))
+arcpy.CopyFeatures_management(f'public.{study_region}', 
+                              os.path.join(gdb_path,study_region))
+arcpy.CopyFeatures_management(f'public.{buffered_study_region}', 
+                              os.path.join(gdb_path,buffered_study_region))
+arcpy.CopyFeatures_management('public.mb_dwellings', 
+                              os.path.join(gdb_path,'mb_dwellings'))
 
 # output buffered studyregion shp
-locale_4326_shp = os.path.join(locale_dir,'{}_{}_{}m_epsg4326'.format(locale.lower(),study_region,study_buffer))
+locale_4326_shp = os.path.join(locale_dir,f'{locale}_{study_region}_{study_buffer}m_epsg4326'.lower())
 
 command = (
-      ' ogr2ogr -f "ESRI Shapefile" {out_feature}.shp  '
-      ' -s_srs "EPSG:{from_epsg}" -t_srs "EPSG:{to_epsg}" ' 
-      ' PG:"host={host} port=5432 dbname={db}'
-      ' user={user} password = {pwd}" '
-      ' "{table}" '.format(host = db_host,
-                                   db = db,
-                                   user = db_user,
-                                   pwd = db_pwd,
-                                   out_feature = locale_4326_shp,
-                                   from_epsg = srid,
-                                   to_epsg = 4326,
-                                   table = buffered_study_region) 
+      f' ogr2ogr -f "ESRI Shapefile" {locale_4326_shp}.shp  '
+      f' -s_srs "EPSG:{srid}" -t_srs "EPSG:4326" ' 
+      f' PG:"host={db_host} port=5432 dbname={db}'
+      f' user={db_user} password = {db_pwd}" '
+      f' "{buffered_study_region}" '
       )
 print(command)
 sp.call(command, shell=True)

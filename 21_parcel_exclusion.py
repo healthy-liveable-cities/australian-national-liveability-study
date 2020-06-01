@@ -139,10 +139,7 @@ curs.execute(summary_tables)
 conn.commit()
 print("Done.")
 
-engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_user,
-                                                                 pwd  = db_pwd,
-                                                                 host = db_host,
-                                                                 db   = db))
+engine = create_engine(f"postgresql://{db_user}:{db_pwd}@{db_host}/{db}")
                                                                  
 print("\nExcluded parcels by reason for exclusion:")
 summary = pandas.read_sql_query('''SELECT indicator, count(*) FROM excluded_parcels GROUP BY indicator;''',con=engine) 
