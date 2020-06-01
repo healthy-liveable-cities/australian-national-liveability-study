@@ -43,8 +43,8 @@ if not os.path.exists(locale_dir):
 
 # default database
 print("Please enter default PostgreSQL database details to procede with new database creation, or close terminal to abort.")
-admin_db   = raw_input("Database: ")    
-admin_user_name = raw_input("Username: ")
+admin_db   = input("Database: ")    
+admin_user_name = input("Username: ")
 admin_pwd = getpass.getpass("Password for user {} on database {}: ".format(admin_user_name, admin_db))
 
 # SQL queries
