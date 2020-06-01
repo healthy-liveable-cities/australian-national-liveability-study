@@ -44,8 +44,8 @@ print(" Done.")
 
 for feature in ['edges','nodes']:
   print("Project {} to feature dataset in {}...".format(feature,SpatialRef)),
+  # note that previous project version stored edge / node features in folders 'edges' or 'nodes'
   arcpy.Project_management(in_dataset = os.path.join(network_source,
-                                                     feature,
                                                      '{}.shp'.format(feature)),
                          out_dataset=os.path.join('{}'.format(network_source_feature_dataset), 
                                                   feature),

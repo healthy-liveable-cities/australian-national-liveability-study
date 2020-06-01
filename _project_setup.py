@@ -163,12 +163,31 @@ points = points.split(',')
 parcel_dwellings = 'parcel_dwellings'
 
 # roads
+# define pedestrian network custom filter (based on OSMnx 'walk' network type, without the cycling exclusion)
+pedestrian = (
+             '["area"!~"yes"]' 
+             '["highway"!~"motor|proposed|construction|abandoned|platform|raceway"]'
+             '["foot"!~"no"]'  
+             '["service"!~"private"]' 
+             '["access"!~"private"]'
+             )
+             
+# Note: "retain_all = False" ie. only main network segment is retained.
+#         Please ensure this is appropriate for your study region 
+#         (ie. networks on real islands may be excluded).
+#       "retain_all = True" ie. all network segments will be retained.
+#         Please ensure this is appropriate for your study region 
+#         (ie. networks on real islands will be included, however network 
+#         artifacts resulting in isolated network segments, or network islands,
+#         may also exist.  These could be problematic if sample points are 
+#         snapped to erroneous, mal-connected segments.  Check results.).
+osmnx_retain_all = (osmnx_retain_all == 'True')
+
 # Define network data name structures
 network_source = os.path.join(locale_dir,df_studyregion.loc[locale]['network_folder'])
 network_template = os.path.join(folderPath,road_data,df_parameters.loc['network_template']['value'])
 
-# Intersections with 3plus ways
-clean_intersections_locale = df_studyregion.loc[locale]['clean_intersections_locale']
+intersections_table = "clean_intersections_{}m".format(intersection_tolerance)
 
 # Derived network data variables - no need to change, assuming the above works
 network_source_feature = network_source_feature_dataset
