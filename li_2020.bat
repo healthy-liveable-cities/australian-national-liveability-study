@@ -1,0 +1,1 @@
+"C:\Program Files\ArcGIS\Pro\bin\Python\Scripts\activate.bat" li_2020
