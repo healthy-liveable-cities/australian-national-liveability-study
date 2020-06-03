@@ -33,6 +33,10 @@ import sys
 import time
 import pandas
 import subprocess as sp
+import math 
+
+# import custom utility functions
+from _utils import *
 
 # Load settings from _project_configuration.xlsx
 xls = pandas.ExcelFile(os.path.join(sys.path[0],'_project_configuration.xlsx'))
@@ -98,6 +102,9 @@ hex_grid_buffer =  f'{study_region}_hex_{hex_diag}{units}_diag_{hex_buffer}{unit
 hex_side = float(hex_diag)*0.5
 hex_id = 'hex_id'
 hex_feature = 'hex_parcels'
+
+# Derived hex settings
+hex_area_km2 = ((3*math.sqrt(3.0)/2)*(hex_side)**2)*10.0**-6
 
 # Database names -- derived from above parameters; (no need to change!)
 gdb       = f'{db}.gdb'
@@ -256,43 +263,33 @@ childcare_table = os.path.splitext(os.path.basename(childcare_ratings))[0]
 # When destinations are imported for study region, we don't want to retain all of these; now, purge
 purge_table_list = list(set(df_housekeeping.tables_to_drop_if_exist.tolist()))
 
-def pretty(d, indent=0):
-   for key, value in d.items():
-      depth = 0
-      print('\t' * indent + str(key)+':'),
-      if isinstance(value, dict):
-        if depth == 0:
-          print(" ")
-          depth+=1
-        pretty(value, indent+1)
-      else:
-        print(' ' + str(value))
-
-def jsonb_summary_sql(indicator_tuples):
-    ''' 
-    given a list of indicators, return SQL code to summarise these in JSONB format for postgresql
-    '''
-    # ensure input is in list form
-    if not hasattr(indicator_tuples,"__iter__"):
-        raise ValueError("The provided data is not in the expected form; ie. a tuple of ['indicator','scale','description']")
-    summary_queries = []
-    for ind in indicator_tuples:
-        sql = '''
-        to_jsonb( 
-               (SELECT d  FROM 
-                   (SELECT 
-                      $${description}$$::text AS description,
-                      {scale}*AVG("{ind}") AS mean,
-                      {scale}*STDDEV_SAMP("{ind}") AS sd,
-                      percentile_cont(ARRAY[0,0.01,0.025,0.25,0.5,0.75,0.975,0.99,1]) 
-                        WITHIN GROUP (ORDER BY {scale}*"{ind}") 
-                            AS percentiles
-                      ) d)
-                ) AS "{ind}"
-        '''.format(ind = ind[0],scale = ind[1],description = ind[2])
-        summary_queries.append(sql)
-    return ','.join(summary_queries)
-
+# Colours for presenting maps
+colours = {}
+# http://colorbrewer2.org/#type=qualitative&scheme=Dark2&n=8
+colours['qualitative'] = ['#1b9e77','#d95f02','#7570b3','#e7298a','#66a61e','#e6ab02','#a6761d','#666666']
+# http://colorbrewer2.org/#type=diverging&scheme=PuOr&n=8
+colours['diverging'] = ['#8c510a','#bf812d','#dfc27d','#f6e8c3','#c7eae5','#80cdc1','#35978f','#01665e']
+        
+map_style = '''
+<style>
+.legend {
+    padding: 0px 0px;
+    font: 12px sans-serif;
+    background: white;
+    background: rgba(255,255,255,1);
+    box-shadow: 0 0 15px rgba(0,0,0,0.2);
+    border-radius: 5px;
+    }
+.leaflet-control-attribution {
+	width: 60%;
+	height: auto;
+	}
+.leaflet-container {
+    background-color:rgba(255,0,0,0.0);
+}
+</style>
+<script>L_DISABLE_3D = true;</script>
+'''    
 
 # specify that the above modules and all variables below are imported on 'from config.py import *'
 __all__ = [x for x in dir() if x not in ['__file__','__all__', '__builtins__', '__doc__', '__name__', '__package__']]

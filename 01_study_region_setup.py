@@ -91,13 +91,10 @@ for geo in geo_imports.index.values:
   data = geo_imports.loc[geo,'data']
   if os.path.splitext(data)[1]=='.gpkg':
       epsg = int(geo_imports.loc[geo,'epsg'])
-      sql = '''SELECT ST_Extent(ST_Transform(geom,{epsg})) 
-                 FROM {buffered_study_region};
-            '''.format(epsg = epsg,
-                       buffered_study_region=buffered_study_region)
+      sql = f'''SELECT ST_Extent(ST_Transform(geom,{epsg})) FROM {buffered_study_region};'''
       # transform data if not in project spatial reference
       if epsg!=srid:
-          transform =   ' -s_srs "EPSG:{epsg}" -t_srs "EPSG:{srid}" '.format(epsg=epsg,srid=srid)
+          transform =f' -s_srs "EPSG:{epsg}" -t_srs "EPSG:{srid}" '
       else:
           transform = ''
       # get bounding box of buffered study region for clipping external data using ogr2ogr on import
