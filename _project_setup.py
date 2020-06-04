@@ -163,11 +163,11 @@ dwellings_field  = df_regions.loc['Dwellings','id']
 points = df_studyregion.loc[locale]['points']
 points = points.split(',')
 
-# The below is perhaps a redundant naming convention,
-# but our last run of scripts invested in this, so for now we'll leave it in so things work
-# A better name might be something like 'units_of_analysis' or 'included_points'
-# I don't know; but that is what this refers to. Its just a name.
-parcel_dwellings = 'parcel_dwellings'
+# Sample point feature name
+sample_point_feature = 'parcel_dwellings'
+# legacy variable for sample point feature - to be phased out so as to be more relevant in generalised contexts
+# ie. sample points need not relate to 'parcels' or 'dwellings' directly; e.g. regular points along network
+parcel_dwellings = sample_point_feature
 
 # roads
 # define pedestrian network custom filter (based on OSMnx 'walk' network type, without the cycling exclusion)
@@ -204,6 +204,9 @@ in_network_dataset = os.path.join(network_source_feature_dataset,
                                   f'{network_source_feature_dataset}_ND')
 # network dataset, with full path
 in_network_dataset_path = os.path.join(gdb_path,in_network_dataset)
+
+service_areas =  [int(x) for x in service_areas.split(',')]
+service_areas = sorted(set(service_areas +[distance]))
 
 # Island exceptions are defined using ABS constructs in the project configuration file.
 # They identify contexts where null indicator values are expected to be legitimate due to true network isolation, 
