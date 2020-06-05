@@ -76,7 +76,25 @@ if not engine.dialect.has_table(engine, 'parcel_dwellings'):
         DROP TABLE temp_parcels;
         DROP TABLE temp_parcels_2;
         '''
-    # engine.execute(sql)
+    engine.execute(sql)
+    print("Done.")
+    print("Creating hex_parcels table counting parcels within hexes"),
+    sql ='''
+    DROP TABLE IF EXISTS hex_parcels;
+    CREATE TABLE hex_parcels AS 
+    SELECT hex,
+           count,
+           cumfreq,
+           ROUND((100*cumfreq / (SELECT COUNT(*) FROM parcel_dwellings)),2) AS percentile
+    FROM (SELECT hex,
+                 count,
+                 sum(count) OVER (ORDER BY hex) AS cumfreq
+          FROM (SELECT hex_id AS hex,
+                 COUNT(*)
+                 FROM parcel_dwellings
+                 GROUP BY hex_id) absolute
+          ) relative;
+    '''
     # grant access to the tables just created
     engine.execute(grant_query)
     print("Done.")
