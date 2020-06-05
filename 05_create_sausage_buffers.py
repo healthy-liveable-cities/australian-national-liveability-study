@@ -63,7 +63,7 @@ for distance in service_areas:
     if engine.has_table(table, schema=point_schema):
         print("Aleady exists; skipping.")
     else:
-        createTable_sausageBuffer = f'''
+        sql = f'''
           CREATE TABLE IF NOT EXISTS {point_schema}.{table}
             ({points_id} {points_id_type} PRIMARY KEY, 
              area_sqm   double precision,
@@ -72,8 +72,8 @@ for distance in service_areas:
              geom geometry);  
           '''
         # create output spatial feature in Postgresql
-        engine.execute(createTable_sausageBuffer)
-        
+        engine.execute(sql)
+
         # preparatory set up
         # Process: Make Service Area Layer
         outSAResultObject = arcpy.MakeServiceAreaLayer_na(in_network_dataset = in_network_dataset, 
@@ -88,16 +88,16 @@ for distance in service_areas:
                                   hierarchy="NO_HIERARCHY")
                                   
         outNALayer = outSAResultObject.getOutput(0)
-        
+
         #Get the names of all the sublayers within the service area layer.
-        subLayerNames = arcpy.na.GetNAClassNames(outNALayer)
+        sublayer_names = arcpy.na.GetNAClassNames(outNALayer)
         #Store the layer names that we will use later
-        facilitiesLayerName = subLayerNames["Facilities"]
-        linesLayerName = subLayerNames["SALines"]
-        linesSubLayer = arcpy.mapping.ListLayers(outNALayer,linesLayerName)[0]
-        facilitiesSubLayer = arcpy.mapping.ListLayers(outNALayer,facilitiesLayerName)[0] 
+        facilitiesLayerName = sublayer_names["Facilities"]
+        linesLayerName = sublayer_names["SALines"]
+        linesSubLayer = outNALayer.listLayers(linesLayerName)[0]
+        facilitiesSubLayer = outNALayer.listLayers(facilitiesLayerName)[0] 
         fcLines  = os.path.join(arcpy.env.scratchGDB,"Lines")
-        
+
         # Process: Add Locations
         arcpy.AddLocations_na(in_network_analysis_layer = os.path.join(arcpy.env.scratchGDB,"ServiceArea"), 
                     sub_layer                      = facilitiesLayerName, 
@@ -110,14 +110,14 @@ for distance in service_areas:
                     exclude_restricted_elements    = "INCLUDE",
                     search_query                   = f"{network_edges} #;{network_junctions} #")
         place = "after AddLocations"      
-        
+
         # Process: Solve
         arcpy.Solve_na(in_network_analysis_layer = os.path.join(arcpy.env.scratchGDB,"ServiceArea"), ignore_invalids = "SKIP",terminate_on_solve_error = "CONTINUE")
         place = "after Solve_na"      
-        
+
         # Dissolve linesLayerName
         # field_names = [f.name for f in arcpy.ListFields(linesSubLayer)]
-        
+
         arcpy.Dissolve_management(in_features=linesSubLayer, 
                                   out_feature_class=fcLines, 
                                   dissolve_field="FacilityID", 
@@ -125,23 +125,26 @@ for distance in service_areas:
                                   multi_part="MULTI_PART", 
                                   unsplit_lines="DISSOLVE_LINES")
         place = "after Dissolve" 
-        
+
         # Process: Join Field
         arcpy.MakeFeatureLayer_management(fcLines, "tempLayer")  
         place = "after MakeFeatureLayer of TempLayer" 
-        
+
         arcpy.AddJoin_management(in_layer_or_view = "tempLayer", 
                                  in_field    = "FacilityID", 
                                  join_table  = facilitiesSubLayer,
                                  join_field  = "ObjectId")
         place = "after AddJoin" 
-        
+
         # write output line features within chunk to Postgresql spatial feature
         # Need to parse WKT output slightly (Postgresql doesn't take this M-values nonsense)
-        with arcpy.da.SearchCursor("tempLayer",['Facilities.Name','Shape@WKT']) as cursor:
+        # with arcpy.da.SearchCursor("tempLayer",['Facilities.Name','Shape@WKT']) as cursor:
+        with arcpy.da.SearchCursor("tempLayer",['Facilities3.Name','Shape@WKT']) as cursor:
           for row in cursor:
-            id =  row[0].encode('utf-8')
-            wkt = row[1].encode('utf-8').replace(' NAN','').replace(' M ','')
+            id =  row[0]
+            wkt = row[1].replace(' NAN','').replace(' M ','')
+            # insert into combined nh_areas table?
+            # for validation sample - only retain random 20
             sql = f'''
                   INSERT INTO {point_schema}.{table} 
                   SELECT 
@@ -159,31 +162,35 @@ for distance in service_areas:
                                 ) a 
                          ) b ;
             '''
-            curs.execute(sql)
-            place = "after curs.execute insert sausage buffer" 
-            conn.commit()
-            place = "after conn.commit for insert sausage buffer" 
+            engine.execute(sql)
+
         # clean up  
         arcpy.Delete_management("tempLayer")
         arcpy.Delete_management(fcLines)
         # Create sausage buffer spatial index
         engine.execute(f'''CREATE INDEX IF NOT EXISTS {table}_gix ON {point_schema}.{table} USING GIST (geom);''')
-        
+
         if distance==nh_distance:
             # Create summary table of parcel id and area
             print("    - Creating summary table of points with no 1600m buffer (if any)... "),  
             sql = f'''
-            CREATE TABLE IF NOT EXISTS {validation_schema}.no_nh_{nh_distance}m AS 
+            CREATE TABLE IF NOT EXISTS {validation_schema}.no_nh_{distance}m AS 
             SELECT * FROM {sample_point_feature} 
             WHERE {points_id} NOT IN (SELECT {points_id} FROM {point_schema}.{table});
             '''
             engine.execute(sql)
         print("Processed.")
 
+
+
+
+
+
+
+
 arcpy.Delete_management("points")
 arcpy.CheckInExtension('Network')
 
-conn.close()
  
 try:
     for gdb in glob.glob("{temp}/scratch_{study_region}_*.gdb"):
