@@ -24,9 +24,6 @@ print(f"Commencing task: {task} at {start_string}")
 
 schema=point_schema
 
-# get pid name
-pid = multiprocessing.current_process().name
-
 # ArcGIS environment settings
 arcpy.env.workspace = gdb_path  
 
@@ -40,21 +37,9 @@ group_by = 1000
 # create project specific folder in temp dir for scratch.gdb, if not exists
 if not os.path.exists(temp):
     os.makedirs(temp)
-
-temp_gdb = f"{temp}/{db}"
-# create project specific folder in temp dir for scratch.gdb, if not exists
-if not os.path.exists(temp_gdb):
-  os.makedirs(temp_gdb)
-      
-arcpy.env.scratchWorkspace = temp_gdb 
-arcpy.env.qualifiedFieldNames = False  
-arcpy.env.overwriteOutput = True 
   
 # WORKER PROCESSORS pre-setup
 if __name__ != '__main__': 
-    # Create database connection
-    engine = create_engine(f'''postgresql://{db_user}:{db_pwd}@{db_host}/{db}''', use_native_hstore=False) 
-    # preparatory set up
     # Process: Make Service Area Layer
     # Excerpted (add for facilities w/ distance):    default_break_values = "{}".format(distance), 
     outSAResultObject = arcpy.na.MakeServiceAreaAnalysisLayer(
@@ -79,7 +64,11 @@ if __name__ != '__main__':
     # linesSubLayer = outNALayer.listLayers(linesLayerName)[0]
     facilities_sublayer = outNALayer.listLayers(facilities_layer_name )[0] 
     polygons_sublayer = outNALayer.listLayers(polygons_layer_name )[0] 
-    engine.dispose()
+    pid = multiprocessing.current_process()
+    temp_gdb = f"{temp}/{db}_{pid}"    
+    arcpy.env.scratchWorkspace = temp_gdb 
+    arcpy.env.qualifiedFieldNames = False  
+    arcpy.env.overwriteOutput = True 
 
 def create_service_areas(hex):
     '''
@@ -184,9 +173,8 @@ def create_service_areas(hex):
     arcpy.Delete_management("selection_{}".format(pid))
     arcpy.CheckInExtension('Network')
     engine.dispose()
-    return(numerator) 
 
-def run():
+if __name__ == '__main__':
     task = 'Record distances and PT stop metadata from origins to PT stops within 800m, and closest'
     print("Commencing task ({}): {} at {}".format(db,task,time.strftime("%Y%m%d-%H%M%S")))
     engine = create_engine(f'''postgresql://{db_user}:{db_pwd}@{db_host}/{db}''', use_native_hstore=False) 
@@ -209,7 +197,7 @@ def run():
 
     # Select polygons remaining to be processed
     sql = '''SELECT hex FROM hex_parcels; '''
-    iteration_list = [x[0] for x in engine.execute(sql)]
+    iteration_list = [(x[0],) for x in engine.execute(sql)]
     # pbar = tqdm(total=denominator, unit='polygon')
     # def update(a):
         # pbar.update(a)
@@ -247,8 +235,8 @@ def run():
     # clean up
     engine.dispose()
     try:
-        for gdb in glob.glob(os.path.join(temp,"scratch_{}_*.gdb".format(study_region))):
-          arcpy.Delete_management(gdb)
+        for gdb in glob.glob(f"{temp}/{db}*"):
+          os.remove(gdb)
     except: 
         print("FRIENDLY REMINDER!!! Remember to delete temp gdbs to save space!")
         print("(there may be lock files preventing automatic deletion.)")
