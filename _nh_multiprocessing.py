@@ -10,19 +10,20 @@ import glob
 import time
 import numpy as np
 from sqlalchemy import create_engine
-from tqdm import tqdm
+# from tqdm import tqdm
+import shutil
+from distutils.dir_util import copy_tree
 
 # Import custom variables for National Liveability indicator process
 from _project_setup import *
 
 def create_walkable_neighbourhood_from_bin(locale_pid_tuple):
+    points_processed = 0
     engine = create_engine(f'''postgresql://{db_user}:{db_pwd}@{db_host}/{db}''', use_native_hstore=False) 
-    conn = engine.connect()
     service_areas_string = ', '.join([str(distance) for distance in service_areas])
     tables = [f'nh{distance}m' for distance in service_areas]
     
     locale,pid=locale_pid_tuple
-    
     
     # ArcGIS environment settings
     arcpy.env.workspace = gdb_path  
@@ -38,10 +39,24 @@ def create_walkable_neighbourhood_from_bin(locale_pid_tuple):
     if not os.path.exists(temp):
         os.makedirs(temp)
     
-    temp_gdb = f"{temp}/{db}_{pid}"    
-    if not os.path.exists(temp_gdb):
-        os.makedirs(temp_gdb)
-    arcpy.env.scratchWorkspace = temp_gdb 
+    # temp_gdb = f"{temp}/{db}_{pid}"    
+    # if not os.path.exists(temp_gdb):
+        # os.makedirs(temp_gdb)
+    # arcpy.env.scratchWorkspace = temp_gdb 
+    # arcpy.env.qualifiedFieldNames = False  
+    # arcpy.env.overwriteOutput = True 
+
+    temp_gdb = f"{temp}/{db}_{pid}.gdb"    
+    # make sure Network Analyst licence is 'checked out'
+    arcpy.CheckOutExtension('Network')
+    # ensure previous gdb is deleted if exists
+    if os.path.exists(temp_gdb):
+        shutil.rmtree('temp_gdb', ignore_errors=True)
+    
+    # arcpy.Copy_management(gdb_path, temp_gdb)
+    copy_tree(gdb_path, temp_gdb)
+    # ArcGIS environment settings
+    arcpy.env.workspace = temp_gdb  
     arcpy.env.qualifiedFieldNames = False  
     arcpy.env.overwriteOutput = True 
 
@@ -72,14 +87,15 @@ def create_walkable_neighbourhood_from_bin(locale_pid_tuple):
 
     # Select polygons remaining to be processed
     sql = f'''SELECT hex FROM {processing_schema}.hex_parcel_nh_remaining WHERE bin={pid}; '''
-    iteration_list = [x[0] for x in conn.execute(sql)]
+    iteration_list = [x[0] for x in engine.execute(sql)]
     sql = f'''SELECT SUM(remaining) FROM {processing_schema}.hex_parcel_nh_remaining WHERE bin={pid}; '''
     bin_remaining = int([x[0] for x in engine.execute(sql)][0])
-    pbar = tqdm(total=bin_remaining, unit="hex", unit_scale=True, desc=f"Bin #{pid}", position=pid)
-    # derive query for numerator for evaluating progress; average of points remaining across tables
-    n_service_areas = len(service_areas)
-    count_sql = '''SELECT {}/{}'''.format('+'.join([f'(SELECT COUNT(*) FROM {point_schema}.{table})' for table in tables]), n_service_areas)
+    # pbar = tqdm(total=bin_remaining, unit="hex", unit_scale=True, desc=f"Bin #{pid}", position=pid,leave=False)
+    # # derive query for numerator for evaluating progress; average of points remaining across tables
+    # n_service_areas = len(service_areas)
+    # count_sql = '''SELECT {}/{}'''.format('+'.join([f'(SELECT COUNT(*) FROM {point_schema}.{table})' for table in tables]), n_service_areas)
     arcpy.CheckOutExtension('Network')
+    
     for hex in iteration_list:
         distance = service_areas[-1]
         table = f'nh{distance}m'
@@ -92,8 +108,9 @@ def create_walkable_neighbourhood_from_bin(locale_pid_tuple):
         AND NOT EXISTS 
         (SELECT 1 FROM ind_point.{table} s WHERE s.{points_id} = p.{points_id});
         '''
-        point_id_list = [x[0] for x in  conn.execute(sql)]
+        point_id_list = [x[0] for x in  engine.execute(sql)]
         valid_pointCount = len(point_id_list) 
+        row_count = 0
         if valid_pointCount == 0:
             continue
         # Prepare to loop over points within polygons
@@ -106,7 +123,6 @@ def create_walkable_neighbourhood_from_bin(locale_pid_tuple):
             continue
         # commence iteration
         count = 1
-        row_count = 0
         current_floor = 0
         while (current_floor < valid_pointCount): 
             try:
@@ -158,30 +174,29 @@ def create_walkable_neighbourhood_from_bin(locale_pid_tuple):
                     row_count+=1  
                 for analysis_table in sql_chunks:
                     sql = ','.join(sql_chunks[analysis_table])
-                    conn.execute(f'''INSERT INTO {point_schema}.{analysis_table} ({points_id},area_sqm, geom) VALUES {sql} ON CONFLICT ({points_id}) DO NOTHING''')
-                    numerator = [x[0] for x in conn.execute(count_sql)][0]
-                    pbar.update(numerator)
+                    engine.execute(f'''INSERT INTO {point_schema}.{analysis_table} ({points_id},area_sqm, geom) VALUES {sql} ON CONFLICT ({points_id}) DO NOTHING''')
                 place = "after SearchCursor"      
                 current_floor = (group_by * count)
                 count += 1   
                 place = "after increment floor and count"  
             except:
-               error = sys.exc_info()
-               # print(sql)
-               sys.exit(f'''HEY, IT'S AN ERROR: {error}
-                        ERROR CONTEXT: hex: {hex} current_floor: {current_floor} current_max: {current_max} row_count: {row_count}
-                        PLACE: {place}''')
+                error = sys.exc_info()
+                # print(sql)
+                sys.exit(f'''HEY, IT'S AN ERROR: {error}
+                          ERROR CONTEXT: hex: {hex} current_floor: {current_floor} current_max: {current_max} row_count: {row_count}
+                          PLACE: {place}''')
+                # raise
             finally:
-               # clean up  
-               arcpy.Delete_management("tempLayer_{}".format(pid))
+                # clean up  
+                arcpy.Delete_management("tempLayer_{}".format(pid))
         arcpy.Delete_management("selection_{}".format(pid))
+    
     arcpy.CheckInExtension('Network')
     engine.dispose()
-    try:
-        os.remove(temp_gdb)
-    except:
-        print(f'''Manual deletion of folder {temp_gdb} is required.''')
-        
+    # ensure previous gdb is deleted if exists
+    if os.path.exists(temp_gdb):
+        shutil.rmtree('temp_gdb', ignore_errors=True)
+    return(bin_remaining)
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
@@ -192,5 +207,5 @@ if __name__ == '__main__':
     code = sys.argv[0]
     locale = sys.argv[1]    
     pid = sys.argv[2]    
-    # create_walkable_neighbourhood_from_bin(locale,pid)
+    create_walkable_neighbourhood_from_bin((locale,pid))
     print(f"Received argument to process bin {pid} of results for locale {locale} using the code {code}; however, for the moment this script is designed to be run as part of a multiprocessing routine (e.g. using the concurrent.futures ProcessPoolExecutor function).  It could however be refactored to accept an initial argument indicating the desired function to be run, and then trigger this using the remaining supplied arguments for locale and bin, assuming that processing bins have been established or some fall back allocation of tasks coded in the event that it hasn't been established or the argument not supplied.")
