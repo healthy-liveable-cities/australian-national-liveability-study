@@ -1,12 +1,12 @@
 import time
 from subprocess import Popen
 from sqlalchemy import create_engine
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, wait
 
 # Import custom variables for National Liveability indicator process
 from _project_setup import *
 from script_running_log import script_running_log
-from subprocess_service_areas import create_walkable_neighbourhood_from_bin
+from _nh_multiprocessing import create_walkable_neighbourhood_from_bin
 
 if __name__ == '__main__':
     try:
@@ -51,7 +51,13 @@ if __name__ == '__main__':
                           WHERE b.gnaf_pid IS NOT NULL
                           GROUP BY hex_id) processed USING (hex)
               )
-              SELECT hex,remaining, width_bucket(remaining, 0, (SELECT MAX(remaining) FROM remaining_hex_parcels), 6) bin
+              SELECT hex,
+                     remaining,
+                     width_bucket(
+                                  remaining,                                             -- value to group
+                                  0,                                                     -- minimum bin size
+                                  (SELECT MAX(remaining) FROM remaining_hex_parcels), 6  -- maximum bin size
+                                  ) bin
               FROM   remaining_hex_parcels
               GROUP BY hex, remaining
               ORDER BY bin, hex;
@@ -60,32 +66,29 @@ if __name__ == '__main__':
         
         # Select bin ID numbers to be passed to processors for processing 
         # Note that 
-        sql = f'''SELECT DISTINCT(bin) FROM {processing_schema}.hex_parcel_nh_remaining; '''
+        sql = f'''SELECT DISTINCT(bin) FROM {processing_schema}.hex_parcel_nh_remaining;'''
         iteration_list = [(locale,x[0]) for x in engine.execute(sql)]
-        # commands = [f'python subprocess_service_areas.py {locale} {bin}' for bin in iteration_list]
-        # processes = [Popen(c) for c in commands]
-        # for p in processes:
-            # p.wait()
         with ProcessPoolExecutor(max_workers=nWorkers) as p:
-            # p.map(create_walkable_neighbourhood_from_bin, iteration_list)
-            p.map(create_walkable_neighbourhood_from_bin, iteration_list)
-        # print("\n  - ensuring all tables are indexed, and contain only unique ids...")
-        # for distance in service_areas:
-            # print("    - {}m... ".format(distance))
-            # table = "nh{}m".format(distance)
-            # if engine.has_table(table, schema=point_schema):
-                # # create index and analyse table
-                # sql = f'''CREATE INDEX IF NOT EXISTS {table}_gix ON ind_point.{table} USING GIST (geom);ANALYZE {table};'''
-                # engine.execute(sql)
-                # euclidean_buffer_area_sqm = int(math.pi*distance**2)
-                # sql =  '''CREATE TABLE ind_point.pedshed_{distance}m AS
-                            # SELECT gnaf_pid,
-                                   # {euclidean_buffer_area_sqm} AS euclidean_{distance}m_sqm,
-                                   # s.area_sqm AS nh{distance}m_sqm,
-                                   # s.area_sqm / {euclidean_buffer_area_sqm}.0 AS pedshed_{distance}m
-                            # FROM ind_point.nh{distance}m s;
-                       # '''
-                # engine.execute(sql)
+            results = p.map(create_walkable_neighbourhood_from_bin, iteration_list)
+            wait(results)
+        print("\n  - ensuring all tables are indexed, and contain only unique ids...")
+        for distance in service_areas:
+            print("    - {}m... ".format(distance))
+            table = "nh{}m".format(distance)
+            if engine.has_table(table, schema=point_schema):
+                # create index and analyse table
+                sql = f'''CREATE INDEX IF NOT EXISTS {table}_gix ON ind_point.{table} USING GIST (geom);
+                          ind_point.ANALYZE {table};'''
+                engine.execute(sql)
+                euclidean_buffer_area_sqm = int(math.pi*distance**2)
+                sql =  '''CREATE TABLE ind_point.pedshed_{distance}m AS
+                            SELECT gnaf_pid,
+                                   {euclidean_buffer_area_sqm} AS euclidean_{distance}m_sqm,
+                                   s.area_sqm AS nh{distance}m_sqm,
+                                   s.area_sqm / {euclidean_buffer_area_sqm}.0 AS pedshed_{distance}m
+                            FROM ind_point.nh{distance}m s;
+                       '''
+                engine.execute(sql)
         
         # output to completion log    
         script_running_log(script, task, start, locale)

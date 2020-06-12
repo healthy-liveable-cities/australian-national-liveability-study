@@ -23,6 +23,7 @@ def create_walkable_neighbourhood_from_bin(locale_pid_tuple):
     
     locale,pid=locale_pid_tuple
     
+    
     # ArcGIS environment settings
     arcpy.env.workspace = gdb_path  
 
@@ -72,9 +73,9 @@ def create_walkable_neighbourhood_from_bin(locale_pid_tuple):
     # Select polygons remaining to be processed
     sql = f'''SELECT hex FROM {processing_schema}.hex_parcel_nh_remaining WHERE bin={pid}; '''
     iteration_list = [x[0] for x in conn.execute(sql)]
-    sql = f'''SELECT SUM(remaining) FROM {processing_schema}.hex_parcel_nh_remaining; '''
-    total_remaining = int([x[0] for x in engine.execute(sql)][0])
-    pbar = tqdm(total=total_remaining)
+    sql = f'''SELECT SUM(remaining) FROM {processing_schema}.hex_parcel_nh_remaining WHERE bin={pid}; '''
+    bin_remaining = int([x[0] for x in engine.execute(sql)][0])
+    pbar = tqdm(total=bin_remaining, unit="hex", unit_scale=True, desc=f"Bin #{pid}", position=pid)
     # derive query for numerator for evaluating progress; average of points remaining across tables
     n_service_areas = len(service_areas)
     count_sql = '''SELECT {}/{}'''.format('+'.join([f'(SELECT COUNT(*) FROM {point_schema}.{table})' for table in tables]), n_service_areas)
