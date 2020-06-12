@@ -1,10 +1,12 @@
 import time
-import subprocess
+from subprocess import Popen
 from sqlalchemy import create_engine
-from tqdm import tqdm
+from concurrent.futures import ProcessPoolExecutor
 
 # Import custom variables for National Liveability indicator process
 from _project_setup import *
+from script_running_log import script_running_log
+from subprocess_service_areas import create_walkable_neighbourhood_from_bin
 
 if __name__ == '__main__':
     try:
@@ -59,38 +61,31 @@ if __name__ == '__main__':
         # Select bin ID numbers to be passed to processors for processing 
         # Note that 
         sql = f'''SELECT DISTINCT(bin) FROM {processing_schema}.hex_parcel_nh_remaining; '''
-        iteration_list = set([x[0] for x in engine.execute(sql)])
-        sql = f'''SELECT SUM(remaining) FROM {processing_schema}.hex_parcel_nh_remaining; '''
-        total_remaining = int([x[0] for x in engine.execute(sql)][0])
-        commands = [f'python subprocess_service_areas.py {locale} {bin}' for bin in iteration_list]
-        pbar = tqdm(total=total_remaining)
-        def run_task(task):
-            s = subprocess.Popen(task, shell=True, stdout=subprocess.PIPE)
-            try:
-                pbar.update(int(s.stdout.readline().decode("utf-8")))
-            except:
-                pass
-        processes = [run_task(c) for c in commands]
-        for p in procs:
-           p.wait()
-                
-        print("\n  - ensuring all tables are indexed, and contain only unique ids...")
-        for distance in service_areas:
-            print("    - {}m... ".format(distance))
-            table = "nh{}m".format(distance)
-            if engine.has_table(table, schema=point_schema):
-                # create index and analyse table
-                sql = f'''CREATE INDEX IF NOT EXISTS {table}_gix ON ind_point.{table} USING GIST (geom);ANALYZE {table};'''
-                engine.execute(sql)
-                euclidean_buffer_area_sqm = int(math.pi*distance**2)
-                sql =  '''CREATE TABLE ind_point.pedshed_{distance}m AS
-                            SELECT gnaf_pid,
-                                   {euclidean_buffer_area_sqm} AS euclidean_{distance}m_sqm,
-                                   s.area_sqm AS nh{distance}m_sqm,
-                                   s.area_sqm / {euclidean_buffer_area_sqm}.0 AS pedshed_{distance}m
-                            FROM ind_point.nh{distance}m s;
-                       '''
-                engine.execute(sql)
+        iteration_list = [(locale,x[0]) for x in engine.execute(sql)]
+        # commands = [f'python subprocess_service_areas.py {locale} {bin}' for bin in iteration_list]
+        # processes = [Popen(c) for c in commands]
+        # for p in processes:
+            # p.wait()
+        with ProcessPoolExecutor(max_workers=nWorkers) as p:
+            # p.map(create_walkable_neighbourhood_from_bin, iteration_list)
+            p.map(create_walkable_neighbourhood_from_bin, iteration_list)
+        # print("\n  - ensuring all tables are indexed, and contain only unique ids...")
+        # for distance in service_areas:
+            # print("    - {}m... ".format(distance))
+            # table = "nh{}m".format(distance)
+            # if engine.has_table(table, schema=point_schema):
+                # # create index and analyse table
+                # sql = f'''CREATE INDEX IF NOT EXISTS {table}_gix ON ind_point.{table} USING GIST (geom);ANALYZE {table};'''
+                # engine.execute(sql)
+                # euclidean_buffer_area_sqm = int(math.pi*distance**2)
+                # sql =  '''CREATE TABLE ind_point.pedshed_{distance}m AS
+                            # SELECT gnaf_pid,
+                                   # {euclidean_buffer_area_sqm} AS euclidean_{distance}m_sqm,
+                                   # s.area_sqm AS nh{distance}m_sqm,
+                                   # s.area_sqm / {euclidean_buffer_area_sqm}.0 AS pedshed_{distance}m
+                            # FROM ind_point.nh{distance}m s;
+                       # '''
+                # engine.execute(sql)
         
         # output to completion log    
         script_running_log(script, task, start, locale)

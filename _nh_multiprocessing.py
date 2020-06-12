@@ -9,24 +9,26 @@ import arcpy, arcinfo
 import glob
 import time
 import numpy as np
-import psycopg2
+from sqlalchemy import create_engine
+from tqdm import tqdm
 
 # Import custom variables for National Liveability indicator process
 from _project_setup import *
 
-if __name__ == '__main__':
+def create_walkable_neighbourhood_from_bin(locale_pid_tuple):
     engine = create_engine(f'''postgresql://{db_user}:{db_pwd}@{db_host}/{db}''', use_native_hstore=False) 
     conn = engine.connect()
+    service_areas_string = ', '.join([str(distance) for distance in service_areas])
+    tables = [f'nh{distance}m' for distance in service_areas]
     
-    service_areas_string = ', '.join([str(x) for x in service_areas])
-    schema=point_schema
-
+    locale,pid=locale_pid_tuple
+    
     # ArcGIS environment settings
     arcpy.env.workspace = gdb_path  
 
     # Specify points
     points = sample_point_feature
-    denominator = int(arcpy.GetCount_management(points).getOutput(0))
+    # denominator = int(arcpy.GetCount_management(points).getOutput(0))
 
     # point chunk size (for looping within polygon)
     group_by = 1000
@@ -34,11 +36,7 @@ if __name__ == '__main__':
     # create project specific folder in temp dir for scratch.gdb, if not exists
     if not os.path.exists(temp):
         os.makedirs(temp)
-
-    if len(sys.argv) < 3:
-        sys.exit('This process is designed to be fed a bin allocation number; this argument does not appear to have been received, so exiting')
-
-    pid = sys.argv[2]    
+    
     temp_gdb = f"{temp}/{db}_{pid}"    
     if not os.path.exists(temp_gdb):
         os.makedirs(temp_gdb)
@@ -74,11 +72,16 @@ if __name__ == '__main__':
     # Select polygons remaining to be processed
     sql = f'''SELECT hex FROM {processing_schema}.hex_parcel_nh_remaining WHERE bin={pid}; '''
     iteration_list = [x[0] for x in conn.execute(sql)]
+    sql = f'''SELECT SUM(remaining) FROM {processing_schema}.hex_parcel_nh_remaining; '''
+    total_remaining = int([x[0] for x in engine.execute(sql)][0])
+    pbar = tqdm(total=total_remaining)
+    # derive query for numerator for evaluating progress; average of points remaining across tables
+    n_service_areas = len(service_areas)
+    count_sql = '''SELECT {}/{}'''.format('+'.join([f'(SELECT COUNT(*) FROM {point_schema}.{table})' for table in tables]), n_service_areas)
     arcpy.CheckOutExtension('Network')
     for hex in iteration_list:
         distance = service_areas[-1]
         table = f'nh{distance}m'
-        
         # list of point IDs to iterate over
         # assumes that incompletion in the largest table of distances reflects total incompletion
         sql = f'''
@@ -139,42 +142,54 @@ if __name__ == '__main__':
                 break_name = [x for x in field_names if x.startswith('SAPolygons') and x.endswith('ToBreak')][0]
                 facility_name = [x for x in field_names if x.startswith('Facilities') and x.endswith('Name')][0]
                 # write output line features within chunk to Postgresql spatial feature
+                sql_chunks = {}
                 with arcpy.da.SearchCursor(polygons_sublayer,[facility_name,break_name,'Shape@AREA','Shape@WKT']) as cursor:
                   for row in cursor:
-                    print(row)
                     id =  row[0]
                     analysis = int(row[1])
+                    analysis_table = f'nh{analysis}m'
                     area = int(row[2])
                     wkt = row[3].replace(' NAN','').replace(' M ','')
-                    sql = f'''
-                          INSERT INTO {point_schema}.nh{analysis}m
-                          SELECT 
-                            '{id}',
-                            {area} area_sqm,
-                            {area}/(1000^2)::numeric area_sqkm,
-                            {area}/(100^2)::numeric area_ha,
-                            ST_GeometryFromText('{wkt}', {srid}) AS geom;
-                            SELECT 1;
-                    '''
-                    no_print_to_screen = conn.execute(sql)
+                    row_sql = f'''('{id}',{area},ST_GeometryFromText('{wkt}',{srid}))'''
+                    if analysis_table not in sql_chunks.keys():
+                        sql_chunks[analysis_table]=[]
+                    sql_chunks[analysis_table].append(row_sql)
                     row_count+=1  
+                for analysis_table in sql_chunks:
+                    sql = ','.join(sql_chunks[analysis_table])
+                    conn.execute(f'''INSERT INTO {point_schema}.{analysis_table} ({points_id},area_sqm, geom) VALUES {sql} ON CONFLICT ({points_id}) DO NOTHING''')
+                    numerator = [x[0] for x in conn.execute(count_sql)][0]
+                    pbar.update(numerator)
                 place = "after SearchCursor"      
                 current_floor = (group_by * count)
                 count += 1   
                 place = "after increment floor and count"  
             except:
-               sys.exit('''HEY, IT'S AN ERROR: {}
-                        ERROR CONTEXT: hex: {} current_floor: {} current_max: {} row_count: {}
-                        PLACE: {}'''.format(sys.exc_info(),hex,current_floor,current_max,row_count,place))
+               error = sys.exc_info()
+               # print(sql)
+               sys.exit(f'''HEY, IT'S AN ERROR: {error}
+                        ERROR CONTEXT: hex: {hex} current_floor: {current_floor} current_max: {current_max} row_count: {row_count}
+                        PLACE: {place}''')
             finally:
                # clean up  
                arcpy.Delete_management("tempLayer_{}".format(pid))
-        numerator = [x[0] for x in conn.execute(f"SELECT COUNT(*) FROM ind_point.{table};")][0]
-        print(numerator)
         arcpy.Delete_management("selection_{}".format(pid))
     arcpy.CheckInExtension('Network')
     engine.dispose()
     try:
         os.remove(temp_gdb)
     except:
-        print('''Manual deletion of folder {temp_gdb} is required.''')
+        print(f'''Manual deletion of folder {temp_gdb} is required.''')
+        
+
+if __name__ == '__main__':
+    if len(sys.argv) < 2:
+        sys.exit('This process is designed to be fed a study region locale and bin allocation number; these arguments do not appear to have been received, so exiting')
+    if len(sys.argv) < 3:
+        sys.exit('This process is designed to be fed a bin allocation number; this argument does not appear to have been received, so exiting')
+
+    code = sys.argv[0]
+    locale = sys.argv[1]    
+    pid = sys.argv[2]    
+    # create_walkable_neighbourhood_from_bin(locale,pid)
+    print(f"Received argument to process bin {pid} of results for locale {locale} using the code {code}; however, for the moment this script is designed to be run as part of a multiprocessing routine (e.g. using the concurrent.futures ProcessPoolExecutor function).  It could however be refactored to accept an initial argument indicating the desired function to be run, and then trigger this using the remaining supplied arguments for locale and bin, assuming that processing bins have been established or some fall back allocation of tasks coded in the event that it hasn't been established or the argument not supplied.")
