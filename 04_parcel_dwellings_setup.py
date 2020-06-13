@@ -83,14 +83,14 @@ if not engine.dialect.has_table(engine, 'parcel_dwellings'):
     DROP TABLE IF EXISTS hex_parcels;
     CREATE TABLE hex_parcels AS 
     SELECT hex,
-           count,
+           parcel_count,
            cumfreq,
            ROUND((100*cumfreq / (SELECT COUNT(*) FROM parcel_dwellings)),2) AS percentile
     FROM (SELECT hex,
-                 count,
-                 sum(count) OVER (ORDER BY hex) AS cumfreq
+                 parcel_count,
+                 sum(parcel_count) OVER (ORDER BY hex) AS cumfreq
           FROM (SELECT hex_id AS hex,
-                 COUNT(*)
+                 COUNT(*) AS parcel_count
                  FROM parcel_dwellings
                  GROUP BY hex_id) absolute
           ) relative;

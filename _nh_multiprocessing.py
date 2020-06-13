@@ -17,7 +17,59 @@ from distutils.dir_util import copy_tree
 # Import custom variables for National Liveability indicator process
 from _project_setup import *
 
+def allocate_processing_bins(table_name,engine, schema=point_schema, id=points_id,sample_points=sample_point_feature):
+    '''
+    Create allocation of remaining parcels to process grouped by hex in approximately equal size groups.
+    
+    Given an input table name (the name of the table which is to be processed) generate a corresponding
+    processing table in the processing schema with a name based on this input table name.
+    
+    The function returns the processing table's name, after generating the processing table.
+    
+    input: table_name string
+    output: processing_table string
+    '''
+    processing_table = f"hex_parcel_{table_name}_remaining"
+    sql = f'''
+          DROP TABLE IF EXISTS {processing_schema}.{processing_table};
+          CREATE TABLE {processing_schema}.{processing_table} AS
+          WITH remaining_hex_parcels AS (
+          SELECT hex, 
+                  hex_parcels.parcel_count - COALESCE(processed.count,0) AS remaining
+           FROM hex_parcels
+           LEFT JOIN (SELECT hex_id AS hex, 
+                             COUNT(a.*) 
+                      FROM parcel_dwellings a 
+                      LEFT JOIN {schema}.{table_name} b 
+                      ON a.{id} = b.{id} 
+                      WHERE b.{id} IS NOT NULL
+                      GROUP BY hex_id) processed USING (hex)
+          )
+          SELECT hex,
+                 remaining,
+                 width_bucket(
+                              remaining,                                             -- value to group
+                              0,                                                     -- minimum bin size
+                              (SELECT MAX(remaining) FROM remaining_hex_parcels), 6  -- maximum bin size
+                              ) bin
+          FROM   remaining_hex_parcels
+          WHERE remaining_hex_parcels.remaining > 0
+          GROUP BY hex, remaining
+          ORDER BY bin, hex;
+          '''
+    engine.execute(sql)
+    return(processing_table)
+
+
 def create_walkable_neighbourhood_from_bin(locale_pid_tuple):
+    '''
+    Given a tuple of locale and processing bin, process local walkable neighbourhood service areas
+    (sausage buffers) for the points within hexes allocated to that processing bin.
+    
+    input: locale_pid_tuple tuple
+    output: processed integer
+    
+    '''
     points_processed = 0
     engine = create_engine(f'''postgresql://{db_user}:{db_pwd}@{db_host}/{db}''', use_native_hstore=False) 
     service_areas_string = ', '.join([str(distance) for distance in service_areas])
@@ -39,13 +91,6 @@ def create_walkable_neighbourhood_from_bin(locale_pid_tuple):
     if not os.path.exists(temp):
         os.makedirs(temp)
     
-    # temp_gdb = f"{temp}/{db}_{pid}"    
-    # if not os.path.exists(temp_gdb):
-        # os.makedirs(temp_gdb)
-    # arcpy.env.scratchWorkspace = temp_gdb 
-    # arcpy.env.qualifiedFieldNames = False  
-    # arcpy.env.overwriteOutput = True 
-
     temp_gdb = f"{temp}/{db}_{pid}.gdb"    
     # make sure Network Analyst licence is 'checked out'
     arcpy.CheckOutExtension('Network')
@@ -86,19 +131,15 @@ def create_walkable_neighbourhood_from_bin(locale_pid_tuple):
     polygons_sublayer = outNALayer.listLayers(polygons_layer_name )[0] 
 
     # Select polygons remaining to be processed
-    sql = f'''SELECT hex FROM {processing_schema}.hex_parcel_nh_remaining WHERE bin={pid}; '''
+    max_distance = service_areas[-1]
+    largest_table = f'nh{distance}m'
+    processing_table = f'hex_parcel_{largest_table}_remaining'
+    sql = f'''SELECT hex FROM {processing_schema}.{processing_table} WHERE bin={pid}; '''
     iteration_list = [x[0] for x in engine.execute(sql)]
-    sql = f'''SELECT SUM(remaining) FROM {processing_schema}.hex_parcel_nh_remaining WHERE bin={pid}; '''
+    sql = f'''SELECT SUM(remaining) FROM {processing_schema}.{processing_table} WHERE bin={pid}; '''
     bin_remaining = int([x[0] for x in engine.execute(sql)][0])
-    # pbar = tqdm(total=bin_remaining, unit="hex", unit_scale=True, desc=f"Bin #{pid}", position=pid,leave=False)
-    # # derive query for numerator for evaluating progress; average of points remaining across tables
-    # n_service_areas = len(service_areas)
-    # count_sql = '''SELECT {}/{}'''.format('+'.join([f'(SELECT COUNT(*) FROM {point_schema}.{table})' for table in tables]), n_service_areas)
-    arcpy.CheckOutExtension('Network')
     
     for hex in iteration_list:
-        distance = service_areas[-1]
-        table = f'nh{distance}m'
         # list of point IDs to iterate over
         # assumes that incompletion in the largest table of distances reflects total incompletion
         sql = f'''
@@ -106,7 +147,7 @@ def create_walkable_neighbourhood_from_bin(locale_pid_tuple):
         FROM parcel_dwellings p
         WHERE hex_id = {hex}
         AND NOT EXISTS 
-        (SELECT 1 FROM ind_point.{table} s WHERE s.{points_id} = p.{points_id});
+        (SELECT 1 FROM ind_point.{largest_table} s WHERE s.{points_id} = p.{points_id});
         '''
         point_id_list = [x[0] for x in  engine.execute(sql)]
         valid_pointCount = len(point_id_list) 
@@ -164,6 +205,17 @@ def create_walkable_neighbourhood_from_bin(locale_pid_tuple):
                   for row in cursor:
                     id =  row[0]
                     analysis = int(row[1])
+                    if analysis not in service_areas:
+                        # print(f'''
+                               # Error with row: {row} 
+                               # (service area '{analysis}' is incorrect, should be in list {service_areas}
+                               # Field names context: {field_names}
+                               # ''')
+                        # This situation arises when network is smaller than the minimum valid network area size 16.5 Ha
+                        # for a 1600m network.  That is, the parcel lacks valid connection with the network and must be 
+                        # excluded.  Its ID will be inserted into the service area table as a null
+                        [engine.execute(f'''INSERT INTO {point_schema}.nh{x}m ({points_id}) VALUES ('{id}') ON CONFLICT ({points_id}) DO NOTHING''') for x in service_areas]
+                        continue
                     analysis_table = f'nh{analysis}m'
                     area = int(row[2])
                     wkt = row[3].replace(' NAN','').replace(' M ','')
@@ -196,6 +248,7 @@ def create_walkable_neighbourhood_from_bin(locale_pid_tuple):
     # ensure previous gdb is deleted if exists
     if os.path.exists(temp_gdb):
         shutil.rmtree('temp_gdb', ignore_errors=True)
+    print(f"\nProcessor {pid} complete\n")
     return(bin_remaining)
 
 if __name__ == '__main__':

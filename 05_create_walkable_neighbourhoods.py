@@ -8,7 +8,7 @@ from tqdm import tqdm
 # Import custom variables for National Liveability indicator process
 from _project_setup import *
 from script_running_log import script_running_log
-from _nh_multiprocessing import create_walkable_neighbourhood_from_bin
+from _nh_multiprocessing import allocate_processing_bins,create_walkable_neighbourhood_from_bin
 
 if __name__ == '__main__':
     try:
@@ -39,42 +39,17 @@ if __name__ == '__main__':
                 engine.execute(sql)
         
         # create allocation of remaining parcels to process grouped by hex in approximately equal size groups
-        sql = f'''
-              DROP TABLE IF EXISTS {processing_schema}.hex_parcel_nh_remaining;
-              CREATE TABLE {processing_schema}.hex_parcel_nh_remaining AS
-              WITH remaining_hex_parcels AS (
-              SELECT hex, 
-                      hex_parcels.count - COALESCE(processed.count,0) AS remaining
-               FROM hex_parcels
-               LEFT JOIN (SELECT hex_id AS hex, 
-                                 COUNT(a.*) 
-                          FROM parcel_dwellings a 
-                          LEFT JOIN ind_point.nh1600m b 
-                          ON a.gnaf_pid = b.gnaf_pid 
-                          WHERE b.gnaf_pid IS NOT NULL
-                          GROUP BY hex_id) processed USING (hex)
-              )
-              SELECT hex,
-                     remaining,
-                     width_bucket(
-                                  remaining,                                             -- value to group
-                                  0,                                                     -- minimum bin size
-                                  (SELECT MAX(remaining) FROM remaining_hex_parcels), 6  -- maximum bin size
-                                  ) bin
-              FROM   remaining_hex_parcels
-              WHERE remaining_hex_parcels.remaining > 0
-              GROUP BY hex, remaining
-              ORDER BY bin, hex;
-              '''
-        engine.execute(sql)
+        max_distance = service_areas[-1]
+        largest_table = f'nh{distance}m'
+        processing_table = allocate_processing_bins(largest_table,engine)
         
         # Select bin ID numbers to be passed to processors for processing 
-        sql = f'''SELECT DISTINCT(bin) FROM {processing_schema}.hex_parcel_nh_remaining;'''
+        sql = f'''SELECT DISTINCT(bin) FROM {processing_schema}.{processing_table};'''
         iteration_list = [(locale,x[0]) for x in engine.execute(sql)]
-        sql = f'''SELECT SUM(remaining) FROM {processing_schema}.hex_parcel_nh_remaining; '''
+        sql = f'''SELECT SUM(remaining) FROM {processing_schema}.{processing_table}; '''
         total_total = int([x[0] for x in engine.execute(sql)][0])
         total_processed = 0
-        pbar = tqdm(total=total_total, unit="hex", unit_scale=False, desc=f"Processing", leave=False)
+        pbar = tqdm(total=total_total, unit="point", unit_scale=1, desc=f"Processing", leave=False)
 
         with ProcessPoolExecutor(max_workers=nWorkers) as executor:
             futures = []
@@ -86,7 +61,8 @@ if __name__ == '__main__':
                 processed = res.result()
                 total_processed += processed
                 pbar.update(total_processed)
-
+    except:
+        raise
     finally:
         # update allocation of remaining parcels to process grouped by hex in approximately equal size groups
         # There may be some parcels whose service areas cannot be solved - this is okay,
@@ -94,33 +70,9 @@ if __name__ == '__main__':
         # ensure reasons for not being able to be processed are understood.  In theory, these are outliers
         # and not representative of a systematic failure; we must check to be sure of this.
         # This remainder table is retained as a record of such parcels.
-        sql = f'''
-              DROP TABLE IF EXISTS {processing_schema}.hex_parcel_nh_remaining;
-              CREATE TABLE {processing_schema}.hex_parcel_nh_remaining AS
-              WITH remaining_hex_parcels AS (
-              SELECT hex, 
-                      hex_parcels.count - COALESCE(processed.count,0) AS remaining
-               FROM hex_parcels
-               LEFT JOIN (SELECT hex_id AS hex, 
-                                 COUNT(a.*) 
-                          FROM parcel_dwellings a 
-                          LEFT JOIN ind_point.nh1600m b 
-                          ON a.gnaf_pid = b.gnaf_pid 
-                          WHERE b.gnaf_pid IS NOT NULL
-                          GROUP BY hex_id) processed USING (hex)
-              )
-              SELECT hex,
-                     remaining,
-                     width_bucket(
-                                  remaining,                                             -- value to group
-                                  0,                                                     -- minimum bin size
-                                  (SELECT MAX(remaining) FROM remaining_hex_parcels), 6  -- maximum bin size
-                                  ) bin
-              FROM   remaining_hex_parcels
-              WHERE remaining_hex_parcels.remaining > 0
-              GROUP BY hex, remaining
-              ORDER BY bin, hex;
-              '''
+        max_distance = service_areas[-1]
+        largest_table = f'nh{distance}m'
+        processing_table = allocate_processing_bins(largest_table,engine)
         engine.execute(sql)
         print("\n  - ensuring all tables are indexed, and contain only unique ids...")
         for distance in service_areas:
