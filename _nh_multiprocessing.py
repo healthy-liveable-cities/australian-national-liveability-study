@@ -85,7 +85,7 @@ def create_walkable_neighbourhood_from_bin(locale_pid_tuple):
     # denominator = int(arcpy.GetCount_management(points).getOutput(0))
 
     # point chunk size (for looping within polygon)
-    group_by = 1000
+    group_by = 400
      
     # create project specific folder in temp dir for scratch.gdb, if not exists
     if not os.path.exists(temp):
