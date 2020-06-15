@@ -65,7 +65,7 @@ engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_
                                                                  db   = db))
 curs.execute("SELECT sum(parcel_count) FROM hex_parcels;")
 total_parcels = int(list(curs)[0][0])
-progress_table = 'od_aos_progress'
+progress_table = 'procesing.od_aos_custom_progress'
 
 # get pid name
 pid = multiprocessing.current_process().name
@@ -321,9 +321,10 @@ if __name__ == '__main__':
     print("Commencing task ({}):\n{} at {}".format(db,task,time.strftime("%Y%m%d-%H%M%S")))
     
     # connect to sql
-    conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
-    curs = conn.cursor()
-    
+    engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_user,
+                                                                 pwd  = db_pwd,
+                                                                 host = db_host,
+                                                                 db   = db))
     print("Divide work by hexes for multiprocessing, only for parcels not already processed... "),
     # evaluated against od_aos_jsonb as the id field has no duplicates in this table
     sql = '''
@@ -374,7 +375,7 @@ if __name__ == '__main__':
     print("Done.")
     
     print("Calculate the sum total of parcels that need to be processed across all analysis"),
-    sql = '''CREATE TABLE processing.od_aos_custom AS SELECT COUNT(*) progress FROM processing.aos_custom_unbounded'''
+    sql = '''CREATE TABLE {progress_table} AS SELECT COUNT(*) progress FROM processing.aos_custom_unbounded'''.format(progress_table=progress_table)
     engine.execute(sql)
     print("Done.")
     
@@ -383,11 +384,10 @@ if __name__ == '__main__':
     pool.map(ODMatrixWorkerFunction, iteration_list, chunksize=1)
     
     print("Create indices on attributes")
-    curs.execute('''CREATE INDEX IF NOT EXISTS idx_od_aos_jsonb ON od_aos_jsonb ({id});'''.format(id = points_id.lower()))
-    curs.execute('''CREATE INDEX IF NOT EXISTS idx_od_aos_jsonb_aos_id ON od_aos_jsonb ((attributes->'aos_id'));''')
-    curs.execute('''CREATE INDEX IF NOT EXISTS idx_od_aos_jsonb_distance ON od_aos_jsonb ((attributes->'distance'));''')
-    conn.commit()
+    engine.execute('''CREATE INDEX IF NOT EXISTS idx_od_aos_jsonb ON od_aos_jsonb ({id});'''.format(id = points_id.lower()))
+    engine.execute('''CREATE INDEX IF NOT EXISTS idx_od_aos_jsonb_aos_id ON od_aos_jsonb ((attributes->'aos_id'));''')
+    engine.execute('''CREATE INDEX IF NOT EXISTS idx_od_aos_jsonb_distance ON od_aos_jsonb ((attributes->'distance'));''')
     
     # output to completion log    
     script_running_log(script, task, start, locale)
-    conn.close()
+    engine.dispose()
