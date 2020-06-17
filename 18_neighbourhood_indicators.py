@@ -511,6 +511,7 @@ if not res:
                         jsonb_array_elements(attributes) obj) o ON p.{id} = o.{id} 
             LEFT JOIN open_space_areas pos ON o.aos_id = pos.aos_id 
                 WHERE pos.aos_id IS NOT NULL  
+                    AND aos_ha_public > 0 
                     AND co_location_100m ? 'toilets'
             GROUP BY p.{id} ) os_filtered ON orig.{id} = os_filtered.{id}
     WHERE t.{id} = orig.{id};

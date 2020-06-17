@@ -419,7 +419,7 @@ if __name__ == '__main__':
         This will return results of the custom analyses, which previously woudln't have been processed (distance > 3200m)
         
         e.g.
-        Closest open space with a toilet within 100 metres
+        Closest public open space with a toilet within 100 metres
         li_albury_wodonga_2018-# ;
             gnaf_pid    | aos_id | distance
         ----------------+--------+----------
