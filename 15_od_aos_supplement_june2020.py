@@ -25,10 +25,6 @@ from _project_setup import *
 
 # simple timer for log file
 start = time.time()
-script = os.path.basename(sys.argv[0])
-task = 'OD matrix - distance from parcel to closest POS of any size'
-
-# INPUT PARAMETERS
 
 # ArcGIS environment settings
 arcpy.env.workspace = gdb_path  
@@ -268,9 +264,8 @@ def ODMatrixWorkerFunction(hex_id):
 # MAIN PROCESS
 if __name__ == '__main__':
     # simple timer for log file
-    start = time.time()
     script = os.path.basename(sys.argv[0])
-    task = 'Create OD cost matrix for parcel points to closest POS (any size)'  # Do stuff  
+    task = 'Custom unbounded OD analyses for public open space (where unresolved through standard processing to 3200m)'
     # Task name is now defined
     print("Commencing task ({}):\n{} at {}".format(db,task,time.strftime("%Y%m%d-%H%M%S")))
     
@@ -292,10 +287,12 @@ if __name__ == '__main__':
     );
     '''.format(points_id=points_id)
     engine.execute(sql)
+    
     # Custom OS unbounded analyses
     analyses = {"pos_any":"aos_ha_public > 0",
-               "pos_gr_15k_sqm":"aos_ha_public > 1.5",
-               "pos_co_location_toilet":"co_location_100m ? 'toilets'"}
+                "pos_gr_15k_sqm":"aos_ha_public > 1.5",
+                "pos_co_location_toilet":"aos_ha_public > 0 AND co_location_100m ? 'toilets'"}
+               
     for a in analyses:   
         analysis = analyses[a]
         # Note that we use dollar quoting for text record of analysis as it may contain apostrophes
@@ -357,10 +354,7 @@ if __name__ == '__main__':
     );
     '''.format(points_id=points_id)
     engine.execute(sql)
-    # Custom OS unbounded analyses
-    analyses = {"pos_any":"aos_ha_public > 0",
-               "pos_gr_15k_sqm":"aos_ha_public > 1.5",
-               "pos_co_location_toilet":"co_location_100m ? 'toilets'"}
+    
     for a in analyses:   
         analysis = analyses[a]
         # Note that we use dollar quoting for text record of analysis as it may contain apostrophes
@@ -400,11 +394,38 @@ if __name__ == '__main__':
     sql = '''
     SELECT COUNT(*) FROM processing.aos_custom_unbounded;
     '''
-    unresolved_analyses = [x[0] for x in engine.execute(sql)]
-    if len(unresolved_analyses>0): 
-        print("There are still {unresolved_analyses} unresolved analyses remaining for this study region.  You can check them by running the following query:\nSELECT * FROM processing.aos_custom_unbounded;\nA good first thing to check if these are otherwise excluded parcels; if so, they have already been excluded for a good reason (e.g. poor network connectivity), and their lack of a result is not suprising and should not be a problem (pending your check that this is so).".format(unresolved_analyses=unresolved_analyses))    
+    unresolved_analyses = int([x[0] for x in engine.execute(sql)][0])
+    if unresolved_analyses>0: 
+        print("\n\nThere are still {unresolved_analyses} unresolved analyses remaining for this study region ({locale}).  You can check them by running the following query:\n\nSELECT * FROM processing.aos_custom_unbounded;\n\nA good first thing to check if these are otherwise excluded parcels; if so, they have already been (or will be) excluded for a good reason (e.g. poor network connectivity), and their lack of a result is not suprising and should not be a problem (pending your check that this is so).".format(unresolved_analyses=unresolved_analyses,locale=locale))    
     else:
         print("All outstanding unbounded custom analyses have now been successfully performed.")
+        print('''
+        \nYou may consider verifying your query results using SQL such as the following (replacing the unique identifier as required):
+        
+        SELECT o.* FROM 
+        (SELECT gnaf_pid,
+             (obj->>'aos_id')::int AS aos_id, 
+             (obj->>'distance')::int AS distance 
+            FROM od_aos_jsonb o, 
+                jsonb_array_elements(attributes) obj) o
+        LEFT JOIN open_space_areas pos ON o.aos_id = pos.aos_id 
+        WHERE 
+               -- aos_ha_public > 0
+               -- aos_ha_public > 1.5
+               aos_ha_public > 0 AND co_location_100m ? 'toilets'
+          AND distance > 3200
+        LIMIT 20;
+        
+        This will return results of the custom analyses, which previously woudln't have been processed (distance > 3200m)
+        
+        e.g.
+        Closest open space with a toilet within 100 metres
+        li_albury_wodonga_2018-# ;
+            gnaf_pid    | aos_id | distance
+        ----------------+--------+----------
+         GAVIC719218013 |    511 |     4220
+        (1 row)
+        ''')
     # output to completion log    
     script_running_log(script, task, start, locale)
     engine.dispose()
