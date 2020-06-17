@@ -392,13 +392,19 @@ if __name__ == '__main__':
     CREATE INDEX IF NOT EXISTS aos_custom_unbounded_hex_idx ON processing.aos_custom_unbounded (hex_id);
     '''.format(points_id=points_id)
     engine.execute(sql)
+    
+    # Evaluate final remainders and print a warning
+    # Note that in the formal workflow, excluded parcels have not yet been processed
+    # as such it doesn't make sense to evaluate against these at this point
+    # (the analyst may do this manually, and is advised to)
     sql = '''
     SELECT COUNT(*) FROM processing.aos_custom_unbounded;
     '''
     unresolved_analyses = [x[0] for x in engine.execute(sql)]
-    remaining 
-    print("There are still {unresolved_analyses} unresolved analyses remaining for this study region.  You can check them by running the following query:\nSELECT * FROM processing.aos_custom_unbounded;\nA good first thing to check if these are otherwise excluded parcels; if so, they have already been excluded for a good reason (e.g. poor network connectivity), and their lack of a result is not suprising and should not be a problem (pending your check that this is so).".format(unresolved_analyses=unresolved_analyses)    
-    
+    if len(unresolved_analyses>0): 
+        print("There are still {unresolved_analyses} unresolved analyses remaining for this study region.  You can check them by running the following query:\nSELECT * FROM processing.aos_custom_unbounded;\nA good first thing to check if these are otherwise excluded parcels; if so, they have already been excluded for a good reason (e.g. poor network connectivity), and their lack of a result is not suprising and should not be a problem (pending your check that this is so).".format(unresolved_analyses=unresolved_analyses))    
+    else:
+        print("All outstanding unbounded custom analyses have now been successfully performed.")
     # output to completion log    
     script_running_log(script, task, start, locale)
     engine.dispose()
