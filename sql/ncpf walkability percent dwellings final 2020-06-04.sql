@@ -127,11 +127,11 @@ WITH margins AS
 SELECT study_region,
        urban_meshblocks,
        total_dwellings,
-       ROUND((100 * dl_high.dwellings               / total_dwellings)::numeric,2) AS pct_high_dl_dwellings,
-       ROUND((100 * sc_high.dwellings               / total_dwellings)::numeric,2) AS pct_high_sc_dwellings,
-       ROUND((100 * dd_high.dwellings               / total_dwellings)::numeric,2) AS pct_high_dd_dwellings,
-       ROUND((100 * walk_conditional_high.dwellings / total_dwellings)::numeric,2) AS pct_high_walk_conditional_dwellings,
-       ROUND((100 * si_high.dwellings               / total_dwellings)::numeric,2) AS pct_si_walk_dwellings
+       (100 * dl_high.dwellings               / total_dwellings)::numeric AS pct_high_dl_dwellings,
+       (100 * sc_high.dwellings               / total_dwellings)::numeric AS pct_high_sc_dwellings,
+       (100 * dd_high.dwellings               / total_dwellings)::numeric AS pct_high_dd_dwellings,
+       (100 * walk_conditional_high.dwellings / total_dwellings)::numeric AS pct_high_walk_conditional_dwellings,
+       (100 * si_high.dwellings               / total_dwellings)::numeric AS pct_si_walk_dwellings
 FROM margins 
 LEFT JOIN dl_high               USING (study_region)
 LEFT JOIN sc_high               USING (study_region)
@@ -140,7 +140,7 @@ LEFT JOIN walk_conditional_high USING (study_region)
 LEFT JOIN si_high               USING (study_region)
 ORDER BY study_region ASC;
 
-COPY ncpf_walkability_percent_dwelling_analysis_2020604 TO 'D:\ntnl_li_2018_template\analysis\ncpf walkability percent dwellings final 2020-06-04.csv' CSV HEADER DELIMITER ','
+COPY ncpf_walkability_percent_dwelling_analysis_2020604 TO 'D:\ntnl_li_2018_template\analysis\ncpf walkability percent dwellings final 2020-06-04.csv' CSV HEADER DELIMITER ',' ;
 
 
 
@@ -254,23 +254,23 @@ SELECT
 s.mb_code_2016,
 s.study_region,
 d.total_dwelling,
-ROUND((100*s.meets_si_mix_criteria/d.total_dwelling::numeric)::numeric,2)          AS meets_si_mix_criteria,
-ROUND((100*s.community_centre/d.total_dwelling::numeric)::numeric,2)               AS  community_centre,
-ROUND((100*s.cinema_theatre/d.total_dwelling::numeric)::numeric,2)                 AS  cinema_theatre,
-ROUND((100*s.library/d.total_dwelling::numeric)::numeric,2)                        AS  library,
-ROUND((100*s.museum_art_gallery/d.total_dwelling::numeric)::numeric,2)             AS  museum_art_gallery,
-ROUND((100*s.childcare_meets_all/d.total_dwelling::numeric)::numeric,2)            AS  childcare_meets_all,
-ROUND((100*s.childcare_meets_oshc/d.total_dwelling::numeric)::numeric,2)           AS  childcare_meets_oshc,
-ROUND((100*s.public_schools_primary/d.total_dwelling::numeric)::numeric,2)         AS  public_schools_primary,
-ROUND((100*s.public_schools_secondary/d.total_dwelling::numeric)::numeric,2)       AS  public_schools_secondary,
-ROUND((100*s.residential_aged_care/d.total_dwelling::numeric)::numeric,2)          AS  residential_aged_care,
-ROUND((100*s.mcf_health_care/d.total_dwelling::numeric)::numeric,2)                AS  mcf_health_care,
-ROUND((100*s.pharmacy/d.total_dwelling::numeric)::numeric,2)                       AS  pharmacy,
-ROUND((100*s.dentist/d.total_dwelling::numeric)::numeric,2)                        AS  dentist,
-ROUND((100*s.general_practicitioner/d.total_dwelling::numeric)::numeric,2)         AS  general_practicitioner,
-ROUND((100*s.other_community_health_care/d.total_dwelling::numeric)::numeric,2)   AS  other_community_health_care,
-ROUND((100*s.swimming_pool/d.total_dwelling::numeric)::numeric,2)                 AS  swimming_pool,
-ROUND((100*s.public_sport_recreation/d.total_dwelling::numeric)::numeric,2)       AS  public_sport_recreation,
+(100*s.meets_si_mix_criteria/d.total_dwelling::numeric)::numeric          AS meets_si_mix_criteria,
+(100*s.community_centre/d.total_dwelling::numeric)::numeric               AS  community_centre,
+(100*s.cinema_theatre/d.total_dwelling::numeric)::numeric                 AS  cinema_theatre,
+(100*s.library/d.total_dwelling::numeric)::numeric                        AS  library,
+(100*s.museum_art_gallery/d.total_dwelling::numeric)::numeric             AS  museum_art_gallery,
+(100*s.childcare_meets_all/d.total_dwelling::numeric)::numeric            AS  childcare_meets_all,
+(100*s.childcare_meets_oshc/d.total_dwelling::numeric)::numeric           AS  childcare_meets_oshc,
+(100*s.public_schools_primary/d.total_dwelling::numeric)::numeric         AS  public_schools_primary,
+(100*s.public_schools_secondary/d.total_dwelling::numeric)::numeric       AS  public_schools_secondary,
+(100*s.residential_aged_care/d.total_dwelling::numeric)::numeric          AS  residential_aged_care,
+(100*s.mcf_health_care/d.total_dwelling::numeric)::numeric                AS  mcf_health_care,
+(100*s.pharmacy/d.total_dwelling::numeric)::numeric                       AS  pharmacy,
+(100*s.dentist/d.total_dwelling::numeric)::numeric                        AS  dentist,
+(100*s.general_practicitioner/d.total_dwelling::numeric)::numeric         AS  general_practicitioner,
+(100*s.other_community_health_care/d.total_dwelling::numeric)::numeric   AS  other_community_health_care,
+(100*s.swimming_pool/d.total_dwelling::numeric)::numeric                 AS  swimming_pool,
+(100*s.public_sport_recreation/d.total_dwelling::numeric)::numeric       AS  public_sport_recreation,
 s.geom
 FROM
 (SELECT
@@ -346,23 +346,23 @@ CREATE TABLE ncpf_region_dwellings_si_break_down AS
 SELECT
 s.study_region,
 d.total_dwelling,
-ROUND((100*SUM(s.meets_si_mix_criteria)/d.total_dwelling::numeric)::numeric,2)          AS meets_si_mix_criteria,
-ROUND((100*SUM(s.community_centre)/d.total_dwelling::numeric)::numeric,2)               AS  community_centre,
-ROUND((100*SUM(s.cinema_theatre)/d.total_dwelling::numeric)::numeric,2)                 AS  cinema_theatre,
-ROUND((100*SUM(s.library)/d.total_dwelling::numeric)::numeric,2)                        AS  library,
-ROUND((100*SUM(s.museum_art_gallery)/d.total_dwelling::numeric)::numeric,2)             AS  museum_art_gallery,
-ROUND((100*SUM(s.childcare_meets_all)/d.total_dwelling::numeric)::numeric,2)            AS  childcare_meets_all,
-ROUND((100*SUM(s.childcare_meets_oshc)/d.total_dwelling::numeric)::numeric,2)           AS  childcare_meets_oshc,
-ROUND((100*SUM(s.public_schools_primary)/d.total_dwelling::numeric)::numeric,2)         AS  public_schools_primary,
-ROUND((100*SUM(s.public_schools_secondary)/d.total_dwelling::numeric)::numeric,2)       AS  public_schools_secondary,
-ROUND((100*SUM(s.residential_aged_care)/d.total_dwelling::numeric)::numeric,2)          AS  residential_aged_care,
-ROUND((100*SUM(s.mcf_health_care)/d.total_dwelling::numeric)::numeric,2)                AS  mcf_health_care,
-ROUND((100*SUM(s.pharmacy)/d.total_dwelling::numeric)::numeric,2)                       AS  pharmacy,
-ROUND((100*SUM(s.dentist)/d.total_dwelling::numeric)::numeric,2)                        AS  dentist,
-ROUND((100*SUM(s.general_practicitioner)/d.total_dwelling::numeric)::numeric,2)         AS  general_practicitioner,
-ROUND((100*SUM(s.other_community_health_care)/d.total_dwelling::numeric)::numeric,2)   AS  other_community_health_care,
-ROUND((100*SUM(s.swimming_pool)/d.total_dwelling::numeric)::numeric,2)                 AS  swimming_pool,
-ROUND((100*SUM(s.public_sport_recreation)/d.total_dwelling::numeric)::numeric,2)       AS  public_sport_recreation
+(100*SUM(s.meets_si_mix_criteria)/d.total_dwelling::numeric)::numeric          AS meets_si_mix_criteria,
+(100*SUM(s.community_centre)/d.total_dwelling::numeric)::numeric               AS  community_centre,
+(100*SUM(s.cinema_theatre)/d.total_dwelling::numeric)::numeric                 AS  cinema_theatre,
+(100*SUM(s.library)/d.total_dwelling::numeric)::numeric                        AS  library,
+(100*SUM(s.museum_art_gallery)/d.total_dwelling::numeric)::numeric             AS  museum_art_gallery,
+(100*SUM(s.childcare_meets_all)/d.total_dwelling::numeric)::numeric            AS  childcare_meets_all,
+(100*SUM(s.childcare_meets_oshc)/d.total_dwelling::numeric)::numeric           AS  childcare_meets_oshc,
+(100*SUM(s.public_schools_primary)/d.total_dwelling::numeric)::numeric         AS  public_schools_primary,
+(100*SUM(s.public_schools_secondary)/d.total_dwelling::numeric)::numeric       AS  public_schools_secondary,
+(100*SUM(s.residential_aged_care)/d.total_dwelling::numeric)::numeric          AS  residential_aged_care,
+(100*SUM(s.mcf_health_care)/d.total_dwelling::numeric)::numeric                AS  mcf_health_care,
+(100*SUM(s.pharmacy)/d.total_dwelling::numeric)::numeric                       AS  pharmacy,
+(100*SUM(s.dentist)/d.total_dwelling::numeric)::numeric                        AS  dentist,
+(100*SUM(s.general_practicitioner)/d.total_dwelling::numeric)::numeric         AS  general_practicitioner,
+(100*SUM(s.other_community_health_care)/d.total_dwelling::numeric)::numeric   AS  other_community_health_care,
+(100*SUM(s.swimming_pool)/d.total_dwelling::numeric)::numeric                 AS  swimming_pool,
+(100*SUM(s.public_sport_recreation)/d.total_dwelling::numeric)::numeric       AS  public_sport_recreation
 FROM
 (SELECT
 mb_code_2016,
