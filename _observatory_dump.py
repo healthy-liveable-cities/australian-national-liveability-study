@@ -28,9 +28,6 @@ else:
     drop = ''
 
 # Connect to postgresql database     
-conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
-curs = conn.cursor()
-
 engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_user,
                                                                  pwd  = db_pwd,
                                                                  host = db_host,
@@ -86,8 +83,8 @@ ind_matrix = df_observatory.join(ind_matrix).copy()
 
 # Drop index for ind_observatory table if it exists; 
 # this causes an error when (re-)creating the ind_observatory table if index exists
-curs.execute('DROP INDEX IF EXISTS ix_ind_observatory_{}_{}_index;'.format(locale,year))
-conn.commit()
+engine.execute('''DROP INDEX IF EXISTS ix_ind_observatory_{locale}_{year}_index;'''.format(locale=locale,year=year))
+
 ind_matrix.to_sql(name='ind_observatory_{}_{}'.format(locale,year),con=engine,if_exists='replace')
 ind_list = list(ind_matrix.index.values)
 # Distribution summaries for plotting of sample data
@@ -124,9 +121,6 @@ if not os.path.exists(map_features_outpath):
   os.makedirs(map_features_outpath)   
       
 # SQL Settings
-conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
-curs = conn.cursor()
-
 areas = {'mb_code_2016':'mb',
          'sa1_maincode_2016':'sa1',
          'ssc_name_2016':'ssc',
@@ -163,8 +157,7 @@ for area_code in areas.keys():
              indicators = ind_avg,
              exclusion = exclusion_criteria)
   # print(createTable)
-  curs.execute(createTable)
-  conn.commit()
+  engine.execute(createTable)
   print("Done.")
   
   print("    - sd summary table observatory_sd_{}... ".format(area)),
@@ -184,8 +177,7 @@ for area_code in areas.keys():
              area_code = area_code,
              indicators = ind_sd,
              exclusion = exclusion_criteria)
-  curs.execute(createTable)
-  conn.commit()
+  engine.execute(createTable)
   print("Done.")
   
   print("    - range summary table observatory_range_{}... ".format(area)),
@@ -205,8 +197,7 @@ for area_code in areas.keys():
              area_code = area_code,
              indicators = ind_range,
              exclusion = exclusion_criteria)
-  curs.execute(createTable)
-  conn.commit()
+  engine.execute(createTable)
   print("Done.")
   
   print("    - median summary table observatory_median_{}... ".format(area)),  
@@ -226,8 +217,7 @@ for area_code in areas.keys():
              area_code = area_code,
              indicators = ind_median,
              exclusion = exclusion_criteria)
-  curs.execute(createTable)
-  conn.commit()
+  engine.execute(createTable)
   print("Done.")
   
   print("    - IQR summary table observatory_iqr_{}... ".format(area)),  
@@ -247,8 +237,7 @@ for area_code in areas.keys():
              area_code = area_code,
              indicators = ind_iqr,
              exclusion = exclusion_criteria)
-  curs.execute(createTable)
-  conn.commit()
+  engine.execute(createTable)
   print("Done.")
   
   map_ind_percentile_area = ''
@@ -272,8 +261,7 @@ for area_code in areas.keys():
              area_code = area_code,
              study_region = sr,
              indicators = ind_percentile)
-  curs.execute(createTable)
-  conn.commit()
+  engine.execute(createTable)
   print("Done.")
   map_ind_percentile_area = '\n{},'.format(map_ind_percentile)
     
@@ -403,8 +391,7 @@ for area_code in areas.keys():
                primary_key = primary_key[area_code])
     print("    - Create table for mapping indicators at {} level".format(area))
     # print(createTable)
-    curs.execute(createTable)
-    conn.commit()
+    engine.execute(createTable)
     
     createTable = '''
     {drop} DROP TABLE IF EXISTS boundaries_{area}_{locale}_{year};
@@ -419,8 +406,7 @@ for area_code in areas.keys():
                area_code = area_code,
                boundaries = boundary_tables[area_code])
     print("    - boundary overlays at {} level".format(area)),
-    curs.execute(createTable)
-    conn.commit()
+    engine.execute(createTable)
     print("Done.")
     
     createTable = '''
@@ -437,21 +423,17 @@ for area_code in areas.keys():
                area_code = area_code,
                boundaries = boundary_tables[area_code])
     print("    - urban overlays at {} level".format(area)),
-    curs.execute(createTable)
-    conn.commit()
+    engine.execute(createTable)
     print("Done.")
 
 # need to add in a geometry column to ind_observatory to allow for importing of this table as a layer in geoserver
 # If it doesn't already exists
 # So, check if it already exists
-curs.execute("SELECT column_name FROM information_schema.columns WHERE table_name='ind_observatory_{}_{}' and column_name='geom';".format(locale,year))
-null_geom_check = curs.fetchall()
+engine.execute('''SELECT column_name FROM information_schema.columns WHERE table_name='ind_observatory_{}_{}' and column_name='geom';'''.format(locale,year))
+null_geom_check = [x[0] for x in engine.execute(sql)]
 if len(null_geom_check)==0:
   # if geom doesn't exist, created it
-  curs.execute("SELECT AddGeometryColumn ('public','ind_observatory_{}_{}','geom',4326,'POINT',2);".format(locale,year))
-  conn.commit()
-
-
+  engine.execute('''SELECT AddGeometryColumn ('public','ind_observatory_{}_{}','geom',4326,'POINT',2);'''.format(locale,year))
 
 map_tables = ["boundaries_sos","boundaries_sa1","boundaries_ssc","boundaries_lga","observatory_map_region","observatory_map_sa1","observatory_map_ssc","observatory_map_lga","ind_observatory","boundaries_region","boundaries_sa1","boundaries_ssc","boundaries_lga"]
 

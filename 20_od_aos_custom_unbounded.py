@@ -315,7 +315,9 @@ if __name__ == '__main__':
         WHERE 
             {analysis}
         ) os_filtered ON p.{points_id} = os_filtered.{points_id}
-        WHERE os_filtered.{points_id} IS NULL;
+        LEFT JOIN excluded_parcels x ON p.{points_id} = x.{points_id}
+        WHERE os_filtered.{points_id} IS NULL -- the sample point isn't associated with a successful result
+          AND x.{points_id} IS NULL           -- and the sample point hasn't been flagged for exclusion
         '''.format(points_id = points_id, a=a, analysis=analysis)
         engine.execute(sql)
     
@@ -377,7 +379,10 @@ if __name__ == '__main__':
         WHERE 
             {analysis}
         ) os_filtered ON p.{points_id} = os_filtered.{points_id}
-        WHERE os_filtered.{points_id} IS NULL;
+        LEFT JOIN excluded_parcels x ON p.{points_id} = x.{points_id}
+        WHERE os_filtered.{points_id} IS NULL -- the sample point isn't associated with a successful result
+          AND x.{points_id} IS NULL           -- and the sample point hasn't been flagged for exclusion
+          ;
         '''.format(points_id = points_id, a=a, analysis=analysis)
         engine.execute(sql)
     
@@ -409,11 +414,13 @@ if __name__ == '__main__':
             FROM od_aos_jsonb o, 
                 jsonb_array_elements(attributes) obj) o
         LEFT JOIN open_space_areas pos ON o.aos_id = pos.aos_id 
+        LEFT JOIN excluded_parcels x ON p.gnaf_pid = x.gnaf_pid
         WHERE 
                -- aos_ha_public > 0
                -- aos_ha_public > 1.5
                aos_ha_public > 0 AND co_location_100m ? 'toilets'
-          AND distance > 3200
+          AND distance > 3200     -- Not previously processed
+          AND x.gnaf_pid is NULL  -- Also not flagged for exclusion (eg because of poor network connectivity)
         LIMIT 20;
         
         This will return results of the custom analyses, which previously woudln't have been processed (distance > 3200m)
