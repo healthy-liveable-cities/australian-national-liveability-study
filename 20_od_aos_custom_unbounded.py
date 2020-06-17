@@ -405,7 +405,7 @@ if __name__ == '__main__':
     else:
         print("All outstanding unbounded custom analyses have now been successfully performed.")
         print('''
-        \nYou may consider verifying your query results using SQL such as the following (replacing the unique identifier as required):
+        \nYou may consider verifying your query results using interactive SQL queries such as the following:
         
         SELECT o.* FROM 
         (SELECT gnaf_pid,
@@ -414,16 +414,16 @@ if __name__ == '__main__':
             FROM od_aos_jsonb o, 
                 jsonb_array_elements(attributes) obj) o
         LEFT JOIN open_space_areas pos ON o.aos_id = pos.aos_id 
-        LEFT JOIN excluded_parcels x ON p.gnaf_pid = x.gnaf_pid
+        LEFT JOIN excluded_parcels x ON o.gnaf_pid = x.gnaf_pid
         WHERE 
                -- aos_ha_public > 0
                -- aos_ha_public > 1.5
                aos_ha_public > 0 AND co_location_100m ? 'toilets'
           AND distance > 3200     -- Not previously processed
           AND x.gnaf_pid is NULL  -- Also not flagged for exclusion (eg because of poor network connectivity)
-        LIMIT 20;
+        LIMIT 1;
         
-        This will return results of the custom analyses, which previously woudln't have been processed (distance > 3200m)
+        This will return a subset of results of the custom analyses, which previously woudln't have been processed (distance > 3200m)
         
         e.g.
         Closest public open space with a toilet within 100 metres
@@ -431,7 +431,8 @@ if __name__ == '__main__':
             gnaf_pid    | aos_id | distance
         ----------------+--------+----------
          GAVIC719218013 |    511 |     4220
-        (1 row)
+         
+        You can comment  / uncomment / modify the queries in the 'WHERE' clause, or otherwise modify the above example as required.
         ''')
     # output to completion log    
     script_running_log(script, task, start, locale)
