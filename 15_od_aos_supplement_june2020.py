@@ -52,7 +52,7 @@ aos_pointsID =  'aos_entryid'
 table  = "od_aos"
 chunk_size = 600
 
-progress_table = 'procesing.od_aos_custom_progress'
+progress_table = 'processing.od_aos_custom_progress'
 
 # get pid name
 pid = multiprocessing.current_process().name
@@ -118,10 +118,8 @@ def ODMatrixWorkerFunction(hex_id):
     curs.execute(sql)
     analyses = [x[0] for x in list(curs)]
     
-    # process ids in groups of 500 or fewer
-    place = 'before hex selection'
-    hex_selection = arcpy.SelectLayerByAttribute_management("hex_layer", where_clause = 'OBJECTID = {}'.format(hex_id))
-    place = 'before skip empty B hexes'
+
+    place = 'before analysis loop'
     
     for analysis in analyses:
         # Get points for this analysis-hex combination
@@ -129,7 +127,7 @@ def ODMatrixWorkerFunction(hex_id):
         SELECT {points_id}
           FROM processing.aos_custom_unbounded
          WHERE hex_id = {hex_id}
-           AND analysis = {analysis};
+           AND analysis = $${analysis}$$;
         '''.format(points_id=points_id, hex_id=hex_id,analysis=analysis)
         curs.execute(sql)
         to_do_points = [x[0] for x in list(curs)]
@@ -138,14 +136,15 @@ def ODMatrixWorkerFunction(hex_id):
         # note that criteria SQL clause may use PostgreSQl specific techniques, so we'll identify those in database directly
         # then retrieve IDs for matches
         sql = '''
-        SELECT aos_id
+        SELECT DISTINCT(aos_id) aos_id
           FROM open_space_areas
-         WHERE {analysis};
+         WHERE {analysis}
+         ORDER BY aos_id;
         '''.format(analysis=analysis)
         curs.execute(sql)
-        aos_id_selection = [x[0] for x in list(curs)]
-        sql = '''aos_id IN ('{}')'''.format(aos_id_selection)
-        B_selection = arcpy.SelectLayerByAttribute_management("hex_layer", where_clause = sql)
+        aos_id_selection = ','.join([str(x[0]) for x in list(curs)])
+        sql = '''aos_id IN ({aos_id_selection})'''.format(aos_id_selection=aos_id_selection)
+        B_selection = arcpy.SelectLayerByAttribute_management("aos_pointsLayer", where_clause = sql)
         B_pointCount = int(arcpy.GetCount_management(B_selection).getOutput(0))
         if B_pointCount == 0:  
             # there are no matching open space of the kind requested in study region; move on
@@ -242,7 +241,10 @@ def ODMatrixWorkerFunction(hex_id):
       WHERE p.hex_id = {hex_id}
         AND p.gnaf_pid IS NOT NULL
       GROUP BY o.{points_id}
-      ON CONFLICT ({points_id}) REPLACE'''.format(points_id = points_id, hex_id = hex_id, table = table)    
+      ON CONFLICT ({points_id}) 
+      DO UPDATE 
+      SET attributes = EXCLUDED.attributes;
+      '''.format(points_id = points_id, hex_id = hex_id, table = table)    
     curs.execute(json_insert)
     conn.commit()
     # update current progress
@@ -330,8 +332,11 @@ if __name__ == '__main__':
     iteration_list = [x[0] for x in engine.execute(sql)]
     print("Done.")
     
-    print("Calculate the sum total of parcels that need to be processed across all analysis"),
-    sql = '''CREATE TABLE {progress_table} AS SELECT 0 processed;'''.format(progress_table=progress_table)
+    print("Calculate the sum total of parcels that need to be processed across all analyses..."),
+    sql = '''
+          DROP TABLE IF EXISTS {progress_table};
+          CREATE TABLE {progress_table} AS SELECT 0 processed;
+          '''.format(progress_table=progress_table)
     engine.execute(sql)
     print("Done.")
     
