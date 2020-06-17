@@ -253,7 +253,8 @@ def ODMatrixWorkerFunction(hex_id):
     conn.commit()
     curs.execute('''SELECT processed from {progress_table}'''.format(progress_table = progress_table))
     progress = int(list(curs)[0][0])
-    status = '''{}/{}; last hex processed: {}, at {}'''.format(progress,total_parcel_analyses,hex_id,time.strftime("%Y%m%d-%H%M%S"))
+    status = '''{}/{}; last hex processed: {}, at {}'''.format(progress,
+                     total_parcel_analyses,hex_id,time.strftime("%Y%m%d-%H%M%S"))
     progressor(progress,total_parcel_analyses,start,status) 
   except:
     print('''Error: {}
@@ -320,14 +321,14 @@ if __name__ == '__main__':
         WHERE os_filtered.{points_id} IS NULL;
         '''.format(points_id = points_id, a=a, analysis=analysis)
         engine.execute(sql)
-        
+    
     sql = '''
     CREATE INDEX IF NOT EXISTS aos_custom_unbounded_idx ON processing.aos_custom_unbounded ({points_id});
     CREATE INDEX IF NOT EXISTS aos_custom_unbounded_hex_idx ON processing.aos_custom_unbounded (hex_id);
     '''.format(points_id=points_id)
     engine.execute(sql)
     sql = '''
-    SELECT DISTINCT(hex_id) FROM processing.aos_custom_unbounded;
+    SELECT DISTINCT(hex_id) FROM processing.aos_custom_unbounded ORDER BY hex_id;
     '''
     iteration_list = [x[0] for x in engine.execute(sql)]
     print("Done.")
@@ -344,10 +345,59 @@ if __name__ == '__main__':
     pool = multiprocessing.Pool(nWorkers)
     pool.map(ODMatrixWorkerFunction, iteration_list, chunksize=1)
     
-    print("Create indices on attributes")
-    engine.execute('''CREATE INDEX IF NOT EXISTS idx_od_aos_jsonb ON od_aos_jsonb ({id});'''.format(id = points_id))
-    engine.execute('''CREATE INDEX IF NOT EXISTS idx_od_aos_jsonb_aos_id ON od_aos_jsonb ((attributes->'aos_id'));''')
-    engine.execute('''CREATE INDEX IF NOT EXISTS idx_od_aos_jsonb_distance ON od_aos_jsonb ((attributes->'distance'));''')
+    print("Post hoc check progress... ")
+    sql = '''
+    CREATE SCHEMA IF NOT EXISTS processing;
+    DROP TABLE IF EXISTS processing.aos_custom_unbounded;
+    CREATE TABLE processing.aos_custom_unbounded (
+        {points_id} text,
+        hex_id integer,
+        indicator text,
+        analysis text
+    );
+    '''.format(points_id=points_id)
+    engine.execute(sql)
+    # Custom OS unbounded analyses
+    analyses = {"pos_any":"aos_ha_public > 0",
+               "pos_gr_15k_sqm":"aos_ha_public > 1.5",
+               "pos_co_location_toilet":"co_location_100m ? 'toilets'"}
+    for a in analyses:   
+        analysis = analyses[a]
+        # Note that we use dollar quoting for text record of analysis as it may contain apostrophes
+        # The idea is, 
+        #   distinct hexes are divvied out to worker processes
+        #   the worker process retrieves the parcels and analyses corresponding to their assigned hex
+        #   analyses and parcels are iterated over before updating the final result for that hex
+        sql = '''
+        INSERT INTO processing.aos_custom_unbounded
+        SELECT p.{points_id},hex_id, '{a}'::text AS indicator, $${analysis}$$::text AS analysis
+        FROM parcel_dwellings p
+        LEFT JOIN 
+        (SELECT * FROM
+         (SELECT {points_id},
+             (obj->>'aos_id')::int AS aos_id, 
+             (obj->>'distance')::int AS distance 
+            FROM od_aos_jsonb o, 
+                jsonb_array_elements(attributes) obj) o
+        LEFT JOIN open_space_areas pos ON o.aos_id = pos.aos_id 
+        WHERE 
+            {analysis}
+        ) os_filtered ON p.{points_id} = os_filtered.{points_id}
+        WHERE os_filtered.{points_id} IS NULL;
+        '''.format(points_id = points_id, a=a, analysis=analysis)
+        engine.execute(sql)
+    
+    sql = '''
+    CREATE INDEX IF NOT EXISTS aos_custom_unbounded_idx ON processing.aos_custom_unbounded ({points_id});
+    CREATE INDEX IF NOT EXISTS aos_custom_unbounded_hex_idx ON processing.aos_custom_unbounded (hex_id);
+    '''.format(points_id=points_id)
+    engine.execute(sql)
+    sql = '''
+    SELECT COUNT(*) FROM processing.aos_custom_unbounded;
+    '''
+    unresolved_analyses = [x[0] for x in engine.execute(sql)]
+    remaining 
+    print("There are still {unresolved_analyses} unresolved analyses remaining for this study region.  You can check them by running the following query:\nSELECT * FROM processing.aos_custom_unbounded;\nA good first thing to check if these are otherwise excluded parcels; if so, they have already been excluded for a good reason (e.g. poor network connectivity), and their lack of a result is not suprising and should not be a problem (pending your check that this is so).".format(unresolved_analyses=unresolved_analyses)    
     
     # output to completion log    
     script_running_log(script, task, start, locale)
