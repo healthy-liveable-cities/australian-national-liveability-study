@@ -115,12 +115,12 @@ print(" Done.")
 # The Urban Liveability Index
 
 
-# Read in indicator description matrix
+# Read in indicator description matrix, to double check that this study region is appropriate for ULI construction
 ind_matrix = df_inds
 uli = {}
-for ind in ['dwelling_density','street_connectivity','walkability','pt_freq_400m','pos_large_400m','supermarket_1km']:
+for ind in ['dwelling_density','street_connectivity','walkability','pt_regular30_headway_400m','pos_large_400m','supermarket_1km']:
   suffix = ''
-  if ind in ['walkability','pt_freq_400m','pos_large_400m','supermarket_1km']:
+  if ind in ['walkability','pt_regular30_headway_400m','pos_large_400m','supermarket_1km']:
     suffix = '_soft'
   uli[ind] = '{}{}'.format(ind_matrix.loc[ind_matrix['ind_plain']==ind,'ind'].values[0].encode('utf8'),suffix)
 
@@ -133,6 +133,7 @@ if locale not in uli_locations and uli_locations != '*':
   sys.exit()
 
 # Define function to shape if variable is outlying  
+print("Created custom function for ULI  clean(var double precision,min_val double precision, max_val double precision, mean double precision, sd double precision), to shape if variable is outlying... "),
 createFunction = '''
   -- outlier limiting/compressing function
   -- if x < -2SD(x), scale up (hard knee upwards compression) to reach minimum by -3SD.
@@ -159,11 +160,11 @@ createFunction = '''
   '''
 curs.execute(createFunction)
 conn.commit()
-print("Created custom function.")
+print("Done.")
 
 
 # collate indicators for national liveability index
-
+print("Creating liveability indicator table uli_inds, a collated table of the raw component indicators... "),
 sql = '''
 DROP TABLE IF EXISTS uli_inds ; 
 CREATE TABLE IF NOT EXISTS uli_inds AS
@@ -206,7 +207,7 @@ LEFT JOIN nh_inds_distance ON p.{id} = nh_inds_distance.{id}
 LEFT JOIN sc_nh1600m ON p.{id} = sc_nh1600m.{id}
 LEFT JOIN dd_nh1600m ON p.{id} = dd_nh1600m.{id}
 LEFT JOIN ind_os_distance ON p.{id} = ind_os_distance.{id}
-LEFT JOIN abs_indicators abs ON a.sa1_7digitcode_2016 = h.sa1_7digitcode_2016::text
+LEFT JOIN abs_indicators abs ON a.sa1_7digitcode_2016 = abs.sa1_7digitcode_2016::text
 LEFT JOIN d_3200m_cl."fruit_veg_osm" ON p.{id} = d_3200m_cl."fruit_veg_osm".{id}
 LEFT JOIN d_3200m_cl."meat_seafood_osm" ON p.{id} = d_3200m_cl."meat_seafood_osm".{id}
 LEFT JOIN d_3200m_cl."supermarket_osm" ON p.{id} = d_3200m_cl."supermarket_osm".{id}
@@ -232,9 +233,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS ix_uli_inds ON  uli_inds ({id});
 '''.format(id = points_id)
 curs.execute(sql)
 conn.commit()
-print("Created liveability indicator table uli_inds.")
+print("Done.")
 
 # The below uses our custom clean function, drawing on (indicator, min, max, mean, sd)
+print("Creating table 'uli_inds_clean', a table of cleaned indicators... "),
 sql = '''
 DROP TABLE IF EXISTS uli_inds_clean ; 
 CREATE TABLE uli_inds_clean AS
@@ -271,9 +273,9 @@ ALTER TABLE uli_inds_clean ADD PRIMARY KEY ({id});
   '''.format(id = points_id)
 curs.execute(sql)
 conn.commit()
-print("Created table 'uli_inds_clean'")
+print("Done.")
 
-
+print("Creating table 'uli_inds_norm', a table of normalised indicators... "),
 sql = '''
 -- Note that in this normalisation stage, indicator polarity is adjusted for: ABS 30:40 measure has values substracted from 100, whilst positive indicators have them added.
 DROP TABLE IF EXISTS uli_inds_norm ; 
@@ -312,8 +314,10 @@ ALTER TABLE uli_inds_norm ADD PRIMARY KEY ({id});
 
 curs.execute(sql)
 conn.commit()
-print("Created table 'uli_inds_norm', a table of MPI-normalised indicators.")
+print("Done.")
+
  
+print("Creating table 'uli', containing parcel level urban liveability index estimates, along with its required summary ingredients (mean, sd, coefficient of variation)...")
 sql = ''' 
 -- 2. Create ULI
 -- rowmean*(1-(rowsd(z_j)/rowmean(z_j))^2) AS mpi_est_j
@@ -346,7 +350,8 @@ ALTER TABLE uli ADD PRIMARY KEY ({id});
 
 curs.execute(sql)
 conn.commit()
-print("Created table 'uli', containing parcel level urban liveability index estimates, along with its required summary ingredients (mean, sd, coefficient of variation).")
+print("Done.")
+
 
 # output to completion log    
 script_running_log(script, task, start)
