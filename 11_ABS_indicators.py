@@ -29,7 +29,7 @@ engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_
                                                                  host = db_host,
                                                                  db   = db))
 
-area_codes  = pandas.read_sql('SELECT DISTINCT(sa1_7digitcode_2016)::int FROM area_linkage',engine)
+area_codes  = pandas.read_sql('SELECT DISTINCT ON (sa1_7digitcode_2016) sa1_7digitcode_2016::int, ssc_name_2016, lga_name_2016 FROM area_linkage',engine)
 
 
 # import affordable housing indicator
@@ -306,6 +306,21 @@ for area in ['SA1', 'SA2','Suburb', 'LGA']:
   diversity = pandas.read_csv('{path}{file}'.format(file = file,path = path), index_col=0)
   diversity.to_sql('abs_housing_diversity_{abbrev}'.format(abbrev=abbrev),engine,if_exists='replace')
   print("Done.")
+
+print("Import social housing measures... ")
+# We read in an Excel file of preprepared social housing indicators at various aggregation levels
+xls = pandas.ExcelFile('../data/ABS/derived/ABS_SocialHousing.xlsx')
+for area in ['SA1', 'Suburb', 'LGA']:
+  # we get the index name (already prepared for matching purposes) as the area id
+  area_id = df.index.name
+  abbrev = df_regions.loc[area,'abbreviation']
+  print(abbrev.upper()), 
+  # we read in the particular data for this aggregation scale
+  df = pandas.read_excel(xls, abbrev.upper() ,index_col=0)
+  # we restrict to those statistics relating to this study region
+  df = df[df.index.isin(area_codes[area_id])]
+  # we copy the relevant records to the database with a scale suffix
+  df.to_sql('abs_social_housing_{abbrev}'.format(abbrev=abbrev),engine,if_exists='replace')
 
 # output to completion log
 script_running_log(script, task, start)
