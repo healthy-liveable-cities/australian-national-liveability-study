@@ -47,7 +47,7 @@ ind_destinations = ind_destinations.loc[:,'unit_level_description':]
 
 # Indicator configuration sheet is 'df_inds', read in from config file in the config script
 # Restrict to indicators associated with study region (except distance to closest dest indicators)
-ind_matrix = df_inds[df_inds['locale'].str.contains('|'.join([locale,'\*']))].copy()
+ind_matrix = df_inds[df_inds['locale'].str.contains('|'.join([locale,'\*']))].copy().query('scale=="point"')
 
 # # get the set of distance to closest regions which match for this region
 # destinations = df_inds[df_inds['ind'].str.contains('destinations')]

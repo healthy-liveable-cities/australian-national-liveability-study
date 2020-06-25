@@ -8,6 +8,7 @@ import sys
 import time
 import psycopg2 
 import subprocess as sp     # for executing external commands (e.g. pgsql2shp)
+from sqlalchemy import create_engine
 
 from script_running_log import script_running_log
 
@@ -22,6 +23,13 @@ task = 'Create area level indicator tables for {}'.format(locale)
 # Connect to postgresql database     
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()
+
+
+engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_user,
+                                                                 pwd  = db_pwd,
+                                                                 host = db_host,
+                                                                 db   = db))
+
 
 # Indicator configuration sheet is 'df_inds', read in from config file in the config script
 
@@ -64,6 +72,46 @@ ind_matrix['indicators'] = ind_matrix['ind'] + ind_matrix['tags'].fillna('')
 # Compile list of indicators
 ind_matrix.sort_values('order', inplace=True)
 
+# Fix up area level indicators
+#   - remove the signifying prefix 'area:'
+def unnesting(df, explode):
+    import pandas
+    import numpy as np
+    idx = df.index.repeat(df[explode[0]].str.len())
+    df1 = pandas.concat([
+        pandas.DataFrame({x: np.concatenate(df[x].values)}) for x in explode], axis=1)
+    df1.index = idx
+    return(df1.join(df.drop(explode, 1), how='left'))
+    
+ind_matrix['scale'] = ind_matrix.scale.str.replace('area:','').str.split(',')
+ind_matrix = unnesting(ind_matrix,['scale'])
+
+area_indicators = {}
+area_queries = {}
+area_sources = {}
+for area in [x for x in set(ind_matrix.scale.values) if x!= 'point']:
+    # print(area),
+    abbrev = df_regions.loc[area,'abbreviation']
+    # print(': {}'.format(abbrev))
+    # Get index column name (e.g. for SA1 may be 7 digit or maincode - easiest to check)
+    area_indicators[area] = ind_matrix.query('scale=="{}"'.format(area)).copy().set_index('indicators')
+    area_indicators[area].replace(to_replace='{area}', value=abbrev, inplace=True,regex=True)
+    for ind in area_indicators[area].index:
+        # table name is assumed to be listed in query as before full stop, e.g.: table_name.indicator
+        table = area_indicators[area].loc[ind,'Query'].split('.')[0]
+        # the first column of the table is assumed to be the id linkage variable for this scale
+        area_id = engine.execute('''SELECT * FROM {} LIMIT 0'''.format(table)).keys()[0]
+        area_indicators[area].replace(to_replace='{area_code}', value=area_id, inplace=True,regex=True)
+    if len(area_indicators[area]['Source'].values)>0:
+        area_queries[area] =  '{},'.format(',\n'.join(area_indicators[area]['Query'].values))
+        area_sources[area] =  '{}'.format('\n'.join(set(area_indicators[area]['Source'].values)))
+    else:
+        area_queries[area] = ''
+        area_sources[area] = ''
+    
+    
+ind_matrix = ind_matrix.query('scale=="point"')
+    
 # Create an indicators summary table
 ind_matrix = ind_matrix.set_index('indicators')
 ind_matrix = ind_matrix.append(ind_destinations)
@@ -170,36 +218,43 @@ print("Done.")
 
 
 print("Creating weighted area aggregate tables:")
-for area in analysis_regions + ['study region']:   
-    if area != 'study region':
-        area_id = df_regions.loc[area,'id']
-        abbrev = df_regions.loc[area,'abbreviation']
+for area in analysis_regions + ['Region']: 
+    area_id = df_regions.loc[area,'id']
+    abbrev = df_regions.loc[area,'abbreviation']
+    # print("{}: {}".format(abbrev,area_id))
+    if area != 'Region':
         include_region = 'study_region,'
     else: 
-        area_id = 'study_region'
-        abbrev  = 'region'
         include_region = ''
     if area != 'Section of State':
         pkey = area_id
     else: 
         pkey = '{},study_region'.format(area_id)
-    housing_diversity = ''
-    housing_diversity_join = ''
-    if area in ['SA1', 'SA2','Suburb', 'LGA']:
-        housing_diversity = '''
-        hd.normalised_diversity_index AS housing_diversity_normalised,
-        hd.diversity AS housing_diversity_category,
-        hd.housing_type_count AS housing_diversity_count,
-        '''
-        housing_diversity_join = '''
-        LEFT JOIN abs_housing_diversity_{abbrev} hd USING ({area_id}) 
-        '''.format(abbrev = abbrev,area_id = area_id)
-        if area == 'SA1':
-            housing_diversity_join = '''
-        LEFT JOIN sa1_2016_aust USING (sa1_maincode_2016)
-        LEFT JOIN abs_housing_diversity_{abbrev}  hd
-          ON sa1_2016_aust.sa1_7digitcode_2016::bigint = hd.sa1_7digitcode_2016
-        '''.format(abbrev = abbrev,area_id = area_id)
+        
+    if area not in area_indicators.keys():
+        area_sources[area] = ''
+        area_queries[area] = ''
+    
+    area_indicator_queries = area_queries[area]
+    area_indicator_sources = area_sources[area]
+    
+    # housing_diversity = ''
+    # housing_diversity_join = ''
+    # if area in ['SA1', 'SA2','Suburb', 'LGA']:
+        # housing_diversity = '''
+        # hd.normalised_diversity_index AS housing_diversity_normalised,
+        # hd.diversity AS housing_diversity_category,
+        # hd.housing_type_count AS housing_diversity_count,
+        # '''
+        # housing_diversity_join = '''
+        # LEFT JOIN abs_housing_diversity_{abbrev} hd USING ({area_id}) 
+        # '''.format(abbrev = abbrev,area_id = area_id)
+        # if area == 'SA1':
+            # housing_diversity_join = '''
+        # LEFT JOIN sa1_2016_aust USING (sa1_maincode_2016)
+        # LEFT JOIN abs_housing_diversity_{abbrev}  hd
+          # ON sa1_2016_aust.sa1_7digitcode_2016::bigint = hd.sa1_7digitcode_2016
+        # '''.format(abbrev = abbrev,area_id = area_id)
     for standard in ['dwelling','person']:
         print("  - li_inds_{}_{}".format(abbrev,standard))
         sql = '''
@@ -207,25 +262,7 @@ for area in analysis_regions + ['study region']:
         DROP TABLE IF EXISTS li_inds_{abbrev}_{standard};
         CREATE TABLE li_inds_{abbrev}_{standard} AS
         SELECT t.*,
-               {housing_diversity}
-               g.dwelling gross_dwelling,
-               g.area gross_area,
-               g.gross_density,
-               g.urban_dwelling urban_gross_dwelling,
-               g.urban_area     urban_gross_area,
-               g. urban_gross_density,
-               g.not_urban_dwelling not_urban_gross_dwelling,
-               g.not_urban_area     not_urban_gross_area,
-               g.not_urban_gross_density,
-               n.dwelling net_dwelling,
-               n.area net_area,
-               n.net_density,
-               n.urban_dwelling urban_net_dwelling,
-               n.urban_area     urban_net_area,
-               n.urban_net_density,
-               n.not_urban_dwelling not_urban_net_dwelling,
-               n.not_urban_area     not_urban_net_area,
-               n.not_urban_net_density
+               {area_indicator_queries}
         FROM
         (SELECT 
          {area_id},
@@ -244,7 +281,7 @@ for area in analysis_regions + ['study region']:
          ) t
         LEFT JOIN abs_density_gross_{abbrev} g USING ({area_id})
         LEFT JOIN abs_density_net_{abbrev} n USING ({area_id})
-        {housing_diversity_join};
+        {area_indicator_queries};
         '''.format(area_id = area_id,
                    abbrev = abbrev,
                    include_region = include_region,
@@ -259,8 +296,8 @@ for area in analysis_regions + ['study region']:
                           END) AS "{i}"
                    '''.format(i = i,standard = standard) for i in ind_list]),
                    standard = standard,
-                   housing_diversity = housing_diversity,
-                   housing_diversity_join = housing_diversity_join
+                   area_indicator_sources = area_indicator_sources,
+                   area_indicator_queries = area_indicator_queries
                    )
         curs.execute(sql)
         conn.commit()
