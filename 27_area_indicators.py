@@ -108,8 +108,7 @@ for area in [x for x in set(ind_matrix.scale.values) if x!= 'point']:
     else:
         area_queries[area] = ''
         area_sources[area] = ''
-    
-    
+  
 ind_matrix = ind_matrix.query('scale=="point"')
     
 # Create an indicators summary table
@@ -224,8 +223,11 @@ for area in analysis_regions + ['Region']:
     # print("{}: {}".format(abbrev,area_id))
     if area != 'Region':
         include_region = 'study_region,'
+        area_linkage = ''
     else: 
         include_region = ''
+        # area linkage table in case alternate linkage variables required, eg sa1_7digitcode_2016
+        area_linkage = '''LEFT JOIN area_linkage area ON t.{area_id} = area.{area_id}'''.format(area_id=area_id)
     if area != 'Section of State':
         pkey = area_id
     else: 
@@ -238,23 +240,6 @@ for area in analysis_regions + ['Region']:
     area_indicator_queries = area_queries[area]
     area_indicator_sources = area_sources[area]
     
-    # housing_diversity = ''
-    # housing_diversity_join = ''
-    # if area in ['SA1', 'SA2','Suburb', 'LGA']:
-        # housing_diversity = '''
-        # hd.normalised_diversity_index AS housing_diversity_normalised,
-        # hd.diversity AS housing_diversity_category,
-        # hd.housing_type_count AS housing_diversity_count,
-        # '''
-        # housing_diversity_join = '''
-        # LEFT JOIN abs_housing_diversity_{abbrev} hd USING ({area_id}) 
-        # '''.format(abbrev = abbrev,area_id = area_id)
-        # if area == 'SA1':
-            # housing_diversity_join = '''
-        # LEFT JOIN sa1_2016_aust USING (sa1_maincode_2016)
-        # LEFT JOIN abs_housing_diversity_{abbrev}  hd
-          # ON sa1_2016_aust.sa1_7digitcode_2016::bigint = hd.sa1_7digitcode_2016
-        # '''.format(abbrev = abbrev,area_id = area_id)
     for standard in ['dwelling','person']:
         print("  - li_inds_{}_{}".format(abbrev,standard))
         sql = '''
@@ -279,9 +264,8 @@ for area in analysis_regions + ['Region']:
               jsonb_array_elements(indicators) ind
          GROUP BY {area_id},study_region,locale
          ) t
-        LEFT JOIN abs_density_gross_{abbrev} g USING ({area_id})
-        LEFT JOIN abs_density_net_{abbrev} n USING ({area_id})
-        {area_indicator_queries};
+        {area_linkage}
+        {area_indicator_sources};
         '''.format(area_id = area_id,
                    abbrev = abbrev,
                    include_region = include_region,
