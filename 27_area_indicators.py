@@ -94,16 +94,16 @@ for area in [x for x in set(ind_matrix.scale.values) if x!= 'point']:
     abbrev = df_regions.loc[area,'abbreviation']
     # print(': {}'.format(abbrev))
     # Get index column name (e.g. for SA1 may be 7 digit or maincode - easiest to check)
-    area_indicators[area] = ind_matrix.query('scale=="{}"'.format(area)).copy().set_index('indicators')
+    area_indicators[area] = ind_matrix.query('scale=="{}"'.format(area)).set_index('indicators').copy()
     area_indicators[area].replace(to_replace='{area}', value=abbrev, inplace=True,regex=True)
     for ind in area_indicators[area].index:
         # table name is assumed to be listed in query as before full stop, e.g.: table_name.indicator
         table = area_indicators[area].loc[ind,'Query'].split('.')[0]
         # the first column of the table is assumed to be the id linkage variable for this scale
         area_id = engine.execute('''SELECT * FROM {} LIMIT 0'''.format(table)).keys()[0]
-        area_indicators[area].replace(to_replace='{area_code}', value=area_id, inplace=True,regex=True)
+        area_indicators[area].loc[ind,'Source'] = area_indicators[area].loc[ind,'Source'].format(area_code = area_id)
     if len(area_indicators[area]['Source'].values)>0:
-        area_queries[area] =  '{},'.format(',\n'.join(area_indicators[area]['Query'].values))
+        area_queries[area] =  ',{}'.format(',\n'.join(area_indicators[area]['Query'].values))
         area_sources[area] =  '{}'.format('\n'.join(set(area_indicators[area]['Source'].values)))
     else:
         area_queries[area] = ''
@@ -223,11 +223,12 @@ for area in analysis_regions + ['Region']:
     # print("{}: {}".format(abbrev,area_id))
     if area != 'Region':
         include_region = 'study_region,'
-        area_linkage = ''
+        # area linkage table in case alternate linkage variables required, eg sa1_7digitcode_2016
+        area_linkage = '''LEFT JOIN (SELECT DISTINCT ON ({area_id}) * FROM area_linkage) area ON t.{area_id} = area.{area_id}'''.format(area_id=area_id)
     else: 
         include_region = ''
-        # area linkage table in case alternate linkage variables required, eg sa1_7digitcode_2016
-        area_linkage = '''LEFT JOIN area_linkage area ON t.{area_id} = area.{area_id}'''.format(area_id=area_id)
+        # this is a bit redundant linking for the region, but means it fits the join pattern of other area scales
+        area_linkage = '''LEFT JOIN (SELECT '{full_locale}'::text AS study_region) area ON t.study_region = area.study_region'''.format(full_locale=full_locale)
     if area != 'Section of State':
         pkey = area_id
     else: 
@@ -246,7 +247,7 @@ for area in analysis_regions + ['Region']:
         DROP TABLE IF EXISTS {abbrev}_ind_{standard};
         DROP TABLE IF EXISTS li_inds_{abbrev}_{standard};
         CREATE TABLE li_inds_{abbrev}_{standard} AS
-        SELECT t.*,
+        SELECT t.*
                {area_indicator_queries}
         FROM
         (SELECT 
@@ -280,9 +281,11 @@ for area in analysis_regions + ['Region']:
                           END) AS "{i}"
                    '''.format(i = i,standard = standard) for i in ind_list]),
                    standard = standard,
+                   area_linkage = area_linkage,
                    area_indicator_sources = area_indicator_sources,
                    area_indicator_queries = area_indicator_queries
                    )
+        # print(sql)
         curs.execute(sql)
         conn.commit()
         sql = '''
