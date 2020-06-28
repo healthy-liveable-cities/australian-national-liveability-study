@@ -309,19 +309,34 @@ for area in ['SA1', 'SA2','Suburb', 'LGA']:
 
 print("Import social housing measures... ")
 # We read in an Excel file of preprepared social housing indicators at various aggregation levels
-xls = pandas.ExcelFile('../data/ABS/derived/ABS_SocialHousing.xlsx')
+xls = pandas.ExcelFile('../data/ABS/derived/abs_2016_social_housing.xlsx')
 for area in ['SA1', 'Suburb', 'LGA']:
+  abbrev = df_regions.loc[area,'abbreviation']
+  print('  - {}'.format(abbrev.upper()))
+  df = pandas.read_excel(xls, abbrev.upper() ,index_col=0)
   # we get the index name (already prepared for matching purposes) as the area id
   area_id = df.index.name
-  abbrev = df_regions.loc[area,'abbreviation']
-  print(abbrev.upper()), 
   # we read in the particular data for this aggregation scale
-  df = pandas.read_excel(xls, abbrev.upper() ,index_col=0)
   # we restrict to those statistics relating to this study region
   df = df[df.index.isin(area_codes[area_id])]
   # we copy the relevant records to the database with a scale suffix
   df.to_sql('abs_social_housing_{abbrev}'.format(abbrev=abbrev),engine,if_exists='replace')
 
+print("Import 2020 housing affordability stress measures (30:40 and variants)... ")
+# We read in an Excel file of preprepared social housing indicators at various aggregation levels
+xls = pandas.ExcelFile('../data/ABS/derived/abs_2016_30_40_overall_renting_mortgage_2020-06-27.xlsx')
+for area in ['SA1', 'Suburb', 'LGA']:
+  abbrev = df_regions.loc[area,'abbreviation']
+  print('  - {}'.format(abbrev.upper()))
+  # we read in the particular data for this aggregation scale
+  df = pandas.read_excel(xls, abbrev.upper() ,index_col=0)
+  # we get the index name (already prepared for matching purposes) as the area id
+  area_id = df.index.name
+  # we restrict to those statistics relating to this study region
+  df = df[df.index.isin(area_codes[area_id])]
+  # we copy the relevant records to the database with a scale suffix
+  df.to_sql('abs_2016_30_40_indicators_2020_{abbrev}'.format(abbrev=abbrev),engine,if_exists='replace')
+  
 # output to completion log
 script_running_log(script, task, start)
 conn.close()
