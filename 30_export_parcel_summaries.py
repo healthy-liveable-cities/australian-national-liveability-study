@@ -29,6 +29,17 @@ engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_
 
 
 if locale!='australia':
+    sql = '''
+          -- Ensure open space areas are indexed by both aos_id and locale
+          DROP INDEX IF EXISTS aos_idx;
+          CREATE INDEX IF NOT EXISTS open_space_areas_idx ON open_space_areas (aos_id,locale);
+          DROP INDEX IF EXISTS "od_pt_800m_cl_distance";  -- fixing up incorrect index
+          CREATE INDEX IF NOT EXISTS "od_pt_800m_cl_distance" ON od_pt_800m_cl ((attributes->'distance'));
+          CREATE INDEX IF NOT EXISTS "od_aos_jsonb_locale_idx" ON od_aos_jsonb (locale);
+          CREATE INDEX IF NOT EXISTS "dest_closest_indicators_locale_idx" ON dest_closest_indicators (locale);
+          CREATE INDEX IF NOT EXISTS "parcel_indicators_locale_idx" ON parcel_indicators (locale);
+          '''
+    engine.execute(sql)
     out_dir = 'D:/ntnl_li_2018_template/data/study_region/_exports'
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
@@ -38,12 +49,8 @@ if locale!='australia':
                'pg_dump -U {db_user} -h localhost -Fc  '
                ' -t "parcel_indicators" '
                ' -t "dest_closest_indicators" '
-               ' -t "dest_array_indicators" '
-               ' -t "uli_inds" '
                ' -t "open_space_areas" '
                ' -t "od_aos_jsonb" '
-               ' -t "edges" '
-               ' -t "nodes" '
                ' -t "ind_pt_2019_distance_800m_cl" '
                ' -t "ind_pt_2019_headway_800m" '
                '{db} > {out_file}'
@@ -59,12 +66,8 @@ if locale=='albury_wodonga':
                'pg_dump -U {db_user} -h localhost --schema-only '
                ' -t "parcel_indicators" '
                ' -t "dest_closest_indicators" '
-               ' -t "dest_array_indicators" '
-               ' -t "uli_inds" '
                ' -t "open_space_areas" '
                ' -t "od_aos_jsonb" '
-               ' -t "edges" '
-               ' -t "nodes" '
                ' -t "ind_pt_2019_distance_800m_cl" '
                ' -t "ind_pt_2019_headway_800m" '
                '{db} > {schema}'
@@ -86,16 +89,17 @@ if locale=='australia':
     sql = '''
     DROP TABLE IF EXISTS "parcel_indicators" ;
     DROP TABLE IF EXISTS "dest_closest_indicators" ;
-    DROP TABLE IF EXISTS "dest_array_indicators" ;
-    DROP TABLE IF EXISTS "uli_inds" ;
     DROP TABLE IF EXISTS "open_space_areas" ;
     DROP TABLE IF EXISTS "od_aos_jsonb" ;
-    DROP TABLE IF EXISTS "edges" ;
-    DROP TABLE IF EXISTS "nodes" ;
     DROP TABLE IF EXISTS "ind_pt_2019_distance_800m_cl" ;
     DROP TABLE IF EXISTS "ind_pt_2019_headway_800m" ;
     DROP INDEX IF EXISTS idx_aos_jsb;
     DROP INDEX IF EXISTS aos_idx;
+    -- Also drop redundant for now tables
+    DROP TABLE IF EXISTS "dest_array_indicators" ;
+    DROP TABLE IF EXISTS "edges" ;
+    DROP TABLE IF EXISTS "nodes" ;
+    DROP TABLE IF EXISTS "uli_inds" ;
     '''
     curs.execute(sql)
     conn.commit()
@@ -123,8 +127,6 @@ if locale=='australia':
                    # 'pg_restore -a -Fc '
                    # ' -t "parcel_indicators" '
                    # ' -t "dest_closest_indicators" '
-                   # ' -t "dest_array_indicators" '
-                   # ' -t "uli_inds" '
                    # ' -t "open_space_areas" '
                    # ' -t "od_aos_jsonb" '
                    # ' -t "ind_pt_2019_distance_800m_cl" '
