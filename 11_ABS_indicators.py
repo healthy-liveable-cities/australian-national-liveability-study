@@ -337,6 +337,21 @@ for area in ['SA1', 'Suburb', 'LGA']:
   # we copy the relevant records to the database with a scale suffix
   df.to_sql('abs_2016_30_40_indicators_2020_{abbrev}'.format(abbrev=abbrev),engine,if_exists='replace')
   
+print("Import 2020 housing diversity measure (housing_type_count)... ")
+# We read in an Excel file of preprepared social housing indicators at various aggregation levels
+xls = pandas.ExcelFile('../data/ABS/derived/abs_2016_housing_diversity.xlsx')
+for area in ['SA1', 'Suburb', 'LGA']:
+  abbrev = df_regions.loc[area,'abbreviation']
+  print('  - {}'.format(abbrev.upper()))
+  # we read in the particular data for this aggregation scale
+  df = pandas.read_excel(xls, abbrev.upper() ,index_col=0)
+  # we get the index name (already prepared for matching purposes) as the area id
+  area_id = df.index.name
+  # we restrict to those statistics relating to this study region
+  df = df[df.index.isin(area_codes[area_id])]
+  # we copy the relevant records to the database with a scale suffix
+  df.to_sql('abs_2016_housing_type_count_{abbrev}'.format(abbrev=abbrev),engine,if_exists='replace')
+
 # output to completion log
 script_running_log(script, task, start)
 conn.close()
