@@ -39,7 +39,8 @@ if locale!='australia':
           CREATE INDEX IF NOT EXISTS "dest_closest_indicators_locale_idx" ON dest_closest_indicators (locale);
           CREATE INDEX IF NOT EXISTS "parcel_indicators_locale_idx" ON parcel_indicators (locale);
           '''
-    engine.execute(sql)
+    curs.execute(sql)
+    conn.commit()
     out_dir = 'D:/ntnl_li_2018_template/data/study_region/_exports'
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
@@ -58,22 +59,22 @@ if locale!='australia':
     sp.call(command, shell=True,cwd=out_dir)   
     print("Done.")
 
-# Create table schema definition using Albury Wodonga:
-if locale=='albury_wodonga':
-    schema = 'li_parcel_schema_{}.sql'.format(date)
-    print("Creating sql dump to: {}".format(os.path.join(out_dir,schema))),
-    command = (
-               'pg_dump -U {db_user} -h localhost --schema-only '
-               ' -t "parcel_indicators" '
-               ' -t "dest_closest_indicators" '
-               ' -t "open_space_areas" '
-               ' -t "od_aos_jsonb" '
-               ' -t "ind_pt_2019_distance_800m_cl" '
-               ' -t "ind_pt_2019_headway_800m" '
-               '{db} > {schema}'
-               ).format(db = db,db_user = db_user,schema=schema)    
-    sp.call(command, shell=True,cwd=out_dir)   
-    print("Done.")
+    # Create table schema definition using Albury Wodonga:
+    if locale=='albury_wodonga':
+        schema = 'li_parcel_schema_{}.sql'.format(date)
+        print("Creating sql dump to: {}".format(os.path.join(out_dir,schema))),
+        command = (
+                   'pg_dump -U {db_user} -h localhost --schema-only '
+                   ' -t "parcel_indicators" '
+                   ' -t "dest_closest_indicators" '
+                   ' -t "open_space_areas" '
+                   ' -t "od_aos_jsonb" '
+                   ' -t "ind_pt_2019_distance_800m_cl" '
+                   ' -t "ind_pt_2019_headway_800m" '
+                   '{db} > {schema}'
+                   ).format(db = db,db_user = db_user,schema=schema)    
+        sp.call(command, shell=True,cwd=out_dir)   
+        print("Done.")
 
 if locale=='australia':
     if len(sys.argv) >= 3:
