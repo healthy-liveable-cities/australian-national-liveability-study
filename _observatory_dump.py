@@ -523,7 +523,7 @@ pg_dump -U postgres -h localhost -W  {tables} {db} > {dir}/auo_map_{db}.sql
 
 print('''
 
-Also, can you send the following line of text to Carl please to aid collation of study regions?
+The following lines of code may be used to finalise collation of study regions for the Observatory:
 
 psql:
     \c postgres
