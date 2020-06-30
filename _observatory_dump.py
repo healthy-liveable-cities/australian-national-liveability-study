@@ -143,37 +143,43 @@ areas = {'mb_code_2016':'mb',
 print("Create area tables based on unweighted sample data... ")
 
 
-# Note issue in June 2020 dump where ind name of area indicators isn't as per schema (e.g. hous_07) but as of ind_plain (e.g. pct_social_housing); that won't work for obs; we'll do an ad hoc fix here as time is running out
-point_ind_list = ind_matrix.query("scale=='point'").index.values
-point_inds = ','.join(point_ind_list)
+# point_ind_list = ind_matrix.query("scale=='point'").index.values
+# point_inds = ','.join(point_ind_list)
+# ind_list = df_observatory.index.values
+# inds = ','.join(ind_list)
 for area_code in areas.keys():
     area = areas[area_code]
     area_matrix = ind_matrix.query("scale=='point' | scale=='{}'".format(df_regions.query('id=="{area_code}"'.format(area_code=area_code)).index[0])).copy()
-  
+    area_matrix = area_matrix.reindex([x for x in df_observatory.index if x in area_matrix.index])
+    # Note issue in June 2020 dump where ind name of area indicators isn't as per schema (e.g. hous_07) but as of ind_plain (e.g. pct_social_housing); 
+    #  that won't work for obs; we'll do an ad hoc fix here as time is running out
+    ind_list = area_matrix.apply(lambda x: [x.name,x.name] if x.scale=='point' else [x.ind_plain,x.name],axis=1)
+    main_inds = ',\n'.join(['"{}" AS "{}"'.format(*x) for x in ind_list.values])
     # Distribution summaries for plotting of sample data
     ind_avg = ',\n'.join(area_matrix.apply(lambda x: 'AVG({mult}*p."{i}") AS "{i}"'.format(i=x.name,mult='100.0' if x['agg_scale']==100 else '1.0')
                                                     if x.scale=='point' else 'area_inds."{p}" AS "{i}"'.format(p=x.ind_plain, i=x.name),axis=1))
-    ind_sd = ',\n'.join(area_matrix.apply(lambda x: 'stddev_samp({mult}*p."{i}") AS "{i}"'.format(i=x.name,mult='100.0' if x['agg_scale']==100 else '1.0')
-                                                    if x.scale=='point' else 'NULL AS "{i}"'.format(i=x.name),axis=1))
+    ind_sd = ',\n'.join(area_matrix.apply(lambda x: 'stddev_samp({mult}*"{i}") AS "{i}"'.format(i=x.name,mult='100.0' if x['agg_scale']==100 else '1.0')
+                                                    if x.scale=='point' else 'NULL::numeric AS "{i}"'.format(i=x.name),axis=1))
     
     # Create query for indicator range (including scaling of percent variables)
-    ind_range = ',\n'.join(area_matrix.apply(lambda x: 'ROUND(MIN({mult}*p."{ind}")::numeric,1)::text || $$ to $$ ||ROUND(MAX({mult}* p."{ind}")::numeric,1)::text AS "{ind}"'.format(ind=x.name,mult = '100.0' if x.agg_scale == 100 else '1.0')
-                                                    if x.scale=='point' else 'NULL AS "{i}"'.format(i=x.name),axis=1))
+    ind_range = ',\n'.join(area_matrix.apply(lambda x: 'ROUND(MIN({mult}*"{ind}")::numeric,1)::text || $$ to $$ ||ROUND(MAX({mult}* "{ind}")::numeric,1)::text AS "{ind}"'.format(ind=x.name,mult = '100.0' if x.agg_scale == 100 else '1.0')
+                                                    if x.scale=='point' else '$$N/A$$::text AS "{i}"'.format(i=x.name),axis=1))
     
     # Create query for median       
-    ind_median = ',\n'.join(area_matrix.apply(lambda x: 'round(percentile_cont(0.5) WITHIN GROUP (ORDER BY {mult}*p."{ind}" )::numeric,1) AS "{ind}"'.format(ind=x.name,mult = '100.0' if x.agg_scale == 100 else '1.0')
-                                                    if x.scale=='point' else 'NULL AS "{i}"'.format(i=x.name),axis=1))
+    ind_median = ',\n'.join(area_matrix.apply(lambda x: 'round(percentile_cont(0.5) WITHIN GROUP (ORDER BY {mult}*"{ind}" )::numeric,1) AS "{ind}"'.format(ind=x.name,mult = '100.0' if x.agg_scale == 100 else '1.0')
+                                                    if x.scale=='point' else 'NULL::numeric AS "{i}"'.format(i=x.name),axis=1))
     
     # Create query for Interquartile range interval (25% to 75%) to represent the range within which the middle 50% of observations lie         
-    ind_iqr = ',\n'.join(area_matrix.apply(lambda x: 'round(percentile_cont(0.25) WITHIN GROUP (ORDER BY {mult}*p."{ind}" )::numeric,1)::text || $$ to $$ || round(percentile_cont(0.75) WITHIN GROUP (ORDER BY {mult}*p."{ind}" )::numeric,1)::text AS "{ind}"'.format(ind=x.name,mult = '100.0' if x.agg_scale == 100 else '1.0')
-                                                    if x.scale=='point' else 'NULL AS "{i}"'.format(i=x.name),axis=1))
+    ind_iqr = ',\n'.join(area_matrix.apply(lambda x: 'round(percentile_cont(0.25) WITHIN GROUP (ORDER BY {mult}*"{ind}" )::numeric,1)::text || $$ to $$ || round(percentile_cont(0.75) WITHIN GROUP (ORDER BY {mult}*"{ind}" )::numeric,1)::text AS "{ind}"'.format(ind=x.name,mult = '100.0' if x.agg_scale == 100 else '1.0')
+                                                    if x.scale=='point' else 'NULL::numeric AS "{i}"'.format(i=x.name),axis=1))
     
     # Create query for percentile           
-    ind_percentile = ',\n'.join(area_matrix.apply(lambda x: 'round(100*cume_dist() OVER(ORDER BY p."{ind}" {polarity})::numeric,0) AS "{ind}"'.format(ind=x.name,polarity = x.polarity)
-                                                    if x.scale=='point' else 'NULL AS "{i}"'.format(i=x.name),axis=1))
+    ind_percentile = ',\n'.join(area_matrix.apply(lambda x: 'round(100*cume_dist() OVER(ORDER BY "{ind}" {polarity})::numeric,0) AS "{ind}"'.format(ind=x.name,polarity = x.polarity)
+                                                    if x.scale=='point' else 'NULL::numeric AS "{i}"'.format(i=x.name),axis=1))
     
     # Map indicator queries
-    map_ind_raw = ',\n'.join(area_matrix.apply(lambda x: 'round(raw."{ind}"::numeric,1) AS "r_{ind}"'.format(ind=x.name),axis=1))                           
+    # map_ind_raw = ',\n'.join(area_matrix.apply(lambda x: 'round(raw."{ind}"::numeric,1) AS "r_{ind}"'.format(ind=x.name),axis=1))                           
+    map_ind_raw = ',\n'.join(['ROUND(raw."{}"::numeric,1) AS "r_{}"'.format(*x) for x in ind_list.values])               
     map_ind_sd = ',\n'.join(area_matrix.apply(lambda x: 'round(sd."{ind}"::numeric,1) AS "sd_{ind}"'.format(ind=x.name),axis=1))
     map_ind_percentile = ',\n'.join(area_matrix.apply(lambda x: 'round(perc."{ind}"::numeric,1) AS "p_{ind}"'.format(ind=x.name),axis=1))    
     map_ind_range = ',\n'.join(area_matrix.apply(lambda x: 'range."{ind}" AS "d_{ind}"'.format(ind=x.name),axis=1))  
@@ -186,37 +192,30 @@ for area_code in areas.keys():
       print("  {}".format(area.upper()))
     
     print("    - aggregate indicator table observatory_inds_{}... ".format(area)),
-    ### NOTE: We use dwelling weighted average for Observatory (and other) purposes; this is an unweighted table
-    createTable = '''
+    ## NOTE: This is a redundant table; we will drop it - it is not to be used.
+    sql = '''
     {drop} DROP TABLE IF EXISTS observatory_inds_{area} ; 
-    CREATE TABLE  IF NOT EXISTS observatory_inds_{area} AS
-    SELECT area_inds.{area_code},
-      COUNT(*) AS sample_point_count,
-      {indicators}
-      FROM li_inds_{area}_dwelling area_inds 
-      LEFT JOIN (SELECT i.{area_code},
-                        i.sos_name_2016,
-                        i.exclude,
-                          {point_inds}
-                   FROM parcel_indicators i
-              LEFT JOIN dest_closest_indicators USING (gnaf_pid)
-                 ) p USING ({area_code})
-      {exclusion}
-      GROUP BY area_inds.{area_code}
-      ORDER BY area_inds.{area_code} ASC;
-    CREATE INDEX IF NOT EXISTS observatory_inds_{area}_pkey ON observatory_inds_{area} ({area_code});
-    '''.format(drop = drop,
-               area = area,
-               area_code = area_code,
-               point_inds = point_inds,
-               indicators = ind_avg,
-               exclusion = exclusion_criteria)
-    print(createTable)
-    engine.execute(createTable)
+    '''.format(drop=drop,area=area)
+    engine.execute(sql)
+    
+    #sql = '''
+    # CREATE TABLE  IF NOT EXISTS observatory_inds_{area} AS
+    # SELECT area_inds.{area_code},
+    #   sample_count AS sample_point_count,
+    #   {main_inds}
+    #   FROM li_inds_{area}_dwelling area_inds 
+    #   ORDER BY area_inds.{area_code} ASC;
+    # CREATE INDEX IF NOT EXISTS observatory_inds_{area}_pkey ON observatory_inds_{area} ({area_code});
+    #'''.format(drop = drop,
+    #           area = area,
+    #           area_code = area_code,
+    #           main_inds = main_inds,
+    #           exclusion = exclusion_criteria)
+    ## engine.execute(sql)
     print("Done.")
     
     print("    - sd summary table observatory_sd_{}... ".format(area)),
-    createTable = '''
+    sql = '''
     {drop} DROP TABLE IF EXISTS observatory_sd_{area} ; 
     CREATE TABLE  IF NOT EXISTS observatory_sd_{area} AS
     SELECT p.{area_code},
@@ -232,11 +231,11 @@ for area_code in areas.keys():
                area_code = area_code,
                indicators = ind_sd,
                exclusion = exclusion_criteria)
-    engine.execute(createTable)
+    engine.execute(sql)
     print("Done.")
     
     print("    - range summary table observatory_range_{}... ".format(area)),
-    createTable = '''
+    sql = '''
     {drop} DROP TABLE IF EXISTS observatory_range_{area} ; 
     CREATE TABLE  IF NOT EXISTS observatory_range_{area} AS
     SELECT p.{area_code},
@@ -252,11 +251,11 @@ for area_code in areas.keys():
                area_code = area_code,
                indicators = ind_range,
                exclusion = exclusion_criteria)
-    engine.execute(createTable)
+    engine.execute(sql)
     print("Done.")
     
     print("    - median summary table observatory_median_{}... ".format(area)),  
-    createTable = '''
+    sql = '''
     {drop} DROP TABLE IF EXISTS observatory_median_{area} ; 
     CREATE TABLE  IF NOT EXISTS observatory_median_{area} AS
     SELECT p.{area_code},
@@ -272,11 +271,11 @@ for area_code in areas.keys():
                area_code = area_code,
                indicators = ind_median,
                exclusion = exclusion_criteria)
-    engine.execute(createTable)
+    engine.execute(sql)
     print("Done.")
     
     print("    - IQR summary table observatory_iqr_{}... ".format(area)),  
-    createTable = '''
+    sql = '''
     {drop} DROP TABLE IF EXISTS observatory_iqr_{area} ; 
     CREATE TABLE  IF NOT EXISTS observatory_iqr_{area} AS
     SELECT p.{area_code},
@@ -292,7 +291,7 @@ for area_code in areas.keys():
                area_code = area_code,
                indicators = ind_iqr,
                exclusion = exclusion_criteria)
-    engine.execute(createTable)
+    engine.execute(sql)
     print("Done.")
     
     map_ind_percentile_area = ''
@@ -302,7 +301,7 @@ for area_code in areas.keys():
     else:
         sr = 'study_region,'
     print("    - percentile summary table observatory_percentiles_{}... ".format(area)),      
-    createTable = '''
+    sql = '''
       {drop} DROP TABLE IF EXISTS observatory_percentiles_{area} ; 
       CREATE TABLE IF NOT EXISTS observatory_percentiles_{area} AS
       SELECT {area_code},
@@ -316,7 +315,7 @@ for area_code in areas.keys():
                area_code = area_code,
                study_region = sr,
                indicators = ind_percentile)
-    engine.execute(createTable)
+    engine.execute(sql)
     print("Done.")
     map_ind_percentile_area = '\n{},'.format(map_ind_percentile)
       
@@ -408,7 +407,7 @@ for area_code in areas.keys():
         #        {median},
         # LEFT JOIN observatory_median_{area} AS median ON area.{area_code2} = median.{area_code}
         # LEFT JOIN observatory_sd_{area} AS sd ON area.{area_code2} = raw.{area_code}
-        createTable = '''
+        sql = '''
         {drop} DROP TABLE IF EXISTS observatory_map_{area}_{locale}_{year};
         CREATE TABLE IF NOT EXISTS observatory_map_{area}_{locale}_{year} AS
         SELECT {area_strings},
@@ -445,10 +444,10 @@ for area_code in areas.keys():
                    percentile_join = percentile_join_string,
                    primary_key = primary_key[area_code])
         print("    - Create table for mapping indicators at {} level".format(area))
-        # print(createTable)
-        engine.execute(createTable)
+        # print(sql)
+        engine.execute(sql)
         
-        createTable = '''
+        sql = '''
         {drop} DROP TABLE IF EXISTS boundaries_{area}_{locale}_{year};
         CREATE TABLE IF NOT EXISTS boundaries_{area}_{locale}_{year} AS
         SELECT b.{area_code},
@@ -461,10 +460,10 @@ for area_code in areas.keys():
                    area_code = area_code,
                    boundaries = boundary_tables[area_code])
         print("    - boundary overlays at {} level".format(area)),
-        engine.execute(createTable)
+        engine.execute(sql)
         print("Done.")
         
-        createTable = '''
+        sql = '''
         {drop} DROP TABLE IF EXISTS urban_sos_{area}_{locale}_{year};
         CREATE TABLE IF NOT EXISTS urban_sos_{area}_{locale}_{year} AS
         SELECT urban,
@@ -478,7 +477,7 @@ for area_code in areas.keys():
                    area_code = area_code,
                    boundaries = boundary_tables[area_code])
         print("    - urban overlays at {} level".format(area)),
-        engine.execute(createTable)
+        engine.execute(sql)
         print("Done.")
 
 # need to add in a geometry column to ind_observatory to allow for importing of this table as a layer in geoserver
@@ -555,3 +554,6 @@ to a further dated sql dump using:
 cmd:
     python _observatory_expand_australian_regions.py australia obs_source export
 '''.format(dir = map_features_outpath,db = db))
+
+# output to completion log    
+script_running_log(script, task, start)
