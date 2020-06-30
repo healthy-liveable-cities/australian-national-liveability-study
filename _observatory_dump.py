@@ -50,7 +50,6 @@ ind_matrix = df_inds[df_inds['locale'].str.contains('|'.join([locale,'\*']))].co
 # # get the set of distance to closest regions which match for this region
 # destinations = df_inds[df_inds['ind'].str.contains('destinations')]
 # current_categories = [x for x in categories if 'distance_m_{}'.format(x) in destinations.ind_plain.str.encode('utf8').tolist()]
-# ind_matrix = ind_matrix.append(destinations[destinations['ind_plain'].str.replace('distance_m_','').str.contains('|'.join(current_categories))])
 ind_matrix['order'] = ind_matrix.index
 ind_soft = ind_matrix.loc[ind_matrix.tags=='_{threshold}',:].copy()
 ind_hard = ind_matrix.loc[ind_matrix.tags=='_{threshold}',:].copy()
@@ -68,8 +67,6 @@ ind_matrix = ind_matrix[pandas.notnull(ind_matrix['updated?'])]
 # or other keywords (policy, binary, obsolete, planned --- i don't know, whatever)
 # These tags are tacked on the end of the ind name seperated with underscores
 ind_matrix['indicators'] = ind_matrix['ind'] + ind_matrix['tags'].fillna('')
-# ind_matrix['sort_cat'] = pandas.Categorical(ind_matrix['ind'], categories=mylist, ordered=True)
-# ind_matrix.sort_values('sort_cat', inplace=True)
 # Compile list of indicators
 ind_matrix.sort_values('order', inplace=True)
 
@@ -141,12 +138,6 @@ areas = {'mb_code_2016':'mb',
   
 # create aggregated raw liveability estimates for selected area
 print("Create area tables based on unweighted sample data... ")
-
-
-# point_ind_list = ind_matrix.query("scale=='point'").index.values
-# point_inds = ','.join(point_ind_list)
-# ind_list = df_observatory.index.values
-# inds = ','.join(ind_list)
 for area_code in areas.keys():
     area = areas[area_code]
     area_matrix = ind_matrix.query("scale=='point' | scale=='{}'".format(df_regions.query('id=="{area_code}"'.format(area_code=area_code)).index[0])).copy()
@@ -191,14 +182,9 @@ for area_code in areas.keys():
     else:
       print("  {}".format(area.upper()))
     
-    print("    - aggregate indicator table observatory_inds_{}... ".format(area)),
-    ## NOTE: This is a redundant table; we will drop it - it is not to be used.
-    sql = '''
-    {drop} DROP TABLE IF EXISTS observatory_inds_{area} ; 
-    '''.format(drop=drop,area=area)
-    engine.execute(sql)
-    
+    #print("    - aggregate indicator table observatory_inds_{}... ".format(area)),
     #sql = '''
+    #  {drop} DROP TABLE IF EXISTS observatory_inds_{area} ; 
     # CREATE TABLE  IF NOT EXISTS observatory_inds_{area} AS
     # SELECT area_inds.{area_code},
     #   sample_count AS sample_point_count,
@@ -212,7 +198,7 @@ for area_code in areas.keys():
     #           main_inds = main_inds,
     #           exclusion = exclusion_criteria)
     ## engine.execute(sql)
-    print("Done.")
+    #print("Done.")
     
     print("    - sd summary table observatory_sd_{}... ".format(area)),
     sql = '''
@@ -483,9 +469,9 @@ for area_code in areas.keys():
 # need to add in a geometry column to ind_observatory to allow for importing of this table as a layer in geoserver
 # If it doesn't already exists
 # So, check if it already exists
-engine.execute('''SELECT column_name FROM information_schema.columns WHERE table_name='ind_observatory_{}_{}' and column_name='geom';'''.format(locale,year))
-null_geom_check = [x[0] for x in engine.execute(sql)]
-if len(null_geom_check)==0:
+meta_columns = engine.execute('''SELECT * FROM ind_observatory_{}_{} LIMIT 0'''.format(locale,year)).keys()
+
+if not 'geom' in meta_columns:
   # if geom doesn't exist, created it
   engine.execute('''SELECT AddGeometryColumn ('public','ind_observatory_{}_{}','geom',4326,'POINT',2);'''.format(locale,year))
 
