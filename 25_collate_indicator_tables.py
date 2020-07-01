@@ -107,7 +107,7 @@ CREATE INDEX IF NOT EXISTS gix_parcel_indicators ON parcel_indicators USING GIST
            locale = locale)
 
 # print("SQL query:")
-print(create_parcel_indicators)
+# print(create_parcel_indicators)
 curs.execute(create_parcel_indicators)
 conn.commit()
 print(" Done.")
