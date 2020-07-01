@@ -118,8 +118,16 @@ CREATE OR REPLACE FUNCTION threshold_soft(in int, in int, out double precision)
     RETURNS NULL ON NULL INPUT
     AS $$ SELECT 1 - 1/(1+exp(-5*($1-$2)/($2::float))) $$
     LANGUAGE SQL;    
-  '''
-                   
+
+ CREATE OR REPLACE FUNCTION threshold_coalesce_hard(in int, in int, out int) 
+    AS $$ COALESCE(SELECT ($1 < $2)::int,0) $$
+    LANGUAGE SQL;
+
+CREATE OR REPLACE FUNCTION threshold_coalesce_soft(in int, in int, out double precision) 
+    AS $$ SELECT COALESCE(1 - 1/(1+exp(-5*($1-$2)/($2::float))),0) $$
+    LANGUAGE SQL;    
+  '''      
+    
 ## OUTPUT PROCESS
 
 print("Connecting to default database to action queries.")
