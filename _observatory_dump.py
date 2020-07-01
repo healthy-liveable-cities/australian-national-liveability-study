@@ -77,7 +77,7 @@ ind_matrix = ind_matrix.append(ind_destinations)
 
 # Retain only subset of variables, as defined in spreadsheet
 df_observatory = pandas.read_excel(xls, 'observatory',index_col=0)
-ind_matrix = df_observatory.join(ind_matrix).copy()
+ind_matrix = df_observatory.query('include=="Y"').join(ind_matrix).copy()
 
 # Drop index for ind_observatory table if it exists; 
 # this causes an error when (re-)creating the ind_observatory table if index exists
