@@ -29,20 +29,26 @@ engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_
                                                                  host = db_host,
                                                                  db   = db))
 
-area_codes  = pandas.read_sql('SELECT DISTINCT ON (sa1_7digitcode_2016) sa1_7digitcode_2016::int, ssc_name_2016, lga_name_2016 FROM area_linkage',engine)
-
+# area_codes  = pandas.read_sql('SELECT DISTINCT ON (sa1_7digitcode_2016) sa1_7digitcode_2016::int, ssc_name_2016, lga_name_2016 FROM area_linkage',engine)
+area_codes_full = pandas.read_sql('SELECT sa1_7digitcode_2016::int, ssc_name_2016, lga_name_2016 FROM area_linkage',engine)
+area_codes = {}
+for area in ['SA1', 'Suburb', 'LGA']:
+    area_id = df_regions.loc[area,'id']
+    if area == 'SA1':
+        area_id = 'sa1_7digitcode_2016'
+    area_codes[area] = sorted(set(area_codes_full[area_id].values))
 
 # import affordable housing indicator
 print("Affordable housing indicator... "),
 affordable_housing = pandas.read_csv('../data/ABS/derived/abs_2016_sa1_housing_3040_20190712.csv', index_col=0)
-affordable_housing = affordable_housing.loc[area_codes['sa1_7digitcode_2016']]
+affordable_housing = affordable_housing.loc[area_codes['SA1']]
 affordable_housing.to_sql('abs_ind_30_40', con=engine, if_exists='replace')
 print("Done.")
 
 # import mode of transport to work data
 print("Mode of transport to work indicators... "),
 mtwp = pandas.read_csv('../data/ABS/derived/abs_2016_sa1_mtwp_cleaned.csv', index_col=0)
-mtwp = mtwp.loc[area_codes['sa1_7digitcode_2016']]
+mtwp = mtwp.loc[area_codes['SA1']]
 modes = ['active_transport','public_transport','vehicle','other_mode']
 mtwp['total_employed_travelling'] = mtwp[modes].sum(axis=1)
 for mode in modes[:-1]:
@@ -55,7 +61,7 @@ print("Done.")
 # import proportion renting indicator
 print("Proportion renting indicator... "),
 pct_renting = pandas.read_csv('../data/ABS/derived/abs_au_2016_tenure_type_by_sa1.csv', index_col=0)
-pct_renting = pct_renting.loc[area_codes['sa1_7digitcode_2016']]
+pct_renting = pct_renting.loc[area_codes['SA1']]
 pct_renting['valid_total'] = pct_renting['Total'] - pct_renting['Not stated'] - pct_renting['Not applicable']
 pct_renting['pct_renting'] = 100*pct_renting['Rented']/pct_renting['valid_total']
 pct_renting.to_sql('abs_pct_renting', con=engine, if_exists='replace')
@@ -94,7 +100,7 @@ live_work = live_work.reset_index()
 live_work = live_work.set_index('sa1_7digitcode_2016')
 
 # filter down to area codes in region of interest
-local_live_work = live_work.loc[area_codes['sa1_7digitcode_2016']]
+local_live_work = live_work.loc[area_codes['SA1']]
 
 live_work = live_work.fillna(0)
 live_work = live_work.astype(np.int64)
@@ -318,7 +324,7 @@ for area in ['SA1', 'Suburb', 'LGA']:
   area_id = df.index.name
   # we read in the particular data for this aggregation scale
   # we restrict to those statistics relating to this study region
-  df = df[df.index.isin(area_codes[area_id])]
+  df = df.loc[area_codes[area]]
   # we copy the relevant records to the database with a scale suffix
   df.to_sql('abs_social_housing_{abbrev}'.format(abbrev=abbrev),engine,if_exists='replace')
 
@@ -333,7 +339,7 @@ for area in ['SA1', 'Suburb', 'LGA']:
   # we get the index name (already prepared for matching purposes) as the area id
   area_id = df.index.name
   # we restrict to those statistics relating to this study region
-  df = df[df.index.isin(area_codes[area_id])]
+  df = df.loc[area_codes[area]]
   # we copy the relevant records to the database with a scale suffix
   df.to_sql('abs_2016_30_40_indicators_2020_{abbrev}'.format(abbrev=abbrev),engine,if_exists='replace')
   
@@ -348,7 +354,7 @@ for area in ['SA1', 'Suburb', 'LGA']:
   # we get the index name (already prepared for matching purposes) as the area id
   area_id = df.index.name
   # we restrict to those statistics relating to this study region
-  df = df[df.index.isin(area_codes[area_id])]
+  df = df.loc[area_codes[area]]
   # we copy the relevant records to the database with a scale suffix
   df.to_sql('abs_2016_housing_type_count_{abbrev}'.format(abbrev=abbrev),engine,if_exists='replace')
 
