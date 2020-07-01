@@ -24,7 +24,7 @@ engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_
 
 sql = '''
  CREATE OR REPLACE FUNCTION threshold_coalesce_hard(in int, in int, out int) 
-    AS $$ COALESCE(SELECT ($1 < $2)::int,0) $$
+    AS $$ SELECT COALESCE(($1 < $2)::int,0) $$
     LANGUAGE SQL;
 
 CREATE OR REPLACE FUNCTION threshold_coalesce_soft(in int, in int, out double precision) 
