@@ -269,25 +269,7 @@ def jsonb_summary_sql(indicator_tuples):
         summary_queries.append(sql)
     return ','.join(summary_queries)
 
-create_threshold_functions = '''
-CREATE OR REPLACE FUNCTION threshold_hard(in int, in int, out int) 
-    RETURNS NULL ON NULL INPUT
-    AS $$ SELECT ($1 < $2)::int $$
-    LANGUAGE SQL;
-
-CREATE OR REPLACE FUNCTION threshold_soft(in int, in int, out double precision) 
-    RETURNS NULL ON NULL INPUT
-    AS $$ SELECT 1 - 1/(1+exp(-5*($1-$2)/($2::float))) $$
-    LANGUAGE SQL;    
-
- CREATE OR REPLACE FUNCTION threshold_coalesce_hard(in int, in int, out int) 
-    AS $$ COALESCE(SELECT ($1 < $2)::int,0) $$
-    LANGUAGE SQL;
-
-CREATE OR REPLACE FUNCTION threshold_coalesce_soft(in int, in int, out double precision) 
-    AS $$ SELECT COALESCE(1 - 1/(1+exp(-5*($1-$2)/($2::float))),0) $$
-    LANGUAGE SQL;    
-  '''              
+        
 # specify that the above modules and all variables below are imported on 'from config.py import *'
 __all__ = [x for x in dir() if x not in ['__file__','__all__', '__builtins__', '__doc__', '__name__', '__package__']]
  
