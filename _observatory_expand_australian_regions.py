@@ -113,7 +113,7 @@ locales = {'Adelaide'                   :'adelaide',
 tables = {'boundaries_lga'        :{'key':'lga_name_2016'    },
           'boundaries_region'     :{'key':'study_region'     },
           'boundaries_sa1'        :{'key':'sa1_maincode_2016'},
-          # 'boundaries_sos'        :{'key':'sos_name_2016'    },
+          'boundaries_sos'        :{'key':'sos_name_2016'    },
           'boundaries_ssc'        :{'key':'ssc_name_2016'    },
           'observatory_map_lga'   :{'key':'lga'    },
           'observatory_map_region':{'key':'study_region'     },
@@ -121,20 +121,21 @@ tables = {'boundaries_lga'        :{'key':'lga_name_2016'    },
           'observatory_map_ssc'   :{'key':'suburb'    },
           }
 
-print("Ensure source geometries are valid and tables have spatial indices... ")
-for table in [t for t in sorted(tables.keys())]:
-    table = '{}_australia_{}'.format(table,year)
-    print('  - {}'.format(table))
-    sql = '''
-    -- There was a self-intersection in the SOS table which caused issues forming regions;
-    -- to ensure all works fine, make sure all geoms are valid
-    UPDATE {table} 
-       SET geom = ST_Multi(ST_CollectionExtract(ST_MakeValid(geom),3))
-     WHERE ST_IsValid(geom) = false;
-    CREATE INDEX IF NOT EXISTS {table}_gix ON {table} USING GIST (geom);
-    '''.format(table = table)
-    engine.execute(sql)
-print("Done.")
+if 'nocheck' not in sys.argv:
+    print("Ensure source geometries are valid and tables have spatial indices... ")
+    for table in [t for t in sorted(tables.keys())]:
+        table = '{}_australia_{}'.format(table,year)
+        print('  - {}'.format(table))
+        sql = '''
+        -- There was a self-intersection in the SOS table which caused issues forming regions;
+        -- to ensure all works fine, make sure all geoms are valid
+        UPDATE {table} 
+           SET geom = ST_Multi(ST_CollectionExtract(ST_MakeValid(geom),3))
+         WHERE ST_IsValid(geom) = false;
+        CREATE INDEX IF NOT EXISTS {table}_gix ON {table} USING GIST (geom);
+        '''.format(table = table)
+        engine.execute(sql)
+    print("Done.")
 
 # loop over study regions to expand out tables from the concise national set
 for study_region in locales:
