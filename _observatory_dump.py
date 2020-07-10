@@ -32,6 +32,9 @@ engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_
                                                                  pwd  = db_pwd,
                                                                  host = db_host,
                                                                  db   = db))
+# legacy method, in case required (seems to be; required tables weren't being created using the engine method)
+conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
+curs = conn.cursor()  
 
 
 # Restrict to indicators associated with study region (except distance to closest dest indicators)
@@ -166,7 +169,8 @@ for area_code in areas.keys():
     
     # Create query for percentile           
     ind_percentile = ',\n'.join(area_matrix.apply(lambda x: 'round(100*cume_dist() OVER(ORDER BY "{ind}" {polarity})::numeric,0) AS "{ind}"'.format(ind=x.name,polarity = x.polarity)
-                                                    if x.scale=='point' else 'NULL::numeric AS "{i}"'.format(i=x.name),axis=1))
+            if x.scale=='point' 
+            else 'round(100*cume_dist() OVER(ORDER BY "{p}" {polarity})::numeric,0) AS "{i}"'.format(p = x.ind_plain,i=x.name,polarity = x.polarity),axis=1))
     
     # Map indicator queries
     # map_ind_raw = ',\n'.join(area_matrix.apply(lambda x: 'round(raw."{ind}"::numeric,1) AS "r_{ind}"'.format(ind=x.name),axis=1))                           
@@ -217,7 +221,8 @@ for area_code in areas.keys():
                area_code = area_code,
                indicators = ind_sd,
                exclusion = exclusion_criteria)
-    engine.execute(sql)
+    curs.execute(sql)
+    conn.commit()
     print("Done.")
     
     print("    - range summary table observatory_range_{}... ".format(area)),
@@ -237,7 +242,8 @@ for area_code in areas.keys():
                area_code = area_code,
                indicators = ind_range,
                exclusion = exclusion_criteria)
-    engine.execute(sql)
+    curs.execute(sql)
+    conn.commit()
     print("Done.")
     
     print("    - median summary table observatory_median_{}... ".format(area)),  
@@ -257,7 +263,8 @@ for area_code in areas.keys():
                area_code = area_code,
                indicators = ind_median,
                exclusion = exclusion_criteria)
-    engine.execute(sql)
+    curs.execute(sql)
+    conn.commit()
     print("Done.")
     
     print("    - IQR summary table observatory_iqr_{}... ".format(area)),  
@@ -277,7 +284,8 @@ for area_code in areas.keys():
                area_code = area_code,
                indicators = ind_iqr,
                exclusion = exclusion_criteria)
-    engine.execute(sql)
+    curs.execute(sql)
+    conn.commit()
     print("Done.")
     
     map_ind_percentile_area = ''
@@ -301,10 +309,11 @@ for area_code in areas.keys():
                area_code = area_code,
                study_region = sr,
                indicators = ind_percentile)
-    engine.execute(sql)
+    curs.execute(sql)
+    conn.commit()
     print("Done.")
     map_ind_percentile_area = '\n{},'.format(map_ind_percentile)
-      
+    
     if area_code != 'mb_code_2016':
         # Create shape files for interactive map visualisation
         area_strings   = {'sa1_maincode_2016' :'''area.study_region,area.sa1_maincode_2016 AS sa1   ,\n area.suburb ,\n area.lga ,area.sample_count, area.dwelling, area.person \n''',
@@ -431,7 +440,8 @@ for area_code in areas.keys():
                    primary_key = primary_key[area_code])
         print("    - Create table for mapping indicators at {} level".format(area))
         # print(sql)
-        engine.execute(sql)
+        curs.execute(sql)
+        conn.commit()
         
         sql = '''
         {drop} DROP TABLE IF EXISTS boundaries_{area}_{locale}_{year};
@@ -446,7 +456,8 @@ for area_code in areas.keys():
                    area_code = area_code,
                    boundaries = boundary_tables[area_code])
         print("    - boundary overlays at {} level".format(area)),
-        engine.execute(sql)
+        curs.execute(sql)
+        conn.commit()
         print("Done.")
         
         sql = '''
@@ -463,7 +474,8 @@ for area_code in areas.keys():
                    area_code = area_code,
                    boundaries = boundary_tables[area_code])
         print("    - urban overlays at {} level".format(area)),
-        engine.execute(sql)
+        curs.execute(sql)
+        conn.commit()
         print("Done.")
 
 # need to add in a geometry column to ind_observatory to allow for importing of this table as a layer in geoserver
