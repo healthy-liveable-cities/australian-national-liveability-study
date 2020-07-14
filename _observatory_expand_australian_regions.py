@@ -106,7 +106,7 @@ locales = {'Adelaide'                   :'adelaide',
            'Sydney'                     :'sydney',
            'Toowoomba'                  :'toowoomba',
            'Townsville'                 :'townsville',
-           'Wollongong'                :'wollongong'}
+           'Wollongong'                 :'wollongong'}
 
 # Table stubs and key details
 # Note: boundaries_sos is not used in AUO, so commented out
