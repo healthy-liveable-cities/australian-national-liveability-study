@@ -49,9 +49,9 @@ query = '''
 {insert} 'null sc_nh1600m'      {table} sc_nh1600m         {match} sc_nh1600m  {null};
 {insert} 'null dd_nh1600m'      {table} dd_nh1600m         {match} dd_nh1600m  {null};
 {insert} 'area_ha < 16.5'       {table} nh1600m            {match} area_ha < 16.5;
-{insert} 'not urban parcel_sos' {table} area_linkage ON a.mb_code_20 = area_linkage.mb_code_2016 WHERE sos_name_2016 NOT IN ('Major Urban','Other Urban');
-{insert} 'null parcel_sos'      {table} area_linkage ON a.mb_code_20 = area_linkage.mb_code_2016 WHERE sos_name_2016 {null};
-{insert} 'no IRSD sa1_maincode' {table} area_linkage ON a.mb_code_20 = area_linkage.mb_code_2016 WHERE irsd_score {null};
+{insert} 'not urban parcel_sos' {table} area_linkage ON a.mb_code_2016 = area_linkage.mb_code_2016 WHERE sos_name_2016 NOT IN ('Major Urban','Other Urban');
+{insert} 'null parcel_sos'      {table} area_linkage ON a.mb_code_2016 = area_linkage.mb_code_2016 WHERE sos_name_2016 {null};
+{insert} 'no IRSD sa1_maincode' {table} area_linkage ON a.mb_code_2016 = area_linkage.mb_code_2016 WHERE irsd_score {null};
 '''.format(insert = insert, table = table, match = match, null = null, id = points_id.lower())
 
 curs.execute(query)
