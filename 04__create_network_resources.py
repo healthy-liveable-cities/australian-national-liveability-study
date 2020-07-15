@@ -21,7 +21,7 @@ from geoalchemy2 import Geometry, WKTElement
 # from folium.plugins import MarkerCluster
 # from folium.plugins import FastMarkerCluster
 
-from bokeh.models import ColumnDataSource
+# from bokeh.models import ColumnDataSource
 
 from script_running_log import script_running_log
 # Import custom variables for National Liveability indicator process
@@ -40,6 +40,16 @@ engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = db_
                                                                       host = db_host,
                                                                       db   = db))
 
+# define pedestrian network custom filter (based on OSMnx 'walk' network type, without the cycling exclusion)
+pedestrian = (
+             '["area"!~"yes"]'
+             '["highway"!~"motor|proposed|construction|abandoned|platform|raceway"]'
+             '["foot"!~"no"]'
+             '["service"!~"private"]'
+             '["access"!~"private"]'
+             )
+             
+osmnx_retain_all = 'False'
 print("Get networks and save as graphs.")
 if osmnx_retain_all == 'False':
     osmnx_retain_all = False
@@ -69,7 +79,7 @@ if os.path.isfile(os.path.join(locale_dir,
 else:
   subtime = datetime.now()
   # # load buffered study region in EPSG4326 from postgis
-  sql = '''SELECT geom_4326 AS geom FROM {}'''.format(buffered_study_region)
+  sql = '''SELECT ST_Transform(geom,4326) AS geom FROM {}'''.format(buffered_study_region)
   polygon =  gpd.GeoDataFrame.from_postgis(sql, engine, geom_col='geom' )['geom'][0]
   print('Creating and saving all roads network... '),
   W = ox.graph_from_polygon(polygon,  network_type= 'all', retain_all = osmnx_retain_all)
@@ -123,6 +133,7 @@ else:
     print("  - It appears that pedestrian network edges and nodes have already been exported to Postgis.")  
 
 # Copy clean intersections to postgis
+intersections_table = 'clean_intersections_12m'
 print("Prepare and copy clean intersections to postgis... ")
 curs.execute('''SELECT 1 WHERE to_regclass('public.{}') IS NOT NULL;'''.format(intersections_table))
 res = curs.fetchone()
@@ -148,7 +159,7 @@ else:
     print("  - It appears that clean intersection data has already been prepared and imported for this region.")  
 
 # Create sample points
-print("Create sample points at regular intervals along the network... ")
+"""print("Create sample points at regular intervals along the network... ")
 curs.execute('''SELECT 1 WHERE to_regclass('public.{}') IS NOT NULL;'''.format(points))
 res = curs.fetchone()
 if res is None:
@@ -185,7 +196,7 @@ if res is None:
     print("  - Sampling points table {} created with sampling at every {} metres along the pedestrian network.".format(points,point_sampling_interval))
 else:
     print("  - It appears that sample points table {} have already been prepared for this region.".format(points))  
-    
+"""    
     
 # # get map data
 # map_layers={}
