@@ -123,13 +123,13 @@ curs.execute(create_study_region_tables)
 conn.commit()
 
 if locale!='australia': 
-print("  - SOS indexed by parcel")
+    print("  - SOS indexed by parcel")
     create_parcel_sos = '''
       DROP TABLE IF EXISTS parcel_sos;
       CREATE TABLE parcel_sos AS 
       SELECT a.{id},
              sos_name_2016 
-      FROM parcel_dwellings a LEFT JOIN area_linkage b ON a.mb_code_20 = b.mb_code_2016;
+      FROM parcel_dwellings a LEFT JOIN area_linkage b ON a.mb_code_2016 = b.mb_code_2016;
       CREATE UNIQUE INDEX IF NOT EXISTS parcel_sos_idx ON  parcel_sos (gnaf_pid);
       '''.format(id = points_id)
     curs.execute(create_parcel_sos)
@@ -143,7 +143,7 @@ print("  - SOS indexed by parcel")
              count(b.*) AS no_sausage_count,
              count(b.*) / (SELECT COUNT(*) FROM parcel_dwellings)::double precision AS no_sausage_prop
       FROM area_linkage a 
-      LEFT JOIN no_sausage b ON a.mb_code_2016 = b.mb_code_20
+      LEFT JOIN no_sausage b ON a.mb_code_2016 = b.mb_code_2016
       GROUP BY sos_name_2016 
       ORDER BY sos_name_2016 DESC;
       DELETE FROM no_sausage_sos_tally WHERE no_sausage_count = 0;
