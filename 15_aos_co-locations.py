@@ -18,14 +18,6 @@ task = 'Co-locate Areas of Open Space (AOS) with other amenities'
 conn = psycopg2.connect(database=db, user=db_user, password=db_pwd)
 curs = conn.cursor()
 
-sql = '''SELECT destination FROM destination_catalog WHERE count > 0'''
-curs.execute(sql)
-destinations = [d[0] for d in curs.fetchall()]
-destination_union = 'UNION'.join(['''
-(SELECT '{d}' destination, geom FROM destinations.{d}) t
-'''.format(d=destinations[0])] + ['''
-(SELECT '{d}' destination, geom FROM destinations.{d})
-'''.format(d=d) for d in destinations[1:]])
 
 sql = '''
   ALTER TABLE open_space.open_space_areas DROP COLUMN IF EXISTS co_location_100m;
@@ -33,14 +25,14 @@ sql = '''
   UPDATE open_space.open_space_areas o 
      SET co_location_100m  = t.co_location_100m
     FROM (SELECT aos_id, jsonb_agg(destination) AS co_location_100m
-          FROM open_space.open_space_areas osa, 
-               (SELECT * FROM {destination_union}) d 
+          FROM open_space.open_space_areas osa, destinations.study_destinations d 
          WHERE ST_DWithin(osa.geom,d.geom,100) 
             OR ST_Intersects(osa.geom,d.geom)
          GROUP BY aos_id) t 
    WHERE o.aos_id = t.aos_id
      AND t.co_location_100m IS NOT NULL;
-'''.format(destination_union=destination_union)
+'''
+
 
 print(''' Example usage of co-location field:    
 -- 
@@ -52,7 +44,7 @@ SELECT aos_id,
        -- evaluate for at least one of a range of destination classes
        co_location_100m ?| ARRAY['cafe_osm','restaurant_osm','pub_osm'] AS near_casual_eatery,
        -- evaluate for at least one of a range of destination classes where the domain field contains a particular string (wild card)
-       co_location_100m ?| ARRAY(SELECT destination FROM destination_catalogue WHERE domain LIKE '%Community, Culture and Leisure%') AS near_community_culture
+       co_location_100m ?| ARRAY(SELECT dest_name FROM dest_type WHERE domain LIKE '%Community, Culture and Leisure%') AS near_community_culture
  FROM open_space_areas o;
 ''')
 
@@ -61,7 +53,6 @@ print("\nExecuting: {}".format(sql))
 curs.execute(sql)
 conn.commit()
 print("Executed in {} mins".format((time.time()-start)/60))
-
 # output to completion log    
 script_running_log(script, task, start, locale)
 conn.close()

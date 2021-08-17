@@ -98,7 +98,6 @@ SELECT f.blockid               ,
        f.wave                  ,
        p.study_region          ,
        p.locale                ,
-       p.mb_code_2016          ,
        p.sa1_maincode_2016     ,
        p.sa2_name_2016         ,
        p.sa3_name_2016         ,
@@ -115,7 +114,9 @@ SELECT f.blockid               ,
        {indicators}             ,
        ST_Union(f.geom) geom
 FROM boundaries.footprints f 
-LEFT JOIN ind_point.parcel_indicators p ON f.blockid = p.blockid AND f.wave = p.wave
+LEFT JOIN ind_point.parcel_indicators p ON f.blockid = p.blockid 
+                                       AND f.wave = f.wave
+                                       AND f.blockname = f.blockname
 LEFT JOIN ind_point.dest_closest_indicators d ON p.{points_id} = d.{points_id}
 WHERE p.exclude IS NULL
 GROUP BY  f.blockid          ,  
@@ -123,7 +124,6 @@ GROUP BY  f.blockid          ,
           f.wave             ,  
           p.study_region     ,  
           p.locale           ,  
-          p.mb_code_2016     ,  
           p.sa1_maincode_2016,  
           p.sa2_name_2016    ,  
           p.sa3_name_2016    ,  
@@ -135,7 +135,7 @@ GROUP BY  f.blockid          ,
           p.ucl_name_2016    ,  
           p.sos_name_2016    ,  
           p.urban            ,
-       p.irsd_score               
+          p.irsd_score               
 ORDER BY f.blockid, f.wave    
 ;
 CREATE INDEX IF NOT EXISTS area_indicators_block_idx ON  area_indicators_block (blockid);
@@ -155,7 +155,6 @@ SELECT f.buildlingno          ,
        f.wave                  ,
        p.study_region          ,
        p.locale                ,
-       p.mb_code_2016          ,
        p.sa1_maincode_2016     ,
        p.sa2_name_2016         ,
        p.sa3_name_2016         ,
@@ -172,7 +171,9 @@ SELECT f.buildlingno          ,
        {indicators}             ,
        ST_Union(f.geom) geom
 FROM boundaries.footprints f 
-LEFT JOIN ind_point.parcel_indicators p ON f.buildlingno = p.buildlingno AND f.wave = p.wave
+LEFT JOIN ind_point.parcel_indicators p ON f.buildlingno = p.buildlingno 
+                                       AND f.wave = p.wave
+                                       AND f.buildname = f.buildname
 LEFT JOIN ind_point.dest_closest_indicators d ON p.{points_id} = d.{points_id}
 WHERE p.exclude IS NULL
 GROUP BY  f.buildlingno      ,
@@ -180,7 +181,6 @@ GROUP BY  f.buildlingno      ,
           f.wave             ,  
           p.study_region     ,  
           p.locale           ,  
-          p.mb_code_2016     ,  
           p.sa1_maincode_2016,  
           p.sa2_name_2016    ,  
           p.sa3_name_2016    ,  

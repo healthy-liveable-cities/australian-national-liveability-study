@@ -32,6 +32,7 @@ import os
 import sys
 import time
 import pandas
+import numpy as np
 import subprocess as sp
 
 # Load settings from _project_configuration.xlsx
@@ -45,6 +46,8 @@ df_osm = pandas.read_excel(xls, 'osm_and_open_space_defs')
 df_osm_dest = pandas.read_excel(xls, 'osm_dest_definitions')
 df_data_catalogue = pandas.read_excel(xls, 'data_catalogue')
 df_housekeeping = pandas.read_excel(xls, 'housekeeping')
+
+df_highlife_indicators = pandas.read_excel(xls, 'highlife_indicators')
 
 df_parameters.value = df_parameters.value.fillna('')
 for var in [x for x in df_parameters.index.values]:
@@ -83,7 +86,7 @@ if suffix.dtype!='float64':
   # this implies at least one value was a string, and this can be encoded as utf
   suffix = suffix
   
-if pandas.np.isnan(suffix):
+if np.isnan(suffix):
   # this implies all suffixes are blank and this has been interpreted as 'nan'
   suffix = ''
 
@@ -125,7 +128,7 @@ osm2pgsql_style = os.path.join(folderPath,df_parameters.loc['osm2pgsql_style']['
 osm_source = df_studyregion.loc[locale]['osm_source']
 osm_prefix = df_studyregion.loc[locale]['osm_prefix']
 
-area_schemas = ['ind_{}'.format(x) for x in df_regions.query("purpose.str.contains('analysis')").abbreviation.values]+['ind_region']
+area_schemas = ['ind_{}'.format(x) for x in df_regions.query("purpose.str.contains('analysis')",engine='python').abbreviation.values]+['ind_region']
 schemas = ['public',boundary_schema,network_schema,osm_schema,destinations_schema,open_space_schema,school_schema,point_schema,distance_schema,validation_schema,processing_schema]+area_schemas
 
 users = [db_user, arc_sde_user]
@@ -223,14 +226,14 @@ outCombinedFeature = 'study_destinations'
 #
 # The table 'dest_type' will be created in Postgresql to keep track of destinations
 
-df_destinations = df_destinations.replace(pandas.np.nan, 'NULL', regex=True)
+df_destinations = df_destinations.replace(np.nan, 'NULL', regex=True)
 destination_list = [x for x in df_destinations.destination.tolist()] # the destinations 
 # dest_codes = df_destinations.code.tolist()   # domain is an optional grouping category for destinations / indicators
 # dest_domains = df_destinations.domain.tolist()   # domain is an optional grouping category for destinations / indicators
 # dest_cutoffs = df_destinations.cutoff.tolist()   # cut off distance within which to evaluate presence
 # dest_counts = df_destinations.counts.tolist()   # cut off distance within which to evaluate counts
 
-df_osm_dest = df_osm_dest.replace(pandas.np.nan, 'NULL', regex=True)
+df_osm_dest = df_osm_dest.replace(np.nan, 'NULL', regex=True)
 
 school_table = os.path.splitext(os.path.basename(school_ratings))[0]
 childcare_table = os.path.splitext(os.path.basename(childcare_ratings))[0]

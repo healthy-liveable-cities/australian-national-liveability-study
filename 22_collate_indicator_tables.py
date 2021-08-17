@@ -138,6 +138,7 @@ SELECT DISTINCT(table_name)
 '''
 curs.execute(sql)
 dest_tables = [x[0] for x in curs.fetchall()]
+dest_tables = [x for x in dest_tables if x in df_destinations.query("unit_level_description!='NULL'").destination.values]
 destination_array_inds = ','.join(['d_3200m_cl."{dest}".distances AS "{dest}"'.format(dest = x) for x in dest_tables])
 destination_closest_inds = ','.join(['array_min(d_3200m_cl."{dest}".distances) AS "dist_m_{dest}"'.format(dest = x) for x in dest_tables])
 destination_from = '\n'.join(['LEFT JOIN d_3200m_cl."{dest}" ON p.{points_id} = d_3200m_cl."{dest}".{points_id}'.format(dest = x,points_id = points_id) for x in dest_tables])
@@ -205,7 +206,7 @@ try:
     df = pandas.read_sql_query('''SELECT "Exclusions",count FROM validation.exclusion_summary''',
                                con=engine,
                                index_col='Exclusions')
-    pandas.set_option('display.max_colwidth', -1)
+    pandas.set_option('display.max_colwidth', None)
     print("\n")
     print(df)
 except:
@@ -215,7 +216,15 @@ except:
 # this causes an error when (re-)creating the ind_description table if index exists
 curs.execute('DROP INDEX IF EXISTS ix_ind_description_index;')
 conn.commit()
-ind_matrix.to_sql(name='ind_description',con=engine,if_exists='replace')
+
+ind_matrix.to_sql(name='ind_metadata',con=engine,if_exists='replace')
+
+# ABANDONED APPROACH - instead, we will import pre-constructed list from Excel
+# id_meta = pandas.DataFrame([['sa1_maincode_2016','SA1 linkage code','SA1 area code']])
+# id_meta.columns = ['ind','unit_level_description','aggregate_description']
+# test = pd.concat(area_codes,
+                 # ind_matrix[['ind','unit_level_description','aggregate_description']],
+                 # df_destinations[['ind','unit_level_description','aggregate_description']].query('aggregate_description!="NULL"'))
 
 # output to completion log    
 script_running_log(script, task, start, locale)

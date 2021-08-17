@@ -90,24 +90,24 @@ for destination in pt_points.destination:
     engine.execute(sql)
     
     print(" - {ind_headway_table}".format(ind_headway_table = ind_headway_table))
-    #  The formula for effective headway within 800m is based on
-    #  http://ngtsip.pbworks.com/w/page/12503387/Headway%20-%20Frequency
-    #  supplied by Chris de Gruyter, and which presented formula
-    #  SUM(60/headway)/60 
-    #  however, this formula does not result in the estimate they present for
-    #  their example
-    #  "(60 minutes / 10 minute headway) + (60 minutes / 7 minute headway) + (60 minutes /5 minute headway)
-    #     = 26.6 buses/hour ... 26.6 buses hour / 60 minutes = 2.25 effective headway"
-    #  to achieve an effective headway of 2.25 from these values, you must do, 
-    #  60/26.6 = 2.25, ie. NOT 26.6/60 , which = 0.44
-    #  Also note that this is a rate, and the value '60' could just as easily be '720' as '1'
-    #  The following are all equal to 2.25806451612903225808 , or 2.26
-    #  (the difference from 2.25 is due to rounding error in the published formula's initial sum)
-    #  SELECT 60/(60/10.0 + 60/7.0 + 60/5.0)  ;
-    #  SELECT 720/(720/10.0 + 720/7.0 + 720/5.0)  ;
-    #  SELECT 1/(1/10.0 + 1/7.0 + 1/5.0)      ;
-    #  For simplicity, we present this in its reduced form '1'
-    #  So, the required result is achieved using the method below
+    # The formula for effective headway within 800m is based on
+    # http://ngtsip.pbworks.com/w/page/12503387/Headway%20-%20Frequency
+    # supplied by Chris de Gruyter, and which presented formula
+    # SUM(60/headway)/60 
+    # however, this formula does not result in the estimate they present for
+    # their example
+    # "(60 minutes / 10 minute headway) + (60 minutes / 7 minute headway) + (60 minutes /5 minute headway)
+    #    = 26.6 buses/hour ... 26.6 buses hour / 60 minutes = 2.25 effective headway"
+    # to achieve an effective headway of 2.25 from these values, you must do, 
+    # 60/26.6 = 2.25, ie. NOT 26.6/60 , which = 0.44
+    # Also note that this is a rate, and the value '60' could just as easily be '720' as '1'
+    # The following are all equal to 2.25806451612903225808 , or 2.26
+    # (the difference from 2.25 is due to rounding error in the published formula's initial sum)
+    # SELECT 60/(60/10.0 + 60/7.0 + 60/5.0)  ;
+    # SELECT 720/(720/10.0 + 720/7.0 + 720/5.0)  ;
+    # SELECT 1/(1/10.0 + 1/7.0 + 1/5.0)      ;
+    # For simplicity, we present this in its reduced form '1'
+    # So, the required result is achieved using the method below
     
     # Additional note: Some stations in PT hubs at certain times (e.g. peak our in Sydney CBD) 
     # may approach a headway of zero --- and when rounding to nearest minute, this could actually

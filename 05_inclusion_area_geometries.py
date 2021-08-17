@@ -123,14 +123,10 @@ conn.commit()
 
 sql = '''
 ALTER TABLE {sample_point_feature} ADD COLUMN IF NOT EXISTS mb_code_2016 text;
-UPDATE {sample_point_feature} set mb_code_2016 = t.mb_code_2016
-FROM (SELECT p.{points_id}, 
-             m.mb_code_2016
-      FROM {sample_point_feature} AS p 
-      INNER JOIN area_linkage AS m
-       ON (ST_Intersects(p.geom, m.geom) 
-         AND NOT ST_Touches(p.geom, m.geom) )) t;
-'''.format(sample_point_feature = sample_point_feature, points_id = points_id)
+UPDATE {sample_point_feature} p set mb_code_2016 = m.mb_code_2016
+FROM area_linkage AS m
+WHERE ST_Intersects(p.geom, m.geom);
+'''.format(sample_point_feature = sample_point_feature)
 curs.execute(sql)
 conn.commit()
 

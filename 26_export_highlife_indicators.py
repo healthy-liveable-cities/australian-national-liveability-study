@@ -36,21 +36,25 @@ task = 'Export Highlife indicator region estimates'
 
 date = datetime.today().strftime('%Y%m%d')
 
-admin_db   = raw_input("Database: ")    
-admin_user = raw_input("Username: ")
+admin_db   = input("Database: ")    
+admin_user = input("Username: ")
 admin_pwd = getpass.getpass("Password for user {} on database {}: ".format(admin_user, admin_db))
 
 dfs_parcel = {}
 dfs_block = {}
 dfs_building = {}
-for locale in sys.argv[1:]:
-    print('\n{}\n'.format(region.title()))
+locales = sys.argv[1:]
+if len(locales) > 1:
+    locales.sort()
+    
+for locale in locales:
+    print('\n{}\n'.format(locale.title()))
     db = 'hl_{locale}_2019'.format(locale = locale)
     engine = create_engine("postgresql://{user}:{pwd}@{host}/{db}".format(user = admin_user,
                                                                  pwd  = admin_pwd,
                                                                  host = db_host,
                                                                  db   = db))
-
+    df_highlife_indicators.to_sql('ind_description',engine,if_exists='replace')
     out_file = '../data/highlife_analysis_{}_{}.sql'.format(locale,date)
     print("Creating sql dump to: {}".format(out_file)),
     command = commands = ( 
@@ -78,60 +82,73 @@ for locale in sys.argv[1:]:
     sp.call(command, shell=True)   
     print("Done.")
 
-    print("Copy results to csv...")
     print("  - parcel")
     sql = '''SELECT column_name FROM information_schema.columns WHERE table_schema='ind_point' AND table_name = '{}';'''
     li_cols = pandas.read_sql(sql.format('parcel_indicators'),engine).values
-    li_cols = ['p.{}'.format(x[0]) for x in li_cols if x!= 'geom']
+    li_cols = ['li.{}'.format(x[0]) for x in li_cols if x!= 'geom']
+    d_cols = pandas.read_sql(sql.format('dest_closest_indicators'),engine).values
+    d_cols = [x[0] for x in d_cols if x!= 'geom' and 'li.{}'.format(x[0]) not in li_cols]
     hl_cols = pandas.read_sql(sql.format('parcel_hl_inds_nh'),engine).values
-    hl_cols = [x[0] for x in hl_cols if 'p.{}'.format(x[0]) not in li_cols]
+    hl_cols = [x[0] for x in hl_cols if 'li.{}'.format(x[0]) not in li_cols]
     # Copy out parcel level results
     sql = '''
-    COPY (SELECT {li},
-                 {hl} 
-            FROM ind_point.parcel_indicators p 
-       LEFT JOIN ind_point.parcel_hl_inds_nh USING ({points_id}))
-      TO '../data/highlife_spatial_access_point_{date}.csv' CSV DELIMITER ',' HEADER;
+    SELECT {li},
+           {d},
+           {hl} 
+            FROM ind_point.parcel_indicators li 
+       LEFT JOIN ind_point.dest_closest_indicators d USING ({points_id})
+       LEFT JOIN ind_point.parcel_hl_inds_nh hl USING ({points_id})
     '''.format(li = ','.join(li_cols),
                hl = ','.join(hl_cols),
+               d = ','.join(d_cols),
                points_id = points_id)
-    engine.execute(sql)
+    dfs_parcel[locale] = pandas.read_sql(sql,engine)
 
     print("  - block")
     sql = '''SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name = '{}';'''
     li_cols = pandas.read_sql(sql.format('area_indicators_block'),engine).values
-    li_cols = ['p.{}'.format(x[0]) for x in li_cols if x!= 'geom']
+    li_cols = ['li.{}'.format(x[0]) for x in li_cols if x!= 'geom']
     hl_cols = pandas.read_sql(sql.format('area_hl_nh_inds_block'),engine).values
-    hl_cols = [x[0] for x in hl_cols if 'p.{}'.format(x[0]) not in li_cols]
+    hl_cols = [x[0] for x in hl_cols if 'li.{}'.format(x[0]) not in li_cols]
     # Copy out block level results
     sql = '''
-    COPY (SELECT {li},
-                 {hl} 
-            FROM public.area_indicators_block p 
-       LEFT JOIN public.area_hl_nh_inds_block USING (blockid))
-      TO '../data/highlife_spatial_block_{date}.csv' CSV DELIMITER ',' HEADER;
+    SELECT {li},
+           {hl} 
+            FROM public.area_indicators_block li
+       LEFT JOIN public.area_hl_nh_inds_block hl ON li.blockid   = hl.blockid 
+                                             AND li.wave      = hl.wave
+                                             AND li.blockname = hl.blockname;
     '''.format(li = ','.join(li_cols),
                hl = ','.join(hl_cols))
-    engine.execute(sql)
+    dfs_block[locale] = pandas.read_sql(sql,engine)
 
     print("  - building")
     sql = '''SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name = '{}';'''
     li_cols = pandas.read_sql(sql.format('area_indicators_building'),engine).values
-    li_cols = ['p.{}'.format(x[0]) for x in li_cols if x!= 'geom']
+    li_cols = ['li.{}'.format(x[0]) for x in li_cols if x!= 'geom']
     hl_cols = pandas.read_sql(sql.format('area_hl_nh_inds_building'),engine).values
-    hl_cols = [x[0] for x in hl_cols if 'p.{}'.format(x[0]) not in li_cols]
+    hl_cols = [x[0] for x in hl_cols if 'li.{}'.format(x[0]) not in li_cols]
     # Copy out Building level results
     sql = '''
-    COPY (SELECT {li},
-                 {hl} 
-            FROM public.area_indicators_building p 
-       LEFT JOIN public.area_hl_nh_inds_building USING (buildlingno))
-      TO '../data/highlife_spatial_buiding_{date}.csv' CSV DELIMITER ',' HEADER;
+    SELECT {li},
+           {hl} 
+            FROM public.area_indicators_building li 
+       LEFT JOIN public.area_hl_nh_inds_building hl ON li.buildlingno = hl.buildlingno 
+                                                   AND li.wave        = hl.wave
+                                                   AND li.buildname   = hl.buildname;
     '''.format(li = ','.join(li_cols),
                hl = ','.join(hl_cols))
-    engine.execute(sql)
+    dfs_building[locale] = pandas.read_sql(sql,engine)
 
-    # output to completion log
-    script_running_log(script, task, start)
     engine.dispose()
 
+print("Export results to csv...")
+print('../data/highlife_spatial_access_point_{}.csv'.format(date))
+pandas.concat(dfs_parcel).sort_values(['buildlingno','blockid','objectid']).to_csv('../data/highlife_spatial_access_point_{}.csv'.format(date),index=False)
+print('../data/highlife_spatial_block_{}.csv'.format(date))
+pandas.concat(dfs_block).sort_values('blockid').to_csv('../data/highlife_spatial_block_{}.csv'.format(date),index=False)   
+print('../data/highlife_spatial_building_{}.csv'.format(date))
+pandas.concat(dfs_building).sort_values('buildlingno').to_csv('../data/highlife_spatial_building_{}.csv'.format(date),index=False)
+
+# output to completion log
+script_running_log(script, task, start)

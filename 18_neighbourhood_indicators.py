@@ -459,7 +459,7 @@ if not res:
                         jsonb_array_elements(attributes) obj) o ON p.{points_id} = o.{points_id} 
             LEFT JOIN open_space.open_space_areas pos ON o.aos_id = pos.aos_id 
                 WHERE pos.aos_id IS NOT NULL  
-                    AND co_location_100m ? 'toilets'
+                    AND co_location_100m ? 'toilets_2018'
             GROUP BY p.{points_id} ) os_filtered ON orig.{points_id} = os_filtered.{points_id}
     WHERE t.{points_id} = orig.{points_id};
     '''.format(points_id = points_id, 

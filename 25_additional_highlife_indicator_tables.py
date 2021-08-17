@@ -74,6 +74,12 @@ df.set_index('building_id',inplace=True)
 df = df.query("state == '{}'".format(locale_dict[locale]))
 df.to_sql('distance_to_cbd',engine,if_exists='replace')
 
+
+df_uli = pandas.read_csv('../data/ntnl_li_sa1_dwelling_2018_20200319.csv')
+df_uli.set_index('sa1_maincode_2016',inplace=True)
+df_uli = df_uli.query("locale == '{}'".format(locale))
+df_uli[['ntnl_city_2018_walkability','ntnl_city_2018_uli']].to_sql('ntnl_city_2018_walkability_uli',engine,if_exists='replace',schema='ind_sa1')
+
 # NOTE: the distance to cbd data is currently not usable/matchable as the block id was not provided - so unable to match to specific polygons
 # ie. the id 'building id' (corresponding to 'buildlingno' I assume) is not unique, and I don't have the address data for matching
                  
@@ -102,13 +108,13 @@ for distance in distances:
     parcel_sql.append("ind_point.nh{distance}m.area_sqkm AS service_area_sqkm_{distance}m".format(distance=distance))
     parcel_sources.append("LEFT JOIN ind_point.nh{distance}m ON p.{points_id} = ind_point.nh{distance}m.{points_id}".format(distance=distance,
                                                                                                               points_id=points_id))
-    area_sql.append("avg(service_area_sqkm_{distance}m) AS service_area_sqkm_{distance}m".format(distance=distance))
+    area_sql.append("AVG(service_area_sqkm_{distance}m) AS service_area_sqkm_{distance}m".format(distance=distance))
 
 for destination in destinations:
     for distance in distances:
         parcel_sql.append("count_in_threshold({destination}.distances,{distance}) AS {destination}_count_{distance}m".format(destination=destination,
                                                                                                                   distance=distance))
-        area_sql.append("MAX({destination}_count_{distance}m) AS {destination}_count_{distance}m".format(destination=destination,
+        area_sql.append("AVG({destination}_count_{distance}m) AS {destination}_count_{distance}m".format(destination=destination,
                                                                                                              distance=distance))
     parcel_sources.append("LEFT JOIN d_3200m_cl.{destination} ON p.{points_id} = d_3200m_cl.{destination}.{points_id}".format(destination=destination,
                                                                                                               points_id=points_id))
@@ -128,6 +134,8 @@ sql = '''
           p.mb_code_2016                                         ,
           p.sa1_maincode_2016                                    ,
           p.sa2_name_2016                                        ,
+          ind_sa1.ntnl_city_2018_walkability_uli."ntnl_city_2018_walkability"  AS sa1_ntnl_city_2018_walkability,
+          ind_sa1.ntnl_city_2018_walkability_uli."ntnl_city_2018_uli"          AS sa1_ntnl_city_2018_uli,
           ind_sa1.abs_irsd_2011_sa1."2011_sa1_irsd_aust_score"  AS sa1_2011_irsd_aust_score  ,
           ind_sa1.abs_irsd_2011_sa1."2011_sa1_irsd_aust_rank"   AS sa1_2011_irsd_aust_rank   ,
           ind_sa1.abs_irsd_2011_sa1."2011_sa1_irsd_aust_decile" AS sa1_2011_irsd_aust_decile ,
@@ -146,6 +154,7 @@ sql = '''
           ind_sa2.abs_irsd_2016_sa2."2016_sa2_irsd_aust_pctile" AS sa2_2016_irsd_aust_pctile ,
           {indicators}
     FROM ind_point.parcel_indicators p   
+    LEFT JOIN ind_sa1.ntnl_city_2018_walkability_uli ON p.sa1_maincode_2016 = ind_sa1.ntnl_city_2018_walkability_uli.sa1_maincode_2016::text
     LEFT JOIN ind_sa1.abs_irsd_2011_sa1 ON p.sa1_maincode_2016 = ind_sa1.abs_irsd_2011_sa1.sa1_maincode_2016 
     LEFT JOIN ind_sa1.abs_irsd_2016_sa1 ON p.sa1_maincode_2016 = ind_sa1.abs_irsd_2016_sa1.sa1_maincode_2016 
     LEFT JOIN ind_sa2.abs_irsd_2011_sa2 ON p.sa2_name_2016 = ind_sa2.abs_irsd_2011_sa2.sa2_name_2016
@@ -171,9 +180,10 @@ sql = '''
            p.wave                  ,
            p.study_region          ,
            p.locale                ,
-           p.mb_code_2016          , 
            p.sa1_maincode_2016     ,
            p.sa2_name_2016         ,
+           ind_sa1.ntnl_city_2018_walkability_uli."ntnl_city_2018_walkability"  AS sa1_ntnl_city_2018_walkability,
+           ind_sa1.ntnl_city_2018_walkability_uli."ntnl_city_2018_uli"  AS sa1_ntnl_city_2018_uli,
            ind_sa1.abs_irsd_2011_sa1."2011_sa1_irsd_aust_score"  AS sa1_2011_irsd_aust_score  ,
            ind_sa1.abs_irsd_2011_sa1."2011_sa1_irsd_aust_rank"   AS sa1_2011_irsd_aust_rank   ,
            ind_sa1.abs_irsd_2011_sa1."2011_sa1_irsd_aust_decile" AS sa1_2011_irsd_aust_decile ,
@@ -192,6 +202,7 @@ sql = '''
            ind_sa2.abs_irsd_2016_sa2."2016_sa2_irsd_aust_pctile" AS sa2_2016_irsd_aust_pctile ,
            {indicators}
     FROM ind_point.parcel_hl_inds_nh p   
+    LEFT JOIN ind_sa1.ntnl_city_2018_walkability_uli ON p.sa1_maincode_2016 = ind_sa1.ntnl_city_2018_walkability_uli.sa1_maincode_2016::text
     LEFT JOIN ind_sa1.abs_irsd_2011_sa1 ON p.sa1_maincode_2016 = ind_sa1.abs_irsd_2011_sa1.sa1_maincode_2016 
     LEFT JOIN ind_sa1.abs_irsd_2016_sa1 ON p.sa1_maincode_2016 = ind_sa1.abs_irsd_2016_sa1.sa1_maincode_2016 
     LEFT JOIN ind_sa2.abs_irsd_2011_sa2 ON p.sa2_name_2016 = ind_sa2.abs_irsd_2011_sa2.sa2_name_2016
@@ -201,10 +212,10 @@ sql = '''
               p.wave                   ,
               p.study_region           ,
               p.locale                 ,
-              p.mb_code_2016           , 
               p.sa1_maincode_2016      ,
               p.sa2_name_2016          ,
-              ind_sa1.abs_irsd_2011_sa1."2011_sa1_irsd_aust_score"  ,
+              ind_sa1.ntnl_city_2018_walkability_uli."ntnl_city_2018_walkability"  ,
+              ind_sa1.ntnl_city_2018_walkability_uli."ntnl_city_2018_uli"  ,        ind_sa1.abs_irsd_2011_sa1."2011_sa1_irsd_aust_score"  ,
               ind_sa1.abs_irsd_2011_sa1."2011_sa1_irsd_aust_rank"   ,
               ind_sa1.abs_irsd_2011_sa1."2011_sa1_irsd_aust_decile" ,
               ind_sa1.abs_irsd_2011_sa1."2011_sa1_irsd_aust_pctile" ,
@@ -237,9 +248,10 @@ SELECT p.buildlingno           ,
        p.wave                  ,
        p.study_region          ,
        p.locale                ,
-       p.mb_code_2016          , 
        p.sa1_maincode_2016     ,
        p.sa2_name_2016         ,
+       ind_sa1.ntnl_city_2018_walkability_uli."ntnl_city_2018_walkability"  AS sa1_ntnl_city_2018_walkability,
+       ind_sa1.ntnl_city_2018_walkability_uli."ntnl_city_2018_uli"  AS sa1_ntnl_city_2018_uli,
        ind_sa1.abs_irsd_2011_sa1."2011_sa1_irsd_aust_score"  AS sa1_2011_irsd_aust_score  ,
        ind_sa1.abs_irsd_2011_sa1."2011_sa1_irsd_aust_rank"   AS sa1_2011_irsd_aust_rank   ,
        ind_sa1.abs_irsd_2011_sa1."2011_sa1_irsd_aust_decile" AS sa1_2011_irsd_aust_decile ,
@@ -259,6 +271,7 @@ SELECT p.buildlingno           ,
    {indicators}
    FROM
    ind_point.parcel_hl_inds_nh p   
+   LEFT JOIN ind_sa1.ntnl_city_2018_walkability_uli ON p.sa1_maincode_2016 = ind_sa1.ntnl_city_2018_walkability_uli.sa1_maincode_2016::text
    LEFT JOIN ind_sa1.abs_irsd_2011_sa1 ON p.sa1_maincode_2016 = ind_sa1.abs_irsd_2011_sa1.sa1_maincode_2016 
    LEFT JOIN ind_sa1.abs_irsd_2016_sa1 ON p.sa1_maincode_2016 = ind_sa1.abs_irsd_2016_sa1.sa1_maincode_2016 
    LEFT JOIN ind_sa2.abs_irsd_2011_sa2 ON p.sa2_name_2016 = ind_sa2.abs_irsd_2011_sa2.sa2_name_2016
@@ -268,9 +281,10 @@ SELECT p.buildlingno           ,
              p.wave                  ,
              p.study_region          ,
              p.locale                ,
-             p.mb_code_2016          , 
              p.sa1_maincode_2016     ,
              p.sa2_name_2016         ,
+              ind_sa1.ntnl_city_2018_walkability_uli."ntnl_city_2018_walkability"  ,
+              ind_sa1.ntnl_city_2018_walkability_uli."ntnl_city_2018_uli"  ,   
               ind_sa1.abs_irsd_2011_sa1."2011_sa1_irsd_aust_score"  ,
               ind_sa1.abs_irsd_2011_sa1."2011_sa1_irsd_aust_rank"   ,
               ind_sa1.abs_irsd_2011_sa1."2011_sa1_irsd_aust_decile" ,
